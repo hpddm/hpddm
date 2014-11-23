@@ -421,7 +421,7 @@ int main(int argc, char **argv) {
         double storage[2];
         K.computeError(sol, f, storage);
         if(rankWorld == 0)
-            std::cout << std::scientific << " --- runtime: " << timing << " - error = " << storage[1] << " / " << storage[0] << std::endl;
+            std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
         delete [] d;
     }
     else {
@@ -432,10 +432,10 @@ int main(int argc, char **argv) {
         timing = MPI_Wtime() - timing;
         double nrmb = HPDDM::Wrapper<double>::nrm2(&ndof, f, &HPDDM::i__1);
         double* tmp = new double[ndof];
-        HPDDM::Wrapper<double>::template csrmv<'C'>(sym, &ndof, a, ia, ja, sol, tmp);
+        HPDDM::Wrapper<double>::csrmv<'C'>(sym, &ndof, a, ia, ja, sol, tmp);
         HPDDM::Wrapper<double>::axpy(&ndof, &(HPDDM::Wrapper<double>::d__2), f, &HPDDM::i__1, tmp, &HPDDM::i__1);
         double nrmAx = HPDDM::Wrapper<double>::nrm2(&ndof, tmp, &HPDDM::i__1);
-        std::cout << std::scientific << " --- runtime: " << timing << " - error = " << nrmAx << " / " << nrmb << std::endl;
+        std::cout << std::scientific << " --- error = " << nrmAx << " / " << nrmb << std::endl;
         delete [] tmp;
     }
 

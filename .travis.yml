@@ -1,0 +1,43 @@
+os:
+  - linux
+  - osx
+
+git:
+  depth: 1
+  submodules: false
+
+language: cpp
+
+compiler:
+  - clang
+  - gcc
+
+before_install:
+  - if [ "$TRAVIS_OS_NAME" == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get update -qq; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" -a "$CXX" == "g++" ]; then sudo apt-get install -qq g++-4.9; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" -a "$CXX" == "g++" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libmumps-dev libsuitesparse-dev libarpack2; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew tap homebrew/science; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install gcc arpack cmake scalapack veclibfort; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install open-mpi --c++11; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install mumps; fi
+
+install:
+  - cd interface
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -cxx=`echo $CXX` -std=c++11 schwarz.cpp -I../src -I/usr/include/suitesparse/ -I/usr/include/ -DMUMPSSUB -DDMUMPS -L/usr/lib -L/usr/lib/libblas -lblas -L/usr/lib/liblapack -llapack -lmpi_f77 -ldmumps -lzmumps -lmumps_common -lpord -lscalapack-openmpi -lgfortran -lmpi_f77; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -cxx=`echo $CXX` -std=c++11 schwarz.cpp -I../src -I/usr/local/include/ -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -ldmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
+
+script:
+  - mpirun -np 1 ./a.out 0 100 100 0 1.0e-8 0
+  - mpirun -np 2 ./a.out 2 100 100 1 1.0e-8 1
+
+notifications:
+  email:
+    recipients:
+      - jolivet@ann.jussieu.fr
+
+branches:
+  only:
+    - master
