@@ -1,0 +1,72 @@
+Format: 1.52
+
+
+Title: HPDDM
+SubTitle: A framework for high-performance domain decomposition methods
+
+Footer: Pierre Jolivet
+Timestamp: Generated on month day, year
+#   m     - One or two digit month.  January is "1"
+#   mm    - Always two digit month.  January is "01"
+#   mon   - Short month word.  January is "Jan"
+#   month - Long month word.  January is "January"
+#   d     - One or two digit day.  1 is "1"
+#   dd    - Always two digit day.  1 is "01"
+#   day   - Day with letter extension.  1 is "1st"
+#   yy    - Two digit year.  2006 is "06"
+#   yyyy  - Four digit year.  2006 is "2006"
+#   year  - Four digit year.  2006 is "2006"
+
+
+# --------------------------------------------------------------------------
+# 
+# Cut and paste the lines below to change the order in which your files
+# appear on the menu.  Don't worry about adding or removing files, Natural
+# Docs will take care of that.
+# 
+# You can further organize the menu by grouping the entries.  Add a
+# "Group: [name] {" line to start a group, and add a "}" to end it.
+# 
+# You can add text and web links to the menu by adding "Text: [text]" and
+# "Link: [name] ([URL])" lines, respectively.
+# 
+# The formatting and comments are auto-generated, so don't worry about
+# neatness when editing the file.  Natural Docs will clean it up the next
+# time it is run.  When working with groups, just deal with the braces and
+# forget about the indentation and comments.
+# 
+# --------------------------------------------------------------------------
+
+
+File: HPDDM  (no auto-title, HPDDM.hpp)
+File: Arpack  (ARPACK.hpp)
+File: Bdd  (BDD.hpp)
+File: Coarse operator  (coarse_operator.hpp)
+File: DMatrix  (dmatrix.hpp)
+File: Eigensolver  (eigensolver.hpp)
+File: Enum  (no auto-title, enum.hpp)
+File: Feti  (FETI.hpp)
+File: Iterative method  (iterative.hpp)
+File: Lapack  (LAPACK.hpp)
+File: MatrixCSR  (matrix.hpp)
+File: MKL Pardiso  (MKL_PARDISO.hpp)
+File: Mumps  (MUMPS.hpp)
+File: Pastix  (PaStiX.hpp)
+File: Preconditioner  (preconditioner.hpp)
+File: Schur  (schur.hpp)
+File: Schwarz  (schwarz.hpp)
+File: Subdomain  (subdomain.hpp)
+File: SuiteSparse  (SuiteSparse.hpp)
+File: Wrapper  (wrapper.hpp)
+
+Group: Index  {
+
+   Index: Everything
+   Class Index: Classes
+   Constant Index: Constants
+   File Index: Files
+   Function Index: Functions
+   Type Index: Types
+   Variable Index: Variables
+   }  # Group: Index
+
