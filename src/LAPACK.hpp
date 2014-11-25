@@ -23,6 +23,7 @@
 #ifndef _LAPACK_
 #define _LAPACK_
 
+#if !defined(INTEL_MKL_VERSION)
 extern "C" {
 void HPDDM_F77(dpotrf)(const char*, const int*, double*, const int*, int*);
 void HPDDM_F77(zpotrf)(const char*, const int*, std::complex<double>*, const int*, int*);
@@ -38,6 +39,7 @@ void HPDDM_F77(zstein)(const int*, const double*, const double*, const int*, con
 void HPDDM_F77(dormtr)(const char*, const char*, const char*, const int*, const int*, const double*, const int*, const double*, double*, const int*, double*, const int*, int*);
 void HPDDM_F77(zunmtr)(const char*, const char*, const char*, const int*, const int*, const std::complex<double>*, const int*, const std::complex<double>*, std::complex<double>*, const int*, std::complex<double>*, const int*, int*);
 }
+#endif // INTEL_MKL_VERSION
 
 namespace HPDDM {
 /* Class: Lapack

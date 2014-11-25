@@ -43,7 +43,7 @@
 #define HPDDM_MAXCO           20
 #define HPDDM_GRANULARITY     50000
 #define HPDDM_OUTPUT_CO       0
-#define HPDDM_MKL             0
+#define HPDDM_MKL             1
 #define HPDDM_SCHWARZ         1
 #define HPDDM_FETI            1
 #define HPDDM_BDD             1
@@ -83,6 +83,7 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #define HPDDM_F77(func) func ## _
 #endif
 
+#if !defined(INTEL_MKL_VERSION)
 extern "C" {
 void    HPDDM_F77(daxpy)(const int*, const double*, const double*, const int*, double*, const int*);
 void    HPDDM_F77(zaxpy)(const int*, const std::complex<double>*, const std::complex<double>*, const int*, std::complex<double>*, const int*);
@@ -130,6 +131,7 @@ void cblas_zsctr(const int, const std::complex<double>*, const int*, std::comple
 #endif
 #endif
 }
+#endif // INTEL_MKL_VERSION
 
 #include <vector>
 #include <algorithm>

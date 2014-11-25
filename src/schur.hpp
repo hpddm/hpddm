@@ -375,28 +375,29 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     int* ii = new int[Subdomain<K>::_dof + 1];
                     ii[0] = 0;
                     _bb->_ia[0] = (Wrapper<K>::I == 'F');
-                    std::vector<int> boundaryCond;
-                    if(!Subdomain<K>::_a->_sym)
-                        boundaryCond.reserve(Subdomain<K>::_dof - interface.size());
+                    std::pair<std::vector<int>, std::vector<int>> boundaryCond;
+                    boundaryCond.first.reserve(Subdomain<K>::_dof - interface.size());
+                    boundaryCond.second.reserve(interface.size());
                     for(i = 0; i < Subdomain<K>::_dof; ++i) {
                         signed int row = vec[i];
                         unsigned int stop;
-                        if(!Subdomain<K>::_a->_sym) {
+                        if(!Subdomain<K>::_a->_sym)
                             stop = std::distance(Subdomain<K>::_a->_ja, std::upper_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i + 1], i));
-                            if(row < 0) {
-                                bool isBoundaryCond = true;
-                                for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
-                                    if(i != Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
-                                        isBoundaryCond = false;
-                                    else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - 1.0) > HPDDM_EPS)
-                                        isBoundaryCond = false;
-                                }
-                                if(isBoundaryCond)
-                                    boundaryCond.push_back(-row);
-                            }
-                        }
                         else
                             stop = Subdomain<K>::_a->_ia[i + 1];
+                        bool isBoundaryCond = true;
+                        for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
+                            if(i != Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
+                                isBoundaryCond = false;
+                            else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - 1.0) > HPDDM_EPS)
+                                isBoundaryCond = false;
+                        }
+                        if(isBoundaryCond) {
+                            if(row > 0)
+                                boundaryCond.second.push_back(row);
+                            else
+                                boundaryCond.first.push_back(-row);
+                        }
                         for(j = Subdomain<K>::_a->_ia[i]; j < stop; ++j) {
                             const K val = Subdomain<K>::_a->_a[j];
                             if(std::abs(val) > HPDDM_EPS) {
@@ -404,10 +405,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                                 if(col > 0) {
                                     if(row < 0)
                                         tmpInteraction[col - 1].emplace_back(-row - (Wrapper<K>::I != 'F'), val);
-                                    else
+                                    else if(col == row || !std::binary_search(boundaryCond.second.cbegin(), boundaryCond.second.cend(), col))
                                         tmpBoundary.emplace_back(col - (Wrapper<K>::I != 'F'), val);
                                 }
-                                else if(Subdomain<K>::_a->_sym || col == row || !std::binary_search(boundaryCond.cbegin(), boundaryCond.cend(), -col)) {
+                                else if(col == row || !std::binary_search(boundaryCond.first.cbegin(), boundaryCond.first.cend(), -col)) {
                                     if(row < 0)
                                         tmpInterior.emplace_back(-col - 1, val);
                                     else
@@ -433,7 +434,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     for(i = 0, j = 0; i < tmpInteraction.size(); ++i) {
                         for(const std::pair<unsigned int, K>& p : tmpInteraction[i]) {
                             _bi->_ja[j] = p.first;
-                            _bi->_a[j++]  = p.second;
+                            _bi->_a[j++] = p.second;
                         }
                         _bi->_ia[i + 1] = j + (Wrapper<K>::I == 'F');
                     }
@@ -442,12 +443,12 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     _bb->_ja = new int[_bb->_nnz];
                     for(i = 0; i < tmpBoundary.size(); ++i) {
                         _bb->_ja[i] = tmpBoundary[i].first;
-                        _bb->_a[i]  = tmpBoundary[i].second;
+                        _bb->_a[i] = tmpBoundary[i].second;
                     }
                     for(i = 0; i < _bb->_n; ++i) {
                         if(Wrapper<K>::I == 'F')
                             for(j = 0; j < _bi->_ia[i + 1] - _bi->_ia[i]; ++j)
-                                Subdomain<K>::_a->_ja[ii[_bi->_m + i] + j] = *(_bi->_ja + _bi->_ia[i] - 1 + j) - 1;
+                                Subdomain<K>::_a->_ja[ii[_bi->_m + i] + j] = _bi->_ja[_bi->_ia[i] - 1 + j] - 1;
                         else
                             std::copy(_bi->_ja + _bi->_ia[i], _bi->_ja + _bi->_ia[i + 1], Subdomain<K>::_a->_ja + ii[_bi->_m + i]);
                         std::copy(_bi->_a + _bi->_ia[i] - (Wrapper<K>::I == 'F'), _bi->_a + _bi->_ia[i + 1] - (Wrapper<K>::I == 'F'), Subdomain<K>::_a->_a + ii[_bi->_m + i]);
