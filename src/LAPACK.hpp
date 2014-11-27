@@ -23,21 +23,23 @@
 #ifndef _LAPACK_
 #define _LAPACK_
 
+#define HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, SYM, ORT)                                                      \
+void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
+void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
+                           const int*, T*, const int*, int*);                                                \
+void HPDDM_F77(C ## SYM ## gst)(const int*, const char*, const int*, T*, const int*,                         \
+                                const T*, const int*, int*);                                                 \
+void HPDDM_F77(C ## SYM ## trd)(const char*, const int*, T*, const int*, U*, U*, T*, T*, const int*, int*);  \
+void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*, const int*,                 \
+                           const int*, T*, const int*, U*, int*, int*, int*);                                \
+void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
+                                const T*, const int*, const T*, T*, const int*, T*, const int*, int*);
+
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
-void HPDDM_F77(dpotrf)(const char*, const int*, double*, const int*, int*);
-void HPDDM_F77(zpotrf)(const char*, const int*, std::complex<double>*, const int*, int*);
-void HPDDM_F77(dtrtrs)(const char*, const char*, const char*, const int*, const int*, const double*, const int*, double*, const int*, int*);
-void HPDDM_F77(ztrtrs)(const char*, const char*, const char*, const int*, const int*, const std::complex<double>*, const int*, std::complex<double>*, const int*, int*);
-void HPDDM_F77(dsygst)(const int*, const char*, const int*, double*, const int*, const double*, const int*, int*);
-void HPDDM_F77(zhegst)(const int*, const char*, const int*, std::complex<double>*, const int*, const std::complex<double>*, const int*, int*);
-void HPDDM_F77(dsytrd)(const char*, const int*, double*, const int*, double*, double*, double*, double*, const int*, int*);
-void HPDDM_F77(zhetrd)(const char*, const int*, std::complex<double>*, const int*, double*, double*, std::complex<double>*, std::complex<double>*, const int*, int*);
+HPDDM_GENERATE_EXTERN_LAPACK(d, double, double, sy, or)
+HPDDM_GENERATE_EXTERN_LAPACK(z, std::complex<double>, double, he, un)
 void HPDDM_F77(dstebz)(const char*, const char*, const int*, const double*, const double*, const int*, const int*, const double*, const double*, const double*, int*, int*, double*, int*, int*, double*, int*, int*);
-void HPDDM_F77(dstein)(const int*, const double*, const double*, const int*, const double*, const int*, const int*, double*, const int*, double*, int*, int*, int*);
-void HPDDM_F77(zstein)(const int*, const double*, const double*, const int*, const double*, const int*, const int*, std::complex<double>*, const int*, double*, int*, int*, int*);
-void HPDDM_F77(dormtr)(const char*, const char*, const char*, const int*, const int*, const double*, const int*, const double*, double*, const int*, double*, const int*, int*);
-void HPDDM_F77(zunmtr)(const char*, const char*, const char*, const int*, const int*, const std::complex<double>*, const int*, const std::complex<double>*, std::complex<double>*, const int*, std::complex<double>*, const int*, int*);
 }
 #endif // INTEL_MKL_VERSION
 
@@ -148,63 +150,44 @@ class Lapack : public Eigensolver {
         }
 };
 
-template<>
-inline void Lapack<double>::potrf(const char* uplo, const int* n, double* a, const int* lda, int* info) {
-    HPDDM_F77(dpotrf)(uplo, n, a, lda, info);
+#define HPDDM_GENERATE_LAPACK(C, T, U, SYM, ORT)                                                             \
+template<>                                                                                                   \
+inline void Lapack<T>::potrf(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \
+    HPDDM_F77(C ## potrf)(uplo, n, a, lda, info);                                                            \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n,            \
+                             const int* nrhs, const T* a, const int* lda, T* b, const int* ldb, int* info) { \
+    HPDDM_F77(C ## trtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info);                                 \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::gst(const int* itype, const char* uplo, const int* n,                                 \
+                           T* a, const int* lda, T* b, const int* ldb, int* info) {                          \
+    HPDDM_F77(C ## SYM ## gst)(itype, uplo, n, a, lda, b, ldb, info);                                        \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::stein(const int* n, const U* d, const U* e, const int* m, const U* w,                 \
+                             const int* iblock, const int* isplit, T* z, const int* ldz,                     \
+                             U* work, int* iwork, int* ifailv, int* info) {                                  \
+    HPDDM_F77(C ## stein)(n, d, e, m, w, iblock, isplit, z, ldz, work, iwork, ifailv, info);                 \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::trd(const char* uplo, const int* n, T* a, const int* lda,                             \
+                           U* d, U* e, T* tau, T* work, const int* lwork, int* info) {                       \
+    HPDDM_F77(C ## SYM ## trd)(uplo, n, a, lda, d, e, tau, work, lwork, info);                               \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::mtr(const char* side, const char* uplo, const char* trans, const int* m,              \
+                           const int* n, const T* a, const int* lda, const T* tau, T* c, const int* ldc,     \
+                           T* work, const int* lwork, int* info) {                                           \
+    HPDDM_F77(C ## ORT ## mtr)(side, uplo, trans, m, n, a, lda, tau, c, ldc, work, lwork, info);             \
 }
-template<>
-inline void Lapack<std::complex<double>>::potrf(const char* uplo, const int* n, std::complex<double>* a, const int* lda, int* info) {
-    HPDDM_F77(zpotrf)(uplo, n, a, lda, info);
-}
-
-template<>
-inline void Lapack<double>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n, const int* nrhs, const double* a, const int* lda, double* b, const int* ldb, int* info) {
-    HPDDM_F77(dtrtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info);
-}
-template<>
-inline void Lapack<std::complex<double>>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n, const int* nrhs, const std::complex<double>* a, const int* lda, std::complex<double>* b, const int* ldb, int* info) {
-    HPDDM_F77(ztrtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info);
-}
-
-template<>
-inline void Lapack<double>::gst(const int* itype, const char* uplo, const int* n, double* a, const int* lda, double* b, const int* ldb, int* info) {
-    HPDDM_F77(dsygst)(itype, uplo, n, a, lda, b, ldb, info);
-}
-template<>
-inline void Lapack<std::complex<double>>::gst(const int* itype, const char* uplo, const int* n, std::complex<double>* a, const int* lda, std::complex<double>* b, const int* ldb, int* info) {
-    HPDDM_F77(zhegst)(itype, uplo, n, a, lda, b, ldb, info);
-}
-
-template<>
-inline void Lapack<double>::stein(const int* n, const double* d, const double* e, const int* m, const double* w, const int* iblock, const int* isplit, double* z, const int* ldz, double* work, int* iwork, int* ifail, int* info) {
-    HPDDM_F77(dstein)(n, d, e, m, w, iblock, isplit, z, ldz, work, iwork, ifail, info);
-}
-template<>
-inline void Lapack<std::complex<double>>::stein(const int* n, const double* d, const double* e, const int* m, const double* w, const int* iblock, const int* isplit, std::complex<double>* z, const int* ldz, double* work, int* iwork, int* ifailv, int* info) {
-    HPDDM_F77(zstein)(n, d, e, m, w, iblock, isplit, z, ldz, work, iwork, ifailv, info);
-}
-
-template<>
-inline void Lapack<double>::trd(const char* uplo, const int* n, double* a, const int* lda, double* d, double* e, double* tau, double* work, const int* lwork, int* info) {
-    HPDDM_F77(dsytrd)(uplo, n, a, lda, d, e, tau, work, lwork, info);
-}
-template<>
-inline void Lapack<std::complex<double>>::trd(const char* uplo, const int* n, std::complex<double>* a, const int* lda, double* d, double* e, std::complex<double>* tau, std::complex<double>* work, const int* lwork, int* info) {
-    HPDDM_F77(zhetrd)(uplo, n, a, lda, d, e, tau, work, lwork, info);
-}
+HPDDM_GENERATE_LAPACK(d, double, double, sy, or)
+HPDDM_GENERATE_LAPACK(z, std::complex<double>, double, he, un)
 
 template<class K>
 inline void Lapack<K>::stebz(const char* range, const char* order, const int* n, const double* vl, const double* vu, const int* il, const int* iu, const double* abstol, const double* d, const double* e, int* m, int* nsplit, double* w, int* iblock, int* isplit, double* work, int* iwork, int* info) {
     HPDDM_F77(dstebz)(range, order, n, vl, vu, il, iu, abstol, d, e, m, nsplit, w, iblock, isplit, work, iwork, info);
-}
-
-template<>
-inline void Lapack<double>::mtr(const char* side, const char* uplo, const char* trans, const int* m, const int* n, const double* a, const int* lda, const double* tau, double* c, const int* ldc, double* work, const int* lwork, int* info) {
-    HPDDM_F77(dormtr)(side, uplo, trans, m, n, a, lda, tau, c, ldc, work, lwork, info);
-}
-template<>
-inline void Lapack<std::complex<double>>::mtr(const char* side, const char* uplo, const char* trans, const int* m, const int* n, const std::complex<double>* a, const int* lda, const std::complex<double>* tau, std::complex<double>* c, const int* ldc, std::complex<double>* work, const int* lwork, int* info) {
-    HPDDM_F77(zunmtr)(side, uplo, trans, m, n, a, lda, tau, c, ldc, work, lwork, info);
 }
 } // HPDDM
 #endif // _LAPACK_

@@ -43,7 +43,7 @@
 #define HPDDM_MAXCO           20
 #define HPDDM_GRANULARITY     50000
 #define HPDDM_OUTPUT_CO       0
-#define HPDDM_MKL             1
+#define HPDDM_MKL             0
 #define HPDDM_SCHWARZ         1
 #define HPDDM_FETI            1
 #define HPDDM_BDD             1
@@ -83,34 +83,29 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #define HPDDM_F77(func) func ## _
 #endif
 
+#define HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                     \
+void    HPDDM_F77(C ## axpy)(const int*, const T*, const T*, const int*, T*, const int*);                    \
+void    HPDDM_F77(C ## scal)(const int*, const T*, T*, const int*);                                          \
+void   HPDDM_F77(C ## lacpy)(const char*, const int*, const int*, const T*, const int*, T*, const int*);     \
+void    HPDDM_F77(C ## symv)(const char*, const int*, const T*, const T*, const int*,                        \
+                             const T*, const int*, const T*, T*, const int*);                                \
+void    HPDDM_F77(C ## gemv)(const char*, const int*, const int*, const T*,                                  \
+                             const T*, const int*, const T*, const int*,                                     \
+                             const T*, T*, const int*);                                                      \
+void    HPDDM_F77(C ## symm)(const char*, const char*, const int*, const int*,                               \
+                             const T*, const T*, const int*, const T*, const int*,                           \
+                             const T*, T*, const int*);                                                      \
+void    HPDDM_F77(C ## gemm)(const char*, const char*, const int*, const int*, const int*,                   \
+                             const T*, const T*, const int*, const T*, const int*,                           \
+                             const T*, T*, const int*);
+
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
-void    HPDDM_F77(daxpy)(const int*, const double*, const double*, const int*, double*, const int*);
-void    HPDDM_F77(zaxpy)(const int*, const std::complex<double>*, const std::complex<double>*, const int*, std::complex<double>*, const int*);
-void    HPDDM_F77(dscal)(const int*, const double*, double*, const int*);
-void    HPDDM_F77(zscal)(const int*, const std::complex<double>*, std::complex<double>*, const int*);
+HPDDM_GENERATE_EXTERN_BLAS(d, double)
+HPDDM_GENERATE_EXTERN_BLAS(z, std::complex<double>)
 double  HPDDM_F77(dnrm2)(const int*, const double*, const int*);
 double HPDDM_F77(dznrm2)(const int*, const std::complex<double>*, const int*);
 double   HPDDM_F77(ddot)(const int*, const double*, const int*, const double*, const int*);
-void   HPDDM_F77(dlacpy)(const char*, const int*, const int*, const double*, const int*, double*, const int*);
-void   HPDDM_F77(zlacpy)(const char*, const int*, const int*, const std::complex<double>*, const int*, std::complex<double>*, const int*);
-void    HPDDM_F77(dsymv)(const char*, const int*, const double*, const double*, const int*,
-                         const double*, const int*, const double*, double*, const int*);
-void    HPDDM_F77(dgemv)(const char*, const int*, const int*, const double*,
-                         const double*, const int*, const double*, const int*,
-                         const double*, double*, const int*);
-void    HPDDM_F77(zgemv)(const char*, const int*, const int*, const std::complex<double>*,
-                         const std::complex<double>*, const int*, const std::complex<double>*, const int*,
-                         const std::complex<double>*, std::complex<double>*, const int*);
-void    HPDDM_F77(dsymm)(const char*, const char*, const int*, const int*,
-                         const double*, const double*, const int*, const double*, const int*,
-                         const double*, double*, const int*);
-void    HPDDM_F77(dgemm)(const char*, const char*, const int*, const int*, const int*,
-                         const double*, const double*, const int*, const double*, const int*,
-                         const double*, double*, const int*);
-void    HPDDM_F77(zgemm)(const char*, const char*, const int*, const int*, const int*,
-                         const std::complex<double>*, const std::complex<double>*, const int*, const std::complex<double>*, const int*,
-                         const std::complex<double>*, std::complex<double>*, const int*);
 #if !defined(__APPLE__) && !HPDDM_MKL
 double _Complex HPDDM_F77(zdotc)(const int*, const std::complex<double>*, const int*, const std::complex<double>*, const int*);
 #else

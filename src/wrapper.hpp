@@ -24,6 +24,17 @@
 #define _WRAPPER_
 
 namespace HPDDM {
+template<class T>
+struct underlying_type_spec {
+    typedef T type;
+};
+template<class T>
+struct underlying_type_spec<std::complex<T>> {
+    typedef T type;
+};
+
+template <class T>
+using underlying_type = typename underlying_type_spec<T>::type;
 /* Class: Wrapper
  *
  *  A class for handling all dense and sparse linear algebra.
@@ -36,6 +47,9 @@ class Wrapper {
         /* Function: mpi_type
          *  Returns the MPI datatype of the template parameter of <Wrapper>. */
         static inline MPI_Datatype mpi_type();
+        /* Typedef: ul_type
+         *  Scalar underlying type, e.g. double (resp. float) for std::complex<double> (resp. std::complex<float>). */
+        typedef underlying_type<K> ul_type;
         /* Variable: transc
          *  Transposed real operators or conjugated transposed complex operators. */
         static const char transc;
@@ -76,6 +90,7 @@ class Wrapper {
          *  Computes a scalar-matrix-vector product. */
         static inline void gemv(const char* const, const int* const, const int* const, const K* const, const K* const,
                                 const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+
         /* Function: symm
          *  Computes a symmetric scalar-matrix-matrix product. */
         static inline void symm(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
@@ -145,22 +160,57 @@ inline MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
 template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
 
-template<>
-inline void Wrapper<double>::axpy(const int* const n, const double* const a, const double* const x, const int* const incx, double* const y, const int* const incy) {
-    HPDDM_F77(daxpy)(n, a, x, incx, y, incy);
+#define HPDDM_GENERATE_BLAS(C, T)                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::axpy(const int* const n, const T* const a,                                           \
+                             const T* const x, const int* const incx,                                        \
+                             T* const y, const int* const incy) {                                            \
+    HPDDM_F77(C ## axpy)(n, a, x, incx, y, incy);                                                            \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::scal(const int* const n, const T* const a, T* const x, const int* const incx) {      \
+    HPDDM_F77(C ## scal)(n, a, x, incx);                                                                     \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::lacpy(const char* const uplo, const int* const m, const int* const n,                \
+                              const T* const a, const int* const lda, T* const b, const int* const ldb) {    \
+    HPDDM_F77(C ## lacpy)(uplo, m, n, a, lda, b, ldb);                                                       \
+}                                                                                                            \
+                                                                                                             \
+template<>                                                                                                   \
+inline void Wrapper<T>::symv(const char* const uplo, const int* const n,                                     \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const b, const int* const ldb, const T* const beta,                    \
+                             T* const c, const int* const ldc) {                                             \
+    HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);                                      \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::gemv(const char* const trans, const int* const m, const int* const n,                \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const b, const int* const ldb, const T* const beta,                    \
+                             T* const c, const int* const ldc) {                                             \
+    HPDDM_F77(C ## gemv)(trans, m, n, alpha, a, lda, b, ldb, beta, c, ldc);                                  \
+}                                                                                                            \
+                                                                                                             \
+template<>                                                                                                   \
+inline void Wrapper<T>::symm(const char* const side, const char* const uplo,                                 \
+                             const int* const m, const int* const n,                                         \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const b, const int* const ldb, const T* const beta,                    \
+                             T* const c, const int* const ldc) {                                             \
+    HPDDM_F77(C ## symm)(side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);                             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::gemm(const char* const transa, const char* const transb, const int* const m,         \
+                             const int* const n, const int* const k,                                         \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const b, const int* const ldb, const T* const beta,                    \
+                             T* const c, const int* const ldc) {                                             \
+    HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
 }
-template<>
-inline void Wrapper<std::complex<double>>::axpy(const int* const n, const std::complex<double>* const a, const std::complex<double>* const x, const int* const incx, std::complex<double>* const y, const int* const incy) {
-    HPDDM_F77(zaxpy)(n, a, x, incx, y, incy);
-}
-template<>
-inline void Wrapper<double>::scal(const int* const n, const double* const a, double* const x, const int* const incx) {
-    HPDDM_F77(dscal)(n, a, x, incx);
-}
-template<>
-inline void Wrapper<std::complex<double>>::scal(const int* const n, const std::complex<double>* const a, std::complex<double>* const x, const int* const incx) {
-    HPDDM_F77(zscal)(n, a, x, incx);
-}
+HPDDM_GENERATE_BLAS(d, double)
+HPDDM_GENERATE_BLAS(z, std::complex<double>)
+
 template<>
 inline double Wrapper<double>::nrm2(const int* const n, const double* const x, const int* const incx) {
     return HPDDM_F77(dnrm2)(n, x, incx);
@@ -183,39 +233,6 @@ inline double Wrapper<std::complex<double>>::dot(const int* const n, const std::
 #endif
     return std::real(res);
 }
-template<>
-inline void Wrapper<double>::lacpy(const char* const uplo, const int* const m, const int* const n, const double* const a, const int* const lda, double* const b, const int* const ldb) {
-    HPDDM_F77(dlacpy)(uplo, m, n, a, lda, b, ldb);
-}
-template<>
-inline void Wrapper<std::complex<double>>::lacpy(const char* const uplo, const int* const m, const int* const n, const std::complex<double>* const a, const int* const lda, std::complex<double>* const b, const int* const ldb) {
-    HPDDM_F77(zlacpy)(uplo, m, n, a, lda, b, ldb);
-}
-
-template<>
-inline void Wrapper<double>::symv(const char* const uplo, const int* const n, const double* const alpha, const double* const a, const int* const lda, const double* const b, const int* const ldb, const double* const beta, double* const c, const int* const ldc) {
-    HPDDM_F77(dsymv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);
-}
-template<>
-inline void Wrapper<double>::gemv(const char* const trans, const int* const m, const int* const n, const double* const alpha, const double* const a, const int* const lda, const double* const b, const int* const ldb, const double* const beta, double* const c, const int* const ldc) {
-    HPDDM_F77(dgemv)(trans, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
-}
-template<>
-inline void Wrapper<std::complex<double>>::gemv(const char* const trans, const int* const m, const int* const n, const std::complex<double>* const alpha, const std::complex<double>* const a, const int* const lda, const std::complex<double>* const b, const int* const ldb, const std::complex<double>* const beta, std::complex<double>* const c, const int* const ldc) {
-    HPDDM_F77(zgemv)(trans, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
-}
-template<>
-inline void Wrapper<double>::symm(const char* const side, const char* const uplo, const int* const m, const int* const n, const double* const alpha, const double* const a, const int* const lda, const double* const b, const int* const ldb, const double* const beta, double* const c, const int* const ldc) {
-    HPDDM_F77(dsymm)(side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
-}
-template<>
-inline void Wrapper<double>::gemm(const char* const transa, const char* const transb, const int* const m, const int* const n, const int* const k, const double* const alpha, const double* const a, const int* const lda, const double* const b, const int* const ldb, const double* const beta, double* const c, const int* const ldc) {
-    HPDDM_F77(dgemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-}
-template<>
-inline void Wrapper<std::complex<double>>::gemm(const char* const transa, const char* const transb, const int* const m, const int* const n, const int* const k, const std::complex<double>* const alpha, const std::complex<double>* const a, const int* const lda, const std::complex<double>* const b, const int* const ldb, const std::complex<double>* const beta, std::complex<double>* const c, const int* const ldc) {
-    HPDDM_F77(zgemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
-}
 
 template<class K>
 inline void Wrapper<K>::diagv(const int& n, const double* const d, K* const in) {
@@ -237,79 +254,55 @@ const char matdescr<N>::a[6] = { 'G', '0', '0', N, '0', '0' };
 template<char N>
 const char matdescr<N>::b[6] = { 'S', 'L', 'N', N, '0', '0' };
 
-template<>
-template<char N>
-inline void Wrapper<double>::csrmv(bool sym, const int* const n, const double* const a, const int* const ia, const int* const ja, const double* const x, double* const y) {
-    static_assert(N == 'C', "Unsupported matrix indexing");
-    if(sym)
-        mkl_cspblas_dcsrsymv(&uplo, n, a, ia, ja, x, y);
-    else
-        mkl_cspblas_dcsrgemv(&transa, n, a, ia, ja, x, y);
+#define HPDDM_GENERATE_MKL(C, T)                                                                             \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::csrmv(bool sym, const int* const n, const T* const a, const int* const ia,           \
+                              const int* const ja, const T* const x, T* const y) {                           \
+    static_assert(N == 'C', "Unsupported matrix indexing");                                                  \
+    if(sym)                                                                                                  \
+        mkl_cspblas_ ## C ## csrsymv(&uplo, n, a, ia, ja, x, y);                                             \
+    else                                                                                                     \
+        mkl_cspblas_ ## C ## csrgemv(&transa, n, a, ia, ja, x, y);                                           \
+}                                                                                                            \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::csrgemv(const char* const trans, const int* const m, const int* const k,             \
+                                const T* const alpha, bool sym, const T* const a, const int* const ia,       \
+                                const int* const ja, const T* const x, const T* const beta, T* const y) {    \
+    mkl_ ## C ## csrmv(trans, m, k,                                                                          \
+                       alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, beta, y);         \
+}                                                                                                            \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::csrgemm(const char* const trans, const int* const m, const int* const n,             \
+                                const int* const k, const T* const alpha, bool sym,                          \
+                                const T* const a, const int* const ia, const int* const ja,                  \
+                                const T* const x, const int* const ldb, const T* const beta,                 \
+                                T* const y, const int* const ldc) {                                          \
+    mkl_ ## C ## csrmm(trans, m, n, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a,                         \
+                       a, ja, ia, ia + 1, x, ldb, beta, y, ldc);                                             \
+}                                                                                                            \
+                                                                                                             \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::csrcsc(const int* const n, T* const a, int* const ja, int* const ia,                 \
+                               T* const b, int* const jb, int* const ib) {                                   \
+    int job[6] = { 0, 0, N == 'F', 0, 0, 1 };                                                                \
+    int error;                                                                                               \
+    mkl_ ## C ## csrcsc(job, n, a, ja, ia, b, jb, ib, &error);                                               \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::gthr(const int& n, const T* const y, T* const x, const int* const indx) {            \
+    cblas_ ## C ## gthr(n, y, x, indx);                                                                      \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::sctr(const int& n, const T* const x, const int* const indx, T* const y) {            \
+    cblas_ ## C ## sctr(n, x, indx, y);                                                                      \
 }
-template<>
-template<char N>
-inline void Wrapper<std::complex<double>>::csrmv(bool sym, const int* const n, const std::complex<double>* const a, const int* const ia, const int* const ja, const std::complex<double>* const x, std::complex<double>* const y) {
-    static_assert(N == 'C', "Unsupported matrix indexing");
-    if(sym)
-        mkl_cspblas_zcsrsymv(&uplo, n, a, ia, ja, x, y);
-    else
-        mkl_cspblas_zcsrgemv(&transa, n, a, ia, ja, x, y);
-}
-template<>
-template<char N>
-inline void Wrapper<double>::csrgemv(const char* const trans, const int* const m, const int* const k, const double* const alpha, bool sym,
-                                     const double* const a, const int* const ia, const int* const ja, const double* const x, const double* const beta, double* const y) {
-    mkl_dcsrmv(trans, m, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, beta, y);
-}
-template<>
-template<char N>
-inline void Wrapper<std::complex<double>>::csrgemv(const char* const trans, const int* const m, const int* const k, const std::complex<double>* const alpha, bool sym,
-                                     const std::complex<double>* const a, const int* const ia, const int* const ja, const std::complex<double>* const x, const std::complex<double>* const beta, std::complex<double>* const y) {
-    mkl_zcsrmv(trans, m, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, beta, y);
-}
-template<>
-template<char N>
-inline void Wrapper<double>::csrgemm(const char* const trans, const int* const m, const int* const n, const int* const k, const double* const alpha, bool sym,
-                                     const double* const a, const int* const ia, const int* const ja, const double* const x, const int* const ldb, const double* const beta, double* const y, const int* const ldc) {
-    mkl_dcsrmm(trans, m, n, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, ldb, beta, y, ldc);
-}
-template<>
-template<char N>
-inline void Wrapper<std::complex<double>>::csrgemm(const char* const trans, const int* const m, const int* const n, const int* const k, const std::complex<double>* const alpha, bool sym,
-                                     const std::complex<double>* const a, const int* const ia, const int* const ja, const std::complex<double>* const x, const int* const ldb, const std::complex<double>* const beta, std::complex<double>* const y, const int* const ldc) {
-    mkl_zcsrmm(trans, m, n, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, ldb, beta, y, ldc);
-}
+HPDDM_GENERATE_MKL(d, double)
+HPDDM_GENERATE_MKL(z, std::complex<double>)
 
-template<>
-template<char N>
-inline void Wrapper<double>::csrcsc(const int* const n, double* const a, int* const ja, int* const ia, double* const b, int* const jb, int* const ib) {
-    int job[6] = { 0, 0, N == 'F', 0, 0, 1 };
-    int error;
-    mkl_dcsrcsc(job, n, a, ja, ia, b, jb, ib, &error);
-}
-template<>
-template<char N>
-inline void Wrapper<std::complex<double>>::csrcsc(const int* const n, std::complex<double>* const a, int* const ja, int* const ia, std::complex<double>* const b, int* const jb, int* const ib) {
-    int job[6] = { 0, 0, N == 'F', 0, 0, 1 };
-    int error;
-    mkl_zcsrcsc(job, n, a, ja, ia, b, jb, ib, &error);
-}
-template<>
-inline void Wrapper<double>::gthr(const int& n, const double* const y, double* const x, const int* const indx) {
-    cblas_dgthr(n, y, x, indx);
-}
-template<>
-inline void Wrapper<std::complex<double>>::gthr(const int& n, const std::complex<double>* const y, std::complex<double>* const x, const int* const indx) {
-    cblas_zgthr(n, y, x, indx);
-}
-template<>
-inline void Wrapper<double>::sctr(const int& n, const double* const x, const int* const indx, double* const y) {
-    cblas_dsctr(n, x, indx, y);
-}
-template<>
-inline void Wrapper<std::complex<double>>::sctr(const int& n, const std::complex<double>* const x, const int* const indx, std::complex<double>* const y) {
-    cblas_zsctr(n, x, indx, y);
-}
 template<>
 inline void Wrapper<double>::diagv(const int& n, const double* const d, const double* const in, double* const out) {
     if(in)
@@ -478,10 +471,6 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
         int dimX = *m;
         int dimY = *k;
         int dimNY = dimY * *n;
-        /*
-        for(int i = 0; i < *n; ++i)
-            csrgemv<N>(trans, m, k, alpha, sym, a, ia, ja, x + i * dimX, beta, y + i * dimY);
-        */
         if(beta == &(Wrapper<K>::d__0))
             std::fill(y, y + dimNY, K());
         else if(beta != &(Wrapper<K>::d__1))
