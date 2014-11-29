@@ -13,14 +13,17 @@ compiler:
   - gcc
 
 env:
-  - SOLVER=MUMPS SUBSOLVER=MUMPS
-  - SOLVER=SUITESPARSE SUBSOLVER=SUITESPARSE
+  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
+  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
+  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
+  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
+# - SOLVER=SUITESPARSE SUBSOLVER=SUITESPARSE
 
 before_install:
-  - if [ "$TRAVIS_OS_NAME" == "linux" -a "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get update -qq; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" -a "$CXX" == "g++" ]; then sudo apt-get install -qq g++-4.9; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" -a "$CXX" == "g++" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install -qq g++-4.9; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libmumps-dev libsuitesparse-dev libarpack2; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew tap homebrew/science; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
@@ -30,13 +33,15 @@ before_install:
 
 install:
   - export OMPI_CXX=$CXX
+  - if [ "$FORCE_SINGLE" == "ON" ]; then export CXX_FLAGS="-DFORCE_SINGLE -DGENERAL_CO"; fi
+  - if [ "$FORCE_COMPLEX" == "ON" ]; then export CXX_FLAGS="${CXX_FLAGS} -DFORCE_COMPLEX"; fi
   - cd interface
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -I../src -I/usr/include/suitesparse/ -I/usr/include/ -DD${SOLVER} -D${SOLVER}SUB -L/usr/lib -lblas -llapack -ldmumps -lzmumps -lmumps_common -lpord -lscalapack-openmpi -lamd -lcolamd -lumfpack -lcholmod -lgfortran -lmpi_f77; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -std=c++11 schwarz.cpp -I../src -I/usr/local/include/ -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -ldmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp ${CXX_FLAGS} -I../src -I/usr/include/suitesparse/ -I/usr/include/ -DD${SOLVER} -D${SOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack-openmpi -lamd -lcolamd -lumfpack -lcholmod -larpack -lmpi_f77; fi
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -std=c++11 schwarz.cpp ${CXX_FLAGS} -I../src -I/usr/local/include/ -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
 
 script:
-  - mpirun -np 1 ./a.out 0 100 100 0 1.0e-8 0
-  - mpirun -np 2 ./a.out 2 100 100 1 1.0e-8 1
+  - mpirun -np 1 ./a.out 0 100 100 0 1.0e-6 0
+  - mpirun -np 2 ./a.out 2 100 100 1 1.0e-6 1
 
 notifications:
   email:

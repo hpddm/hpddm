@@ -23,14 +23,23 @@
 #ifndef _MUMPS_
 #define _MUMPS_
 
+#include <smumps_c.h>
 #include <dmumps_c.h>
+#include <cmumps_c.h>
 #include <zmumps_c.h>
 
 namespace HPDDM {
 template<class>
 struct MUMPS_STRUC_C {
 };
-
+template<>
+struct MUMPS_STRUC_C<float> {
+    typedef SMUMPS_STRUC_C trait;
+    typedef float mumps_type;
+    static inline void mumps_c(SMUMPS_STRUC_C* id) {
+        smumps_c(id);
+    }
+};
 template<>
 struct MUMPS_STRUC_C<double> {
     typedef DMUMPS_STRUC_C trait;
@@ -39,7 +48,14 @@ struct MUMPS_STRUC_C<double> {
         dmumps_c(id);
     }
 };
-
+template<>
+struct MUMPS_STRUC_C<std::complex<float>> {
+    typedef CMUMPS_STRUC_C trait;
+    typedef mumps_complex mumps_type;
+    static inline void mumps_c(CMUMPS_STRUC_C* id) {
+        cmumps_c(id);
+    }
+};
 template<>
 struct MUMPS_STRUC_C<std::complex<double>> {
     typedef ZMUMPS_STRUC_C trait;

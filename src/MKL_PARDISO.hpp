@@ -34,14 +34,24 @@ namespace HPDDM {
 template<class>
 struct prds {
 };
-
+template<>
+struct prds<float> {
+    static constexpr int SPD =  2;
+    static constexpr int SYM = -2;
+    static constexpr int UNS =  1;
+};
 template<>
 struct prds<double> {
     static constexpr int SPD =  2;
     static constexpr int SYM = -2;
     static constexpr int UNS =  1;
 };
-
+template<>
+struct prds<std::complex<float>> {
+    static constexpr int SPD =  4;
+    static constexpr int SYM = -4;
+    static constexpr int UNS =  3;
+};
 template<>
 struct prds<std::complex<double>> {
     static constexpr int SPD =  4;
@@ -140,6 +150,7 @@ class MklPardiso : public DMatrix {
             _iparm[10] = 1;
             _iparm[17] = -1;
             _iparm[18] = -1;
+            _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
             _iparm[39] = DMatrix::_distribution == DMatrix::NON_DISTRIBUTED ? 1 : 2;
             _iparm[40] = loc2glob[0];
@@ -200,7 +211,7 @@ class MklPardiso : public DMatrix {
 template<class K>
 class MklPardisoSub {
     private:
-        void*          _pt[64];
+        mutable void*  _pt[64];
         K*                  _C;
         int*                _I;
         int*                _J;
@@ -247,6 +258,7 @@ class MklPardisoSub {
                 _iparm[10] = 1;
                 _iparm[17] = -1;
                 _iparm[18] = -1;
+                _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
                 _iparm[34] = 1;
                 phase = 12;
                 if(_mtype != prds<K>::SYM && _mtype != prds<K>::SPD) {

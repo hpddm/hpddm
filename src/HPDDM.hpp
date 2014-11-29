@@ -26,8 +26,8 @@
 /* Constants: C-style preprocessor variables
  *
  *    HPDDM_VERSION       - Version of the framework.
- *    HPDDM_EPS           - Small positive double precision number used internally for dropping values.
- *    HPDDM_PEN           - Large positive double precision number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
+ *    HPDDM_EPS           - Small positive number used internally for dropping values.
+ *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
  *    HPDDM_MAXCO         - Assumed maximum connectivity between subdomains.
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
  *    HPDDM_OUTPUT_CO     - If set to one, the coarse operator is saved to disk (for debugging only).
@@ -65,18 +65,25 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+#ifdef __GNUG__
+#include <cxxabi.h>
+#include <memory>
+#endif
 
-#if HPDDM_MKL
 #ifndef MKL_Complex16
 #define MKL_Complex16 std::complex<double>
+#endif
+#ifndef MKL_Complex8
+#define MKL_Complex8 std::complex<float>
 #endif
 #ifndef MKL_INT
 #define MKL_INT int
 #endif
+#if HPDDM_MKL || defined(INTEL_MKL_VERSION)
+#define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #include <mkl_spblas.h>
 #include <mkl_vml.h>
 #endif // HPDDM_MKL
-
 #if HPDDM_MKL || defined(__APPLE__)
 #define HPDDM_F77(func) func
 #else
@@ -98,31 +105,45 @@ void    HPDDM_F77(C ## symm)(const char*, const char*, const int*, const int*,  
 void    HPDDM_F77(C ## gemm)(const char*, const char*, const int*, const int*, const int*,                   \
                              const T*, const T*, const int*, const T*, const int*,                           \
                              const T*, T*, const int*);
+#if !defined(__APPLE__) && !HPDDM_MKL
+#define HPDDM_GENERATE_EXTERN_DOTC(C, T, U) U  _Complex HPDDM_F77(C ## dotc)(const int*, const T*, const int*, const T*, const int*);
+#else
+#define HPDDM_GENERATE_EXTERN_DOTC(C, T, U) void C ## dotc(T*, const int*, const T*, const int*, const T*, const int*);
+#endif
+#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                       \
+U  HPDDM_F77(B ## nrm2)(const int*, const U*, const int*);                                                   \
+U  HPDDM_F77(B ## C ## nrm2)(const int*, const T*, const int*);                                              \
+U  HPDDM_F77(B ## dot)(const int*, const U*, const int*, const U*, const int*);                              \
+HPDDM_GENERATE_EXTERN_DOTC(C, T, U)
+#define HPDDM_GENERATE_EXTERN_MKL(C, T)                                                                      \
+void cblas_ ## C ## gthr(const int, const T*, T*, const int*);                                               \
+void cblas_ ## C ## sctr(const int, const T*, const int*, T*);
 
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
+HPDDM_GENERATE_EXTERN_BLAS(s, float)
 HPDDM_GENERATE_EXTERN_BLAS(d, double)
+HPDDM_GENERATE_EXTERN_BLAS(c, std::complex<float>)
 HPDDM_GENERATE_EXTERN_BLAS(z, std::complex<double>)
-double  HPDDM_F77(dnrm2)(const int*, const double*, const int*);
-double HPDDM_F77(dznrm2)(const int*, const std::complex<double>*, const int*);
-double   HPDDM_F77(ddot)(const int*, const double*, const int*, const double*, const int*);
-#if !defined(__APPLE__) && !HPDDM_MKL
-double _Complex HPDDM_F77(zdotc)(const int*, const std::complex<double>*, const int*, const std::complex<double>*, const int*);
-#else
-void zdotc(std::complex<double>*, const int*, const std::complex<double>*, const int*, const std::complex<double>*, const int*);
-#if defined(__APPLE__) && !defined(CBLAS_H)
-void catlas_daxpby(const int, const double, const double*,
-                   const int, const double, double*, const int);
-void catlas_zaxpby(const int, const std::complex<double>*, const std::complex<double>*,
-                   const int, const std::complex<double>*, std::complex<double>*, const int);
-#endif
+HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, std::complex<double>, d, double)
+#if defined(__APPLE__) || HPDDM_MKL
 #if HPDDM_MKL
-void cblas_daxpby(const int, const double, const double*, const int, const double, double*, const int);
-void cblas_zaxpby(const int, const std::complex<double>*, const std::complex<double>*, const int, const std::complex<double>*, std::complex<double>*, const int);
-void cblas_dgthr(const int, const double*, double*, const int*);
-void cblas_zgthr(const int, const std::complex<double>*, std::complex<double>*, const int*);
-void cblas_dsctr(const int, const double*, const int*, double*);
-void cblas_zsctr(const int, const std::complex<double>*, const int*, std::complex<double>*);
+HPDDM_GENERATE_EXTERN_MKL(s, float)
+HPDDM_GENERATE_EXTERN_MKL(d, double)
+HPDDM_GENERATE_EXTERN_MKL(c, std::complex<float>)
+HPDDM_GENERATE_EXTERN_MKL(z, std::complex<double>)
+#else
+#define HPDDM_PREFIX_AXPBY(func) catlas_ ## func
+#endif
+#if !defined(CBLAS_H)
+#define HPDDM_GENERATE_EXTERN_AXPBY(C, T, B, U)                                                              \
+void HPDDM_PREFIX_AXPBY(B ## axpby)(const int, const U, const U*,                                            \
+                                    const int, const U, U*, const int);                                      \
+void HPDDM_PREFIX_AXPBY(C ## axpby)(const int, const T*, const T*,                                           \
+                                    const int, const T*, T*, const int);
+HPDDM_GENERATE_EXTERN_AXPBY(c, std::complex<float>, s, float)
+HPDDM_GENERATE_EXTERN_AXPBY(z, std::complex<double>, d, double)
 #endif
 #endif
 }
@@ -147,6 +168,17 @@ static constexpr int i__1    =    1;
 
 typedef std::pair<unsigned short, std::vector<int>>  pairNeighbor; // MPI_Comm_size < MAX_UNSIGNED_SHORT
 typedef std::vector<pairNeighbor>                  vectorNeighbor;
+#ifdef __GNUG__
+std::string demangle(const char* name) {
+    int status;
+    std::unique_ptr<char, void(*)(void*)> res { abi::__cxa_demangle(name, NULL, NULL, &status), std::free };
+    return status == 0 ? res.get() : name;
+}
+#else
+std::string demangle(const char* name) {
+    return name;
+}
+#endif // __GNUG__
 } // HPDDM
 #include "enum.hpp"
 #include "wrapper.hpp"

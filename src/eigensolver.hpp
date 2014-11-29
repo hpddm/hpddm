@@ -26,25 +26,28 @@
 namespace HPDDM {
 /* Class: Eigensolver
  *
- *  A base class used to interface eigenvalue problem solvers such as <Arpack> or <Lapack>. */
+ *  A base class used to interface eigenvalue problem solvers such as <Arpack> or <Lapack>.
+ * Template Parameter:
+ *    K              - Scalar type. */
+template<class K>
 class Eigensolver {
     protected:
         /* Variable: tol
          *  Relative tolerance of the eigenvalue problem solver. */
-        double                     _tol;
+        typename Wrapper<K>::ul_type       _tol;
         /* Variable: threshold
          *  Threshold criterion. */
-        double               _threshold;
+        typename Wrapper<K>::ul_type _threshold;
         /* Variable: n
          *  Number of rows of the eigenvalue problem. */
-        int                          _n;
+        int                                  _n;
         /* Variable: nu
          *  Number of desired eigenvalues. */
-        int                         _nu;
+        int                                 _nu;
     public:
-        Eigensolver(int n, int& nu)                               : _tol(1.0e-6), _threshold(0.0), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
-        Eigensolver(double threshold, int n, int& nu)             : _tol(1.0e-6), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
-        Eigensolver(double tol, double threshold, int n, int& nu) : _tol(tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
+        Eigensolver(int n, int& nu)                                                                           : _tol(1.0e-6), _threshold(0.0), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
+        Eigensolver(typename Wrapper<K>::ul_type threshold, int n, int& nu)                                   : _tol(1.0e-6), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
+        Eigensolver(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int& nu) : _tol(tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
         /* Function: selectNu
          *
          *  Computes a uniform threshold criterion.
@@ -52,15 +55,16 @@ class Eigensolver {
          * Parameters:
          *    eigenvalues   - Input array used to store eigenvalues in ascending order.
          *    communicator  - MPI communicator (usually <Subdomain::communicator>) on which the criterion <Eigensolver::nu> has to be uniformized. */
-        template<class K>
-        inline void selectNu(const K* const eigenvalues, const MPI_Comm& communicator) {
-            unsigned short nevThreshold = std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const K& lhs, const K& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu);
+        template<class T>
+        inline void selectNu(const T* const eigenvalues, const MPI_Comm& communicator) {
+            static_assert(std::is_same<T, K>::value || std::is_same<T, typename Wrapper<K>::ul_type>::value, "Wrong types");
+            unsigned short nevThreshold = std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu);
             MPI_Allreduce(MPI_IN_PLACE, &nevThreshold, 1, MPI_UNSIGNED_SHORT, MPI_MAX, communicator);
             _nu = nevThreshold;
         }
         /* Function: getTol
          *  Returns the value of <Eigensolver::tol>. */
-        inline double getTol() const { return _tol; }
+        inline typename Wrapper<K>::ul_type getTol() const { return _tol; }
         /* Function: getNu
          *  Returns the value of <Eigensolver::nu>. */
         inline int getNu() const { return _nu; }

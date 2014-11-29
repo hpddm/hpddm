@@ -24,27 +24,12 @@
 #define _COARSE_OPERATOR_IMPL_
 
 #include "coarse_operator.hpp"
-#ifdef __GNUG__
-#include <cxxabi.h>
-#include <memory>
-#endif
 #if HPDDM_OUTPUT_CO
 #include <iterator>
 #include <fstream>
 #endif
 
 namespace HPDDM {
-#ifdef __GNUG__
-std::string demangle(const char* name) {
-    int status;
-    std::unique_ptr<char, void(*)(void*)> res { abi::__cxa_demangle(name, NULL, NULL, &status), std::free };
-    return status == 0 ? res.get() : name;
-}
-#else
-std::string demangle(const char* name) {
-    return name;
-}
-#endif
 template<template<class> class Solver, char S, class K>
 template<char T, bool exclude>
 inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Comm& comm, unsigned short& p) {

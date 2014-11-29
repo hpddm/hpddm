@@ -40,13 +40,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
     private:
         /* Variable: primal
          *  Storage for local primal unknowns. */
-        K*                  _primal;
+        K*                        _primal;
         /* Variable: dual
          *  Storage for local dual unknowns. */
-        K**                   _dual;
+        K**                         _dual;
         /* Variable: m
          *  Local partition of unity. */
-        double**                 _m;
+        typename Wrapper<K>::ul_type** _m;
         /* Function: A
          *
          *  Jump operator.
@@ -87,26 +87,26 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 Wrapper<K>::axpy(&(super::_mult), &(Wrapper<K>::d__1), Subdomain<K>::_rbuff[0], &i__1, *dual, &i__1);
             }
         }
-        template<class U, typename std::enable_if<std::is_same<U, double>::value>::type* = nullptr>
-        inline void allocate(U**& dual, double**& m) {
+        template<class U, typename std::enable_if<std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
+        inline void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
             dual = new U*[2 * Subdomain<K>::_map.size()];
             m    = dual + Subdomain<K>::_map.size();
         }
-        template<class U, typename std::enable_if<!std::is_same<U, double>::value>::type* = nullptr>
-        inline void allocate(U**& dual, double**& m) {
+        template<class U, typename std::enable_if<!std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
+        inline void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
             dual = new U*[Subdomain<K>::_map.size()];
-            m    = new double*[Subdomain<K>::_map.size()];
+            m    = new typename Wrapper<U>::ul_type*[Subdomain<K>::_map.size()];
         }
     public:
         Feti() : _primal(), _dual(), _m() { }
         ~Feti() {
             if(_m)
                 delete [] *_m;
-            if(!std::is_same<K, double>::value)
+            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
                 delete []  _m;
-            delete []  _dual;
+            delete [] _dual;
         }
         /* Typedef: super
          *  Type of the immediate parent class <Schur>. */
@@ -118,7 +118,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             _primal = super::_structure + super::_bi->_m;
             allocate(_dual, _m);
             *_dual = super::_work;
-            *_m     = new double[super::_mult];
+            *_m     = new typename Wrapper<K>::ul_type[super::_mult];
             for(unsigned short i = 1; i < Subdomain<K>::_map.size(); ++i) {
                 _dual[i] = _dual[i - 1] + Subdomain<K>::_map[i - 1].second.size();
                 _m   [i] = _m[i - 1]    + Subdomain<K>::_map[i - 1].second.size();
@@ -444,16 +444,16 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    a              - Left-hand side.
          *    b              - Right-hand side. */
         template<bool excluded>
-        inline void computeDot(double* const val, const K* const* const a, const K* const* const b, const MPI_Comm& comm) const {
+        inline void computeDot(typename Wrapper<K>::ul_type* const val, const K* const* const a, const K* const* const b, const MPI_Comm& comm) const {
             if(!excluded)
                 *val = Wrapper<K>::dot(&(super::_mult), *a, &i__1, *b, &i__1) / 2.0;
             else
                 *val = 0.0;
-            MPI_Allreduce(MPI_IN_PLACE, val, 1, MPI_DOUBLE, MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, val, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Feti::m>. */
-        inline const double* const* getScaling() const { return _m; }
+        inline const typename Wrapper<K>::ul_type* const* getScaling() const { return _m; }
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -465,8 +465,8 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L = 'S'>
-        inline void solveGEVP(unsigned short& nu, const double& threshold = 0.0) {
-            double* const pt = reinterpret_cast<double*>(_primal);
+        inline void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type& threshold = 0.0) {
+            typename Wrapper<K>::ul_type* const pt = reinterpret_cast<typename Wrapper<K>::ul_type*>(_primal);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                     pt[Subdomain<K>::_map[i].second[j]] = _m[i][j];

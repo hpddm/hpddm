@@ -74,10 +74,10 @@ class Wrapper {
         static inline void scal(const int* const, const K* const, K* const, const int* const);
         /* Function: nrm2
          *  Computes the Euclidean norm of a vector. */
-        static inline double nrm2(const int* const, const K* const, const int* const);
+        static inline typename Wrapper<K>::ul_type nrm2(const int* const, const K* const, const int* const);
         /* Function: dot
          *  Computes a vector-vector dot product. */
-        static inline double dot(const int* const, const K* const, const int* const, const K* const, const int* const);
+        static inline typename Wrapper<K>::ul_type dot(const int* const, const K* const, const int* const, const K* const, const int* const);
         /* Function: lacpy
          *  Copies all or part of a two-dimensional matrix. */
         static inline void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
@@ -128,13 +128,13 @@ class Wrapper {
         static inline void sctr(const int&, const K* const, const int* const, K* const);
         /* Function: diagv(in-place)
          *  Computes a vector-vector element-wise multiplication. */
-        static inline void diagv(const int&, const double* const, K* const);
+        static inline void diagv(const int&, const Wrapper<K>::ul_type* const, K* const);
         /* Function: diagv
          *  Computes a vector-vector element-wise multiplication. */
-        static inline void diagv(const int&, const double* const, const K* const, K* const);
+        static inline void diagv(const int&, const Wrapper<K>::ul_type* const, const K* const, K* const);
         /* Function: diagm
          *  Computes a vector-matrix element-wise multiplication. */
-        static inline void diagm(const int&, const int&, const double* const, const K* const, K* const);
+        static inline void diagm(const int&, const int&, const typename Wrapper<K>::ul_type* const, const K* const, K* const);
         /* Function: axpby
          *  Computes two scalar-vector products. */
         static inline void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
@@ -144,9 +144,16 @@ class Wrapper {
 };
 
 template<>
-const char Wrapper<double>::transc = 'T';
+inline MPI_Datatype Wrapper<float>::mpi_type() { return MPI_FLOAT; }
 template<>
-const char Wrapper<std::complex<double>>::transc = 'C';
+inline MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
+template<>
+inline MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
+template<>
+inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
+
+template<class K>
+const char Wrapper<K>::transc = std::is_same<K, Wrapper<K>::ul_type>::value ? 'T' : 'C';
 
 template<class K>
 const K Wrapper<K>::d__0 = K(0.0);
@@ -154,11 +161,6 @@ template<class K>
 const K Wrapper<K>::d__1 = K(1.0);
 template<class K>
 const K Wrapper<K>::d__2 = K(-1.0);
-
-template<>
-inline MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
-template<>
-inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
 
 #define HPDDM_GENERATE_BLAS(C, T)                                                                            \
 template<>                                                                                                   \
@@ -208,34 +210,59 @@ inline void Wrapper<T>::gemm(const char* const transa, const char* const transb,
                              T* const c, const int* const ldc) {                                             \
     HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
 }
-HPDDM_GENERATE_BLAS(d, double)
-HPDDM_GENERATE_BLAS(z, std::complex<double>)
-
-template<>
-inline double Wrapper<double>::nrm2(const int* const n, const double* const x, const int* const incx) {
-    return HPDDM_F77(dnrm2)(n, x, incx);
-}
-template<>
-inline double Wrapper<std::complex<double>>::nrm2(const int* const n, const std::complex<double>* const x, const int* const incx) {
-    return HPDDM_F77(dznrm2)(n, x, incx);
-}
-template<>
-inline double Wrapper<double>::dot(const int* const n, const double* const x, const int* const incx, const double* const y, const int* const incy) {
-    return HPDDM_F77(ddot)(n, x, incx, y, incy);
-}
-template<>
-inline double Wrapper<std::complex<double>>::dot(const int* const n, const std::complex<double>* const x, const int* const incx, const std::complex<double>* const y, const int* const incy) {
 #if HPDDM_MKL || defined(__APPLE__)
-    std::complex<double> res;
-    zdotc(&res, n, x, incx, y, incy);
-#else
-    std::complex<double> res = HPDDM_F77(zdotc)(n, x, incx, y, incy);
-#endif
-    return std::real(res);
+#define HPDDM_GENERATE_DOTC(C, T, U)                                                                         \
+template<>                                                                                                   \
+inline U Wrapper<T>::dot(const int* const n, const T* const x, const int* const incx,                        \
+                         const T* const y, const int* const incy) {                                          \
+    T res;                                                                                                   \
+    C ## dotc(&res, n, x, incx, y, incy);                                                                    \
+    return std::real(res);                                                                                   \
 }
+#define HPDDM_GENERATE_AXPBY(C, T, B, U)                                                                     \
+template<>                                                                                                   \
+inline void Wrapper<U>::axpby(const int& n, const U& alpha, const U* const u, const int& incx,               \
+                              const U& beta, U* const v, const int& incy) {                                  \
+    HPDDM_PREFIX_AXPBY(B ## axpby)(n, alpha, u, incx, beta, v, incy);                                        \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::axpby(const int& n, const T& alpha, const T* const u, const int& incx,               \
+                              const T& beta, T* const v, const int& incy) {                                  \
+    HPDDM_PREFIX_AXPBY(C ## axpby)(n, &alpha, u, incx, &beta, v, incy);                                      \
+}
+#else
+#define HPDDM_GENERATE_DOTC(C, T, U)                                                                         \
+template<>                                                                                                   \
+inline U Wrapper<T>::dot(const int* const n, const T* const x, const int* const incx,                        \
+                         const T* const y, const int* const incy) {                                          \
+    T res = HPDDM_F77(C ## dotc)(n, x, incx, y, incy);                                                       \
+    return std::real(res);                                                                                   \
+}
+#endif
+#define HPDDM_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                              \
+template<>                                                                                                   \
+inline U Wrapper<U>::nrm2(const int* const n, const U* const x, const int* const incx) {                     \
+    return HPDDM_F77(B ## nrm2)(n, x, incx);                                                                 \
+}                                                                                                            \
+template<>                                                                                                   \
+inline U Wrapper<T>::nrm2(const int* const n, const T* const x, const int* const incx) {                     \
+    return HPDDM_F77(B ## C ## nrm2)(n, x, incx);                                                            \
+}                                                                                                            \
+template<>                                                                                                   \
+inline U Wrapper<U>::dot(const int* const n, const U* const x, const int* const incx,                        \
+                         const U* const y, const int* const incy) {                                          \
+    return HPDDM_F77(B ## dot)(n, x, incx, y, incy);                                                         \
+}                                                                                                            \
+HPDDM_GENERATE_DOTC(C, T, U)
+HPDDM_GENERATE_BLAS(s, float)
+HPDDM_GENERATE_BLAS(d, double)
+HPDDM_GENERATE_BLAS(c, std::complex<float>)
+HPDDM_GENERATE_BLAS(z, std::complex<double>)
+HPDDM_GENERATE_BLAS_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_BLAS_COMPLEX(z, std::complex<double>, d, double)
 
 template<class K>
-inline void Wrapper<K>::diagv(const int& n, const double* const d, K* const in) {
+inline void Wrapper<K>::diagv(const int& n, const Wrapper<K>::ul_type* const d, K* const in) {
     diagv(n, d, nullptr, in);
 }
 
@@ -300,29 +327,28 @@ template<>                                                                      
 inline void Wrapper<T>::sctr(const int& n, const T* const x, const int* const indx, T* const y) {            \
     cblas_ ## C ## sctr(n, x, indx, y);                                                                      \
 }
+#define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
+template<>                                                                                                   \
+inline void Wrapper<T>::diagv(const int& n, const T* const d, const T* const in, T* const out) {             \
+    if(in)                                                                                                   \
+        v ## C ## Mul(n, d, in, out);                                                                        \
+    else                                                                                                     \
+        v ## C ## Mul(n, d, out, out);                                                                       \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::diagm(const int& m, const int& n, const T* const d,                                  \
+                              const T* const in, T* const out) {                                             \
+    for(int i = 0; i < n; ++i)                                                                               \
+        v ## C ## Mul(m, d, in + i * m, out + i * m);                                                        \
+}
+HPDDM_GENERATE_MKL(s, float)
 HPDDM_GENERATE_MKL(d, double)
+HPDDM_GENERATE_MKL(c, std::complex<float>)
 HPDDM_GENERATE_MKL(z, std::complex<double>)
-
-template<>
-inline void Wrapper<double>::diagv(const int& n, const double* const d, const double* const in, double* const out) {
-    if(in)
-        vdMul(n, d, in, out);
-    else
-        vdMul(n, d, out, out);
-}
-template<>
-inline void Wrapper<double>::diagm(const int& m, const int& n, const double* const d, const double* const in, double* const out) {
-    for(int i = 0; i < n; ++i)
-        vdMul(m, d, in + i * m, out + i * m);
-}
-template<>
-inline void Wrapper<double>::axpby(const int& n, const double& alpha, const double* const u, const int& incx, const double& beta, double* const v, const int& incy) {
-    cblas_daxpby(n, alpha, u, incx, beta, v, incy);
-}
-template<>
-inline void Wrapper<std::complex<double>>::axpby(const int& n, const std::complex<double>& alpha, const std::complex<double>* const u, const int& incx, const std::complex<double>& beta, std::complex<double>* const v, const int& incy) {
-    cblas_zaxpby(n, &alpha, u, incx, &beta, v, incy);
-}
+HPDDM_GENERATE_MKL_VML(s, float)
+HPDDM_GENERATE_MKL_VML(d, double)
+HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)
+HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
 #else
 template<class K>
 const char Wrapper<K>::I = 'C';
@@ -545,14 +571,8 @@ inline void Wrapper<K>::sctr(const int& n, const K* const x, const int* const in
         y[indx[i]] = x[i];
 }
 #ifdef __APPLE__
-template<>
-inline void Wrapper<double>::axpby(const int& n, const double& alpha, const double* const u, const int& incx, const double& beta, double* const v, const int& incy) {
-    catlas_daxpby(n, alpha, u, incx, beta, v, incy);
-}
-template<>
-inline void Wrapper<std::complex<double>>::axpby(const int& n, const std::complex<double>& alpha, const std::complex<double>* const u, const int& incx, const std::complex<double>& beta, std::complex<double>* const v, const int& incy) {
-    catlas_zaxpby(n, &alpha, u, incx, &beta, v, incy);
-}
+HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)
+HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
 #else
 template<class K>
 inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, const int& incx, const K& beta, K* const v, const int& incy) {
@@ -567,7 +587,7 @@ inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, co
 #endif // HPDDM_MKL
 
 template<class K>
-inline void Wrapper<K>::diagv(const int& n, const double* const d, const K* const in, K* const out) {
+inline void Wrapper<K>::diagv(const int& n, const Wrapper<K>::ul_type* const d, const K* const in, K* const out) {
     if(in)
         for(unsigned int i = 0; i < n; ++i)
             out[i] = d[i] * in[i];
@@ -576,7 +596,7 @@ inline void Wrapper<K>::diagv(const int& n, const double* const d, const K* cons
             out[i] *= d[i];
 }
 template<class K>
-inline void Wrapper<K>::diagm(const int& m, const int& n, const double* const d, const K* const in, K* const out) {
+inline void Wrapper<K>::diagm(const int& m, const int& n, const typename Wrapper<K>::ul_type* const d, const K* const in, K* const out) {
     for(int i = 0; i < n; ++i)
         for(int j = 0; j < m; ++j)
             out[j + i * m] = d[j] * in[j + i * m];

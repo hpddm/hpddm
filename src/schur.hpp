@@ -145,7 +145,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L>
-        inline void solveGEVP(const double* const d, unsigned short& nu, const double& threshold) {
+        inline void solveGEVP(const typename Wrapper<K>::ul_type* const d, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold) {
             if(_schur) {
                 MPI_Request* rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
                 K** send = new K*[2 * Subdomain<K>::_map.size()];
@@ -172,7 +172,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 exchangeSchurComplement<L>(rq, send, recv, res);
 
-                Lapack<K> evp(nu >= 10 ? (nu >= 40 ? 1e-14 : 1e-12) : 1e-8, threshold, Subdomain<K>::_dof, nu);
+                Lapack<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
                 K* A;
                 if(size < Subdomain<K>::_dof * Subdomain<K>::_dof)
                     A = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
@@ -188,7 +188,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 int lwork = 64 * Subdomain<K>::_dof;
                 MPI_Testall(Subdomain<K>::_map.size(), rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
                 K* work;
-                const int storage = std::is_same<K, double>::value ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
+                const int storage = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
                 if(flag) {
                     if((lwork + storage) <= size || (A != *recv && (lwork + storage) <= 2 * size))
                         work = *send;
@@ -203,7 +203,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 }
                 evp.solve(A, super::_ev, work, lwork, Subdomain<K>::_communicator);
                 nu = evp.getNu();
-                _deficiency = std::distance(reinterpret_cast<double*>(work) + lwork, std::upper_bound(reinterpret_cast<double*>(work) + lwork, reinterpret_cast<double*>(work) + lwork + nu, evp.getTol()));
+                _deficiency = std::distance(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork, std::upper_bound(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork, reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork + nu, evp.getTol()));
                 if(A != *recv)
                     delete [] A;
                 evp.expand(res, super::_ev);
@@ -288,7 +288,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
 #if defined(MKL_PARDISOSUB)
                 _schur[1] = _bi->_m;
 #else
-                _schur[1] = _bi->_m + 1.0;
+                _schur[1] = _bi->_m + 1;
 #endif
                 if(_ii)
                     delete _ii;
@@ -389,7 +389,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
                             if(i != Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
                                 isBoundaryCond = false;
-                            else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - 1.0) > HPDDM_EPS)
+                            else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
                                 isBoundaryCond = false;
                         }
                         if(isBoundaryCond) {
@@ -661,28 +661,28 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    storage        - Array to store both values.
          *
          * See also: <Schwarz::computeError>. */
-        inline void computeError(const K* const x, const K* const f, double* const residual) const {
-            residual[0] = Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1);
+        inline void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage) const {
+            storage[0] = Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1);
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy(f, f + Subdomain<K>::_a->_n, tmp);
             Subdomain<K>::exchange(tmp + _bi->_m);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                    residual[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_rbuff[i][j]);
+                    storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_rbuff[i][j]);
             Wrapper<K>::template csrmv<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
             Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
-            residual[1] = Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1);
+            storage[1] = Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1);
             std::fill(tmp, tmp + Subdomain<K>::_dof, 1.0);
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
-                        tmp[val] /= (1.0 + tmp[val]);
+                        tmp[val] /= (K(1.0) + tmp[val]);
             for(unsigned short i = 0; i < Subdomain<K>::_dof; ++i)
-                    residual[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
+                    storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
             delete [] tmp;
-            MPI_Allreduce(MPI_IN_PLACE, residual, 2, MPI_DOUBLE, MPI_SUM, Subdomain<K>::_communicator);
-            residual[0] = std::sqrt(residual[0]);
-            residual[1] = std::sqrt(residual[1]);
+            MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, Subdomain<K>::_communicator);
+            storage[0] = std::sqrt(storage[0]);
+            storage[1] = std::sqrt(storage[1]);
         }
         /* Function: getAllDof
          *  Returns the number of local interior and boundary degrees of freedom (with the right multiplicity). */

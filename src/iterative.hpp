@@ -30,15 +30,27 @@ class IterativeMethod {
     private:
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
-        template<class K, typename std::enable_if<std::is_same<K, double>::value>::type* = nullptr>
-        static inline void allocate(double*& dir, K*& p, const int& n) {
-            dir = new double[3 + 4 * n];
+        template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        static inline void allocate(K*& dir, K*& p, const int& n) {
+            dir = new K[3 + 4 * n];
             p = dir + 3;
         }
-        template<class K, typename std::enable_if<!std::is_same<K, double>::value>::type* = nullptr>
-        static inline void allocate(double*& dir, K*& p, const int& n) {
-            dir = new double[3];
+        template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        static inline void allocate(typename Wrapper<K>::ul_type*& dir, K*& p, const int& n) {
+            static_assert(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value, "Wrong types");
+            dir = new typename Wrapper<K>::ul_type[3];
             p = new K[4 * n];
+        }
+        /* Function: depenalize
+         *  Divides a scalar by <HPDDM_PEN>. */
+        template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        static inline void depenalize(const K& b, K& x) {
+            x = b / HPDDM_PEN;
+        }
+        template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        static inline void depenalize(const K& b, K& x) {
+            static_assert(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value, "Wrong types");
+            x = b / std::complex<typename Wrapper<K>::ul_type>(HPDDM_PEN, HPDDM_PEN);
         }
         /* Function: update
          *
@@ -91,10 +103,10 @@ class IterativeMethod {
         static inline T dot(const int* const n, const T* const x, const int* const incx, const T* const y, const int* const incy) {
             return Wrapper<T>::dot(n, x, incx, y, incy);
         }
-        template<class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
-        static inline void diagv(const int& n, const double* const* const d, T* const in, T* const out = nullptr) { }
+        template<class T, class U, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
+        static inline void diagv(const int& n, const U* const* const d, T* const in, T* const out = nullptr) { }
         template<class T, typename std::enable_if<!std::is_pointer<T>::value>::type* = nullptr>
-        static inline void diagv(const int& n, const double* const d, T* const in, T* const out = nullptr) {
+        static inline void diagv(const int& n, const typename Wrapper<T>::ul_type* const d, T* const in, T* const out = nullptr) {
             if(out)
                 Wrapper<T>::diagv(n, d, in, out);
             else
@@ -121,7 +133,7 @@ class IterativeMethod {
          *    verbosity      - Level of verbosity. */
         template<Gmres Type = CLASSICAL, bool excluded = false, class Operator, class K>
         static inline int GMRES(const Operator& A, K* const x, const K* const b,
-                                const unsigned short m, unsigned short& it, double tol,
+                                const unsigned short m, unsigned short& it, typename Wrapper<K>::ul_type tol,
                                 const MPI_Comm& comm, unsigned short verbosity) {
             const int n = excluded ? 0 : A.getDof();
             K* const storage = new K[3 * (m + 1) + 2 * n];
@@ -140,7 +152,7 @@ class IterativeMethod {
             if(!excluded) {
                 for(unsigned int i = 0; i < n; ++i)
                     if(std::abs(b[i]) > HPDDM_PEN * HPDDM_EPS)
-                        x[i] = b[i] / HPDDM_PEN;
+                        depenalize(b[i], x[i]);
                 A.GMV(x, Ax);
             }
             Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, Ax, 1);
@@ -150,13 +162,18 @@ class IterativeMethod {
             storage[1] = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
             MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
 
-            double norm = std::sqrt(std::real(storage[0]));
-            double beta = std::sqrt(std::real(storage[1]));
+            typename Wrapper<K>::ul_type norm = std::sqrt(std::real(storage[0]));
+            typename Wrapper<K>::ul_type beta = std::sqrt(std::real(storage[1]));
 
-            if(norm < 1.0e-30)
+            if(norm < HPDDM_EPS)
                 norm = 1.0;
+            if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
+                if(verbosity)
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
+                tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
+            }
             if(beta / norm < tol) {
-                if(norm > 1.0/HPDDM_EPS)
+                if(norm > 1.0 / HPDDM_EPS)
                     norm = 1.0;
                 else {
                     it = 0;
@@ -211,7 +228,7 @@ class IterativeMethod {
                                 std::fill(H[i], H[i] + i + 1, 0.0);
                                 MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                                 beta = 0.0;
-                                MPI_Allreduce(MPI_IN_PLACE, &beta, 1, MPI_DOUBLE, MPI_SUM, comm);
+                                MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                                 H[i][i + 1] = std::sqrt(beta);
                             }
                             else {
@@ -220,9 +237,9 @@ class IterativeMethod {
                                 MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                                 Wrapper<K>::gemv(&transa, &n, &i_, &(Wrapper<K>::d__2), *v, &n, H[i], &i__1, &(Wrapper<K>::d__1), v[m + 1], &i__1);
                                 beta = Wrapper<K>::dot(&n, v[m + 1], &i__1, v[m + 1], &i__1);
-                                MPI_Allreduce(MPI_IN_PLACE, &beta, 1, MPI_DOUBLE, MPI_SUM, comm);
+                                MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                                 H[i][i + 1] = std::sqrt(beta);
-                                Wrapper<K>::axpby(n, 1.0 / H[i][i + 1], v[m + 1], 1, 0.0, v[i + 1], 1);
+                                Wrapper<K>::axpby(n, K(1.0) / H[i][i + 1], v[m + 1], 1, 0.0, v[i + 1], 1);
                             }
                         }
                         else {
@@ -251,7 +268,7 @@ class IterativeMethod {
                         }
                         if(Type != CLASSICAL) {
                             ++i;
-                            delta = 1.0 / H[i - 1][i];
+                            delta = K(1.0) / H[i - 1][i];
                             Wrapper<K>::scal(&n, &delta, v[i], &i__1);
                             if(Type == FUSED) {
                                 Wrapper<K>::scal(&n, &delta, v[m + i + 2], &i__1);
@@ -295,7 +312,7 @@ class IterativeMethod {
                     A.template apply<excluded>(Ax, r);
                     timing[1] -= MPI_Wtime();
                     beta = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
-                    MPI_Allreduce(MPI_IN_PLACE, &beta, 1, MPI_DOUBLE, MPI_SUM, comm);
+                    MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                     beta = std::sqrt(beta);
                     if(verbosity)
                         std::cout << "GMRES restart(" << m << "): " << j - 1 << " " << beta << " " <<  norm << " " <<  beta / norm << " < " << tol << std::endl;
@@ -346,20 +363,20 @@ class IterativeMethod {
          *    verbosity      - Level of verbosity. */
         template<bool excluded = false, class Operator, class K>
         static inline int CG(Operator& A, K* const x, const K* const b,
-                             unsigned short& it, double tol,
+                             unsigned short& it, typename Wrapper<K>::ul_type tol,
                              const MPI_Comm& comm, unsigned short verbosity) {
             const int n = A.getDof();
-            double* dir;
+            typename Wrapper<K>::ul_type* dir;
             K* p;
             allocate(dir, p, n);
             K* z = p + n;
             K* r = p + 2 * n;
             K* trash = p + 3 * n;
-            const double* const d = A.getScaling();
+            const typename Wrapper<K>::ul_type* const d = A.getScaling();
 
             for(unsigned int i = 0; i < n; ++i)
                 if(std::abs(b[i]) > HPDDM_PEN * HPDDM_EPS)
-                    x[i] = b[i] / HPDDM_PEN;
+                    depenalize(b[i], x[i]);
             A.GMV(x, z);
             std::copy(b, b + n, r);
             Wrapper<K>::axpy(&n, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
@@ -368,9 +385,14 @@ class IterativeMethod {
 
             Wrapper<K>::diagv(n, d, z, p);
             dir[0] = Wrapper<K>::dot(&n, z, &i__1, p, &i__1);
-            MPI_Allreduce(MPI_IN_PLACE, dir, 1, MPI_DOUBLE, MPI_SUM, comm);
-            double resInit = std::sqrt(dir[0]);
+            MPI_Allreduce(MPI_IN_PLACE, dir, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
+            typename Wrapper<K>::ul_type resInit = std::sqrt(dir[0]);
 
+            if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
+                if(verbosity)
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
+                tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
+            }
             if(resInit <= tol)
                 it = 0;
 
@@ -382,7 +404,7 @@ class IterativeMethod {
                 A.GMV(p, z);
                 Wrapper<K>::diagv(n, d, p, trash);
                 dir[1] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
-                MPI_Allreduce(MPI_IN_PLACE, dir, 2, MPI_DOUBLE, MPI_SUM, comm);
+                MPI_Allreduce(MPI_IN_PLACE, dir, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                 K alpha = dir[0] / dir[1];
                 Wrapper<K>::axpy(&n, &alpha, p, &i__1, x, &i__1);
                 alpha = -alpha;
@@ -392,7 +414,7 @@ class IterativeMethod {
                 Wrapper<K>::diagv(n, d, z, trash);
                 dir[1] = Wrapper<K>::dot(&n, r, &i__1, trash, &i__1);
                 dir[2] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
-                MPI_Allreduce(MPI_IN_PLACE, dir + 1, 2, MPI_DOUBLE, MPI_SUM, comm);
+                MPI_Allreduce(MPI_IN_PLACE, dir + 1, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                 Wrapper<K>::axpby(n, 1.0, z, 1, dir[1] / dir[0], p, 1);
 
                 dir[0] = std::sqrt(dir[2]);
@@ -410,7 +432,7 @@ class IterativeMethod {
                     std::cout << "CG does not converges after " << i - 1 << " iteration" << (i > 2 ? "s" : "") << std::endl;
             }
             delete [] dir;
-            if(!std::is_same<K, double>::value)
+            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
                 delete [] p;
             return 0;
         }
@@ -432,7 +454,7 @@ class IterativeMethod {
          *    verbosity      - Level of verbosity. */
         template<bool excluded = false, class Operator, class K>
         static inline int PCG(Operator& A, K* const x, const K* const f,
-                              unsigned short& it, double tol,
+                              unsigned short& it, typename Wrapper<K>::ul_type tol,
                               const MPI_Comm& comm, unsigned short verbosity) {
             typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K**, K*>::type ptr_type;
             const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
@@ -447,15 +469,20 @@ class IterativeMethod {
             else
                 A.template start<excluded>(x, f, storage[1], storage[0]);
 
+            if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
+                if(verbosity)
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
+                tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
+            }
             std::vector<ptr_type> z;
             z.reserve(it);
             ptr_type zCurr;
             A.allocateSingle(zCurr);
             z.emplace_back(zCurr);
             if(!excluded)
-                A.precond(storage[0], zCurr);                                                                       // z_0 = M r_0
+                A.precond(storage[0], zCurr);                                                              //     z_0 = M r_0
 
-            double resInit;
+            typename Wrapper<K>::ul_type resInit;
             A.template computeDot<excluded>(&resInit, zCurr, zCurr, comm);
             resInit = std::sqrt(resInit);
 
@@ -467,7 +494,7 @@ class IterativeMethod {
 
             K* alpha = new K[2 * it];
             unsigned short i = 0;
-            double resRel = std::numeric_limits<double>::max();
+            typename Wrapper<K>::ul_type resRel = std::numeric_limits<typename Wrapper<K>::ul_type>::max();
             while(i++ < it) {
                 if(!excluded) {
                     A.template project<excluded, 'N'>(zCurr, pCurr);                                       //     p_i = P z_i

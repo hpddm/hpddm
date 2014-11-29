@@ -191,7 +191,7 @@ class Subdomain {
          *    global        - Global number of unknowns.
          *    d             - Local partition of unity (optional). */
         template<char N, class It>
-        inline void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const double* const d = nullptr) const {
+        inline void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const typename Wrapper<K>::ul_type* const d = nullptr) const {
             unsigned int between = 0;
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);

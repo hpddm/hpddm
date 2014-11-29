@@ -28,88 +28,61 @@ extern "C" {
 #include <cscd_utils.h>
 }
 
+#define HPDDM_GENERATE_PASTIX(C, T)                                                                          \
+template<>                                                                                                   \
+struct pstx<T> {                                                                                             \
+    static inline void dist(pastix_data_t** pastix_data, MPI_Comm pastix_comm,                               \
+                            pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,                         \
+                            T* avals, pastix_int_t* loc2glob, pastix_int_t* perm, pastix_int_t* invp,        \
+                            T* b, pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {                    \
+        C ## _dpastix(pastix_data, pastix_comm,                                                              \
+                      n, colptr, row, avals, loc2glob, perm, invp, b, rhs, iparm, dparm);                    \
+    }                                                                                                        \
+    static inline void seq(pastix_data_t** pastix_data, MPI_Comm pastix_comm,                                \
+                           pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,                          \
+                           T* avals, pastix_int_t* perm, pastix_int_t* invp,                                 \
+                           T* b, pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {                     \
+        C ## _pastix(pastix_data, pastix_comm, n, colptr, row, avals, perm, invp, b, rhs, iparm, dparm);     \
+    }                                                                                                        \
+    static inline pastix_int_t cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, T* a,     \
+                                               T* rhs, pastix_int_t nrhs, pastix_int_t* l2g,                 \
+                                               pastix_int_t dn, pastix_int_t** dia,                          \
+                                               pastix_int_t** dja, T** da,                                   \
+                                               T** drhs, pastix_int_t* dl2g,                                 \
+                                               MPI_Comm comm, pastix_int_t dof) {                            \
+        return C ## _cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia,                                  \
+                                     dja, da, drhs, dl2g, comm, dof);                                        \
+    }                                                                                                        \
+    static inline void initParam(pastix_int_t* iparm, double* dparm) {                                       \
+        C ## _pastix_initParam(iparm, dparm);                                                                \
+    }                                                                                                        \
+    static inline pastix_int_t getLocalNodeNbr(pastix_data_t** pastix_data) {                                \
+        return C ## _pastix_getLocalNodeNbr(pastix_data);                                                    \
+    }                                                                                                        \
+    static inline pastix_int_t getLocalNodeLst(pastix_data_t** pastix_data, pastix_int_t* nodelst) {         \
+        return C ## _pastix_getLocalNodeLst(pastix_data, nodelst);                                           \
+    }                                                                                                        \
+    static inline pastix_int_t setSchurUnknownList(pastix_data_t* pastix_data, pastix_int_t n,               \
+                                                   pastix_int_t* list) {                                     \
+        return C ## _pastix_setSchurUnknownList(pastix_data, n, list);                                       \
+    }                                                                                                        \
+    static inline pastix_int_t setSchurArray(pastix_data_t* pastix_data, T* array) {                         \
+        return C ## _pastix_setSchurArray(pastix_data, array);                                               \
+    }                                                                                                        \
+    static constexpr API_FACT LLT = API_FACT_LLT;                                                            \
+    static constexpr API_FACT LDLT = API_FACT_LDLT;                                                          \
+};
+
 namespace HPDDM {
 template<class>
 struct pstx {
 };
-
-template<>
-struct pstx<double> {
-    static inline void dist(pastix_data_t** pastix_data, MPI_Comm pastix_comm,
-                            pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,
-                            double* avals, pastix_int_t* loc2glob, pastix_int_t* perm, pastix_int_t* invp,
-                            double* b, PASTIX_INT rhs, PASTIX_INT *iparm, double* dparm) {
-        d_dpastix(pastix_data, pastix_comm, n, colptr, row, avals, loc2glob, perm, invp, b, rhs, iparm, dparm);
-    }
-    static inline void seq(pastix_data_t** pastix_data, MPI_Comm pastix_comm,
-                           pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,
-                           double* avals, pastix_int_t* perm, pastix_int_t* invp,
-                           double* b, PASTIX_INT rhs, PASTIX_INT *iparm, double* dparm) {
-        d_pastix(pastix_data, pastix_comm, n, colptr, row, avals, perm, invp, b, rhs, iparm, dparm);
-    }
-    static inline pastix_int_t cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, double* a,
-                                               double* rhs, pastix_int_t nrhs, pastix_int_t* l2g,
-                                               pastix_int_t dn, pastix_int_t** dia, pastix_int_t** dja, double** da,
-                                               double** drhs, pastix_int_t* dl2g, MPI_Comm comm, pastix_int_t dof) {
-        return d_cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia, dja, da, drhs, dl2g, comm, dof);
-    }
-    static inline void initParam(pastix_int_t* iparm, double* dparm) {
-        d_pastix_initParam(iparm, dparm);
-    }
-    static inline pastix_int_t getLocalNodeNbr(pastix_data_t** pastix_data) {
-        return d_pastix_getLocalNodeNbr(pastix_data);
-    }
-    static inline pastix_int_t getLocalNodeLst(pastix_data_t** pastix_data, pastix_int_t* nodelst) {
-        return d_pastix_getLocalNodeLst(pastix_data, nodelst);
-    }
-    static inline pastix_int_t setSchurUnknownList(pastix_data_t* pastix_data, pastix_int_t n, pastix_int_t* list) {
-        return d_pastix_setSchurUnknownList(pastix_data, n, list);
-    }
-    static inline pastix_int_t setSchurArray(pastix_data_t* pastix_data, double* array) {
-        return d_pastix_setSchurArray(pastix_data, array);
-    }
-    static constexpr API_FACT LLT = API_FACT_LLT;
-    static constexpr API_FACT LDLT = API_FACT_LDLT;
-};
-
-template<>
-struct pstx<std::complex<double>> {
-    static inline void dist(pastix_data_t** pastix_data, MPI_Comm pastix_comm,
-                            pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,
-                            std::complex<double>* avals, pastix_int_t* loc2glob, pastix_int_t* perm, pastix_int_t* invp,
-                            std::complex<double>* b, PASTIX_INT rhs, PASTIX_INT *iparm, double* dparm) {
-        z_dpastix(pastix_data, pastix_comm, n, colptr, row, avals, loc2glob, perm, invp, b, rhs, iparm, dparm);
-    }
-    static inline void seq(pastix_data_t** pastix_data, MPI_Comm pastix_comm,
-                           pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,
-                           std::complex<double>* avals, pastix_int_t* perm, pastix_int_t* invp,
-                           std::complex<double>* b, PASTIX_INT rhs, PASTIX_INT *iparm, double* dparm) {
-        z_pastix(pastix_data, pastix_comm, n, colptr, row, avals, perm, invp, b, rhs, iparm, dparm);
-    }
-    static inline pastix_int_t cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, std::complex<double>* a,
-                                               std::complex<double>* rhs, pastix_int_t nrhs, pastix_int_t* l2g,
-                                               pastix_int_t dn, pastix_int_t** dia, pastix_int_t** dja, std::complex<double>** da,
-                                               std::complex<double>** drhs, pastix_int_t* dl2g, MPI_Comm comm, pastix_int_t dof) {
-        return z_cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia, dja, da, drhs, dl2g, comm, dof);
-    }
-    static inline void initParam(pastix_int_t* iparm, double* dparm) {
-        z_pastix_initParam(iparm, dparm);
-    }
-    static inline pastix_int_t getLocalNodeNbr(pastix_data_t** pastix_data) {
-        return z_pastix_getLocalNodeNbr(pastix_data);
-    }
-    static inline pastix_int_t getLocalNodeLst(pastix_data_t** pastix_data, pastix_int_t* nodelst) {
-        return z_pastix_getLocalNodeLst(pastix_data, nodelst);
-    }
-    static inline pastix_int_t setSchurUnknownList(pastix_data_t* pastix_data, pastix_int_t n, pastix_int_t* list) {
-        return z_pastix_setSchurUnknownList(pastix_data, n, list);
-    }
-    static inline pastix_int_t setSchurArray(pastix_data_t* pastix_data, std::complex<double>* array) {
-        return z_pastix_setSchurArray(pastix_data, array);
-    }
-    static constexpr API_FACT LLT = API_FACT_LDLH;
-    static constexpr API_FACT LDLT = API_FACT_LDLH;
-};
+HPDDM_GENERATE_PASTIX(s, float)
+HPDDM_GENERATE_PASTIX(d, double)
+#if defined(PASTIX_HAS_COMPLEX)
+HPDDM_GENERATE_PASTIX(c, std::complex<float>)
+HPDDM_GENERATE_PASTIX(z, std::complex<double>)
+#endif
 
 #ifdef DPASTIX
 #define COARSEOPERATOR HPDDM::Pastix
@@ -124,28 +97,28 @@ class Pastix : public DMatrix {
     private:
         /* Variable: data
          *  Internal data pointer. */
-        pastix_data_t*             _data;
+        pastix_data_t*      _data;
         /* Variable: values2
          *  Array of data. */
-        K*                      _values2;
+        K*               _values2;
         /* Variable: dparm
-         *  Array of double parameters. */
-        double*                   _dparm;
+         *  Array of double-precision floating point parameters. */
+        double*            _dparm;
         /* Variable: ncol2
          *  Number of local rows. */
-        pastix_int_t              _ncol2;
+        pastix_int_t       _ncol2;
         /* Variable: colptr2
          *  Array of row pointers. */
-        pastix_int_t*           _colptr2;
+        pastix_int_t*    _colptr2;
         /* Variable: rows2
          *  Array of column indices. */
-        pastix_int_t*             _rows2;
+        pastix_int_t*      _rows2;
         /* Variable: loc2glob2
          *  Local to global numbering. */
-        pastix_int_t*         _loc2glob2;
+        pastix_int_t*  _loc2glob2;
         /* Variable: iparm
          *  Array of integer parameters. */
-        pastix_int_t*             _iparm;
+        pastix_int_t*      _iparm;
     protected:
         /* Variable: numbering
          *  1-based indexing. */
@@ -197,7 +170,7 @@ class Pastix : public DMatrix {
             else {
                 _iparm[IPARM_SYM]             = API_SYM_NO;
                 _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
-                if(std::is_same<K, std::complex<double>>::value)
+                if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
                     _iparm[IPARM_TRANSPOSE_SOLVE] = API_YES;
             }
             _iparm[IPARM_RHSD_CHECK]          = API_NO;
@@ -288,13 +261,13 @@ class Pastix : public DMatrix {
 template<class K>
 class PastixSub {
     private:
-        pastix_data_t*             _data;
-        K*                       _values;
-        double*                   _dparm;
-        pastix_int_t               _ncol;
-        pastix_int_t*            _colptr;
-        pastix_int_t*              _rows;
-        pastix_int_t*             _iparm;
+        pastix_data_t*    _data;
+        K*              _values;
+        double*          _dparm;
+        pastix_int_t      _ncol;
+        pastix_int_t*   _colptr;
+        pastix_int_t*     _rows;
+        pastix_int_t*    _iparm;
     public:
         PastixSub() : _data(), _values(), _dparm(), _colptr(), _rows(), _iparm() { }
         PastixSub(const PastixSub&) = delete;
@@ -322,7 +295,7 @@ class PastixSub {
                 _iparm[IPARM_START_TASK]          = API_TASK_INIT;
                 _iparm[IPARM_END_TASK]            = API_TASK_INIT;
                 if(A->_sym) {
-                    _iparm[IPARM_SYM]             = std::is_same<K, double>::value ? API_SYM_YES : API_SYM_HER;
+                    _iparm[IPARM_SYM]             = std::is_same<K, typename Wrapper<K>::ul_type>::value ? API_SYM_YES : API_SYM_HER;
                     _iparm[IPARM_FACTORIZATION]   = detection ? pstx<K>::LDLT : pstx<K>::LLT;
                 }
                 else {
@@ -330,7 +303,7 @@ class PastixSub {
                     _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
                 }
                 _iparm[IPARM_SCHUR]               = schur ? API_YES : API_NO;
-                _dparm[DPARM_EPSILON_MAGN_CTRL]   = -1.0/HPDDM_PEN;
+                _dparm[DPARM_EPSILON_MAGN_CTRL]   = -1.0 / HPDDM_PEN;
                 if(_iparm[IPARM_SYM] == API_SYM_YES) {
                     _values = new K[A->_nnz];
                     _colptr = new int[_ncol + 1];
@@ -350,8 +323,8 @@ class PastixSub {
                 pastix_int_t perm[_ncol];
                 pastix_int_t iperm[_ncol];
                 pstx<K>::seq(&_data, MPI_COMM_SELF,
-                        _ncol, _colptr, _rows, NULL,
-                        perm, NULL, NULL, 1, _iparm, _dparm);
+                             _ncol, _colptr, _rows, NULL,
+                             perm, NULL, NULL, 1, _iparm, _dparm);
                 int* listvar = nullptr;
                 if(schur) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
@@ -364,8 +337,8 @@ class PastixSub {
                 _iparm[IPARM_END_TASK]        = API_TASK_NUMFACT;
 
                 pstx<K>::seq(&_data, MPI_COMM_SELF,
-                        _ncol, _colptr, _rows, _values,
-                        perm, iperm, NULL, 1, _iparm, _dparm);
+                             _ncol, _colptr, _rows, _values,
+                             perm, iperm, NULL, 1, _iparm, _dparm);
 
                 _iparm[IPARM_CSCD_CORRECT] = API_YES;
                 if(_iparm[IPARM_SYM] == API_SYM_YES) {

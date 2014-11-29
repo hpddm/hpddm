@@ -38,8 +38,9 @@ class SuiteSparse;
 #include <umfpack.h>
 
 namespace HPDDM {
-template<class>
+template<class K>
 struct stsprs {
+    static_assert(std::is_same<double, typename Wrapper<K>::ul_type>::value, "UMFPACK only supports double-precision floating point scalars");
 };
 
 template<>
@@ -165,6 +166,7 @@ class SuiteSparse : public DMatrix {
         }
         template<char S>
         inline void numfact(unsigned int ncol, int* I, int* J, K* C) {
+            static_assert(S == 'S' || std::is_same<double, typename Wrapper<K>::ul_type>::value, "UMFPACK only supports double-precision floating point scalars");
             if(S == 'S') {
                 _c = new cholmod_common;
                 cholmod_start(_c);
@@ -176,11 +178,11 @@ class SuiteSparse : public DMatrix {
                 M->sorted = 1;
                 M->packed = 1;
                 M->stype = -1;
-                M->xtype = std::is_same<K, std::complex<double>>::value ? CHOLMOD_COMPLEX : CHOLMOD_REAL;
+                M->xtype = std::is_same<K, typename Wrapper<K>::ul_type>::value ? CHOLMOD_REAL : CHOLMOD_COMPLEX;
                 M->p = I;
                 M->i = J;
                 M->x = C;
-                M->dtype = CHOLMOD_DOUBLE;
+                M->dtype = std::is_same<double, typename Wrapper<K>::ul_type>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
                 M->itype = CHOLMOD_INT;
                 _L = cholmod_analyze(M, _c);
                 cholmod_print_common(NULL, _c);
@@ -188,14 +190,14 @@ class SuiteSparse : public DMatrix {
                 _b = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
                 _b->nrow = M->nrow;
                 _b->xtype = M->xtype;
-                _b->dtype = CHOLMOD_DOUBLE;
+                _b->dtype = M->dtype;
                 _b->d = _b->nrow;
                 _tmp = new K[_b->nrow];
                 _x = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
                 _x->nrow = M->nrow;
                 _x->x = NULL;
                 _x->xtype = M->xtype;
-                _x->dtype = CHOLMOD_DOUBLE;
+                _x->dtype = M->dtype;
                 _x->d = _x->nrow;
                 cholmod_free(1, sizeof(cholmod_sparse), M, _c);
             }
@@ -288,7 +290,7 @@ class SuiteSparseSub {
         }
         inline void numfact(MatrixCSR<K>* const& A, bool detection = false) {
             if(!_c && !_W) {
-                if(A->_sym && !std::is_same<K, std::complex<double>>::value) {
+                if(A->_sym && std::is_same<K, typename Wrapper<K>::ul_type>::value) {
                     _c = new cholmod_common;
                     cholmod_start(_c);
                     cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), _c));
@@ -298,25 +300,25 @@ class SuiteSparseSub {
                     M->sorted = 1;
                     M->packed = 1;
                     M->stype = 1;
-                    M->xtype = std::is_same<K, std::complex<double>>::value ? CHOLMOD_COMPLEX : CHOLMOD_REAL;
+                    M->xtype = std::is_same<K, typename Wrapper<K>::ul_type>::value ? CHOLMOD_REAL : CHOLMOD_COMPLEX;
                     M->p = A->_ia;
                     M->i = A->_ja;
                     M->x = A->_a;
-                    M->dtype = CHOLMOD_DOUBLE;
+                    M->dtype = std::is_same<double, typename Wrapper<K>::ul_type>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
                     M->itype = CHOLMOD_INT;
                     _L = cholmod_analyze(M, _c);
                     cholmod_factorize(M, _L, _c);
                     _b = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
                     _b->nrow = M->nrow;
                     _b->xtype = M->xtype;
-                    _b->dtype = CHOLMOD_DOUBLE;
+                    _b->dtype = M->dtype;
                     _b->d = _b->nrow;
                     _tmp = new K[_b->nrow];
                     _x = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
                     _x->nrow = M->nrow;
                     _x->x = NULL;
                     _x->xtype = M->xtype;
-                    _x->dtype = CHOLMOD_DOUBLE;
+                    _x->dtype = M->dtype;
                     _x->d = _x->nrow;
                     cholmod_free(1, sizeof(cholmod_sparse), M, _c);
                 }

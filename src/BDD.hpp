@@ -40,7 +40,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
     private:
         /* Variable: m
          *  Local partition of unity. */
-        double*         _m;
+        typename Wrapper<K>::ul_type* _m;
     public:
         Bdd() : _m() { }
         ~Bdd() {
@@ -53,7 +53,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Allocates <Bdd::m> and calls <Schur::initialize>. */
         inline void initialize() {
             super::template initialize<false>();
-            _m = new double[Subdomain<K>::_dof];
+            _m = new typename Wrapper<K>::ul_type[Subdomain<K>::_dof];
         }
         inline void allocateSingle(K*& primal) const {
             primal = new K[Subdomain<K>::_dof];
@@ -287,18 +287,18 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    a              - Left-hand side.
          *    b              - Right-hand side. */
         template<bool excluded>
-        inline void computeDot(double* const val, const K* const a, const K* const b, const MPI_Comm& comm) const {
+        inline void computeDot(typename Wrapper<K>::ul_type* const val, const K* const a, const K* const b, const MPI_Comm& comm) const {
             if(!excluded) {
                 Wrapper<K>::diagv(Subdomain<K>::_dof, _m, a, super::_work);
                 *val = Wrapper<K>::dot(&(Subdomain<K>::_dof), super::_work, &i__1, b, &i__1);
             }
             else
                 *val = 0.0;
-            MPI_Allreduce(MPI_IN_PLACE, val, 1, MPI_DOUBLE, MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, val, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Bdd::m>. */
-        inline const double* getScaling() const { return _m; }
+        inline const typename Wrapper<K>::ul_type* getScaling() const { return _m; }
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -310,7 +310,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L = 'S'>
-        inline void solveGEVP(unsigned short& nu, const double& threshold = 0.0) {
+        inline void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type& threshold = 0.0) {
             super::template solveGEVP<L>(_m, nu, threshold);
         }
 };

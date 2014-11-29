@@ -108,7 +108,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         typedef OperatorBase<'s', Preconditioner, K> super;
         const MatrixCSR<K>* const                       _A;
         MatrixCSR<K, Wrapper<K>::I>*                    _C;
-        const double* const                             _D;
+        const typename Wrapper<K>::ul_type* const       _D;
         K*                                           _work;
         unsigned short                             _signed;
         template<char S, bool U>
@@ -132,7 +132,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                     v[i].reserve(nnz);
                 nnz = 0;
                 for(unsigned int i = 0; i < _A->_n; ++i) {
-                    const double scal = _D[i];
+                    const typename Wrapper<K>::ul_type scal = _D[i];
                     for(unsigned int j = _A->_ia[i]; j < _A->_ia[i + 1] - 1; ++j) {
                         if(_D[_A->_ja[j]] > HPDDM_EPS) {
                             v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j]]);
@@ -435,7 +435,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
             }
 
             K* tmp = new K[offset[super::_map.size() + 1] * super::_n]();
-            const double* const* const m = super::_p.getScaling();
+            const typename Wrapper<K>::ul_type* const* const m = super::_p.getScaling();
             for(unsigned short i = 0; i < between; ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
@@ -779,7 +779,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             }
 
             K* tmp = new K[offset[super::_map.size() + 1] * super::_n]();
-            const double* const m = super::_p.getScaling();
+            const typename Wrapper<K>::ul_type* const m = super::_p.getScaling();
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
@@ -867,7 +867,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         inline void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             if(++_consolidate == super::_map.size()) {
-                const double* const m = super::_p.getScaling();
+                const typename Wrapper<K>::ul_type* const m = super::_p.getScaling();
                 for(unsigned short j = 0; j < coefficients + (S == 'S') * super::_local; ++j)
                     Wrapper<K>::diagv(super::_n, m, arrayC + j * super::_n);
                 if(S != 'S')
