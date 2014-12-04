@@ -24,7 +24,7 @@ before_install:
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get update -qq; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install -qq g++-4.9; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libmumps-dev libsuitesparse-dev libarpack2; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libmumps-dev libsuitesparse-dev libarpack2-dev; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew tap homebrew/science; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install gcc arpack cmake scalapack veclibfort; fi

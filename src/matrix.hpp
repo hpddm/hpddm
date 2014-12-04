@@ -74,6 +74,57 @@ class MatrixCSR {
                 delete [] _ja;
             }
         }
+        /* Function: sameSparsity
+         *
+         *  Checks whether the input matrix can be modified to have the same sparsity pattern as the calling object.
+         *
+         * Parameter:
+         *    A              - Input matrix. */
+        inline bool sameSparsity(MatrixCSR<K>* const& A) const {
+            if(A->_sym == _sym && A->_nnz >= _nnz) {
+                if(A->_ia == _ia && A->_ja == _ja)
+                    return true;
+                else {
+                    bool same = true;
+                    K* a = new K[_nnz];
+                    for(int i = 0; i < _n && same; ++i) {
+                        for(int j = A->_ia[i], k = 0; j < A->_ia[i + 1]; ++j) {
+                            int* res = std::lower_bound(_ja + _ia[i] + k, _ja + _ia[i + 1], A->_ja[j]);
+                            if(res == _ja + _ia[i + 1] || *res != A->_ja[j]) {
+                                if(std::abs(A->_a[j]) > HPDDM_EPS)
+                                    same = false;
+                            }
+                            else
+                                ++k;
+                        }
+                        for(int j = _ia[i], k = 0; j < _ia[i + 1]; ++j) {
+                            int* res = std::lower_bound(A->_ja + A->_ia[i] + k, A->_ja + A->_ia[i + 1], _ja[j]);
+                            if(res == A->_ja + A->_ia[i + 1] || *res != _ja[j])
+                                a[j] = K();
+                            else {
+                                a[j] = A->_a[std::distance(A->_ja, res)];
+                                ++k;
+                            }
+                        }
+                    }
+                    if(same) {
+                        A->_nnz = _nnz;
+                        delete [] A->_ja;
+                        delete [] A->_ia;
+                        delete [] A->_a;
+                        A->_a = a;
+                        A->_ia = _ia;
+                        A->_ja = _ja;
+                        A->_free = false;
+                    }
+                    else
+                        delete [] a;
+                    return same;
+                }
+            }
+            else
+                return false;
+        }
         /* Function: dump
          *  Outputs the matrix to an output stream. */
         std::ostream& dump(std::ostream& f) const {

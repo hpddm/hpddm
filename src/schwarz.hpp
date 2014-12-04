@@ -303,7 +303,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    B              - Output matrix used in GenEO.
          *
          * See also: <Schwarz::solveGEVP>. */
-        inline void scaleIntoOverlap(const MatrixCSR<K>* const& A, MatrixCSR<K>*& B) {
+        inline void scaleIntoOverlap(const MatrixCSR<K>* const& A, MatrixCSR<K>*& B) const {
             std::set<unsigned int> intoOverlap;
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(unsigned int i : neighbor.second)
@@ -351,6 +351,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         template<template<class> class Eps>
         inline void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold, MatrixCSR<K>* const& B = nullptr) {
             Eps<K> evp(threshold, Subdomain<K>::_dof, nu);
+            bool free = Subdomain<K>::_a->sameSparsity(A);
             MatrixCSR<K>* rhs = nullptr;
             if(B)
                 rhs = B;
@@ -359,6 +360,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             evp.template solve<Solver>(A, rhs, super::_ev, Subdomain<K>::_communicator);
             if(rhs != B)
                 delete rhs;
+            if(free) {
+                A->_ia = nullptr;
+                A->_ja = nullptr;
+            }
             nu = evp.getNu();
         }
 #if HPDDM_GMV
