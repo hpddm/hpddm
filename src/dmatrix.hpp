@@ -23,7 +23,6 @@
 #ifndef _DISTRIBUTED_MATRIX_
 #define _DISTRIBUTED_MATRIX_
 
-#include <numeric>
 #include <map>
 
 namespace HPDDM {

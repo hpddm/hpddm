@@ -224,9 +224,10 @@ template<class K>
 class MumpsSub {
     private:
         typename MUMPS_STRUC_C<K>::trait* _id;
+        int*                               _I;
         char                        _strategy;
     public:
-        MumpsSub() : _id() { }
+        MumpsSub() : _id(), _I() { }
         MumpsSub(const MumpsSub&) = delete;
         ~MumpsSub() {
             if(_id) {
@@ -234,14 +235,25 @@ class MumpsSub {
                 MUMPS_STRUC_C<K>::mumps_c(_id);
                 delete _id;
             }
+            delete [] _I;
         }
         inline void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             if(!_id) {
                 _id = new typename MUMPS_STRUC_C<K>::trait;
-                _id->job = -1; _id->par = 1; _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
+                _id->job = -1;
+                _id->par = 1;
+                _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
                 _id->sym = A->_sym ? 1 + detection : 0;
-                _strategy = 3;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
+            }
+            _id->icntl[23] = detection;
+            _id->cntl[2] = -1.0e-6;
+            std::transform(A->_ja, A->_ja + A->_nnz, A->_ja, [](int i){ return ++i; });
+            _id->jcn = A->_ja;
+            _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
+            int* listvar = nullptr;
+            if(_id->job == -1) {
+                _strategy = 3;
                 _id->nrhs = 1;
                 _id->icntl[0] = 0; _id->icntl[1] = 0; _id->icntl[2] = 0; _id->icntl[3] = 0;
                 _id->icntl[4] = 0;
@@ -264,23 +276,14 @@ class MumpsSub {
                 _id->icntl[17] = 0;
                 _id->icntl[19] = 0;
                 _id->icntl[13] = 80;
-                _id->icntl[23] = detection;
-                if(detection)
-                    _id->cntl[2] = -1.0e-6;
                 _id->n = A->_n;
                 _id->lrhs = A->_n;
-                int* I = new int[A->_nnz];
+                _I = new int[A->_nnz];
                 _id->nz = A->_nnz;
-                for(unsigned int i = 0; i < A->_n; ++i)
-                    std::fill(I + A->_ia[i], I + A->_ia[i + 1], i + 1);
-                int* J = A->_ja;
-                for(unsigned int i = 0; i < A->_nnz; ++i)
-                    ++J[i];
-                _id->irn = I;
-                _id->jcn = J;
-                _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
-                int* listvar = nullptr;
-                if(schur) {
+                for(int i = 0; i < A->_n; ++i)
+                    std::fill(_I + A->_ia[i], _I + A->_ia[i + 1], i + 1);
+                _id->irn = _I;
+                if(schur != nullptr) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
                     std::iota(listvar, listvar + static_cast<int>(std::real(schur[0])), static_cast<int>(std::real(schur[1])));
                     _id->size_schur = _id->schur_lld = static_cast<int>(std::real(schur[0]));
@@ -292,14 +295,14 @@ class MumpsSub {
                     _id->schur = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(schur);
                 }
                 _id->job = 4;
-                MUMPS_STRUC_C<K>::mumps_c(_id);
-                for(unsigned int i = 0; i < A->_nnz; ++i)
-                    --J[i];
-                delete [] I;
-                delete [] listvar;
-                if(_id->infog[0] != 0)
-                    std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
             }
+            else
+                _id->job = 2;
+            MUMPS_STRUC_C<K>::mumps_c(_id);
+            delete [] listvar;
+            if(_id->infog[0] != 0)
+                std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
+            std::transform(A->_ja, A->_ja + A->_nnz, A->_ja, [](int i){ return --i; });
         }
         inline unsigned short deficiency() const { return _id->infog[27]; }
         inline void solve(K* x, const unsigned short& n = 1) const {

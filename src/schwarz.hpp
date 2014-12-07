@@ -349,15 +349,15 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Precision of the eigensolver. */
         template<template<class> class Eps>
-        inline void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold, MatrixCSR<K>* const& B = nullptr) {
+        inline void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
             Eps<K> evp(threshold, Subdomain<K>::_dof, nu);
-            bool free = Subdomain<K>::_a->sameSparsity(A);
+            bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
             MatrixCSR<K>* rhs = nullptr;
             if(B)
                 rhs = B;
             else
                 scaleIntoOverlap(A, rhs);
-            evp.template solve<Solver>(A, rhs, super::_ev, Subdomain<K>::_communicator);
+            evp.template solve<Solver>(A, rhs, super::_ev, Subdomain<K>::_communicator, free ? &(super::_s) : nullptr);
             if(rhs != B)
                 delete rhs;
             if(free) {

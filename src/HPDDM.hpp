@@ -151,6 +151,7 @@ HPDDM_GENERATE_EXTERN_AXPBY(z, std::complex<double>, d, double)
 
 #include <vector>
 #include <algorithm>
+#include <numeric>
 
 namespace HPDDM {
 /* Constants: BLAS constants

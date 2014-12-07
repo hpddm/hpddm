@@ -535,29 +535,19 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrcsc(const int* const n, K* const a, int* const ja, int* const ia, K* const b, int* const jb, int* const ib) {
-    const int n_ = *n;
-    int nz = ia[n_];
-    int i;
-    int* ptr;
-
-    std::fill(ib, ib + n_ + 1, 0);
-
-    for(i = 0; i < nz; ++i)
+    int nnz = ia[*n];
+    std::fill(ib, ib + *n + 1, 0);
+    for(int i = 0; i < nnz; ++i)
         ib[ja[i] + 1]++;
-
-    for(i = 0; i < n_; ++i)
-        ib[i + 1] += ib[i];
-
-    for(i = 0, ptr = ia; i < n_; ++i, ++ptr)
-        for(int j = *ptr; j < *(ptr + 1); ++j) {
+    std::partial_sum(ib, ib + *n + 1, ib);
+    for(int i = 0; i < *n; ++i)
+        for(int j = ia[i]; j < ia[i + 1]; ++j) {
             int k = ib[ja[j]]++;
             jb[k] = i + (N == 'F');
             b[k] = a[j];
         }
-
-    for(int i = n_; i > 0; i--)
+    for(int i = *n; i > 0; --i)
         ib[i] = ib[i - 1] + (N == 'F');
-
     ib[0] = (N == 'F');
 }
 template<class K>

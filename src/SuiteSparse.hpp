@@ -289,25 +289,29 @@ class SuiteSparseSub {
             }
         }
         inline void numfact(MatrixCSR<K>* const& A, bool detection = false) {
-            if(!_c && !_W) {
-                if(A->_sym && std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+            if(A->_sym && std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+                if(!_c) {
                     _c = new cholmod_common;
                     cholmod_start(_c);
-                    cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), _c));
-                    M->nrow = A->_m;
-                    M->ncol = A->_n;
-                    M->nzmax = A->_nnz;
-                    M->sorted = 1;
-                    M->packed = 1;
-                    M->stype = 1;
-                    M->xtype = std::is_same<K, typename Wrapper<K>::ul_type>::value ? CHOLMOD_REAL : CHOLMOD_COMPLEX;
-                    M->p = A->_ia;
-                    M->i = A->_ja;
-                    M->x = A->_a;
-                    M->dtype = std::is_same<double, typename Wrapper<K>::ul_type>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
-                    M->itype = CHOLMOD_INT;
-                    _L = cholmod_analyze(M, _c);
-                    cholmod_factorize(M, _L, _c);
+                }
+                cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), _c));
+                M->nrow = A->_m;
+                M->ncol = A->_n;
+                M->nzmax = A->_nnz;
+                M->sorted = 1;
+                M->packed = 1;
+                M->stype = 1;
+                M->xtype = std::is_same<K, typename Wrapper<K>::ul_type>::value ? CHOLMOD_REAL : CHOLMOD_COMPLEX;
+                M->p = A->_ia;
+                M->i = A->_ja;
+                M->x = A->_a;
+                M->dtype = std::is_same<double, typename Wrapper<K>::ul_type>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
+                M->itype = CHOLMOD_INT;
+                if(_L)
+                    cholmod_free_factor(&_L, _c);
+                _L = cholmod_analyze(M, _c);
+                cholmod_factorize(M, _L, _c);
+                if(!_b) {
                     _b = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
                     _b->nrow = M->nrow;
                     _b->xtype = M->xtype;
@@ -320,72 +324,76 @@ class SuiteSparseSub {
                     _x->xtype = M->xtype;
                     _x->dtype = M->dtype;
                     _x->d = _x->nrow;
-                    cholmod_free(1, sizeof(cholmod_sparse), M, _c);
                 }
-                else {
+                cholmod_free(1, sizeof(cholmod_sparse), M, _c);
+            }
+            else {
+                if(!_control) {
                     _control = new double[UMFPACK_CONTROL];
                     stsprs<K>::umfpack_defaults(_control);
                     _control[UMFPACK_PRL] = 0;
                     _control[UMFPACK_IRSTEP] = 0;
-                    double* info = new double[UMFPACK_INFO];
                     _pattern = new int[A->_m];
                     _tmp = new K[6 * A->_m];
                     _W = _tmp + A->_m;
-                    _numeric = NULL;
-
-                    void* symbolic = NULL;
-                    K* a;
-                    int* ia;
-                    int* ja;
-                    if(!A->_sym) {
-                        a  = A->_a;
-                        ia = A->_ia;
-                        ja = A->_ja;
-                    }
-                    else {
-                        std::vector<std::vector<std::pair<unsigned int, K>>> v(A->_n);
-                        unsigned int nnz = std::floor((A->_nnz + A->_n - 1) / A->_n) * 2;
-                        for(unsigned int i = 0; i < A->_n; ++i)
-                            v[i].reserve(nnz);
-                        nnz = 0;
-                        for(unsigned int i = 0; i < A->_n; ++i) {
-                            for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1] - 1; ++j) {
-                                if(std::abs(A->_a[j]) > HPDDM_EPS) {
-                                    v[i].emplace_back(A->_ja[j], A->_a[j]);
-                                    v[A->_ja[j]].emplace_back(i, A->_a[j]);
-                                    nnz += 2;
-                                }
-                            }
-                            v[i].emplace_back(i, A->_a[A->_ia[i + 1] - 1]);
-                            ++nnz;
-                        }
-                        ja = new int[A->_n + 1 + nnz];
-                        ia = ja + nnz;
-                        a  = new K[nnz];
-                        nnz = 0;
-                        unsigned int i;
-#pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
-                        for(i = 0; i < A->_n; ++i)
-                            std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
-                        ia[0] = 0;
-                        for(i = 0; i < A->_n; ++i) {
-                            for(const std::pair<unsigned int, K>& p : v[i]) {
-                                ja[nnz]  = p.first;
-                                a[nnz++] = p.second;
-                            }
-                            ia[i + 1] = nnz;
-                        }
-                    }
-                    stsprs<K>::umfpack_symbolic(A->_m, A->_n, ia, ja, a, &symbolic, _control, info);
-                    stsprs<K>::umfpack_numeric(ia, ja, a, symbolic, &_numeric, _control, info);
-                    stsprs<K>::umfpack_report_info(_control, info);
-                    stsprs<K>::umfpack_free_symbolic(&symbolic);
-                    if(A->_sym) {
-                        delete [] ja;
-                        delete [] a;
-                    }
-                    delete [] info;
                 }
+                double* info = new double[UMFPACK_INFO];
+                void* symbolic = NULL;
+                K* a;
+                int* ia;
+                int* ja;
+                if(!A->_sym) {
+                    a  = A->_a;
+                    ia = A->_ia;
+                    ja = A->_ja;
+                }
+                else {
+                    std::vector<std::vector<std::pair<unsigned int, K>>> v(A->_n);
+                    unsigned int nnz = std::floor((A->_nnz + A->_n - 1) / A->_n) * 2;
+                    for(unsigned int i = 0; i < A->_n; ++i)
+                        v[i].reserve(nnz);
+                    nnz = 0;
+                    for(unsigned int i = 0; i < A->_n; ++i) {
+                        for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1] - 1; ++j) {
+                            if(std::abs(A->_a[j]) > HPDDM_EPS) {
+                                v[i].emplace_back(A->_ja[j], A->_a[j]);
+                                v[A->_ja[j]].emplace_back(i, A->_a[j]);
+                                nnz += 2;
+                            }
+                        }
+                        v[i].emplace_back(i, A->_a[A->_ia[i + 1] - 1]);
+                        ++nnz;
+                    }
+                    ja = new int[A->_n + 1 + nnz];
+                    ia = ja + nnz;
+                    a  = new K[nnz];
+                    nnz = 0;
+                    unsigned int i;
+#pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
+                    for(i = 0; i < A->_n; ++i)
+                        std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
+                    ia[0] = 0;
+                    for(i = 0; i < A->_n; ++i) {
+                        for(const std::pair<unsigned int, K>& p : v[i]) {
+                            ja[nnz]  = p.first;
+                            a[nnz++] = p.second;
+                        }
+                        ia[i + 1] = nnz;
+                    }
+                }
+                stsprs<K>::umfpack_symbolic(A->_m, A->_n, ia, ja, a, &symbolic, _control, info);
+                if(_numeric) {
+                    stsprs<K>::umfpack_free_numeric(&_numeric);
+                    _numeric = NULL;
+                }
+                stsprs<K>::umfpack_numeric(ia, ja, a, symbolic, &_numeric, _control, info);
+                stsprs<K>::umfpack_report_info(_control, info);
+                stsprs<K>::umfpack_free_symbolic(&symbolic);
+                if(A->_sym) {
+                    delete [] ja;
+                    delete [] a;
+                }
+                delete [] info;
             }
         }
         inline void solve(K* x) const {

@@ -28,14 +28,14 @@
 #define HPDDM_GENERATE_ARPACK_EXTERN_REAL(C, T)                                                               \
 void C ## saupd_(int*, char*, int*, const char*, int*, T*, T*, int*, T*, int*,                                \
                  int*, int*, T*, T*, int*, int*, int, int);                                                   \
-void C ## seupd_(int*, char*, int*, T*, T*, int*, const T*, char*, int*,                                      \
+void C ## seupd_(const int*, char*, int*, T*, T*, int*, const T*, char*, int*,                                \
                  const char*, int*, T*, T*, int*, T*, int*, int*, int*,                                       \
                  T*, T*, int*, int*, int, int, int);
 #define HPDDM_GENERATE_ARPACK_EXTERN_COMPLEX(C, T)                                                            \
 void C ## naupd_(int*, char*, int*, const char*, int*, T*, std::complex<T>*, int*,                            \
                  std::complex<T>*, int*, int*, int*, std::complex<T>*,                                        \
                  std::complex<T>*, int*, T*, int*, int, int);                                                 \
-void C ## neupd_(int*, char*, int*, std::complex<T>*, std::complex<T>*, int*,                                 \
+void C ## neupd_(const int*, char*, int*, std::complex<T>*, std::complex<T>*, int*,                           \
                  const std::complex<T>*, std::complex<T>*, char*, int*, const char*, int*,                    \
                  T*, std::complex<T>*, int*, std::complex<T>*, int*, int*,                                    \
                  int*, std::complex<T>*, std::complex<T>*, int*, T*, int*, int, int, int);
@@ -68,7 +68,7 @@ class Arpack : public Eigensolver<K> {
         static inline void aupd(int*, char*, int*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
         /* Function: eupd
          *  Post-processes the eigenpairs computed with <Arpack::aupd>. */
-        static inline void eupd(int*, char*, int*, K*, K*, int*, const K*, K*, char*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
+        static inline void eupd(const int*, char*, int*, K*, K*, int*, const K*, K*, char*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
     public:
         Arpack(int n, int nu)                                                                                              : Eigensolver<K>(n, nu), _it(100) { }
         Arpack(typename Wrapper<K>::ul_type threshold, int n, int nu)                                                      : Eigensolver<K>(threshold, n, nu), _it(100) { }
@@ -83,7 +83,7 @@ class Arpack : public Eigensolver<K> {
          *    ev             - Array of eigenvectors.
          *    communicator   - MPI communicator for selecting the threshold criterion. */
         template<template<class> class Solver>
-        inline void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator) {
+        inline void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
             int ido = 0;
             char bmat = 'G';
             int iparam[11] = { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
@@ -108,11 +108,11 @@ class Arpack : public Eigensolver<K> {
                 rwork = new typename Wrapper<K>::ul_type[Eigensolver<K>::_n];
             int info = 0;
             K* vresid = vp + ncv * Eigensolver<K>::_n;
-            Solver<K> s;
+            Solver<K>* const prec = s ? s : new Solver<K>;
 #if defined(MUMPSSUB)
-            s.numfact(A, false);
+            prec->numfact(A, false);
 #else
-            s.numfact(A, true);
+            prec->numfact(A, true);
 #endif
             while(1) {
                 aupd(&ido, &bmat, &(Eigensolver<K>::_n), _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv,
@@ -121,13 +121,15 @@ class Arpack : public Eigensolver<K> {
                     break;
                 else if(ido == -1) {
                     Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
-                    s.solve(workd + ipntr[1] - 1);
+                    prec->solve(workd + ipntr[1] - 1);
                 }
                 else if(ido == 1)
-                    s.solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
+                    prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
                 else
                     Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
             }
+            if(s == nullptr)
+                delete prec;
             Eigensolver<K>::_nu = iparam[4];
             if(Eigensolver<K>::_nu) {
                 K* evr = new K[Eigensolver<K>::_nu];
@@ -136,11 +138,9 @@ class Arpack : public Eigensolver<K> {
                 for(unsigned short i = 1; i < Eigensolver<K>::_nu; ++i)
                     ev[i] = *ev + i * Eigensolver<K>::_n;
                 char HowMny = 'A';
-                int rvec = 1;
-                int necv = ncv;
                 int* select = new int[ncv];
-                eupd(&rvec, &HowMny, select, evr, *ev, &(Eigensolver<K>::_n), &(Wrapper<K>::d__0), workev, &bmat,
-                     _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &necv, vp, iparam,
+                eupd(&i__1, &HowMny, select, evr, *ev, &(Eigensolver<K>::_n), &(Wrapper<K>::d__0), workev, &bmat,
+                     _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv, vp, iparam,
                      ipntr, workd, workl, &lworkl, rwork, &info);
                 delete [] select;
                 if(Eigensolver<K>::_threshold > 0.0)
@@ -161,9 +161,9 @@ inline void Arpack<T>::aupd(int* ido, char* bmat, int* n, const char* which, int
                 ipntr, workd, workl, lworkl, info, 1, 2);                                                    \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<T>::eupd(int* rvec, char* HowMny, int* select, T* evr, T* ev, int* n, const T* sigma,     \
-                            T* workev, char* bmat, const char* which, int* nu, T* tol, T* vresid,            \
-                            int* necv, T* vp, int* iparam, int* ipntr,                                       \
+inline void Arpack<T>::eupd(const int* rvec, char* HowMny, int* select, T* evr, T* ev, int* n,               \
+                            const T* sigma, T* workev, char* bmat, const char* which, int* nu, T* tol,       \
+                            T* vresid, int* necv, T* vp, int* iparam, int* ipntr,                            \
                             T* workd, T* workl, int* lworkl, T* rwork, int* info) {                          \
     C ## seupd_(rvec, HowMny, select, evr, ev, n, sigma, bmat,                                               \
                 n, which, nu, tol, vresid, necv, vp, n, iparam,                                              \
@@ -179,7 +179,7 @@ inline void Arpack<std::complex<T>>::aupd(int* ido, char* bmat, int* n, const ch
                 ipntr, workd, workl, lworkl, rwork, info, 1, 2);                                             \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<std::complex<T>>::eupd(int* rvec, char* HowMny, int* select, std::complex<T>* evr,        \
+inline void Arpack<std::complex<T>>::eupd(const int* rvec, char* HowMny, int* select, std::complex<T>* evr,  \
                                           std::complex<T>* ev, int* n, const std::complex<T>* sigma,         \
                                           std::complex<T>* workev, char* bmat, const char* which,            \
                                           int* nu, T* tol, std::complex<T>* vresid, int* necv,               \

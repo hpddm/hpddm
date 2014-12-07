@@ -273,9 +273,13 @@ class PastixSub {
         PastixSub(const PastixSub&) = delete;
         ~PastixSub() {
             if(_iparm) {
+                if(_iparm[IPARM_SYM] == API_SYM_YES || _iparm[IPARM_SYM] == API_SYM_HER) {
+                    delete [] _rows;
+                    delete [] _colptr;
+                    delete [] _values;
+                }
                 _iparm[IPARM_START_TASK]          = API_TASK_CLEAN;
                 _iparm[IPARM_END_TASK]            = API_TASK_CLEAN;
-
                 pstx<K>::seq(&_data, MPI_COMM_SELF,
                              0, NULL, NULL, NULL,
                              NULL, NULL, NULL, 1, _iparm, _dparm);
@@ -288,71 +292,63 @@ class PastixSub {
                 _iparm = new pastix_int_t[IPARM_SIZE];
                 _dparm = new double[DPARM_SIZE];
                 _ncol = A->_n;
-
                 pstx<K>::initParam(_iparm, _dparm);
                 _iparm[IPARM_VERBOSE]             = API_VERBOSE_NOT;
                 _iparm[IPARM_MATRIX_VERIFICATION] = API_NO;
                 _iparm[IPARM_START_TASK]          = API_TASK_INIT;
                 _iparm[IPARM_END_TASK]            = API_TASK_INIT;
-                if(A->_sym) {
-                    _iparm[IPARM_SYM]             = std::is_same<K, typename Wrapper<K>::ul_type>::value ? API_SYM_YES : API_SYM_HER;
-                    _iparm[IPARM_FACTORIZATION]   = detection ? pstx<K>::LDLT : pstx<K>::LLT;
-                }
-                else {
-                    _iparm[IPARM_SYM]             = API_SYM_NO;
-                    _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
-                }
                 _iparm[IPARM_SCHUR]               = schur ? API_YES : API_NO;
+                _iparm[IPARM_RHSD_CHECK]          = API_NO;
                 _dparm[DPARM_EPSILON_MAGN_CTRL]   = -1.0 / HPDDM_PEN;
-                if(_iparm[IPARM_SYM] == API_SYM_YES) {
+                if(A->_sym) {
                     _values = new K[A->_nnz];
                     _colptr = new int[_ncol + 1];
                     _rows = new int[A->_nnz];
-                    Wrapper<K>::template csrcsc<'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
+                    _iparm[IPARM_SYM]             = std::is_same<K, typename Wrapper<K>::ul_type>::value ? API_SYM_YES : API_SYM_HER;
                 }
-                else {
-                    _values = A->_a;
-                    _colptr = A->_ia;
-                    _rows = A->_ja;
-                    for(unsigned int i = 0; i < _ncol + 1; ++i)
-                        ++_colptr[i];
-                    for(unsigned int i = 0; i < A->_nnz; ++i)
-                        ++_rows[i];
+                else  {
+                    _iparm[IPARM_SYM]             = API_SYM_NO;
+                    _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
                 }
-                _iparm[IPARM_RHSD_CHECK]          = API_NO;
-                pastix_int_t perm[_ncol];
-                pastix_int_t iperm[_ncol];
+            }
+            if(A->_sym) {
+                _iparm[IPARM_FACTORIZATION]       = detection ? pstx<K>::LDLT : pstx<K>::LLT;
+                Wrapper<K>::template csrcsc<'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
+            }
+            else {
+                _values = A->_a;
+                _colptr = A->_ia;
+                _rows = A->_ja;
+                std::transform(_colptr, _colptr + _ncol + 1, _colptr, [](int i){ return ++i; });
+                std::transform(_rows, _rows + A->_nnz, _rows, [](int i){ return ++i; });
+            }
+            pastix_int_t perm[_ncol];
+            pastix_int_t iperm[_ncol];
+            int* listvar = nullptr;
+            if(_iparm[IPARM_START_TASK] == API_TASK_INIT) {
                 pstx<K>::seq(&_data, MPI_COMM_SELF,
                              _ncol, _colptr, _rows, NULL,
-                             perm, NULL, NULL, 1, _iparm, _dparm);
-                int* listvar = nullptr;
-                if(schur) {
+                             NULL, NULL, NULL, 1, _iparm, _dparm);
+                if(schur != nullptr) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
                     std::iota(listvar, listvar + static_cast<int>(std::real(schur[0])), static_cast<int>(std::real(schur[1])));
                     pstx<K>::setSchurUnknownList(_data, static_cast<int>(std::real(schur[0])), listvar);
                     pstx<K>::setSchurArray(_data, schur);
                 }
-
-                _iparm[IPARM_START_TASK]      = API_TASK_ORDERING;
-                _iparm[IPARM_END_TASK]        = API_TASK_NUMFACT;
-
-                pstx<K>::seq(&_data, MPI_COMM_SELF,
-                             _ncol, _colptr, _rows, _values,
-                             perm, iperm, NULL, 1, _iparm, _dparm);
-
-                _iparm[IPARM_CSCD_CORRECT] = API_YES;
-                if(_iparm[IPARM_SYM] == API_SYM_YES) {
-                    delete [] _rows;
-                    delete [] _colptr;
-                    delete [] _values;
-                }
-                else {
-                    for(unsigned int i = 0; i < _ncol + 1; ++i)
-                        --_colptr[i];
-                    for(unsigned int i = 0; i < A->_nnz; ++i)
-                        --_rows[i];
-                }
-                delete [] listvar;
+                _iparm[IPARM_START_TASK]          = API_TASK_ORDERING;
+                _iparm[IPARM_END_TASK]            = API_TASK_NUMFACT;
+            }
+            else {
+                _iparm[IPARM_START_TASK]          = API_TASK_NUMFACT;
+                _iparm[IPARM_END_TASK]            = API_TASK_NUMFACT;
+            }
+            pstx<K>::seq(&_data, MPI_COMM_SELF,
+                         _ncol, _colptr, _rows, _values,
+                         perm, iperm, NULL, 1, _iparm, _dparm);
+            delete [] listvar;
+            if(_iparm[IPARM_SYM] == API_SYM_NO) {
+                std::transform(_colptr, _colptr + _ncol + 1, _colptr, [](int i){ return --i; });
+                std::transform(_rows, _rows + A->_nnz, _rows, [](int i){ return --i; });
             }
         }
         inline void solve(K* x, const unsigned short& n = 1) const {

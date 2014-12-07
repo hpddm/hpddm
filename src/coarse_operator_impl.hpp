@@ -540,7 +540,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         v.template applyToNeighbor<S, U == 1>(sendNeighbor, work, rqSend, infoNeighbor);
         if(S != 'S') {
             unsigned short before = 0;
-            for(unsigned short j = 0; sparsity[j] < rank && j < info[0]; ++j)
+            for(unsigned short j = 0; j < info[0] && sparsity[j] < rank; ++j)
                 before += (U == 1 ? _local : infoNeighbor[j]);
             K* const pt = (rankSplit != 0 ? sendMaster + before : C + before);
             Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), pt, &coefficients);

@@ -238,14 +238,11 @@ class MklPardisoSub {
                 delete [] _C;
         }
         inline void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+            int* perm = nullptr;
+            int phase, error;
+            K ddum;
             if(!_w) {
-                int phase, error;
-                K ddum;
                 _n = A->_n;
-                if(A->_sym)
-                    _mtype = detection ? prds<K>::SYM : prds<K>::SPD;
-                else
-                    _mtype = prds<K>::UNS;
                 std::fill(_iparm, _iparm + 64, 0);
                 _iparm[0] = 1;
 #ifdef _OPENMP
@@ -261,31 +258,40 @@ class MklPardisoSub {
                 _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
                 _iparm[34] = 1;
                 phase = 12;
-                if(_mtype != prds<K>::SYM && _mtype != prds<K>::SPD) {
-                    _I = A->_ia;
-                    _J = A->_ja;
-                    _C = A->_a;
-                }
-                else {
+                if(A->_sym) {
                     _I = new int[_n + 1];
                     _J = new int[A->_nnz];
                     _C = new K[A->_nnz];
-                    Wrapper<K>::template csrcsc<'C'>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
                 }
-                int* perm = nullptr;
-                if(schur) {
+                else
+                    _mtype = prds<K>::UNS;
+                if(schur != nullptr) {
                     _iparm[35] = 2;
                     perm = new int[_n];
                     std::fill(perm, perm + static_cast<int>(std::real(schur[1])), 0);
                     std::fill(perm + static_cast<int>(std::real(schur[1])), perm + _n, 1);
                 }
-                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase,
-                        const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, schur, &error);
-                delete [] perm;
-                if(_mtype == prds<K>::SPD)
-                    delete [] _C;
                 _w = new K[_n];
             }
+            else {
+                if(_mtype == prds<K>::SPD)
+                    _C = new K[A->_nnz];
+                phase = 22;
+            }
+            if(A->_sym) {
+                _mtype = detection ? prds<K>::SYM : prds<K>::SPD;
+                Wrapper<K>::template csrcsc<'C'>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
+            }
+            else {
+                _I = A->_ia;
+                _J = A->_ja;
+                _C = A->_a;
+            }
+            PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase,
+                    const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, schur, &error);
+            delete [] perm;
+            if(_mtype == prds<K>::SPD)
+                delete [] _C;
         }
         inline void solve(K* x) const {
             int error;
