@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
                 }
         }
     }
-    HPDDM::MatrixCSR<K>* Mat = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, a, ia, ja, sym);
+    HPDDM::MatrixCSR<K>* Mat = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, a, ia, ja, sym, true);
     double timing;
     /*# Deflation #*/
     K** deflation = new K*[1];
@@ -478,9 +478,6 @@ int main(int argc, char **argv) {
             delete [] jn;
         }
     }
-    delete [] ia;
-    delete [] ja;
-    delete [] a;
     delete [] sol;
     delete [] f;
     MPI_Finalize();

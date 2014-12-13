@@ -66,7 +66,7 @@ class MatrixCSR {
         MatrixCSR() : _free(true), _a(), _ia(), _ja(), _n(0), _m(0), _nnz(0), _sym(true) { }
         MatrixCSR(const int& n, const int& m, const bool& sym) : _free(true), _a(), _ia(new int[n + 1]), _ja(), _n(n), _m(m), _nnz(0),  _sym(sym) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : _free(true), _a(new K[nnz]), _ia(new int[n + 1]), _ja(new int[nnz]), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
-        MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym) : _free(false), _a(a), _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
+        MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : _free(takeOwnership), _a(a), _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
         ~MatrixCSR() {
             if(_free) {
                 delete [] _a;
