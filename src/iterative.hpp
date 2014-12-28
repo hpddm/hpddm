@@ -301,24 +301,30 @@ class IterativeMethod {
                 if(j != it + 1 && i != m)
                     break;
                 else if(i == m) {
-                    if(Type != CLASSICAL)
-                        i -= 2;
-                    if(!excluded) {
-                        update(n, x, i, H, s, v);
-                        A.GMV(x, Ax);
+                    if(j == it + 1) {
+                        --i;
+                        break;
                     }
-                    Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, Ax, 1);
-                    timing[1] += MPI_Wtime();
-                    A.template apply<excluded>(Ax, r);
-                    timing[1] -= MPI_Wtime();
-                    beta = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
-                    MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
-                    beta = std::sqrt(beta);
-                    if(verbosity)
-                        std::cout << "GMRES restart(" << m << "): " << j - 1 << " " << beta << " " <<  norm << " " <<  beta / norm << " < " << tol << std::endl;
+                    else {
+                        if(Type != CLASSICAL)
+                            i -= 2;
+                        if(!excluded) {
+                            update(n, x, i, H, s, v);
+                            A.GMV(x, Ax);
+                        }
+                        Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, Ax, 1);
+                        timing[1] += MPI_Wtime();
+                        A.template apply<excluded>(Ax, r);
+                        timing[1] -= MPI_Wtime();
+                        beta = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
+                        MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
+                        beta = std::sqrt(beta);
+                        if(verbosity)
+                            std::cout << "GMRES restart(" << m << "): " << j - 1 << " " << beta << " " <<  norm << " " <<  beta / norm << " < " << tol << std::endl;
+                    }
                 }
             }
-            if(i == m || j == it + 1) {
+            if(i == m && j != it + 1) {
                 --i;
                 if(Type != CLASSICAL)
                     i -= 2;
@@ -327,15 +333,11 @@ class IterativeMethod {
                 update(n, x, i + 1, H, s, v);
             it = j;
             if(verbosity) {
-                if(std::abs(s[i + 1]) / norm <= tol) {
+                if(std::abs(s[i + 1]) / norm <= tol)
                     std::cout << "GMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << " in " << -timing[0] << ". Time spent preconditioning: " << -timing[1] << std::endl;
-                    it = j;
-                }
                 else
                     std::cout << "GMRES does not converges after " << j - 1 << " iteration" << (j > 2 ? "s" : "") << std::endl;
             }
-            else if(std::abs(s[i + 1]) / norm <= tol)
-                it = j;
             if(!excluded)
                 delete [] *v;
             delete [] v;
