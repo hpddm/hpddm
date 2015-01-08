@@ -132,6 +132,8 @@ class Lapack : public Eigensolver<K> {
             int* isplit = iblock + Eigensolver<K>::_n;
             int* iwork = isplit + Eigensolver<K>::_n;
             stebz(&range, &order, &(Eigensolver<K>::_n), &vl, &vu, &il, &iu, &(Eigensolver<K>::_tol), d, e, &(Eigensolver<K>::_nu), &nsplit, evr, iblock, isplit, reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, &info);
+            if(Eigensolver<K>::_threshold > 0.0)
+                Eigensolver<K>::selectNu(evr, communicator);
             if(Eigensolver<K>::_nu) {
                 ev = new K*[Eigensolver<K>::_nu];
                 *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
@@ -146,8 +148,6 @@ class Lapack : public Eigensolver<K> {
                     lwork += 3 * Eigensolver<K>::_n - 1;
                 else
                     lwork += 4 * Eigensolver<K>::_n - 1;
-                if(Eigensolver<K>::_threshold > 0.0)
-                    Eigensolver<K>::selectNu(evr, communicator);
             }
             delete [] iblock;
         }

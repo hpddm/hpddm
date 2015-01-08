@@ -2,6 +2,7 @@
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+              Frédéric Nataf <nataf@ann.jussieu.fr>
         Date: 2013-07-14
 
    Copyright (C) 2011-2014 Université de Grenoble
@@ -83,8 +84,8 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #include <mkl_spblas.h>
 #include <mkl_vml.h>
-#endif // HPDDM_MKL
-#if HPDDM_MKL || defined(__APPLE__)
+#endif // HPDDM_MKL || defined(INTEL_MKL_VERSION)
+#if HPDDM_MKL || defined(__APPLE__) || defined(__powerpc__)
 #define HPDDM_F77(func) func
 #else
 #define HPDDM_F77(func) func ## _

@@ -58,9 +58,9 @@ class Eigensolver {
         template<class T>
         inline void selectNu(const T* const eigenvalues, const MPI_Comm& communicator) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, typename Wrapper<K>::ul_type>::value, "Wrong types");
-            unsigned short nevThreshold = std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu);
-            MPI_Allreduce(MPI_IN_PLACE, &nevThreshold, 1, MPI_UNSIGNED_SHORT, MPI_MAX, communicator);
-            _nu = nevThreshold;
+            unsigned short nevThreshold = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
+            MPI_Allreduce(MPI_IN_PLACE, &nevThreshold, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
+            _nu = std::min(_nu, static_cast<int>(nevThreshold));
         }
         /* Function: getTol
          *  Returns the value of <Eigensolver::tol>. */

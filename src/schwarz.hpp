@@ -2,6 +2,7 @@
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+              Frédéric Nataf <nataf@ann.jussieu.fr>
         Date: 2013-03-10
 
    Copyright (C) 2011-2014 Université de Grenoble
@@ -105,7 +106,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 else
                     _type = Prcndtnr::OG;
             }
-            super::_s.numfact(A ? A : Subdomain<K>::_a);
+            super::_s.numfact(A ? A : Subdomain<K>::_a, _type == Prcndtnr::OS ? true : false);
         }
         /* Function: multiplicityScaling
          *
