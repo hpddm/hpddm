@@ -26,6 +26,7 @@
 template<class K>
 class SuiteSparse;
 
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #if !defined(COARSEOPERATOR) && !defined(DSUITESPARSE)
 #define DSUITESPARSE
 #endif
@@ -450,4 +451,5 @@ class SuiteSparseSub {
 #endif // SUITESPARSESUB
 } // HPDDM
 #endif // DSUISTESPARSE || SUITESPARSESUB
+#endif // HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #endif // _SUITESPARSE_
