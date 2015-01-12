@@ -282,7 +282,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 else {
                     deflation<excluded>(in, out, fuse);                                                      // out = Z E \ Z^T in
                     if(!excluded) {
-                        Wrapper<K>::template csrgemv<'C'>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), in);
+                        Wrapper<K>::template csrmv<'C'>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), in);
                         Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
                         Subdomain<K>::exchange(in);                                                          //  in = (I - A Z E \ Z^T) in
                         if(_type == Prcndtnr::OS)

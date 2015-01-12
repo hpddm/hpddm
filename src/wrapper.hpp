@@ -100,19 +100,19 @@ class Wrapper {
         static inline void gemm(const char* const, const char* const, const int* const, const int* const, const int* const, const K* const, const K* const,
                                 const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
 
-        /* Function: csrmv
+        /* Function: csrmv(square)
          *  Computes a sparse square matrix-vector product. */
         template<char>
         static inline void csrmv(bool, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
-        /* Function: csrgemv
+        /* Function: csrmv
          *  Computes a scalar-sparse matrix-vector product. */
         template<char>
-        static inline void csrgemv(const char* const, const int* const, const int* const, const K* const, bool,
+        static inline void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
                                    const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
-        /* Function: csrgemm
+        /* Function: csrmm
          *  Computes a scalar-sparse matrix-matrix product. */
         template<char>
-        static inline void csrgemm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
+        static inline void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
                                    const K* const, const int* const, const int* const, const K* const, const int* const,
                                    const K* const, K* const, const int* const);
 
@@ -153,7 +153,7 @@ template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
 
 template<class K>
-const char Wrapper<K>::transc = std::is_same<K, Wrapper<K>::ul_type>::value ? 'T' : 'C';
+const char Wrapper<K>::transc = std::is_same<K, ul_type>::value ? 'T' : 'C';
 
 template<class K>
 const K Wrapper<K>::d__0 = K(0.0);
@@ -294,7 +294,7 @@ inline void Wrapper<T>::csrmv(bool sym, const int* const n, const T* const a, co
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
-inline void Wrapper<T>::csrgemv(const char* const trans, const int* const m, const int* const k,             \
+inline void Wrapper<T>::csrmv(const char* const trans, const int* const m, const int* const k,               \
                                 const T* const alpha, bool sym, const T* const a, const int* const ia,       \
                                 const int* const ja, const T* const x, const T* const beta, T* const y) {    \
     mkl_ ## C ## csrmv(trans, m, k,                                                                          \
@@ -302,7 +302,7 @@ inline void Wrapper<T>::csrgemv(const char* const trans, const int* const m, con
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
-inline void Wrapper<T>::csrgemm(const char* const trans, const int* const m, const int* const n,             \
+inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const int* const n,               \
                                 const int* const k, const T* const alpha, bool sym,                          \
                                 const T* const a, const int* const ia, const int* const ja,                  \
                                 const T* const x, const int* const ldb, const T* const beta,                 \
@@ -356,46 +356,20 @@ const char Wrapper<K>::I = 'C';
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrmv(bool sym, const int* const n, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
-    int i, j, k;
-    K res;
-    if(sym) {
-        std::fill(y, y + *n, 0.0);
-#pragma omp parallel for private(k, j, res) schedule(static, HPDDM_GRANULARITY)
-        for(i = 0; i < *n; ++i) {
-            if(ia[i + 1] != ia[i]) {
-                res = K();
-                for(k = ia[i] - (N == 'F'); k < ia[i + 1] - 1 - (N == 'F'); ++k) {
-                    j = ja[k] - (N == 'F');
-                    res += a[k] * x[j];
-                    y[j] += a[k] * x[i];
-                }
-                y[i] = res + a[ia[i + 1] - 1 - (N == 'F')] * x[i];
-            }
-        }
-    }
-    else {
-        for(i = 0; i < *n; ++i) {
-            res = K();
-            for(k = ia[i] - (N == 'F'); k < ia[i + 1] - (N == 'F'); ++k) {
-                j = ja[k] - (N == 'F');
-                res += a[k] * x[j];
-            }
-            y[i] = res;
-        }
-    }
+    csrmv<N>(&transa, n, n, &d__1, sym, a, ia, ja, x, &d__0, y);
 }
 template<class K>
 template<char N>
-inline void Wrapper<K>::csrgemv(const char* const trans, const int* const m, const int* const k, const K* const alpha, bool sym,
+inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const int* const k, const K* const alpha, bool sym,
                                 const K* const a, const int* const ia, const int* const ja, const K* const x, const K* const beta, K* const y) {
     int i, j, l;
     K res;
     if(trans == &transa) {
         if(sym) {
-            if(beta == &(Wrapper<K>::d__0))
+            if(beta == &d__0)
                 std::fill(y, y + *m, K());
-            else if(beta != &(Wrapper<K>::d__1))
-                Wrapper<K>::scal(m, beta, y, &i__1);
+            else if(beta != &d__1)
+                scal(m, beta, y, &i__1);
             for(i = 0; i < *m; ++i) {
                 if(ia[i + 1] != ia[i]){
                     res = K();
@@ -409,8 +383,9 @@ inline void Wrapper<K>::csrgemv(const char* const trans, const int* const m, con
             }
         }
         else {
-            if(beta == &(Wrapper<K>::d__0))
+            if(beta == &d__0)
                 std::fill(y, y + *m, K());
+#pragma omp parallel for private(l, i, res) schedule(static, HPDDM_GRANULARITY)
             for(i = 0; i < *m; ++i) {
                 res = K();
                 for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
@@ -420,12 +395,11 @@ inline void Wrapper<K>::csrgemv(const char* const trans, const int* const m, con
         }
     }
     else {
-        if(beta == &(Wrapper<K>::d__0))
+        if(beta == &d__0)
             std::fill(y, y + *k, K());
-        else if(beta != &(Wrapper<K>::d__1))
-            Wrapper<K>::scal(k, beta, y, &i__1);
+        else if(beta != &d__1)
+            scal(k, beta, y, &i__1);
         if(sym) {
-#pragma omp parallel for private(l, j, res) schedule(static, HPDDM_GRANULARITY)
             for(i = 0; i < *m; ++i) {
                 res = K();
                 for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
@@ -447,7 +421,7 @@ inline void Wrapper<K>::csrgemv(const char* const trans, const int* const m, con
 }
 template<class K>
 template<char N>
-inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, const int* const n, const int* const k, const K* const alpha, bool sym,
+inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const int* const n, const int* const k, const K* const alpha, bool sym,
                                 const K* const a, const int* const ia, const int* const ja, const K* const x, const int* const ldb, const K* const beta, K* const y, const int* const ldc) {
     int i, l;
     if(trans == &transa) {
@@ -457,10 +431,10 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
             int j;
             int dimX = *k;
             int dimNY = dimY * *n;
-            if(beta == &(Wrapper<K>::d__0))
+            if(beta == &d__0)
                 std::fill(y, y + dimNY, K());
-            else if(beta != &(Wrapper<K>::d__1))
-                Wrapper<K>::scal(&dimNY, beta, y, &i__1);
+            else if(beta != &d__1)
+                scal(&dimNY, beta, y, &i__1);
             res = new K[*n];
             for(i = 0; i < dimY; ++i) {
                 std::fill(res, res + *n, K());
@@ -472,9 +446,9 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
                             y[j + r * dimY] += *alpha * a[l] * x[i + r * dimX];
                         }
                     else
-                        Wrapper<K>::axpy(n, a + l, x + j, k, res, &i__1);
+                        axpy(n, a + l, x + j, k, res, &i__1);
                 }
-                Wrapper<K>::axpy(n, alpha, res, &i__1, y + i, m);
+                axpy(n, alpha, res, &i__1, y + i, m);
             }
             delete [] res;
         }
@@ -486,8 +460,8 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
                 for(i = 0; i < dimY; ++i) {
                     std::fill(res, res + *n, K());
                     for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
-                        Wrapper<K>::axpy(n, a + l, x + ja[l] - (N == 'F'), k, res, &i__1);
-                    Wrapper<K>::axpby(*n, *alpha, res, 1, *beta, y + i, dimY);
+                        axpy(n, a + l, x + ja[l] - (N == 'F'), k, res, &i__1);
+                    axpby(*n, *alpha, res, 1, *beta, y + i, dimY);
                 }
                 delete [] res;
             }
@@ -497,10 +471,10 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
         int dimX = *m;
         int dimY = *k;
         int dimNY = dimY * *n;
-        if(beta == &(Wrapper<K>::d__0))
+        if(beta == &d__0)
             std::fill(y, y + dimNY, K());
-        else if(beta != &(Wrapper<K>::d__1))
-            Wrapper<K>::scal(&dimNY, beta, y, &i__1);
+        else if(beta != &d__1)
+            scal(&dimNY, beta, y, &i__1);
         if(sym) {
             K* res = new K[*n];
             for(i = 0; i < *m; ++i) {
@@ -514,10 +488,10 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
                         }
                     else {
                         const K scal = *alpha * a[l];
-                        Wrapper<K>::axpy(n, &scal, x + i, m, y + j, k);
+                        axpy(n, &scal, x + i, m, y + j, k);
                     }
                 }
-                Wrapper<K>::axpy(n, alpha, res, &i__1, y + i, k);
+                axpy(n, alpha, res, &i__1, y + i, k);
             }
             delete [] res;
         }
@@ -525,7 +499,7 @@ inline void Wrapper<K>::csrgemm(const char* const trans, const int* const m, con
             for(i = 0; i < *m; ++i) {
                 for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     const K scal = *alpha * a[l];
-                    Wrapper<K>::axpy(n, &scal, x + i, m, y + ja[l] - (N == 'F'), k);
+                    axpy(n, &scal, x + i, m, y + ja[l] - (N == 'F'), k);
                 }
             }
         }
@@ -566,7 +540,7 @@ HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
 #else
 template<class K>
 inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, const int& incx, const K& beta, K* const v, const int& incy) {
-    if(beta == Wrapper<K>::d__0)
+    if(beta == d__0)
         for(unsigned int i = 0; i < n; ++i)
             v[i * incy] = alpha * u[i * incx];
     else

@@ -529,10 +529,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             K* out = new K[n * Subdomain<K>::_dof]();
             if(!_schur) {
                 K* tmp = new K[n * _bi->_m];
-                Wrapper<K>::template csrgemm<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), tmp, &_bi->_m);
+                Wrapper<K>::template csrmm<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), tmp, &_bi->_m);
                 super::_s.solve(tmp, n);
-                Wrapper<K>::template csrgemm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &_bi->_m, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
-                Wrapper<K>::template csrgemm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &_bb->_m, &(Wrapper<K>::d__2), out, &(Subdomain<K>::_dof));
+                Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &_bi->_m, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+                Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &_bb->_m, &(Wrapper<K>::d__2), out, &(Subdomain<K>::_dof));
                 delete [] tmp;
             }
             else
@@ -551,15 +551,15 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          * See also: <Feti::applyLocalPreconditioner> and <Bdd::apply>. */
         inline void applyLocalSchurComplement(K* const in, K* const& out = nullptr) const {
             if(!_schur) {
-                Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), _work);
+                Wrapper<K>::template csrmv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), _work);
                 super::_s.solve(_work);
                 if(out) {
-                    Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), out);
-                    Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), out);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), out);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), out);
                 }
                 else {
-                    Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), _work + _bi->_m);
-                    Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), _work + _bi->_m);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), _work + _bi->_m);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), _work + _bi->_m);
                     std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
                 }
             }
@@ -581,7 +581,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          * See also: <Feti::applyLocalPreconditioner(n)>. */
         inline void applyLocalLumpedMatrix(K*& in, const int& n) const {
             K* out = new K[n * Subdomain<K>::_dof];
-            Wrapper<K>::template csrgemm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+            Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
             delete [] in;
             in = out;
         }
@@ -595,7 +595,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *
          * See also: <Feti::applyLocalPreconditioner>. */
         inline void applyLocalLumpedMatrix(K* const in) const {
-            Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__0), _work + _bi->_m);
+            Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__0), _work + _bi->_m);
             std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
         }
         /* Function: applyLocalSuperlumpedMatrix(n)
@@ -650,7 +650,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         inline void condensateEffort(const K* const f, K* const b) const {
             super::_s.solve(f, _structure);
             std::copy_n(f + _bi->_m, Subdomain<K>::_dof, b ? b : _structure + _bi->_m);
-            Wrapper<K>::template csrgemv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__2), false, _bi->_a, _bi->_ia, _bi->_ja, _structure, &(Wrapper<K>::d__1), b ? b : _structure + _bi->_m);
+            Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__2), false, _bi->_a, _bi->_ia, _bi->_ja, _structure, &(Wrapper<K>::d__1), b ? b : _structure + _bi->_m);
         }
         /* Function: computeError
          *
