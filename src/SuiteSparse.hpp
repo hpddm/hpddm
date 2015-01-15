@@ -397,7 +397,7 @@ class SuiteSparseSub {
                 delete [] info;
             }
         }
-        inline void solve(K* x) const {
+        inline void solve(K* const x) const {
             if(_c) {
                 _b->ncol = 1;
                 _b->nzmax = _x->nrow;
@@ -413,7 +413,7 @@ class SuiteSparseSub {
                 std::copy(_tmp, _W, x);
             }
         }
-        inline void solve(K* x, const unsigned short& n) const {
+        inline void solve(K* const x, const unsigned short& n) const {
             if(_c) {
                 _b->ncol = n;
                 _b->nzmax = _x->nrow;
@@ -434,7 +434,7 @@ class SuiteSparseSub {
                 }
             }
         }
-        inline void solve(const K* b, K* x) const {
+        inline void solve(const K* const b, K* const x) const {
             if(_c) {
                 _b->ncol = 1;
                 _b->nzmax = _x->nrow;

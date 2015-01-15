@@ -299,7 +299,7 @@ class MklPardisoSub {
             _iparm[5] = 1;
             PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
         }
-        inline void solve(K* x, const unsigned short& n) const {
+        inline void solve(K* const x, const unsigned short& n) const {
             int error;
             int phase = 33;
             int nrhs = n;
@@ -308,7 +308,7 @@ class MklPardisoSub {
             PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), x, w, &error);
             delete [] w;
         }
-        inline void solve(const K* b, K* x) const {
+        inline void solve(const K* const b, K* const x) const {
             int error;
             int phase = 33;
             _iparm[5] = 0;

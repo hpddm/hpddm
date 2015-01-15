@@ -371,7 +371,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     tmpInterior.reserve(Subdomain<K>::_a->_nnz * (Subdomain<K>::_dof - interface.size()) / Subdomain<K>::_dof);
                     tmpBoundary.reserve(Subdomain<K>::_a->_nnz * interface.size() / Subdomain<K>::_dof);
                     for(i = 0; i < interface.size(); ++i)
-                        tmpInteraction.reserve(Subdomain<K>::_a->_ia[interface.back()] - Subdomain<K>::_a->_ia[std::max(interface.back() - 2, static_cast<typename Container::value_type>(0))]);
+                        tmpInteraction[i].reserve(std::max(Subdomain<K>::_a->_ia[interface[i] + 1] - Subdomain<K>::_a->_ia[interface[i]] - 1, 0));
                     _bb = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), interface.size(), true);
                     int* ii = new int[Subdomain<K>::_dof + 1];
                     ii[0] = 0;
@@ -700,10 +700,11 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             }
             return dof;
         }
-        inline void distributedNumbering(unsigned int* in, unsigned int& first, unsigned int& last, unsigned int& global) const {
-            Subdomain<K>::template globalMapping<'C'>(in, in + Subdomain<K>::_dof, first, last, global);
+        template<char N = 'C'>
+        inline void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
+            Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global);
         }
-        inline bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
+        inline bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
             Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);
         }
 };

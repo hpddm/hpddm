@@ -305,14 +305,14 @@ class MumpsSub {
             std::transform(A->_ja, A->_ja + A->_nnz, A->_ja, [](int i){ return --i; });
         }
         inline unsigned short deficiency() const { return _id->infog[27]; }
-        inline void solve(K* x, const unsigned short& n = 1) const {
+        inline void solve(K* const x, const unsigned short& n = 1) const {
             _id->icntl[20] = 0;
             _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);
             _id->nrhs = n;
             _id->job = 3;
             MUMPS_STRUC_C<K>::mumps_c(_id);
         }
-        inline void solve(const K* b, K* x) const {
+        inline void solve(const K* const b, K* const x) const {
             _id->icntl[20] = 0;
             std::copy(b, b + _id->n, x);
             _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);

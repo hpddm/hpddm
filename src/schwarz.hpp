@@ -436,10 +436,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             storage[0] = std::sqrt(storage[0]);
             storage[1] = std::sqrt(storage[1]);
         }
-        inline void distributedNumbering(unsigned int* in, unsigned int& first, unsigned int& last, unsigned int& global) const {
-            Subdomain<K>::template globalMapping<'C'>(in, in + Subdomain<K>::_dof, first, last, global, _d);
+        template<char N = 'C'>
+        inline void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
+            Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global, _d);
         }
-        inline bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
+        inline bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, Subdomain<K>::_a);
         }
 };
