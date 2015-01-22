@@ -705,7 +705,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global);
         }
         inline bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
-            Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);
+            return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);
         }
 };
 } // HPDDM

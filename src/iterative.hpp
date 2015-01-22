@@ -133,9 +133,10 @@ class IterativeMethod {
          *    verbosity      - Level of verbosity. */
         template<Gmres Type = CLASSICAL, bool excluded = false, class Operator, class K>
         static inline int GMRES(const Operator& A, K* const x, const K* const b,
-                                const unsigned short m, unsigned short& it, typename Wrapper<K>::ul_type tol,
+                                unsigned short& m, unsigned short& it, typename Wrapper<K>::ul_type tol,
                                 const MPI_Comm& comm, unsigned short verbosity) {
             const int n = excluded ? 0 : A.getDof();
+            m = std::min(m, it);
             K* const storage = new K[3 * (m + 1) + 2 * n];
             K* s = storage;
             K* cs = storage + m + 1;

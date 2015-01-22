@@ -503,7 +503,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         rqRecv = new MPI_Request[rankSplit == 0 ? _sizeSplit - 1 + info[0] : info[0]];
 #endif
         rqSend.reserve(S != 'S' ? info[0] : first);
-        sendNeighbor = new K*[(S != 'S' ? info[0] : first)];
+        sendNeighbor = new K*[(S != 'S' ? info[0] : first) + (U == 1 || _local ? info[0] : 0)];
         for(unsigned short i = 0; i < (S != 'S' ? info[0] : first); ++i) {
             if(U == 1 || infoNeighbor[i])
                 sendNeighbor[i] = new K[_local * M[i].second.size()];
@@ -511,7 +511,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 sendNeighbor[i] = nullptr;
         }
         if(U == 1 || _local) {
-            recvNeighbor = new K*[info[0]];
+            recvNeighbor = sendNeighbor + (S != 'S' ? info[0] : first);
             for(unsigned short i = 0; i < info[0]; ++i) {
                 recvNeighbor[i] = new K[(U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size()];
                 MPI_Irecv(recvNeighbor[i], (U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size(), Wrapper<K>::mpi_type(), M[i + first].first, 2, v._p.getCommunicator(), rqRecv + i);
@@ -528,9 +528,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #else
         rqRecv = new MPI_Request[rankSplit == 0 ? _sizeSplit - 1 + M.size() : M.size()];
 #endif
-        sendNeighbor = new K*[M.size()];
+        sendNeighbor = new K*[U == 1 || _local ? 2 * M.size() : M.size()];
         if(U == 1 || _local)
-            recvNeighbor = new K*[M.size()];
+            recvNeighbor = sendNeighbor + M.size();
     }
     K* work = nullptr;
     if(Operator::_pattern == 's' && excluded < 2) {
@@ -544,7 +544,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 before += (U == 1 ? _local : infoNeighbor[j]);
             K* const pt = (rankSplit != 0 ? sendMaster + before : C + before);
             Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), pt, &coefficients);
-            conjugate<K>(_local, _local, coefficients, pt);
+            Wrapper<K>::conjugate(_local, _local, coefficients, pt);
             if(rankSplit == 0)
                 for(unsigned short j = 0; j < _local; ++j) {
 #ifndef HPDDM_CSR_CO
@@ -837,19 +837,19 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         for(unsigned int i = 0; i < size; ++i)
             txtE << "(" << std::setw(4) << I[i] << ", " << std::setw(4) << J[i] << ") = " << std::scientific << C[i] << std::endl;
 #else
-        unsigned int acc = 0;
+        unsigned int accumulate = 0;
         for(unsigned int i = 0; i < nrow; ++i) {
-            acc += I[i];
+            accumulate += I[i];
 #ifndef HPDDM_LOC2GLOB
             for(unsigned int j = 0; j < I[i + 1]; ++j)
-                txtE << "(" << std::setw(4) << i << ", " << std::setw(4) << J[acc + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[acc + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
+                txtE << "(" << std::setw(4) << i << ", " << std::setw(4) << J[accumulate + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
 #else
 #ifndef HPDDM_CONTIGUOUS
             for(unsigned int j = 0; j < I[i + 1]; ++j)
-                txtE << "(" << std::setw(4) << loc2glob[i] << ", " << std::setw(4) << J[acc + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[acc + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
+                txtE << "(" << std::setw(4) << loc2glob[i] << ", " << std::setw(4) << J[accumulate + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
 #else
             for(unsigned int j = 0; j < I[i + 1]; ++j)
-                txtE << "(" << std::setw(4) << loc2glob[0] + i << ", " << std::setw(4) << J[acc + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[acc + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
+                txtE << "(" << std::setw(4) << loc2glob[0] + i << ", " << std::setw(4) << J[accumulate + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
 #endif
 #endif
         }
@@ -858,8 +858,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         MPI_Barrier(Solver<K>::_communicator);
 #endif
 #ifdef HPDDM_CSR_CO
-        for(unsigned int i = 0; i < nrow; ++i)
-            I[i + 1] += I[i];
+        std::partial_sum(I, I + nrow + 1, I);
 #ifndef HPDDM_LOC2GLOB
         Solver<K>::template numfact<S>(nrow, I, J, C);
 #else
@@ -880,13 +879,10 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 
     if(Operator::_pattern != 's')
         info[0] = M.size();
-    for(unsigned short i = 0; i < (S != 'S' || Operator::_pattern != 's' ? info[0] : first); ++i)
-        delete [] sendNeighbor[i];
+    std::for_each(sendNeighbor, sendNeighbor + (S != 'S' || Operator::_pattern != 's' ? info[0] : first), std::default_delete<K[]>());
     if(U == 1 || _local)
-        for(unsigned short i = 0; i < info[0]; ++i)
-            delete [] recvNeighbor[i];
+        std::for_each(recvNeighbor, recvNeighbor + info[0], std::default_delete<K[]>());
     delete [] sendNeighbor;
-    delete [] recvNeighbor;
     if(U != 2) {
         switch(Solver<K>::_distribution) {
             case DMatrix::NON_DISTRIBUTED:

@@ -74,10 +74,10 @@ class Wrapper {
         static inline void scal(const int* const, const K* const, K* const, const int* const);
         /* Function: nrm2
          *  Computes the Euclidean norm of a vector. */
-        static inline typename Wrapper<K>::ul_type nrm2(const int* const, const K* const, const int* const);
+        static inline ul_type nrm2(const int* const, const K* const, const int* const);
         /* Function: dot
          *  Computes a vector-vector dot product. */
-        static inline typename Wrapper<K>::ul_type dot(const int* const, const K* const, const int* const, const K* const, const int* const);
+        static inline ul_type dot(const int* const, const K* const, const int* const, const K* const, const int* const);
         /* Function: lacpy
          *  Copies all or part of a two-dimensional matrix. */
         static inline void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
@@ -128,13 +128,13 @@ class Wrapper {
         static inline void sctr(const int&, const K* const, const int* const, K* const);
         /* Function: diagv(in-place)
          *  Computes a vector-vector element-wise multiplication. */
-        static inline void diagv(const int&, const Wrapper<K>::ul_type* const, K* const);
+        static inline void diagv(const int&, const ul_type* const, K* const);
         /* Function: diagv
          *  Computes a vector-vector element-wise multiplication. */
-        static inline void diagv(const int&, const Wrapper<K>::ul_type* const, const K* const, K* const);
+        static inline void diagv(const int&, const ul_type* const, const K* const, K* const);
         /* Function: diagm
          *  Computes a vector-matrix element-wise multiplication. */
-        static inline void diagm(const int&, const int&, const typename Wrapper<K>::ul_type* const, const K* const, K* const);
+        static inline void diagm(const int&, const int&, const ul_type* const, const K* const, K* const);
         /* Function: axpby
          *  Computes two scalar-vector products. */
         static inline void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
@@ -262,7 +262,7 @@ HPDDM_GENERATE_BLAS_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_BLAS_COMPLEX(z, std::complex<double>, d, double)
 
 template<class K>
-inline void Wrapper<K>::diagv(const int& n, const Wrapper<K>::ul_type* const d, K* const in) {
+inline void Wrapper<K>::diagv(const int& n, const ul_type* const d, K* const in) {
     diagv(n, d, nullptr, in);
 }
 
@@ -551,7 +551,7 @@ inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, co
 #endif // HPDDM_MKL
 
 template<class K>
-inline void Wrapper<K>::diagv(const int& n, const Wrapper<K>::ul_type* const d, const K* const in, K* const out) {
+inline void Wrapper<K>::diagv(const int& n, const ul_type* const d, const K* const in, K* const out) {
     if(in)
         for(unsigned int i = 0; i < n; ++i)
             out[i] = d[i] * in[i];
@@ -560,17 +560,16 @@ inline void Wrapper<K>::diagv(const int& n, const Wrapper<K>::ul_type* const d, 
             out[i] *= d[i];
 }
 template<class K>
-inline void Wrapper<K>::diagm(const int& m, const int& n, const typename Wrapper<K>::ul_type* const d, const K* const in, K* const out) {
+inline void Wrapper<K>::diagm(const int& m, const int& n, const ul_type* const d, const K* const in, K* const out) {
     for(int i = 0; i < n; ++i)
         for(int j = 0; j < m; ++j)
             out[j + i * m] = d[j] * in[j + i * m];
 }
 template<class K>
-inline void conjugate(const int&, const int&, const int&, K* const) { }
-template<>
-inline void conjugate(const int& m, const int& n, const int& ld, std::complex<double>* const in) {
-    for(int i = 0; i < n; ++i)
-        std::transform(in + i * ld, in + i * ld + m, in + i * ld, [](std::complex<double> const& z) { return std::conj(z); });
+inline void Wrapper<K>::conjugate(const int& m, const int& n, const int& ld, K* const in) {
+    if(!std::is_same<typename std::remove_pointer<K>::type, ul_type>::value)
+        for(int i = 0; i < n; ++i)
+            std::for_each(in + i * ld, in + i * ld + m, [](typename std::remove_pointer<K>::type& z) { z = std::conj(z); });
 }
 } // HPDDM
 #endif // _WRAPPER_
