@@ -140,7 +140,13 @@ class Wrapper {
         static inline void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
         /* Function: conjugate
          *  Conjugates all elements of a matrix. */
-        static inline void conjugate(const int&, const int&, const int&, K* const);
+        template<class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
+        static inline void conjugate(const int& m, const int& n, const int& ld, T* const in) {
+            for(int i = 0; i < n; ++i)
+                std::for_each(in + i * ld, in + i * ld + m, [](T& z) { z = std::conj(z); });
+        }
+        template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
+        static inline void conjugate(const int&, const int&, const int&, T* const) { }
 };
 
 template<>
@@ -564,12 +570,6 @@ inline void Wrapper<K>::diagm(const int& m, const int& n, const ul_type* const d
     for(int i = 0; i < n; ++i)
         for(int j = 0; j < m; ++j)
             out[j + i * m] = d[j] * in[j + i * m];
-}
-template<class K>
-inline void Wrapper<K>::conjugate(const int& m, const int& n, const int& ld, K* const in) {
-    if(!std::is_same<typename std::remove_pointer<K>::type, ul_type>::value)
-        for(int i = 0; i < n; ++i)
-            std::for_each(in + i * ld, in + i * ld + m, [](typename std::remove_pointer<K>::type& z) { z = std::conj(z); });
 }
 } // HPDDM
 #endif // _WRAPPER_

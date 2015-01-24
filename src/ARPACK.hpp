@@ -25,26 +25,19 @@
 
 #define EIGENSOLVER HPDDM::Arpack
 
-#define HPDDM_GENERATE_ARPACK_EXTERN_REAL(C, T)                                                               \
-void C ## saupd_(int*, char*, int*, const char*, int*, T*, T*, int*, T*, int*,                                \
-                 int*, int*, T*, T*, int*, int*, int, int);                                                   \
-void C ## seupd_(const int*, char*, int*, T*, T*, int*, const T*, char*, int*,                                \
-                 const char*, int*, T*, T*, int*, T*, int*, int*, int*,                                       \
-                 T*, T*, int*, int*, int, int, int);
-#define HPDDM_GENERATE_ARPACK_EXTERN_COMPLEX(C, T)                                                            \
-void C ## naupd_(int*, char*, int*, const char*, int*, T*, std::complex<T>*, int*,                            \
-                 std::complex<T>*, int*, int*, int*, std::complex<T>*,                                        \
-                 std::complex<T>*, int*, T*, int*, int, int);                                                 \
-void C ## neupd_(const int*, char*, int*, std::complex<T>*, std::complex<T>*, int*,                           \
-                 const std::complex<T>*, std::complex<T>*, char*, int*, const char*, int*,                    \
-                 T*, std::complex<T>*, int*, std::complex<T>*, int*, int*,                                    \
-                 int*, std::complex<T>*, std::complex<T>*, int*, T*, int*, int, int, int);
+#define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U)                                                              \
+void HPDDM_F77(B ## saupd)(int*, char*, int*, const char*, int*, U*, U*, int*, U*, int*,                      \
+                           int*, int*, U*, U*, int*, int*, int, int);                                         \
+void HPDDM_F77(B ## seupd)(const int*, char*, int*, U*, U*, int*, const U*, char*, int*, const char*, int*,   \
+                           U*, U*, int*, U*, int*, int*, int*, U*, U*, int*, int*, int, int, int);            \
+void HPDDM_F77(C ## naupd)(int*, char*, int*, const char*, int*, U*, T*, int*,                                \
+                           T*, int*, int*, int*, T*, T*, int*, U*, int*, int, int);                           \
+void HPDDM_F77(C ## neupd)(const int*, char*, int*, T*, T*, int*, const T*, T*, char*, int*, const char*,     \
+                           int*, U*, T*, int*, T*, int*, int*, int*, T*, T*, int*, U*, int*, int, int, int);  \
 
 extern "C" {
-HPDDM_GENERATE_ARPACK_EXTERN_REAL(s, float)
-HPDDM_GENERATE_ARPACK_EXTERN_REAL(d, double)
-HPDDM_GENERATE_ARPACK_EXTERN_COMPLEX(c, float)
-HPDDM_GENERATE_ARPACK_EXTERN_COMPLEX(z, double)
+HPDDM_GENERATE_ARPACK_EXTERN(c, std::complex<float>, s, float)
+HPDDM_GENERATE_ARPACK_EXTERN(z, std::complex<double>, d, double)
 }
 
 namespace HPDDM {
@@ -152,47 +145,40 @@ class Arpack : public Eigensolver<K> {
         }
 };
 
-#define HPDDM_GENERATE_ARPACK_REAL(C, T)                                                                     \
+#define HPDDM_GENERATE_ARPACK(C, T, B, U)                                                                    \
 template<>                                                                                                   \
-inline void Arpack<T>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, T* tol,                \
-                            T* vresid, int* ncv, T* vp, int* iparam, int* ipntr, T* workd, T* workl,         \
-                            int* lworkl, T* rwork, int* info) {                                              \
-    C ## saupd_(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                                    \
-                ipntr, workd, workl, lworkl, info, 1, 2);                                                    \
+inline void Arpack<U>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, U* tol,                \
+                            U* vresid, int* ncv, U* vp, int* iparam, int* ipntr, U* workd, U* workl,         \
+                            int* lworkl, U* rwork, int* info) {                                              \
+    HPDDM_F77(B ## saupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                          \
+                          ipntr, workd, workl, lworkl, info, 1, 2);                                          \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<T>::eupd(const int* rvec, char* HowMny, int* select, T* evr, T* ev, int* n,               \
-                            const T* sigma, T* workev, char* bmat, const char* which, int* nu, T* tol,       \
-                            T* vresid, int* necv, T* vp, int* iparam, int* ipntr,                            \
-                            T* workd, T* workl, int* lworkl, T* rwork, int* info) {                          \
-    C ## seupd_(rvec, HowMny, select, evr, ev, n, sigma, bmat,                                               \
-                n, which, nu, tol, vresid, necv, vp, n, iparam,                                              \
-                ipntr, workd, workl, lworkl, info, 1, 1, 2);                                                 \
-}
-#define HPDDM_GENERATE_ARPACK_COMPLEX(C, T)                                                                  \
-template<>                                                                                                   \
-inline void Arpack<std::complex<T>>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, T* tol,  \
-                                          std::complex<T>* vresid, int* ncv, std::complex<T>* vp,            \
-                                          int* iparam, int* ipntr, std::complex<T>* workd,                   \
-                                          std::complex<T>* workl, int* lworkl, T* rwork, int* info) {        \
-    C ## naupd_(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                                    \
-                ipntr, workd, workl, lworkl, rwork, info, 1, 2);                                             \
+inline void Arpack<U>::eupd(const int* rvec, char* HowMny, int* select, U* evr, U* ev, int* n,               \
+                            const U* sigma, U* workev, char* bmat, const char* which, int* nu, U* tol,       \
+                            U* vresid, int* necv, U* vp, int* iparam, int* ipntr,                            \
+                            U* workd, U* workl, int* lworkl, U* rwork, int* info) {                          \
+    HPDDM_F77(B ## seupd)(rvec, HowMny, select, evr, ev, n, sigma, bmat,                                     \
+                          n, which, nu, tol, vresid, necv, vp, n, iparam,                                    \
+                          ipntr, workd, workl, lworkl, info, 1, 1, 2);                                       \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<std::complex<T>>::eupd(const int* rvec, char* HowMny, int* select, std::complex<T>* evr,  \
-                                          std::complex<T>* ev, int* n, const std::complex<T>* sigma,         \
-                                          std::complex<T>* workev, char* bmat, const char* which,            \
-                                          int* nu, T* tol, std::complex<T>* vresid, int* necv,               \
-                                          std::complex<T>* vp, int* iparam, int* ipntr,                      \
-                                          std::complex<T>* workd, std::complex<T>* workl,                    \
-                                          int* lworkl, T* rwork, int* info) {                                \
-    C ## neupd_(rvec, HowMny, select, evr, ev, n, sigma, workev, bmat,                                       \
-                n, which, nu, tol, vresid, necv, vp, n, iparam,                                              \
-                ipntr, workd, workl, lworkl, rwork, info, 1, 1, 2);                                          \
+inline void Arpack<T>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, U* tol,                \
+                            T* vresid, int* ncv, T* vp, int* iparam, int* ipntr, T* workd,                   \
+                            T* workl, int* lworkl, U* rwork, int* info) {                                    \
+    HPDDM_F77(C ## naupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                          \
+                          ipntr, workd, workl, lworkl, rwork, info, 1, 2);                                   \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Arpack<T>::eupd(const int* rvec, char* HowMny, int* select, T* evr,                              \
+                            T* ev, int* n, const T* sigma, T* workev, char* bmat, const char* which,         \
+                            int* nu, U* tol, T* vresid, int* necv, T* vp, int* iparam, int* ipntr,           \
+                            T* workd, T* workl, int* lworkl, U* rwork, int* info) {                          \
+    HPDDM_F77(C ## neupd)(rvec, HowMny, select, evr, ev, n, sigma, workev, bmat,                             \
+                          n, which, nu, tol, vresid, necv, vp, n, iparam,                                    \
+                          ipntr, workd, workl, lworkl, rwork, info, 1, 1, 2);                                \
 }
-HPDDM_GENERATE_ARPACK_REAL(s, float)
-HPDDM_GENERATE_ARPACK_REAL(d, double)
-HPDDM_GENERATE_ARPACK_COMPLEX(c, float)
-HPDDM_GENERATE_ARPACK_COMPLEX(z, double)
+HPDDM_GENERATE_ARPACK(c, std::complex<float>, s, float)
+HPDDM_GENERATE_ARPACK(z, std::complex<double>, d, double)
 } // HPDDM
 #endif // _ARPACK_

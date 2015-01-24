@@ -85,7 +85,7 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #include <mkl_spblas.h>
 #include <mkl_vml.h>
 #endif // HPDDM_MKL || defined(INTEL_MKL_VERSION)
-#if HPDDM_MKL || defined(__APPLE__) || defined(__powerpc__)
+#if defined(__powerpc__)
 #define HPDDM_F77(func) func
 #else
 #define HPDDM_F77(func) func ## _
