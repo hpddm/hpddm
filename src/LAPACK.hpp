@@ -34,6 +34,13 @@ void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*,
                            const int*, T*, const int*, U*, int*, int*, int*);                                \
 void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
                                 const T*, const int*, const T*, T*, const int*, T*, const int*, int*);
+#define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
+void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
+                           const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
+void HPDDM_F77(B ## gesdd)(const char*, const int*, const int*, U*, const int*, U*, U*, const int*, U*,      \
+                           const int*, U*, const int*, int*, int*);                                          \
+void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, U*, T*, const int*, T*,      \
+                           const int*, T*, const int*, U*, int*, int*);
 
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
@@ -41,8 +48,8 @@ HPDDM_GENERATE_EXTERN_LAPACK(s, float, float, sy, or)
 HPDDM_GENERATE_EXTERN_LAPACK(d, double, double, sy, or)
 HPDDM_GENERATE_EXTERN_LAPACK(c, std::complex<float>, float, he, un)
 HPDDM_GENERATE_EXTERN_LAPACK(z, std::complex<double>, double, he, un)
-void HPDDM_F77(sstebz)(const char*, const char*, const int*, const float*, const float*, const int*, const int*, const float*, const float*, const float*, int*, int*, float*, int*, int*, float*, int*, int*);
-void HPDDM_F77(dstebz)(const char*, const char*, const int*, const double*, const double*, const int*, const int*, const double*, const double*, const double*, int*, int*, double*, int*, int*, double*, int*, int*);
+HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, std::complex<double>, d, double)
 }
 #endif // INTEL_MKL_VERSION
 
@@ -77,10 +84,27 @@ class Lapack : public Eigensolver<K> {
         /* Function: mtr
          *  Multiplies a matrix by a orthogonal or unitary matrix obtained with <Lapack::trd>. */
         static inline void mtr(const char*, const char*, const char*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
+        /* Function: gesdd
+         *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
+        static inline void gesdd(const char*, const int*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, K*, const int*, K*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, int*, int*);
     public:
+        Lapack(int n)                                                                                   : Eigensolver<K>(n) { }
         Lapack(int n, int nu)                                                                           : Eigensolver<K>(n, nu) { }
         Lapack(typename Wrapper<K>::ul_type threshold, int n, int nu)                                   : Eigensolver<K>(threshold, n, nu) { }
         Lapack(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int nu) : Eigensolver<K>(tol, threshold, n, nu) { }
+        /* Function: workspace
+         *
+         *  Returns the optimal size of the workspace array. */
+        inline int workspace(const int* const m = nullptr) const {
+            int info;
+            int lwork = -1;
+            K wkopt;
+            if(m)
+                gesdd("S", &(Eigensolver<K>::_n), m, nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, &(Eigensolver<K>::_n), nullptr, m, &wkopt, &lwork, nullptr, nullptr, &info);
+            else
+                trd(&uplo, &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
+            return static_cast<int>(std::real(wkopt));
+        }
         /* Function: reduce
          *
          *  Reduces a symmetric or Hermitian definite generalized eigenvalue problem to a standard problem after factorizing the right-hand side matrix.
@@ -100,7 +124,7 @@ class Lapack : public Eigensolver<K> {
          * Parameters:
          *    B              - Right-hand side matrix.
          *    ev             - Array of eigenvectors. */
-        inline void expand(K* const& B, K* const* const ev) {
+        inline void expand(K* const& B, K* const* const ev) const {
             int info;
             trtrs(&uplo, &transb, &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), B, &(Eigensolver<K>::_n), *ev, &(Eigensolver<K>::_n), &info);
         }
@@ -117,7 +141,7 @@ class Lapack : public Eigensolver<K> {
         inline void solve(K* const& A, K**& ev, K* const& work, int& lwork, const MPI_Comm& communicator) {
             int info;
             K* tau = work + lwork;
-            typename Wrapper<K>::ul_type* d = reinterpret_cast<typename Wrapper<K>::ul_type*>(tau) + Eigensolver<K>::_n;
+            typename Wrapper<K>::ul_type* d = reinterpret_cast<typename Wrapper<K>::ul_type*>(tau + Eigensolver<K>::_n);
             typename Wrapper<K>::ul_type* e = d + Eigensolver<K>::_n;
             trd(&uplo, &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), d, e, tau, work, &lwork, &info);
             char range = Eigensolver<K>::_threshold > 0.0 ? 'V' : 'I';
@@ -150,6 +174,10 @@ class Lapack : public Eigensolver<K> {
                     lwork += 4 * Eigensolver<K>::_n - 1;
             }
             delete [] iblock;
+        }
+        inline void svd(const int* m, K* a, typename Wrapper<K>::ul_type* s, K* u, K* vt, K* work, const int* lwork, int* iwork, typename Wrapper<K>::ul_type* rwork = nullptr) const {
+            int info;
+            gesdd("S", &(Eigensolver<K>::_n), m, a, &(Eigensolver<K>::_n), s, u, &(Eigensolver<K>::_n), vt, m, work, lwork, rwork, iwork, &info);
         }
 };
 
@@ -192,9 +220,24 @@ inline void Lapack<T>::stebz(const char* range, const char* order, const int* n,
     HPDDM_F77(B ## stebz)(range, order, n, vl, vu, il, iu, abstol, d, e, m, nsplit, w, iblock, isplit,       \
                           work, iwork, info);                                                                \
 }
+#define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
+template<>                                                                                                   \
+inline void Lapack<U>::gesdd(const char* jobz, const int* m, const int* n, U* a, const int* lda, U* s, U* u, \
+                             const int* ldu, U* vt, const int* ldvt, U* work, const int* lwork, U* rwork,    \
+                             int* iwork, int* info) {                                                        \
+    HPDDM_F77(B ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, iwork, info);                \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::gesdd(const char* jobz, const int* m, const int* n, T* a, const int* lda, U* s, T* u, \
+                             const int* ldu, T* vt, const int* ldvt, T* work, const int* lwork, U* rwork,    \
+                             int* iwork, int* info) {                                                        \
+    HPDDM_F77(C ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, iwork, info);         \
+}
 HPDDM_GENERATE_LAPACK(s, float, s, float, sy, or)
 HPDDM_GENERATE_LAPACK(d, double, d, double, sy, or)
 HPDDM_GENERATE_LAPACK(c, std::complex<float>, s, float, he, un)
 HPDDM_GENERATE_LAPACK(z, std::complex<double>, d, double, he, un)
+HPDDM_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_LAPACK_COMPLEX(z, std::complex<double>, d, double)
 } // HPDDM
 #endif // _LAPACK_

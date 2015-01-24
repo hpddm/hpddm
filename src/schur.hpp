@@ -185,7 +185,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                             res[j + i * Subdomain<K>::_dof] *= d[i] * d[j];
                 evp.reduce(A, res);
                 int flag;
-                int lwork = 64 * Subdomain<K>::_dof;
+                int lwork = evp.workspace();
                 MPI_Testall(Subdomain<K>::_map.size(), rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
                 K* work;
                 const int storage = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
@@ -426,13 +426,12 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         Subdomain<K>::_a->_ja[i] = tmpInterior[i].first;
                         Subdomain<K>::_a->_a[i] = tmpInterior[i].second;
                     }
-                    for(i = 0, j = 0; i < tmpInteraction.size(); ++i) {
-                        std::sort(tmpInteraction[i].begin(), tmpInteraction[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
+                    for(i = 0, j = 0; i < tmpInteraction.size(); ++i)
                         j += tmpInteraction[i].size();
-                    }
                     _bi = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), Subdomain<K>::_dof - interface.size(), j, false);
                     _bi->_ia[0] = (Wrapper<K>::I == 'F');
                     for(i = 0, j = 0; i < tmpInteraction.size(); ++i) {
+                        std::sort(tmpInteraction[i].begin(), tmpInteraction[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
                         for(const std::pair<unsigned int, K>& p : tmpInteraction[i]) {
                             _bi->_ja[j] = p.first;
                             _bi->_a[j++] = p.second;
