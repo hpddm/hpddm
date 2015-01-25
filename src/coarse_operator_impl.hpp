@@ -234,7 +234,6 @@ template<template<class> class Solver, char S, class K>
 template<unsigned short U, unsigned short excluded, class Operator, class Container>
 inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construction(Operator& v, const MPI_Comm& comm, Container& parm) {
     static_assert(Solver<K>::_numbering == 'F' || Solver<K>::_numbering == 'C', "Unknown numbering");
-    static_assert(S == 'S' || S == 'G', "Unknown symmetry");
     static_assert(Operator::_pattern == 's' || Operator::_pattern == 'c', "Unknown pattern");
     if(std::is_same<Solver<K>, SuiteSparse<K>>::value)
         if(parm[P] != 1) {
@@ -262,16 +261,16 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     Solver<K>::initialize(parm);
     switch(parm[TOPOLOGY]) {
 #ifndef HPDDM_CONTIGUOUS
-        case  1: return constructionMatrix<1, U, excluded>(v, comm, parm[P]);
+        case  1: return constructionMatrix<1, U, excluded>(v, parm[P]);
 #endif
-        case  2: return constructionMatrix<2, U, excluded>(v, comm, parm[P]);
-        default: return constructionMatrix<0, U, excluded>(v, comm, parm[P]);
+        case  2: return constructionMatrix<2, U, excluded>(v, parm[P]);
+        default: return constructionMatrix<0, U, excluded>(v, parm[P]);
     }
 }
 
 template<template<class> class Solver, char S, class K>
 template<char T, unsigned short U, unsigned short excluded, class Operator>
-inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::constructionMatrix(Operator& v, const MPI_Comm& comm, unsigned short p) {
+inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::constructionMatrix(Operator& v, unsigned short p) {
     unsigned short info[(U != 1 ? 3 : 1) + HPDDM_MAXCO];
     const std::vector<unsigned short>& sparsity = v.getPattern();
     info[0] = sparsity.size(); // number of intersections
@@ -320,7 +319,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
         }
         if(rankSplit != 0) {
-            MPI_Request recvInfo[info[0]];
+            MPI_Request* recvInfo = new MPI_Request[info[0]];
             for(unsigned short i = 0; i < info[0]; ++i)
                 MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), recvInfo + i);
             unsigned int tmp = (S != 'S' ? _local : 0);
@@ -330,6 +329,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 if(!(S == 'S' && sparsity[index] < rank))
                     tmp += infoNeighbor[index];
             }
+            delete [] recvInfo;
             if(S != 'S')
                 size = _local * tmp;
             else {
@@ -397,8 +397,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         offsetIdx = new unsigned int[_sizeSplit - 1];
         if(U != 1) {
             infoWorld = new unsigned short[_sizeWorld];
-            int recvcounts[p];
-            int displs[p];
+            int* recvcounts = new int[2 * p];
+            int* displs = recvcounts + p;
             displs[0] = 0;
             if(T == 2) {
                 std::adjacent_difference(Solver<K>::_ldistribution + 1, Solver<K>::_ldistribution + p, recvcounts);
@@ -413,6 +413,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 infoWorld[displs[Solver<K>::_rank] + i] = infoSplit[i][1];
 #ifdef HPDDM_CSR_CO
             nrow = std::accumulate(infoWorld + displs[Solver<K>::_rank], infoWorld + displs[Solver<K>::_rank] + _sizeSplit, 0);
+            delete [] recvcounts;
             I = new int[nrow + 1];
             I[0] = (Solver<K>::_numbering == 'F');
 #ifdef HPDDM_LOC2GLOB
@@ -422,16 +423,19 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             loc2glob = new int[2];
 #endif
 #endif
+#else
+            delete [] recvcounts;
 #endif
             MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, Solver<K>::_communicator);
             if(T == 1) {
-                unsigned short perm[p - 1];
+                unsigned short* perm = new unsigned short[p - 1];
                 unsigned int i = (p - 1) * (_sizeWorld / p);
                 for(unsigned short k = p - 1, j = 1; k-- > 0; i -= _sizeWorld / p, ++j) {
                     perm[k] = infoWorld[i];
                     std::copy_backward(infoWorld + k * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p) + j);
                 }
                 std::copy(perm, perm + p - 1, infoWorld + 1);
+                delete [] perm;
             }
             offset = std::accumulate(infoWorld, infoWorld + _rankWorld, 0);
             Solver<K>::_n = std::accumulate(infoWorld + _rankWorld, infoWorld + _sizeWorld, offset);
@@ -518,8 +522,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
         }
         else
-            for(unsigned short i = 0; i < info[0]; ++i)
-                rqRecv[i] = MPI_REQUEST_NULL;
+            std::fill(rqRecv, rqRecv + info[0], MPI_REQUEST_NULL);
     }
     else {
         rqSend.reserve(M.size());
@@ -648,10 +651,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             idx = coefficients * _local + (S == 'S' ? (_local * (_local + 1)) / 2 : 0);
             for(unsigned short i = 0; i < _sizeSplit - 1; ++i)
                 offsetIdx[i] += idx;
-            if(Operator::_pattern == 's')
-                idx = info[0];
-            else
-                idx = M.size();
+            idx = Operator::_pattern == 's' ? info[0] : M.size();
         }
         else
             idx = 0;
@@ -755,7 +755,6 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
         delete [] offsetIdx;
         if(excluded < 2) {
-            unsigned int (*offsetArray)[(Operator::_pattern == 's') + (U != 1)] = new unsigned int[info[0]][(Operator::_pattern == 's') + (U != 1)];
 #ifdef HPDDM_CSR_CO
             for(unsigned short k = 0; k < _local; ++k) {
                 I[k + 1] = coefficients + (S == 'S' ? _local - k : 0);
@@ -769,6 +768,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 loc2glob[1] = offset + _local - 1;
 #endif
 #endif
+            unsigned int **offsetArray = new unsigned int*[info[0]];
+            *offsetArray = new unsigned int[info[0] * ((Operator::_pattern == 's') + (U != 1))];
             if(Operator::_pattern == 's') {
                 if(S != 'S') {
                     offsetArray[0][0] = sparsity[0] > _rankWorld ? _local : 0;
@@ -784,11 +785,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 }
                 for(unsigned short k = 1; k < info[0]; ++k) {
                     if(U != 1) {
+                        offsetArray[k] = *offsetArray + 2 * k;
                         offsetArray[k][1] = std::accumulate(infoWorld + sparsity[first + k - 1], infoWorld + sparsity[first + k], offsetArray[k - 1][1]);
                         offsetArray[k][0] = offsetArray[k - 1][0] + infoNeighbor[k - 1 + first];
                     }
-                    else
+                    else {
+                        offsetArray[k] = *offsetArray + k;
                         offsetArray[k][0] = offsetArray[k - 1][0] + _local;
+                    }
                     if((S != 'S') && sparsity[k - 1] < _rankWorld && sparsity[k] > _rankWorld)
                         offsetArray[k][0] += _local;
                 }
@@ -799,8 +803,10 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                         offsetArray[0][0] = std::accumulate(infoWorld, infoWorld + sparsity[0], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
                     else if(info[0] > 0)
                         offsetArray[0][0] = std::accumulate(infoWorld, infoWorld + sparsity[first], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
-                    for(unsigned short k = 1; k < info[0]; ++k)
+                    for(unsigned short k = 1; k < info[0]; ++k) {
+                        offsetArray[k] = *offsetArray + k;
                         offsetArray[k][0] = std::accumulate(infoWorld + sparsity[first + k - 1], infoWorld + sparsity[first + k], offsetArray[k - 1][0]);
+                    }
                 }
                 info[0] = M.size();
             }
@@ -813,6 +819,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     else
                         v.template applyFromNeighborMaster<S, Solver<K>::_numbering, U == 1>(recvNeighbor[index], index, I, J, C, coefficients, offset, U == 1 ? nullptr : *offsetArray, work, U == 1 ? nullptr : infoNeighbor);
                 }
+            delete [] *offsetArray;
             delete [] offsetArray;
         }
 #if !HPDDM_ICOLLECTIVE

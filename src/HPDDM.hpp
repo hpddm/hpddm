@@ -54,7 +54,7 @@
 #include <mpi.h>
 #if HPDDM_ICOLLECTIVE
 #if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
-#warning You cannot use nonblocking MPI collective operations with that MPI implementation
+#pragma message("You cannot use nonblocking MPI collective operations with that MPI implementation")
 #undef HPDDM_ICOLLECTIVE
 #define HPDDM_ICOLLECTIVE     0
 #endif
@@ -159,12 +159,10 @@ namespace HPDDM {
  *
  *    transa              - Untransposed operators.
  *    transb              - Transposed operators.
- *    uplo                - Lower part of symmetric matrices.
  *    i__0                - Zero.
  *    i__1                - One. */
 static constexpr char transa =  'N';
 static constexpr char transb =  'T';
-static constexpr char uplo   =  'L';
 static constexpr int i__0    =    0;
 static constexpr int i__1    =    1;
 

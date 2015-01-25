@@ -74,7 +74,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                             }
                         MPI_Isend(send[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, rq + Subdomain<K>::_map.size() + i);
                     }
-                Wrapper<K>::lacpy(&uplo, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof));
+                Wrapper<K>::lacpy("L", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof));
                 if(L == 'S')
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                         int index;
@@ -178,7 +178,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     A = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 else
                     A = *recv;
-                Wrapper<K>::lacpy(&uplo, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof));
+                Wrapper<K>::lacpy("L", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof));
                 if(d)
                     for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
                         for(unsigned int j = i; j < Subdomain<K>::_dof; ++j)
@@ -298,7 +298,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             else
                 std::cerr << "The matrix '_a' has not been allocated => impossible to build the Schur complement" << std::endl;
 #else
-#warning Consider changing your linear solver if you need to compute Schur complements
+#pragma message("Consider changing your linear solver if you need to compute Schur complements")
 #endif
         }
         /* Function: callNumfactPreconditioner
@@ -535,7 +535,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 delete [] tmp;
             }
             else
-                Wrapper<K>::symm(&uplo, &uplo, &(Subdomain<K>::_dof), &n, &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+                Wrapper<K>::symm("L", "L", &(Subdomain<K>::_dof), &n, &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
             delete [] in;
             in = out;
         }
@@ -563,9 +563,9 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 }
             }
             else if(out)
-                Wrapper<K>::symv(&uplo, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &i__1, &(Wrapper<K>::d__0), out, &i__1);
+                Wrapper<K>::symv("L", &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &i__1, &(Wrapper<K>::d__0), out, &i__1);
             else {
-                Wrapper<K>::symv(&uplo, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &i__1, &(Wrapper<K>::d__0), _work + _bi->_m, &i__1);
+                Wrapper<K>::symv("L", &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &i__1, &(Wrapper<K>::d__0), _work + _bi->_m, &i__1);
                 std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
             }
         }

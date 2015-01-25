@@ -102,7 +102,7 @@ class Lapack : public Eigensolver<K> {
             if(m)
                 gesdd("S", &(Eigensolver<K>::_n), m, nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, &(Eigensolver<K>::_n), nullptr, m, &wkopt, &lwork, nullptr, nullptr, &info);
             else
-                trd(&uplo, &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
+                trd("L", &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
             return static_cast<int>(std::real(wkopt));
         }
         /* Function: reduce
@@ -114,8 +114,8 @@ class Lapack : public Eigensolver<K> {
          *    B              - Right-hand side matrix. */
         inline void reduce(K* const& A, K* const& B) const {
             int info;
-            potrf(&uplo, &(Eigensolver<K>::_n), B, &(Eigensolver<K>::_n), &info);
-            gst(&i__1, &uplo, &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), B, &(Eigensolver<K>::_n), &info);
+            potrf("L", &(Eigensolver<K>::_n), B, &(Eigensolver<K>::_n), &info);
+            gst(&i__1, "L", &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), B, &(Eigensolver<K>::_n), &info);
         }
         /* Function: expand
          *
@@ -126,7 +126,7 @@ class Lapack : public Eigensolver<K> {
          *    ev             - Array of eigenvectors. */
         inline void expand(K* const& B, K* const* const ev) const {
             int info;
-            trtrs(&uplo, &transb, &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), B, &(Eigensolver<K>::_n), *ev, &(Eigensolver<K>::_n), &info);
+            trtrs("L", &transb, &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), B, &(Eigensolver<K>::_n), *ev, &(Eigensolver<K>::_n), &info);
         }
         /* Function: solve
          *
@@ -143,7 +143,7 @@ class Lapack : public Eigensolver<K> {
             K* tau = work + lwork;
             typename Wrapper<K>::ul_type* d = reinterpret_cast<typename Wrapper<K>::ul_type*>(tau + Eigensolver<K>::_n);
             typename Wrapper<K>::ul_type* e = d + Eigensolver<K>::_n;
-            trd(&uplo, &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), d, e, tau, work, &lwork, &info);
+            trd("L", &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), d, e, tau, work, &lwork, &info);
             char range = Eigensolver<K>::_threshold > 0.0 ? 'V' : 'I';
             char order = 'B';
             int il = 1;
@@ -167,7 +167,7 @@ class Lapack : public Eigensolver<K> {
                 stein(&(Eigensolver<K>::_n), d, e, &(Eigensolver<K>::_nu), evr, iblock, isplit, *ev, &(Eigensolver<K>::_n), reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, ifailv, &info);
                 delete [] ifailv;
                 order = 'L';
-                mtr(&order, &uplo, &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), A, &(Eigensolver<K>::_n), tau, *ev, &(Eigensolver<K>::_n), work, &lwork, &info);
+                mtr(&order, "L", &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), A, &(Eigensolver<K>::_n), tau, *ev, &(Eigensolver<K>::_n), work, &lwork, &info);
                 if(std::is_same<K, typename Wrapper<K>::ul_type>::value)
                     lwork += 3 * Eigensolver<K>::_n - 1;
                 else
@@ -223,7 +223,7 @@ inline void Lapack<T>::stebz(const char* range, const char* order, const int* n,
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
 template<>                                                                                                   \
 inline void Lapack<U>::gesdd(const char* jobz, const int* m, const int* n, U* a, const int* lda, U* s, U* u, \
-                             const int* ldu, U* vt, const int* ldvt, U* work, const int* lwork, U* rwork,    \
+                             const int* ldu, U* vt, const int* ldvt, U* work, const int* lwork, U*,          \
                              int* iwork, int* info) {                                                        \
     HPDDM_F77(B ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, iwork, info);                \
 }                                                                                                            \

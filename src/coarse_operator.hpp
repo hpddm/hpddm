@@ -105,7 +105,7 @@ class CoarseOperator : public Solver<K> {
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *    Operator       - Operator used in the definition of the Galerkin matrix. */
         template<char T, unsigned short U, unsigned short excluded, class Operator>
-        inline std::pair<MPI_Request, const K*>* constructionMatrix(Operator&, const MPI_Comm&, unsigned short);
+        inline std::pair<MPI_Request, const K*>* constructionMatrix(Operator&, unsigned short);
         /* Function: constructionCommunicatorCollective
          *
          *  Builds both communicators <Coarse operator::gatherComm> and <DMatrix::scatterComm> needed for coarse corrections.
@@ -149,7 +149,8 @@ class CoarseOperator : public Solver<K> {
         }
     public:
         CoarseOperator() : _gatherComm(MPI_COMM_NULL), _scatterComm(MPI_COMM_NULL), _rankWorld(), _sizeWorld(), _sizeSplit(), _local(), _sizeRHS(), _offset(false) {
-            static_assert(!(std::is_same<K, std::complex<double>>::value && S == 'S'), "Symmetric complex coarse operators are not supported.");
+            static_assert(S == 'S' || S == 'G', "Unknown symmetry");
+            static_assert(!(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value && S == 'S'), "Symmetric complex coarse operators are not supported.");
         }
         ~CoarseOperator() {
             if(_gatherComm != _scatterComm && _gatherComm != MPI_COMM_NULL)

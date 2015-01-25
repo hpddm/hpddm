@@ -431,8 +431,8 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             else if(super::_co)
                 super::_co->template callSolver<excluded>(super::_uc);
         }
-        template<bool excluded>
-        inline void computeSolution(K* const x, const K* const f) const { }
+        template<bool>
+        inline void computeSolution(K* const, const K* const) const { }
         /* Function: computeDot
          *
          *  Computes the dot product of two Lagrange multipliers.
@@ -465,7 +465,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L = 'S'>
-        inline void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type& threshold = 0.0) {
+        inline void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type&) {
             typename Wrapper<K>::ul_type* const pt = reinterpret_cast<typename Wrapper<K>::ul_type*>(_primal);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)

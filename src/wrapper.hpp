@@ -108,13 +108,13 @@ class Wrapper {
          *  Computes a scalar-sparse matrix-vector product. */
         template<char>
         static inline void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
-                                   const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
+                                 const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
         /* Function: csrmm
          *  Computes a scalar-sparse matrix-matrix product. */
         template<char>
         static inline void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
-                                   const K* const, const int* const, const int* const, const K* const, const int* const,
-                                   const K* const, K* const, const int* const);
+                                 const K* const, const int* const, const int* const, const K* const, const int* const,
+                                 const K* const, K* const, const int* const);
 
         /* Function: csrcsc
          *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
@@ -294,25 +294,25 @@ inline void Wrapper<T>::csrmv(bool sym, const int* const n, const T* const a, co
                               const int* const ja, const T* const x, T* const y) {                           \
     static_assert(N == 'C', "Unsupported matrix indexing");                                                  \
     if(sym)                                                                                                  \
-        mkl_cspblas_ ## C ## csrsymv(&uplo, n, a, ia, ja, x, y);                                             \
+        mkl_cspblas_ ## C ## csrsymv("L", n, a, ia, ja, x, y);                                               \
     else                                                                                                     \
         mkl_cspblas_ ## C ## csrgemv(&transa, n, a, ia, ja, x, y);                                           \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
 inline void Wrapper<T>::csrmv(const char* const trans, const int* const m, const int* const k,               \
-                                const T* const alpha, bool sym, const T* const a, const int* const ia,       \
-                                const int* const ja, const T* const x, const T* const beta, T* const y) {    \
+                              const T* const alpha, bool sym, const T* const a, const int* const ia,         \
+                              const int* const ja, const T* const x, const T* const beta, T* const y) {      \
     mkl_ ## C ## csrmv(trans, m, k,                                                                          \
                        alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, beta, y);         \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
 inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const int* const n,               \
-                                const int* const k, const T* const alpha, bool sym,                          \
-                                const T* const a, const int* const ia, const int* const ja,                  \
-                                const T* const x, const int* const ldb, const T* const beta,                 \
-                                T* const y, const int* const ldc) {                                          \
+                              const int* const k, const T* const alpha, bool sym,                            \
+                              const T* const a, const int* const ia, const int* const ja,                    \
+                              const T* const x, const int* const ldb, const T* const beta,                   \
+                              T* const y, const int* const ldc) {                                            \
     mkl_ ## C ## csrmm(trans, m, n, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a,                         \
                        a, ja, ia, ia + 1, x, ldb, beta, y, ldc);                                             \
 }                                                                                                            \
@@ -367,7 +367,7 @@ inline void Wrapper<K>::csrmv(bool sym, const int* const n, const K* const a, co
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const int* const k, const K* const alpha, bool sym,
-                                const K* const a, const int* const ia, const int* const ja, const K* const x, const K* const beta, K* const y) {
+                              const K* const a, const int* const ia, const int* const ja, const K* const x, const K* const beta, K* const y) {
     int i, j, l;
     K res;
     if(trans == &transa) {
@@ -377,7 +377,7 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
             else if(beta != &d__1)
                 scal(m, beta, y, &i__1);
             for(i = 0; i < *m; ++i) {
-                if(ia[i + 1] != ia[i]){
+                if(ia[i + 1] != ia[i]) {
                     res = K();
                     for(l = ia[i] - (N == 'F'); l < ia[i + 1] - 1 - (N == 'F'); ++l) {
                         j = ja[l] - (N == 'F');
@@ -428,7 +428,7 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const int* const n, const int* const k, const K* const alpha, bool sym,
-                                const K* const a, const int* const ia, const int* const ja, const K* const x, const int* const ldb, const K* const beta, K* const y, const int* const ldc) {
+                              const K* const a, const int* const ia, const int* const ja, const K* const x, const int* const ldb, const K* const beta, K* const y, const int* const ldc) {
     int i, l;
     if(trans == &transa) {
         int dimY = *m;

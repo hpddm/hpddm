@@ -274,8 +274,8 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 }
             }
         }
-        template<bool excluded>
-        inline void computeSolution(K* const x, K* const* const l) const { }
+        template<bool>
+        inline void computeSolution(K* const, K* const* const) const { }
         /* Function: computeDot
          *
          *  Computes the dot product of two vectors.

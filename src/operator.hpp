@@ -182,7 +182,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             _signed = s;
         }
         template<char S, bool U, class T>
-        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* infoNeighbor, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
+        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short*, T = nullptr, MPI_Request* = nullptr) {
             Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(super::_n), &(super::_local), &(super::_n), &(Wrapper<K>::d__1), false, _C->_a, _C->_ia, _C->_ja, *super::_deflation, &(super::_n), &(Wrapper<K>::d__0), _work, &(super::_n));
             delete _C;
             MPI_Request rq;

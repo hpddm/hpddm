@@ -171,7 +171,7 @@ class Mumps : public DMatrix {
             if(D == DMatrix::DISTRIBUTED_SOL) {
                 _id->icntl[20] = 1;
                 int info = _id->info[22];
-                int isol_loc[info];
+                int* isol_loc = new int[info];
                 K* sol_loc = new K[info];
                 _id->sol_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(sol_loc);
                 _id->lsol_loc = info;
@@ -184,6 +184,7 @@ class Mumps : public DMatrix {
                 else
                     DMatrix::redistribute<0>(sol_loc, rhs);
                 delete [] sol_loc;
+                delete [] isol_loc;
             }
             else {
                 _id->icntl[20] = 0;
@@ -248,7 +249,7 @@ class MumpsSub {
             }
             _id->icntl[23] = detection;
             _id->cntl[2] = -1.0e-6;
-            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i){ return ++i; });
+            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { return ++i; });
             _id->jcn = A->_ja;
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
@@ -302,7 +303,7 @@ class MumpsSub {
             delete [] listvar;
             if(_id->infog[0] != 0)
                 std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
-            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i){ return --i; });
+            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { return --i; });
         }
         inline unsigned short deficiency() const { return _id->infog[27]; }
         inline void solve(K* const x, const unsigned short& n = 1) const {

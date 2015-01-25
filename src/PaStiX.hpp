@@ -174,7 +174,7 @@ class Pastix : public DMatrix {
                     _iparm[IPARM_TRANSPOSE_SOLVE] = API_YES;
             }
             _iparm[IPARM_RHSD_CHECK]          = API_NO;
-            pastix_int_t perm[ncol];
+            pastix_int_t* perm = new pastix_int_t[ncol];
             pstx<K>::dist(&_data, DMatrix::_communicator,
                           ncol, I, J, NULL, loc2glob,
                           perm, NULL, NULL, 1, _iparm, _dparm);
@@ -185,6 +185,7 @@ class Pastix : public DMatrix {
             pstx<K>::dist(&_data, DMatrix::_communicator,
                           ncol, I, J, NULL, loc2glob,
                           perm, NULL, NULL, 1, _iparm, _dparm);
+            delete [] perm;
 
             _iparm[IPARM_VERBOSE]             = API_VERBOSE_NOT;
 
@@ -319,11 +320,11 @@ class PastixSub {
                 _values = A->_a;
                 _colptr = A->_ia;
                 _rows = A->_ja;
-                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i){ return ++i; });
-                std::for_each(_rows, _rows + A->_nnz, [](int& i){ return ++i; });
+                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { return ++i; });
+                std::for_each(_rows, _rows + A->_nnz, [](int& i) { return ++i; });
             }
-            pastix_int_t perm[_ncol];
-            pastix_int_t iperm[_ncol];
+            pastix_int_t* perm = new pastix_int_t[2 * _ncol];
+            pastix_int_t* iperm = perm + _ncol;
             int* listvar = nullptr;
             if(_iparm[IPARM_START_TASK] == API_TASK_INIT) {
                 pstx<K>::seq(&_data, MPI_COMM_SELF,
@@ -346,9 +347,10 @@ class PastixSub {
                          _ncol, _colptr, _rows, _values,
                          perm, iperm, NULL, 1, _iparm, _dparm);
             delete [] listvar;
+            delete [] perm;
             if(_iparm[IPARM_SYM] == API_SYM_NO) {
-                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i){ return --i; });
-                std::for_each(_rows, _rows + A->_nnz, [](int& i){ return --i; });
+                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { return --i; });
+                std::for_each(_rows, _rows + A->_nnz, [](int& i) { return --i; });
             }
         }
         inline void solve(K* const x, const unsigned short& n = 1) const {

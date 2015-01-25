@@ -89,7 +89,7 @@ class IterativeMethod {
             Wrapper<typename std::remove_pointer<T>::type>::axpy(n, a, *x, incx, *y, incy);
         }
         template<class K, class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
-        static inline void axpy(const int* const n, const K* const a, const T* const x, const int* const incx, T const y, const int* const incy) { }
+        static inline void axpy(const int* const, const K* const, const T* const, const int* const, T const, const int* const) { }
         template<class K, class T, typename std::enable_if<!std::is_pointer<T>::value>::type* = nullptr>
         static inline void axpy(const int* const n, const K* const a, const T* const x, const int* const incx, T* const y, const int* const incy) {
             static_assert(std::is_same<T, K>::value, "Wrong types");
@@ -104,7 +104,7 @@ class IterativeMethod {
             return Wrapper<T>::dot(n, x, incx, y, incy);
         }
         template<class T, class U, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
-        static inline void diagv(const int& n, const U* const* const d, T* const in, T* const out = nullptr) { }
+        static inline void diagv(const int&, const U* const* const, T* const, T* const = nullptr) { }
         template<class T, typename std::enable_if<!std::is_pointer<T>::value>::type* = nullptr>
         static inline void diagv(const int& n, const typename Wrapper<T>::ul_type* const d, T* const in, T* const out = nullptr) {
             if(out)

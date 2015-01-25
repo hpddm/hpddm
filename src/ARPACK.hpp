@@ -149,15 +149,15 @@ class Arpack : public Eigensolver<K> {
 template<>                                                                                                   \
 inline void Arpack<U>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, U* tol,                \
                             U* vresid, int* ncv, U* vp, int* iparam, int* ipntr, U* workd, U* workl,         \
-                            int* lworkl, U* rwork, int* info) {                                              \
+                            int* lworkl, U*, int* info) {                                                    \
     HPDDM_F77(B ## saupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                          \
                           ipntr, workd, workl, lworkl, info, 1, 2);                                          \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Arpack<U>::eupd(const int* rvec, char* HowMny, int* select, U* evr, U* ev, int* n,               \
-                            const U* sigma, U* workev, char* bmat, const char* which, int* nu, U* tol,       \
+                            const U* sigma, U*, char* bmat, const char* which, int* nu, U* tol,              \
                             U* vresid, int* necv, U* vp, int* iparam, int* ipntr,                            \
-                            U* workd, U* workl, int* lworkl, U* rwork, int* info) {                          \
+                            U* workd, U* workl, int* lworkl, U*, int* info) {                                \
     HPDDM_F77(B ## seupd)(rvec, HowMny, select, evr, ev, n, sigma, bmat,                                     \
                           n, which, nu, tol, vresid, necv, vp, n, iparam,                                    \
                           ipntr, workd, workl, lworkl, info, 1, 1, 2);                                       \
