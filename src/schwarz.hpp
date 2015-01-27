@@ -367,6 +367,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             }
             nu = evp.getNu();
         }
+        template<bool sorted = true, bool scale = false>
+        inline void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {
+            Subdomain<K>::template interaction<'C', sorted, scale>(blocks, _d);
+        }
 #if HPDDM_GMV
         inline void optimized_exchange(K* const out) const {
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {

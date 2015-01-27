@@ -24,7 +24,7 @@
 #define _OPERATOR_
 
 #include <queue>
-#if HPDDM_BDD || HPDDM_FETI
+#if (HPDDM_BDD || HPDDM_FETI) && !HPDDM_SCHWARZ
 #include <unordered_map>
 #endif
 

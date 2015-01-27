@@ -71,6 +71,16 @@ class Preconditioner : public Subdomain<K> {
                 _co->setLocal(deflation);
             }
         }
+        /* Function: callSolve
+         *
+         *  Applies <Preconditioner::s> to multiple right-hand sides in-place.
+         *
+         * Parameters:
+         *    x              - Input right-hand sides, solution vectors are stored in-place.
+         *    n              - Number of input right-hand sides. */
+        inline void callSolve(K* const x, const unsigned short& n = 1) const {
+            _s.solve(x, n);
+        }
         /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.

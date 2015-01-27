@@ -571,5 +571,30 @@ inline void Wrapper<K>::diagm(const int& m, const int& n, const ul_type* const d
         for(int j = 0; j < m; ++j)
             out[j + i * m] = d[j] * in[j + i * m];
 }
+
+template<class Idx, class T>
+inline void reorder(const Idx& i, const Idx& j, const T& v) {
+    std::swap(v[i], v[j]);
+}
+template<class Idx, class First, class... Rest>
+inline void reorder(const Idx& i, const Idx& j, const First& first, const Rest&... rest) {
+    std::swap(first[i], first[j]);
+    reorder(i, j, rest...);
+}
+/* Function: reorder
+ *  Rearranges an arbitrary number of containers based on the permutation defined by the first argument. */
+template<class T, class... Args>
+inline void reorder(std::vector<T>& order, const Args&... args) {
+    for(T i = 0; i < order.size() - 1; ++i) {
+        T j = order[i];
+        if(j != i) {
+            T k = i + 1;
+            while(order[k] != i)
+                ++k;
+            std::swap(order[i], order[k]);
+            reorder(i, j, args...);
+        }
+    }
+}
 } // HPDDM
 #endif // _WRAPPER_

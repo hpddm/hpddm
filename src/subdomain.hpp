@@ -24,6 +24,10 @@
 #ifndef _SUBDOMAIN_
 #define _SUBDOMAIN_
 
+#if HPDDM_SCHWARZ
+#include <unordered_map>
+#endif
+
 namespace HPDDM {
 /* Class: Subdomain
  *
@@ -176,6 +180,210 @@ class Subdomain {
         /* Function: getMatrix
          *  Returns a constant pointer to <Subdomain::a>. */
         inline const MatrixCSR<K>* getMatrix() const { return _a; }
+        /* Function: interaction
+         *
+         *  Builds a vector of matrices to store interactions with neighboring subdomains.
+         *
+         * Template Parameters:
+         *    N              - 0- or 1-based indexing of the input matrix.
+         *    sorted         - True if the column indices of each matrix in the vector must be sorted.
+         *    scale          - True if the matrices must be scaled by the neighboring partition of unity.
+         *
+         * Parameters:
+         *    v              - Output vector.
+         *    scaling        - Local partition of unity.
+         *    pt             - Pointer to a <MatrixCSR>. */
+        template<char N, bool sorted = true, bool scale = false>
+        inline void interaction(std::vector<const MatrixCSR<K>*>& v, const typename Wrapper<K>::ul_type* const scaling = nullptr, const MatrixCSR<K, N>* const pt = nullptr) const {
+            const MatrixCSR<K, N>& ref = pt ? *pt : *_a;
+            if(ref._n != _dof || ref._m != _dof)
+                std::cerr << "Problem with the input matrix" << std::endl;
+            std::vector<std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>> send(_map.size());
+            unsigned int* sendSize = new unsigned int[4 * _map.size()];
+            unsigned int* recvSize = sendSize + 2 * _map.size();
+            for(unsigned short k = 0; k < _map.size(); ++k)
+                MPI_Irecv(recvSize + 2 * k, 2, MPI_UNSIGNED, _map[k].first, 10, _communicator, _rq + k);
+            for(unsigned short k = 0; k < _map.size(); ++k) {
+                std::vector<std::pair<unsigned int, unsigned int>> fast;
+                fast.reserve(_map[k].second.size());
+                for(unsigned int i = 0; i < _map[k].second.size(); ++i)
+                    fast.emplace_back(_map[k].second[i], i);
+                std::sort(fast.begin(), fast.end());
+                std::vector<std::pair<unsigned int, unsigned int>>::const_iterator itRow = fast.cbegin();
+                for(unsigned int i = 0; i < _dof; ++i) {
+                    std::vector<std::pair<unsigned int, unsigned int>>::const_iterator begin = fast.cbegin();
+                    if(itRow != fast.cend() && itRow->first == i) {
+                        if(ref._sym) {
+                            for(unsigned int j = ref._ia[i]; j < ref._ia[i + 1]; ++j) {
+                                std::vector<std::pair<unsigned int, unsigned int>>::const_iterator it = std::lower_bound(begin, fast.cend(), std::make_pair(ref._ja[j], 0), [](const std::pair<unsigned int, unsigned int>& lhs, const std::pair<unsigned int, unsigned int>& rhs) { return lhs.first < rhs.first; });
+                                if(it == fast.cend() || ref._ja[j] < it->first)
+                                    send[k].emplace_back(itRow->second, ref._ja[j], j - (N == 'F'));
+                                else
+                                    begin = it;
+                            }
+                        }
+                        ++itRow;
+                    }
+                    else {
+                        for(unsigned int j = ref._ia[i]; j < ref._ia[i + 1]; ++j) {
+                            std::vector<std::pair<unsigned int, unsigned int>>::const_iterator it = std::lower_bound(begin, fast.cend(), std::make_pair(ref._ja[j], 0), [](const std::pair<unsigned int, unsigned int>& lhs, const std::pair<unsigned int, unsigned int>& rhs) { return lhs.first < rhs.first; });
+                            if(it != fast.cend() && !(ref._ja[j] < it->first)) {
+                                send[k].emplace_back(it->second, i, j - (N == 'F'));
+                                begin = it;
+                            }
+                        }
+                    }
+                }
+                std::sort(send[k].begin(), send[k].end());
+                sendSize[2 * k] = send[k].empty() ? 0 : 1;
+                for(unsigned int i = 1; i < send[k].size(); ++i)
+                    if(std::get<0>(send[k][i]) != std::get<0>(send[k][i - 1]))
+                        ++sendSize[2 * k];
+                sendSize[2 * k + 1] = std::ceil((sendSize[2 * k] * sizeof(unsigned short)
+                                    + (sendSize[2 * k] + 1 + send[k].size()) * sizeof(unsigned int)) / static_cast<float>(sizeof(K)))
+                                    + send[k].size();
+                MPI_Isend(sendSize + 2 * k, 2, MPI_UNSIGNED, _map[k].first, 10, _communicator, _rq + _map.size() + k);
+            }
+            MPI_Waitall(2 * _map.size(), _rq, MPI_STATUSES_IGNORE);
+            unsigned short maxRecv = 0;
+            unsigned int accumulate = 0;
+            while(maxRecv < _map.size()) {
+                unsigned int next = accumulate + recvSize[2 * maxRecv + 1];
+                if(next < std::distance(_rbuff[0], _sbuff.back()) + _map.back().second.size())
+                    accumulate = next;
+                else
+                    break;
+                ++maxRecv;
+            }
+            unsigned short maxSend = 0;
+            if(maxRecv == _map.size())
+                while(maxSend < _map.size()) {
+                    unsigned int next = accumulate + sendSize[2 * maxSend + 1];
+                    if(next < std::distance(_rbuff[0], _sbuff.back()) + _map.back().second.size())
+                        accumulate = next;
+                    else
+                        break;
+                    ++maxSend;
+                }
+            std::vector<K*> rbuff;
+            rbuff.reserve(_map.size());
+            accumulate = 0;
+            for(unsigned int k = 0; k < _map.size(); ++k) {
+                if(k < maxRecv) {
+                    rbuff.emplace_back(_rbuff[0] + accumulate);
+                    accumulate += recvSize[2 * k + 1];
+                }
+                else if(k == maxRecv) {
+                    unsigned int accumulateSend = 0;
+                    for(unsigned short j = k; j < _map.size(); ++j)
+                        accumulateSend += recvSize[2 * j + 1];
+                    accumulate += accumulateSend;
+                    for(unsigned short j = 0; j < _map.size(); ++j)
+                        accumulateSend += sendSize[2 * j + 1];
+                    rbuff.emplace_back(new K[accumulateSend]);
+                }
+                else
+                    rbuff.emplace_back(rbuff.back() + recvSize[2 * k - 1]);
+                MPI_Irecv(rbuff[k], recvSize[2 * k + 1], Wrapper<K>::mpi_type(), _map[k].first, 100, _communicator, _rq + k);
+            }
+            std::vector<K*> sbuff;
+            sbuff.reserve(_map.size());
+            for(unsigned short k = 0; k < _map.size(); ++k) {
+                if(maxRecv < _map.size()) {
+                    if(k == 0)
+                        sbuff.emplace_back(rbuff.back() + recvSize[2 * _map.size() - 1]);
+                    else
+                        sbuff.emplace_back(sbuff.back() + sendSize[2 * k - 1]);
+                }
+                else if(k < maxSend) {
+                    sbuff.emplace_back(rbuff[0] + accumulate);
+                    accumulate += sendSize[2 * k + 1];
+                }
+                else if(k == maxSend) {
+                    unsigned int accumulateTotal = accumulate;
+                    for(unsigned int j = k; j < _map.size(); ++j)
+                        accumulateTotal += sendSize[2 * j + 1];
+                    sbuff.emplace_back(new K[accumulateTotal]);
+                }
+                else
+                    sbuff.emplace_back(sbuff.back() + sendSize[2 * k - 1]);
+                unsigned short* ia = reinterpret_cast<unsigned short*>(sbuff[k]);
+                unsigned int* mapRow = reinterpret_cast<unsigned int*>(ia + sendSize[2 * k]);
+                unsigned int* ja = mapRow + sendSize[2 * k] + 1;
+                K* a = sbuff[k] + sendSize[2 * k + 1] - send[k].size();
+                *mapRow++ = send[k].size();
+                if(!send[k].empty()) {
+                    *mapRow++ = std::get<0>(send[k][0]);
+                    unsigned int prev = 0;
+                    for(unsigned int i = 0; i < send[k].size(); ++i) {
+                        if(i > 0 && std::get<0>(send[k][i]) != std::get<0>(send[k][i - 1])) {
+                            *ia++ = static_cast<unsigned short>(i - prev);
+                            prev = i;
+                            *mapRow++ = std::get<0>(send[k][i]);
+                        }
+                        *ja++ = std::get<1>(send[k][i]);
+                        *a = ref._a[std::get<2>(send[k][i])];
+                        if(scale && scaling)
+                            *a *= scaling[ref._ja[std::get<2>(send[k][i])]];
+                        ++a;
+                    }
+                    *ia++ = send[k].size() - prev;
+                }
+                MPI_Isend(sbuff[k], sendSize[2 * k + 1], Wrapper<K>::mpi_type(), _map[k].first, 100, _communicator, _rq + _map.size() + k);
+            }
+            decltype(send)().swap(send);
+            if(!v.empty())
+                v.clear();
+            v.reserve(_map.size());
+            for(unsigned short k = 0; k < _map.size(); ++k) {
+                int index;
+                MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
+                unsigned short* ia = reinterpret_cast<unsigned short*>(rbuff[index]);
+                unsigned int* mapRow = reinterpret_cast<unsigned int*>(ia + recvSize[2 * index]);
+                unsigned int* ja = mapRow + recvSize[2 * index] + 1;
+                const unsigned int nnz = *mapRow++;
+                K* a = rbuff[index] + recvSize[2 * index + 1] - nnz;
+                std::unordered_map<unsigned int, unsigned int> mapCol;
+                mapCol.reserve(nnz);
+                for(unsigned int i = 0, j = 0; i < nnz; ++i)
+                    if(mapCol.count(ja[i]) == 0)
+                        mapCol[ja[i]] = j++;
+                MatrixCSR<K>* AIJ = new MatrixCSR<K>(_dof, mapCol.size(), nnz, false);
+                v.emplace_back(AIJ);
+                std::fill(AIJ->_ia, AIJ->_ia + AIJ->_n + 1, 0);
+                for(unsigned int i = 0; i < recvSize[2 * index]; ++i) {
+#if 0
+                    if(std::abs(scaling[_map[index].second[mapRow[i]]]) > HPDDM_EPS)
+                        std::cerr << "Problem with the partition of unity: (std::abs(d[" << _map[index].second[mapRow[i]] << "]) = " << std::abs(scaling[_map[index].second[mapRow[i]]]) << ") > HPDDM_EPS" << std::endl;
+#endif
+                    AIJ->_ia[_map[index].second[mapRow[i]] + 1] = ia[i];
+                }
+                std::partial_sum(AIJ->_ia, AIJ->_ia + AIJ->_n + 1, AIJ->_ia);
+                if(AIJ->_ia[AIJ->_n] != nnz)
+                    std::cerr << "Problem with the received CSR: (AIJ->_ia[" << AIJ->_n << "] = " << AIJ->_ia[AIJ->_n] << ") != " << nnz << std::endl;
+                for(unsigned int i = 0, m = 0; i < recvSize[2 * index]; ++i) {
+                    unsigned int pos = AIJ->_ia[_map[index].second[mapRow[i]]];
+                    for(unsigned short j = 0; j < ia[i]; ++j, ++m) {
+                        AIJ->_ja[pos + j] = mapCol[ja[m]];
+                        AIJ->_a[pos + j] = a[m];
+                    }
+                    if(sorted) {
+                        std::vector<unsigned short> idx;
+                        idx.reserve(ia[i]);
+                        for(unsigned short j = 0; j < ia[i]; ++j)
+                            idx.emplace_back(j);
+                        std::sort(idx.begin(), idx.end(), [&](const unsigned short& lhs, const unsigned short& rhs) { return AIJ->_ja[pos + lhs] < AIJ->_ja[pos + rhs]; });
+                        reorder(idx, AIJ->_ja + pos, AIJ->_a + pos);
+                    }
+                }
+            }
+            MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
+            delete [] sendSize;
+            if(maxRecv < _map.size())
+                delete [] rbuff[maxRecv];
+            else if(maxSend < _map.size())
+                delete [] sbuff[maxSend];
+        }
         /* Function: globalMapping
          *
          *  Computes a global numbering of all unknowns.
