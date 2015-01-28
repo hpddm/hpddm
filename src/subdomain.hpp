@@ -24,9 +24,7 @@
 #ifndef _SUBDOMAIN_
 #define _SUBDOMAIN_
 
-#if HPDDM_SCHWARZ
 #include <unordered_map>
-#endif
 
 namespace HPDDM {
 /* Class: Subdomain

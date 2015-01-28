@@ -413,7 +413,6 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 infoWorld[displs[Solver<K>::_rank] + i] = infoSplit[i][1];
 #ifdef HPDDM_CSR_CO
             nrow = std::accumulate(infoWorld + displs[Solver<K>::_rank], infoWorld + displs[Solver<K>::_rank] + _sizeSplit, 0);
-            delete [] recvcounts;
             I = new int[nrow + 1];
             I[0] = (Solver<K>::_numbering == 'F');
 #ifdef HPDDM_LOC2GLOB
@@ -423,20 +422,17 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             loc2glob = new int[2];
 #endif
 #endif
-#else
-            delete [] recvcounts;
 #endif
             MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, Solver<K>::_communicator);
             if(T == 1) {
-                unsigned short* perm = new unsigned short[p - 1];
                 unsigned int i = (p - 1) * (_sizeWorld / p);
                 for(unsigned short k = p - 1, j = 1; k-- > 0; i -= _sizeWorld / p, ++j) {
-                    perm[k] = infoWorld[i];
+                    recvcounts[k] = infoWorld[i];
                     std::copy_backward(infoWorld + k * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p) + j);
                 }
-                std::copy(perm, perm + p - 1, infoWorld + 1);
-                delete [] perm;
+                std::copy(recvcounts, recvcounts + p - 1, infoWorld + 1);
             }
+            delete [] recvcounts;
             offset = std::accumulate(infoWorld, infoWorld + _rankWorld, 0);
             Solver<K>::_n = std::accumulate(infoWorld + _rankWorld, infoWorld + _sizeWorld, offset);
             if(Solver<K>::_numbering == 'F')
@@ -498,7 +494,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     MPI_Request*             rqRecv;
 
     K** sendNeighbor;
-    K** recvNeighbor = nullptr;
+    K** recvNeighbor;
     int coefficients = (U == 1 ? _local * (info[0] + (S != 'S')) : std::accumulate(infoNeighbor + first, infoNeighbor + sparsity.size(), (S == 'S' ? 0 : _local)));
     if(Operator::_pattern == 's') {
 #if HPDDM_ICOLLECTIVE
@@ -508,17 +504,26 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
         rqSend.reserve(S != 'S' ? info[0] : first);
         sendNeighbor = new K*[(S != 'S' ? info[0] : first) + (U == 1 || _local ? info[0] : 0)];
-        for(unsigned short i = 0; i < (S != 'S' ? info[0] : first); ++i) {
+        unsigned int accumulate = 0;
+        for(unsigned short i = 0; i < (S != 'S' ? info[0] : first); ++i)
             if(U == 1 || infoNeighbor[i])
-                sendNeighbor[i] = new K[_local * M[i].second.size()];
-            else
-                sendNeighbor[i] = nullptr;
+                accumulate += _local * M[i].second.size();
+        if(U == 1 || _local)
+            for(unsigned short i = 0; i < info[0]; ++i)
+                accumulate += (U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size();
+        *sendNeighbor = new K[accumulate];
+        accumulate = 0;
+        for(unsigned short i = 0; i < (S != 'S' ? info[0] : first); ++i) {
+            sendNeighbor[i] = *sendNeighbor + accumulate;
+            if(U == 1 || infoNeighbor[i])
+                accumulate += _local * M[i].second.size();
         }
+        recvNeighbor = (U == 1 || _local ? sendNeighbor + (S != 'S' ? info[0] : first) : nullptr);
         if(U == 1 || _local) {
-            recvNeighbor = sendNeighbor + (S != 'S' ? info[0] : first);
             for(unsigned short i = 0; i < info[0]; ++i) {
-                recvNeighbor[i] = new K[(U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size()];
+                recvNeighbor[i] = *sendNeighbor + accumulate;
                 MPI_Irecv(recvNeighbor[i], (U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size(), Wrapper<K>::mpi_type(), M[i + first].first, 2, v._p.getCommunicator(), rqRecv + i);
+                accumulate += (U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size();
             }
         }
         else
@@ -532,8 +537,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         rqRecv = new MPI_Request[rankSplit == 0 ? _sizeSplit - 1 + M.size() : M.size()];
 #endif
         sendNeighbor = new K*[U == 1 || _local ? 2 * M.size() : M.size()];
-        if(U == 1 || _local)
-            recvNeighbor = sendNeighbor + M.size();
+        recvNeighbor = (U == 1 || _local) ? sendNeighbor + M.size() : nullptr;
     }
     K* work = nullptr;
     if(Operator::_pattern == 's' && excluded < 2) {
@@ -884,11 +888,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     delete [] rqRecv;
 
-    if(Operator::_pattern != 's')
-        info[0] = M.size();
-    std::for_each(sendNeighbor, sendNeighbor + (S != 'S' || Operator::_pattern != 's' ? info[0] : first), std::default_delete<K[]>());
-    if(U == 1 || _local)
-        std::for_each(recvNeighbor, recvNeighbor + info[0], std::default_delete<K[]>());
+    delete [] *sendNeighbor;
     delete [] sendNeighbor;
     if(U != 2) {
         switch(Solver<K>::_distribution) {

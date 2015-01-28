@@ -24,9 +24,6 @@
 #define _OPERATOR_
 
 #include <queue>
-#if (HPDDM_BDD || HPDDM_FETI) && !HPDDM_SCHWARZ
-#include <unordered_map>
-#endif
 
 namespace HPDDM {
 template<char P, class Preconditioner, class K>
@@ -50,7 +47,6 @@ class OperatorBase {
         }
         OperatorBase(const Preconditioner& p, const unsigned short& nu, const unsigned short& relative) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) {
             static_assert(P == 'c', "Unsupported constructor with such a sparsity pattern");
-
             if(!_map.empty()) {
                 _vecSparsity.resize(_map.size());
                 unsigned short** recvSparsity = new unsigned short*[_map.size() + 1];
@@ -98,6 +94,107 @@ class OperatorBase {
                         pq.push(p);
                 }
             }
+        }
+        template<char S, bool U, class T>
+        inline void initialize(T& in, const unsigned short* info, T const& out, MPI_Request* const& rqRecv, const unsigned short& rankWorld, const unsigned short& between, unsigned short*& infoNeighbor) {
+            static_assert(P == 'c', "Unsupported constructor with such a sparsity pattern");
+            if(!U) {
+                infoNeighbor = new unsigned short[_map.size()];
+                std::vector<unsigned short>::const_iterator begin = _sparsity.cbegin();
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, _sparsity.cend(), _map[i].first);
+                    infoNeighbor[i] = info[std::distance(_sparsity.cbegin(), idx)];
+                    begin = idx + 1;
+                }
+            }
+            std::vector<unsigned int> displs;
+            displs.reserve(2 * _map.size());
+            if(S != 'S') {
+                if(!U) {
+                    unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + _map.size(), _local);
+                    if(!_map.empty())
+                        displs.emplace_back(size * _map[0].second.size());
+                    for(unsigned short i = 1; i < _map.size(); ++i)
+                        displs.emplace_back(displs.back() + size * _map[i].second.size());
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        size = infoNeighbor[i];
+                        std::vector<unsigned short>::const_iterator begin = _sparsity.cbegin();
+                        for(const unsigned short& rank : _vecSparsity[i]) {
+                            if(rank == rankWorld)
+                                size += _local;
+                            else {
+                                std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, _sparsity.cend(), rank);
+                                size += info[std::distance(_sparsity.cbegin(), idx)];
+                                begin = idx + 1;
+                            }
+                        }
+                        if(_local)
+                            displs.emplace_back(displs.back() + size * _map[i].second.size());
+                        else
+                            rqRecv[i] = MPI_REQUEST_NULL;
+                    }
+                }
+                else {
+                    if(!_map.empty())
+                        displs.emplace_back(_local * (_map.size() + 1) * _map[0].second.size());
+                    for(unsigned short i = 1; i < _map.size(); ++i)
+                        displs.emplace_back(displs.back() + _local * (_map.size() + 1) * _map[i].second.size());
+                    for(unsigned short i = 0; i < _map.size(); ++i)
+                        displs.emplace_back(displs.back() + _local * (_vecSparsity[i].size() + 1) * _map[i].second.size());
+                }
+            }
+            else {
+                if(!U) {
+                    unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + _map.size(), 0);
+                    if(!_map.empty()) {
+                        displs.emplace_back((size + _local * (0 < between)) * _map[0].second.size());
+                        size -= infoNeighbor[0];
+                    }
+                    for(unsigned short i = 1; i < _map.size(); ++i) {
+                        displs.emplace_back(displs.back() + (size + _local * (i < between)) * _map[i].second.size());
+                        size -= infoNeighbor[i];
+                    }
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        size = infoNeighbor[i] * !(i < between) + _local;
+                        std::vector<unsigned short>::const_iterator end = _sparsity.cend();
+                        for(std::vector<unsigned short>::const_reverse_iterator rit = _vecSparsity[i].rbegin(); *rit > rankWorld; ++rit) {
+                            std::vector<unsigned short>::const_iterator idx = std::lower_bound(_sparsity.cbegin(), end, *rit);
+                            size += info[std::distance(_sparsity.cbegin(), idx)];
+                            end = idx - 1;
+                        }
+                        if(_local)
+                            displs.emplace_back(displs.back() + size * _map[i].second.size());
+                        else
+                            rqRecv[i] = MPI_REQUEST_NULL;
+                    }
+                }
+                else {
+                    if(!_map.empty())
+                        displs.emplace_back(_local * (_map.size() + (0 < between)) * _map[0].second.size());
+                    for(unsigned short i = 1; i < _map.size(); ++i)
+                        displs.emplace_back(displs.back() + _local * (_map.size() + (i < between) - i) * _map[i].second.size());
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        unsigned short size = std::distance(std::lower_bound(_vecSparsity[i].cbegin(), _vecSparsity[i].cend(), rankWorld), _vecSparsity[i].cend()) + !(i < between);
+                        displs.emplace_back(displs.back() + _local * size * _map[i].second.size());
+                    }
+                }
+            }
+            if(!displs.empty()) {
+                *in = new K[displs.back()];
+                for(unsigned short i = 1; i < _map.size(); ++i)
+                    in[i] = *in + displs[i - 1];
+                if(U == 1 || _local)
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        if(displs[i + _map.size()] != displs[i - 1 + _map.size()]) {
+                            out[i] = *in + displs[i - 1 + _map.size()];
+                            MPI_Irecv(out[i], displs[i + _map.size()] - displs[i - 1 + _map.size()], Wrapper<K>::mpi_type(), _map[i].first, 2, _p.getCommunicator(), rqRecv + i);
+                        }
+                        else
+                            out[i] = nullptr;
+                    }
+            }
+            else
+                *in = nullptr;
         }
 };
 
@@ -182,14 +279,14 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             _signed = s;
         }
         template<char S, bool U, class T>
-        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short*, T = nullptr, MPI_Request* = nullptr) {
+        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
             Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(super::_n), &(super::_local), &(super::_n), &(Wrapper<K>::d__1), false, _C->_a, _C->_ia, _C->_ja, *super::_deflation, &(super::_n), &(Wrapper<K>::d__0), _work, &(super::_n));
             delete _C;
             MPI_Request rq;
             for(unsigned short i = 0; i < _signed; ++i) {
-                if(U || in[i]) {
+                if(U || info[i]) {
                     for(unsigned short j = 0; j < super::_local; ++j)
-                        Wrapper<K>::gthr(super::_map[i].second.size(), _work + j * super::_n, in[i]+ j * super::_map[i].second.size(), super::_map[i].second.data());
+                        Wrapper<K>::gthr(super::_map[i].second.size(), _work + j * super::_n, in[i] + j * super::_map[i].second.size(), super::_map[i].second.data());
                     MPI_Isend(in[i], super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), &rq);
                     rqSend.emplace_back(rq);
                 }
@@ -344,81 +441,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
             unsigned short rankWorld = super::_p.getRank();
             unsigned short between = super::_p.getSigned();
             unsigned short* infoNeighbor;
-            if(!U) {
-                infoNeighbor = new unsigned short[super::_map.size()];
-                std::vector<unsigned short>::const_iterator begin = super::_sparsity.cbegin();
-                for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                    std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), super::_map[i].first);
-                    infoNeighbor[i] = info[std::distance(super::_sparsity.cbegin(), idx)];
-                    begin = idx + 1;
-                }
-            }
-            if(S != 'S') {
-                if(!U) {
-                    unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + super::_map.size(), super::_local);
-                    for(unsigned short i = 0; i < super::_map.size(); ++i)
-                        in[i] = new K[size * super::_map[i].second.size()];
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        size = infoNeighbor[i];
-                        std::vector<unsigned short>::const_iterator begin = super::_sparsity.cbegin();
-                        for(const unsigned short& rank : super::_vecSparsity[i]) {
-                            if(rank == rankWorld)
-                                size += super::_local;
-                            else {
-                                std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), rank);
-                                size += info[std::distance(super::_sparsity.cbegin(), idx)];
-                                begin = idx + 1;
-                            }
-                        }
-                        if(super::_local) {
-                            out[i] = new K[size * super::_map[i].second.size()];
-                            MPI_Irecv(out[i], size * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                        }
-                        else
-                            rqRecv[i] = MPI_REQUEST_NULL;
-                    }
-                }
-                else {
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        in[i] = new K[super::_local * (super::_map.size() + 1) * super::_map[i].second.size()];
-                        out[i] = new K[super::_local * (super::_vecSparsity[i].size() + 1) * super::_map[i].second.size()];
-                        MPI_Irecv(out[i], super::_local * (super::_vecSparsity[i].size() + 1) * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                    }
-                }
-            }
-            else {
-                if(!U) {
-                    unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + super::_map.size(), 0);
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        in[i] = new K[(size + super::_local * (i < between)) * super::_map[i].second.size()];
-                        size -= infoNeighbor[i];
-                    }
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        size = infoNeighbor[i] * !(i < between) + super::_local;
-                        std::vector<unsigned short>::const_iterator end = super::_sparsity.cend();
-                        for(std::vector<unsigned short>::const_reverse_iterator rit = super::_vecSparsity[i].rbegin(); *rit > rankWorld; ++rit) {
-                            std::vector<unsigned short>::const_iterator idx = std::lower_bound(super::_sparsity.cbegin(), end, *rit);
-                            size += info[std::distance(super::_sparsity.cbegin(), idx)];
-                            end = idx - 1;
-                        }
-                        if(super::_local) {
-                            out[i] = new K[size * super::_map[i].second.size()];
-                            MPI_Irecv(out[i], size * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                        }
-                        else
-                            rqRecv[i] = MPI_REQUEST_NULL;
-                    }
-                }
-                else {
-                    for(unsigned short i = 0; i < super::_map.size(); ++i)
-                        in[i] = new K[super::_local * (super::_map.size() + (i < between) - i) * super::_map[i].second.size()];
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        unsigned short size = std::distance(std::lower_bound(super::_vecSparsity[i].cbegin(), super::_vecSparsity[i].cend(), rankWorld), super::_vecSparsity[i].cend()) + !(i < between);
-                        out[i] = new K[super::_local * size * super::_map[i].second.size()];
-                        MPI_Irecv(out[i], super::_local * size * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                    }
-                }
-            }
+            super::template initialize<S, U>(in, info, out, rqRecv, rankWorld, between, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
             unsigned int* offset = new unsigned int[super::_map.size() + 2];
             offset[0] = 0;
@@ -688,81 +711,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             unsigned short rankWorld = super::_p.getRank();
             unsigned short between = super::_p.getSigned();
             unsigned short* infoNeighbor;
-            if(!U) {
-                infoNeighbor = new unsigned short[super::_map.size()];
-                std::vector<unsigned short>::const_iterator begin = super::_sparsity.cbegin();
-                for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                    std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), super::_map[i].first);
-                    infoNeighbor[i] = info[std::distance(super::_sparsity.cbegin(), idx)];
-                    begin = idx + 1;
-                }
-            }
-            if(S != 'S') {
-                if(!U) {
-                    unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + super::_map.size(), super::_local);
-                    for(unsigned short i = 0; i < super::_map.size(); ++i)
-                        in[i] = new K[size * super::_map[i].second.size()];
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        size = infoNeighbor[i];
-                        std::vector<unsigned short>::const_iterator begin = super::_sparsity.cbegin();
-                        for(const unsigned short& rank : super::_vecSparsity[i]) {
-                            if(rank == rankWorld)
-                                size += super::_local;
-                            else {
-                                std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), rank);
-                                size += info[std::distance(super::_sparsity.cbegin(), idx)];
-                                begin = idx + 1;
-                            }
-                        }
-                        if(super::_local) {
-                            out[i] = new K[size * super::_map[i].second.size()];
-                            MPI_Irecv(out[i], size * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                        }
-                        else
-                            rqRecv[i] = MPI_REQUEST_NULL;
-                    }
-                }
-                else {
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        in[i] = new K[super::_local * (super::_map.size() + 1) * super::_map[i].second.size()];
-                        out[i] = new K[super::_local * (super::_vecSparsity[i].size() + 1) * super::_map[i].second.size()];
-                        MPI_Irecv(out[i], super::_local * (super::_vecSparsity[i].size() + 1) * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                    }
-                }
-            }
-            else {
-                if(!U) {
-                    unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + super::_map.size(), 0);
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        in[i] = new K[(size + super::_local * (i < between)) * super::_map[i].second.size()];
-                        size -= infoNeighbor[i];
-                    }
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        size = infoNeighbor[i] * !(i < between) + super::_local;
-                        std::vector<unsigned short>::const_iterator end = super::_sparsity.cend();
-                        for(std::vector<unsigned short>::const_reverse_iterator rit = super::_vecSparsity[i].rbegin(); *rit > rankWorld; ++rit) {
-                            std::vector<unsigned short>::const_iterator idx = std::lower_bound(super::_sparsity.cbegin(), end, *rit);
-                            size += info[std::distance(super::_sparsity.cbegin(), idx)];
-                            end = idx - 1;
-                        }
-                        if(super::_local) {
-                            out[i] = new K[size * super::_map[i].second.size()];
-                            MPI_Irecv(out[i], size * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                        }
-                        else
-                            rqRecv[i] = MPI_REQUEST_NULL;
-                    }
-                }
-                else {
-                    for(unsigned short i = 0; i < super::_map.size(); ++i)
-                        in[i] = new K[super::_local * (super::_map.size() + (i < between) - i) * super::_map[i].second.size()];
-                    for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                        unsigned short size = std::distance(std::lower_bound(super::_vecSparsity[i].cbegin(), super::_vecSparsity[i].cend(), rankWorld), super::_vecSparsity[i].cend()) + !(i < between);
-                        out[i] = new K[super::_local * size * super::_map[i].second.size()];
-                        MPI_Irecv(out[i], super::_local * size * super::_map[i].second.size(), Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rqRecv + i);
-                    }
-                }
-            }
+            super::template initialize<S, U>(in, info, out, rqRecv, rankWorld, between, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
             unsigned int* offset = new unsigned int[super::_map.size() + 2];
             offset[0] = 0;
