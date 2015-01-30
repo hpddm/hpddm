@@ -22,6 +22,7 @@
  */
 
 #include <HPDDM.hpp>
+#include <list>
 
 #define xx(i) (xdim[0] + dx * (i + 0.5))
 #define yy(j) (ydim[0] + dy * (j + 0.5))
@@ -126,16 +127,17 @@ int main(int argc, char **argv) {
     /*# Structures #*/
     HPDDM::Wrapper<K>::ul_type* d = new HPDDM::Wrapper<K>::ul_type[ndof];
     std::fill(d, d + ndof, 1.0);
-    std::vector<std::vector<int>*> mapping; mapping.reserve(8);
-    std::vector<int> o; o.reserve(8); // at most eight neighbors in 2D
+    std::vector<std::vector<int>> mapping;
+    mapping.reserve(8);
+    std::list<int> o; // at most eight neighbors in 2D
     if(jStart != 0) { // this subdomain doesn't touch the bottom side of %*\color{DarkGreen}{$\Omega$}*)
         if(iStart != 0) { // this subd. doesn't touch the left side of %*\color{DarkGreen}{$\Omega$}*)
             o.push_back(rankWorld - xGrid - 1); // subd. on the lower left corner is a neighbor
-            mapping.push_back(new std::vector<int>());
-            mapping.back()->reserve(4 * overlap * overlap);
+            mapping.push_back(std::vector<int>());
+            mapping.back().reserve(4 * overlap * overlap);
             for(int j = 0; j < 2 * overlap; ++j)
                 for(int i = iStart; i < iStart + 2 * overlap; ++i)
-                    mapping.back()->push_back(i - iStart + (iEnd - iStart) * j);
+                    mapping.back().push_back(i - iStart + (iEnd - iStart) * j);
             for(int j = 0; j < overlap; ++j) {
                 for(int i = 0; i < overlap - j; ++i)
                     d[i + j + j * (iEnd - iStart)] = j / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
@@ -148,21 +150,21 @@ int main(int argc, char **argv) {
                 for(int i = 0; i < overlap; ++i)
                     d[i + j * (iEnd - iStart)] = j / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
         o.push_back(rankWorld - xGrid); // subd. below is a neighbor
-        mapping.push_back(new std::vector<int>());
-        mapping.back()->reserve(2 * overlap * (iEnd - iStart));
+        mapping.push_back(std::vector<int>());
+        mapping.back().reserve(2 * overlap * (iEnd - iStart));
         for(int j = 0; j < 2 * overlap; ++j)
             for(int i = iStart; i < iEnd; ++i)
-                mapping.back()->push_back(i - iStart + (iEnd - iStart) * j);
+                mapping.back().push_back(i - iStart + (iEnd - iStart) * j);
         for(int j = 0; j < overlap; ++j)
             for(int i = iStart + overlap; i < iEnd - overlap; ++i)
                 d[i - iStart + (iEnd - iStart) * j] = j / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
         if(iEnd != Nx) { // this subd. doesn't touch the right side of %*\color{DarkGreen}{$\Omega$}*)
             o.push_back(rankWorld - xGrid + 1); // subd. on the lower right corner is a neighbor
-            mapping.push_back(new std::vector<int>());
-            mapping.back()->reserve(4 * overlap * overlap);
+            mapping.push_back(std::vector<int>());
+            mapping.back().reserve(4 * overlap * overlap);
             for(int i = 0; i < 2 * overlap; ++i)
                 for(int j = 0; j < 2 * overlap; ++j)
-                    mapping.back()->push_back((iEnd - iStart) * (i + 1) - 2 * overlap + j);
+                    mapping.back().push_back((iEnd - iStart) * (i + 1) - 2 * overlap + j);
             for(int j = 0; j < overlap; ++j) {
                 for(int i = 0; i < overlap - j; ++i)
                     d[(iEnd - iStart) * (j + 1) - overlap + i] = j / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
@@ -178,22 +180,22 @@ int main(int argc, char **argv) {
     /*# StructuresEnd #*/
     if(iStart != 0) {
         o.push_back(rankWorld - 1);
-        mapping.push_back(new std::vector<int>());
-        mapping.back()->reserve(2 * overlap * (jEnd - jStart));
+        mapping.push_back(std::vector<int>());
+        mapping.back().reserve(2 * overlap * (jEnd - jStart));
         for(int i = jStart; i < jEnd; ++i)
             for(int j = 0; j < 2 * overlap; ++j)
-                mapping.back()->push_back(j + (i - jStart) * (iEnd - iStart));
+                mapping.back().push_back(j + (i - jStart) * (iEnd - iStart));
         for(int i = jStart + (jStart != 0) * overlap; i < jEnd - (jEnd != Ny) * overlap; ++i)
             for(int j = 0; j < overlap; ++j)
                 d[j + (i - jStart) * (iEnd - iStart)] = j / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
     }
     if(iEnd != Nx) {
         o.push_back(rankWorld + 1);
-        mapping.push_back(new std::vector<int>());
-        mapping.back()->reserve(2 * overlap * (jEnd - jStart));
+        mapping.push_back(std::vector<int>());
+        mapping.back().reserve(2 * overlap * (jEnd - jStart));
         for(int i = jStart; i < jEnd; ++i)
             for(int j = 0; j < 2 * overlap; ++j)
-                mapping.back()->push_back((iEnd - iStart) * (i + 1 - jStart) - 2 * overlap + j);
+                mapping.back().push_back((iEnd - iStart) * (i + 1 - jStart) - 2 * overlap + j);
         for(int i = jStart + (jStart != 0) * overlap; i < jEnd - (jEnd != Ny) * overlap; ++i)
             for(int j = 0; j < overlap; ++j)
                 d[(iEnd - iStart) * (i + 1 - jStart) - j - 1] = j / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
@@ -201,11 +203,11 @@ int main(int argc, char **argv) {
     if(jEnd != Ny) {
         if(iStart != 0) {
             o.push_back(rankWorld + xGrid - 1);
-            mapping.push_back(new std::vector<int>());
-            mapping.back()->reserve(4 * overlap * overlap);
+            mapping.push_back(std::vector<int>());
+            mapping.back().reserve(4 * overlap * overlap);
             for(int j = 0; j < 2 * overlap; ++j)
                 for(int i = iStart; i < iStart + 2 * overlap; ++i)
-                    mapping.back()->push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
+                    mapping.back().push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
             for(int j = 0; j < overlap; ++j)
                 for(int i = 0; i < overlap - j; ++i)
                     d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * j] = i / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
@@ -219,21 +221,21 @@ int main(int argc, char **argv) {
                     d[ndof - overlap * (iEnd - iStart) + (iEnd - iStart) * j + i] = (overlap - j - 1) / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
         }
         o.push_back(rankWorld + xGrid);
-        mapping.push_back(new std::vector<int>());
-        mapping.back()->reserve(2 * overlap * (iEnd - iStart));
+        mapping.push_back(std::vector<int>());
+        mapping.back().reserve(2 * overlap * (iEnd - iStart));
         for(int j = 0; j < 2 * overlap; ++j)
             for(int i = iStart; i < iEnd; ++i)
-                mapping.back()->push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
+                mapping.back().push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
         for(int j = 0; j < overlap; ++j)
             for(int i = iStart + overlap; i < iEnd - overlap; ++i)
                 d[ndof - overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j] = (overlap - 1 - j) / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
         if(iEnd != Nx) {
             o.push_back(rankWorld + xGrid + 1);
-            mapping.push_back(new std::vector<int>());
-            mapping.back()->reserve(4 * overlap * overlap);
+            mapping.push_back(std::vector<int>());
+            mapping.back().reserve(4 * overlap * overlap);
             for(int j = 0; j < 2 * overlap; ++j)
                 for(int i = iStart; i < iStart + 2 * overlap; ++i)
-                    mapping.back()->push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j + (iEnd - iStart - 2 * overlap));
+                    mapping.back().push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j + (iEnd - iStart - 2 * overlap));
             for(int j = 0; j < overlap; ++j)
                 for(int i = j; i < overlap; ++i)
                     d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - i) / static_cast<HPDDM::Wrapper<K>::ul_type>(overlap);
@@ -386,9 +388,8 @@ int main(int argc, char **argv) {
         HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symmetryCoarseOperator, K> A;
         /*# CreationEnd #*/
         /*# Initialization #*/
-        A.Subdomain::initialize(Mat, o.cbegin(), o.cend(), mapping);
-        for(std::vector<int>* pt : mapping)
-            delete pt;
+        A.Subdomain::initialize(Mat, o, mapping);
+        decltype(mapping)().swap(mapping);
         A.multiplicityScaling(d);
         A.initialize(d);
         /*# InitializationEnd #*/

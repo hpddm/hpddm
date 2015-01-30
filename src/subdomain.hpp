@@ -108,53 +108,47 @@ class Subdomain {
          *
          *  Initializes all buffers for point-to-point communications and set internal pointers to user-defined values.
          *
-         * Template Parameters:
-         *    It             - Forward iterator.
-         *    Container      - Class of the local-to-neighbor mappings.
-         *
          * Parameters:
          *    a              - Local matrix.
-         *    begin          - Iterator pointing to the first element of the container of indices of neighboring subdomains.
-         *    end            - Iterator pointing to the past-the-end element of the container of indices of neighboring subdomains.
+         *    o              - Indices of neighboring subdomains.
+         *    r              - Local-to-neighbor mappings.
          *    comm           - MPI communicator of the domain decomposition. */
-        template<class It, class Container>
-        inline void initialize(MatrixCSR<K>* const& a, const It& begin, const It& end, std::vector<Container*> const& r, MPI_Comm* const& comm = nullptr) {
+        template<class Neighbor, class Mapping>
+        inline void initialize(MatrixCSR<K>* const& a, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr) {
             if(comm)
                 _communicator = *comm;
             else
                 _communicator = MPI_COMM_WORLD;
             _a = a;
             _dof = _a->_n;
-            if(begin != end) {
-                _map.resize(std::distance(begin, end));
-                unsigned int size = 0;
-                It it = begin;
-                do {
-                    pairNeighbor& ref = _map[std::distance(begin, it)];
-                    ref.first = *it;
-                    const Container& in = *r[std::distance(begin, it)];
-                    ref.second.reserve(in.size());
-                    for(int j = 0; j < in.size(); ++j)
-                        ref.second.emplace_back(in[j]);
-                    size += ref.second.size();
-                } while(++it != end);
-                _rq = new MPI_Request[2 * _map.size()];
-                _rbuff.reserve(_map.size());
-                _sbuff.reserve(_map.size());
-                if(size) {
-                    K* rbuff = new K[2 * size];
-                    K* sbuff = rbuff + size;
-                    size = 0;
-                    for(unsigned short i = 0; i < _map.size(); ++i) {
-                        _rbuff.emplace_back(rbuff + size);
-                        _sbuff.emplace_back(sbuff + size);
-                        size +=_map[i].second.size();
-                    }
+            _map.resize(o.size());
+            unsigned int size = 0;
+            unsigned short j = 0;
+            for(const auto& i : o) {
+                pairNeighbor& ref = _map[j];
+                _map[j].first = i;
+                _map[j].second.reserve(r[j].size());
+                for(int k = 0; k < r[j].size(); ++k)
+                    _map[j].second.emplace_back(r[j][k]);
+                size += _map[j].second.size();
+                ++j;
+            }
+            _rq = new MPI_Request[2 * _map.size()];
+            _rbuff.reserve(_map.size());
+            _sbuff.reserve(_map.size());
+            if(size) {
+                K* rbuff = new K[2 * size];
+                K* sbuff = rbuff + size;
+                size = 0;
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    _rbuff.emplace_back(rbuff + size);
+                    _sbuff.emplace_back(sbuff + size);
+                    size +=_map[i].second.size();
                 }
             }
+        }
         /* Function: initialize(dummy)
          *  Dummy function for masters excluded from the domain decomposition. */
-        }
         inline void initialize(MPI_Comm* const& comm = nullptr) {
             if(comm)
                 _communicator = *comm;
