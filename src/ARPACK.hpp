@@ -81,6 +81,8 @@ class Arpack : public Eigensolver<K> {
             char bmat = 'G';
             int iparam[11] = { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
             int ipntr[std::is_same<K, typename Wrapper<K>::ul_type>::value ? 11 : 14] = { };
+            if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
+                Eigensolver<K>::_nu = std::max(1, Eigensolver<K>::_n / 4);
             int ncv = 2 * Eigensolver<K>::_nu + 1;
             int lworkl = ncv * (ncv + 8);
             K* workd;

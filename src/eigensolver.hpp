@@ -46,9 +46,9 @@ class Eigensolver {
         int                                 _nu;
     public:
         Eigensolver(int n)                                                                                    : _tol(), _threshold(), _n(n), _nu() { }
-        Eigensolver(int n, int& nu)                                                                           : _tol(1.0e-6), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
-        Eigensolver(typename Wrapper<K>::ul_type threshold, int n, int& nu)                                   : _tol(1.0e-6), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
-        Eigensolver(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int& nu) : _tol(tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n / 4))) { nu = _nu; }
+        Eigensolver(int n, int& nu)                                                                           : _tol(1.0e-6), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
+        Eigensolver(typename Wrapper<K>::ul_type threshold, int n, int& nu)                                   : _tol(1.0e-6), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
+        Eigensolver(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int& nu) : _tol(tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
         /* Function: selectNu
          *
          *  Computes a uniform threshold criterion.

@@ -320,12 +320,19 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    in             - Input vector. */
         template<class Container>
         inline void originalNumbering(const Container& interface, K* const in) const {
-            unsigned int end = Subdomain<K>::_a->_n;
-            std::vector<K> backup(in + _bi->_m, in + end);
-            for(unsigned int j = Subdomain<K>::_dof; j-- > 0; ) {
-                std::copy_backward(in + interface[j] - j - 1, in + end - j - 1, in + end);
-                in[interface[j]] = backup[j];
-                end = interface[j];
+            if(interface[0] != _bi->_m) {
+                unsigned int end = Subdomain<K>::_a->_n;
+                std::vector<K> backup(in + _bi->_m, in + end);
+                unsigned int j = Subdomain<K>::_dof;
+                while(j-- > 0 && j != interface[j]) {
+                    std::copy_backward(in + interface[j] - j - 1, in + end - j - 1, in + end);
+                    in[interface[j]] = backup[j];
+                    end = interface[j];
+                }
+                if(j < Subdomain<K>::_dof) {
+                    std::copy_backward(in, in + end - j - 1, in + end);
+                    std::copy_n(backup.begin(), j + 1, in);
+                }
             }
         }
         /* Function: renumber

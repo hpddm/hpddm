@@ -325,7 +325,7 @@ template<class Preconditioner, class K>
 class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
     private:
         typedef OperatorBase<'c', Preconditioner, K>                super;
-        std::unordered_map<unsigned short, unsigned short>       _offsets;
+        std::unordered_map<unsigned short, unsigned int>         _offsets;
         unsigned short                                       _consolidate;
         template<char S, bool U>
         inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
@@ -354,15 +354,13 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
                         std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), *it);
                         if(*it > super::_map[index].first || between > index)
                             for(unsigned short k = 0; k < info[std::distance(super::_sparsity.cbegin(), idx)]; ++k) {
-                                for(unsigned int j = 0; j < super::_map[index].second.size(); ++j) {
+                                for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                     work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
-                                }
                             }
                         else
                             for(unsigned short k = 0; k < info[std::distance(super::_sparsity.cbegin(), idx)]; ++k) {
-                                for(unsigned int j = 0; j < super::_map[index].second.size(); ++j) {
+                                for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                     work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] += in[accumulate + k * super::_map[index].second.size() + j];
-                                }
                             }
                         accumulate += info[std::distance(super::_sparsity.cbegin(), idx)] * super::_map[index].second.size();
                         begin = idx + 1;
@@ -634,7 +632,7 @@ template<class Preconditioner, class K>
 class BddProjection : public OperatorBase<'c', Preconditioner, K> {
     private:
         typedef OperatorBase<'c', Preconditioner, K>                super;
-        std::unordered_map<unsigned short, unsigned short>       _offsets;
+        std::unordered_map<unsigned short, unsigned int>         _offsets;
         unsigned short                                       _consolidate;
         template<char S, bool U>
         inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
@@ -654,9 +652,8 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                     if(!U) {
                         std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), *it);
                         for(unsigned short k = 0; k < info[std::distance(super::_sparsity.cbegin(), idx)]; ++k) {
-                            for(unsigned int j = 0; j < super::_map[index].second.size(); ++j) {
+                            for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                 work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] += in[accumulate + k * super::_map[index].second.size() + j];
-                            }
                         }
                         accumulate += info[std::distance(super::_sparsity.cbegin(), idx)] * super::_map[index].second.size();
                         begin = idx + 1;

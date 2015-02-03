@@ -125,7 +125,6 @@ class Subdomain {
             unsigned int size = 0;
             unsigned short j = 0;
             for(const auto& i : o) {
-                pairNeighbor& ref = _map[j];
                 _map[j].first = i;
                 _map[j].second.reserve(r[j].size());
                 for(int k = 0; k < r[j].size(); ++k)
