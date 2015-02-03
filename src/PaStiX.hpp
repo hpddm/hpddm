@@ -207,7 +207,6 @@ class Pastix : public DMatrix {
 
             _iparm[IPARM_CSCD_CORRECT] = API_YES;
             delete [] I;
-            delete [] J;
             delete [] loc2glob;
         }
         /* Function: solve

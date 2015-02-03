@@ -221,7 +221,6 @@ class SuiteSparse : public DMatrix {
                 delete [] info;
             }
             delete [] I;
-            delete [] J;
         }
         template<DMatrix::Distribution D>
         inline void solve(K* rhs) {

@@ -413,15 +413,6 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 infoWorld[displs[Solver<K>::_rank] + i] = infoSplit[i][1];
 #ifdef HPDDM_CSR_CO
             nrow = std::accumulate(infoWorld + displs[Solver<K>::_rank], infoWorld + displs[Solver<K>::_rank] + _sizeSplit, 0);
-            I = new int[nrow + 1];
-            I[0] = (Solver<K>::_numbering == 'F');
-#ifdef HPDDM_LOC2GLOB
-#ifndef HPDDM_CONTIGUOUS
-            loc2glob = new int[nrow];
-#else
-            loc2glob = new int[2];
-#endif
-#endif
 #endif
             MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, Solver<K>::_communicator);
             if(T == 1) {
@@ -457,15 +448,6 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             offset = (_rankWorld - (excluded == 2 ? rank : 0)) * _local + (Solver<K>::_numbering == 'F');
 #ifdef HPDDM_CSR_CO
             nrow = (_sizeSplit - (excluded == 2)) * _local;
-            I = new int[nrow + 1];
-            I[0] = (Solver<K>::_numbering == 'F');
-#ifdef HPDDM_LOC2GLOB
-#ifndef HPDDM_CONTIGUOUS
-            loc2glob = new int[nrow];
-#else
-            loc2glob = new int[2];
-#endif
-#endif
 #endif
             if(S == 'S') {
                 for(unsigned short i = 1; i < _sizeSplit; ++i) {
@@ -482,10 +464,21 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 size = (size + info[0] + _sizeSplit - (excluded == 2)) * _local * _local;
             }
         }
-#ifndef HPDDM_CSR_CO
-        I = new int[size];
+#ifdef HPDDM_CSR_CO
+        I = new int[nrow + 1 + size];
+        I[0] = (Solver<K>::_numbering == 'F');
+        J = I + nrow + 1;
+#ifdef HPDDM_LOC2GLOB
+#ifndef HPDDM_CONTIGUOUS
+        loc2glob = new int[nrow];
+#else
+        loc2glob = new int[2];
 #endif
-        J = new int[size];
+#endif
+#else
+        I = new int[2 * size];
+        J = I + size;
+#endif
         C = new K[size];
     }
     const vectorNeighbor& M = v._p.getMap();
@@ -843,7 +836,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         std::string fileName = "E_distributed_";
         if(excluded == 2)
             fileName += "excluded_";
-        std::ofstream txtE{ fileName + S + "_" + Solver<K>::_numbering + "_" + std::to_string(T) + "_" + std::to_string(Solver<K>::_rank) + ".txt" };
+        std::ofstream txtE { fileName + S + "_" + Solver<K>::_numbering + "_" + std::to_string(T) + "_" + std::to_string(Solver<K>::_rank) + ".txt" };
 #ifndef HPDDM_CSR_CO
         for(unsigned int i = 0; i < size; ++i)
             txtE << "(" << std::setw(4) << I[i] << ", " << std::setw(4) << J[i] << ") = " << std::scientific << C[i] << std::endl;

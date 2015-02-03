@@ -109,7 +109,6 @@ class MklPardiso : public DMatrix {
             if(_comm != -1)
                 CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), &ddum, &idum, &idum, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, &ddum, const_cast<int*>(&_comm), &error);
             delete [] _I;
-            delete [] _J;
             if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_n == _iparm[41] - _iparm[40] + 1 && _mtype != prds<K>::SPD)
                 delete [] _C;
         }

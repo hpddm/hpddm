@@ -155,7 +155,6 @@ class Mumps : public DMatrix {
             }
             _id->icntl[2] = 0;
             delete [] I;
-            delete [] J;
         }
         /* Function: solve
          *

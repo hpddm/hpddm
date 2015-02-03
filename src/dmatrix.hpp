@@ -208,26 +208,26 @@ class DMatrix {
                 std::advance(it_index, index);
                 if(!isRHS) {
                     unsigned int offset = std::accumulate(lsol_loc_glob, lsol_loc_glob + it_index->first, 0);
-                    for(unsigned int x = offset; x < offset + lsol_loc_glob[it_index->first]; ++x)
+                    for(unsigned int x = offset, accumulate = 0; x < offset + lsol_loc_glob[it_index->first]; ++x)
                         if(mapping_user[isol_loc_glob[x] - 1].first == _rank) {
-                            (*_mapRecv)[it_index->first].emplace_back(mapping_user[isol_loc_glob[x] - 1].second, x - offset);
-                            sol[mapping_user[isol_loc_glob[x] - 1].second] = (it_index->second)[x - offset];
+                            (*_mapRecv)[it_index->first].emplace_back(mapping_user[isol_loc_glob[x] - 1].second, accumulate);
+                            sol[mapping_user[isol_loc_glob[x] - 1].second] = (it_index->second)[accumulate++];
                         }
                 }
                 else {
                     unsigned int offset = std::accumulate(_ldistribution, _ldistribution + it_index->first, 0);
                     if(_idistribution) {
-                        for(unsigned int x = offset; x < offset + _ldistribution[it_index->first]; ++x)
+                        for(unsigned int x = offset, accumulate = 0; x < offset + _ldistribution[it_index->first]; ++x)
                             if(mapping[_idistribution[x]].first == _rank) {
-                                (*_mapRecv)[it_index->first].emplace_back(mapping[_idistribution[x]].second, x - offset);
-                                sol_loc[mapping[_idistribution[x]].second] = (it_index->second)[x - offset];
+                                (*_mapRecv)[it_index->first].emplace_back(mapping[_idistribution[x]].second, accumulate);
+                                sol_loc[mapping[_idistribution[x]].second] = (it_index->second)[accumulate++];
                             }
                     }
                     else {
-                        for(unsigned int x = offset; x < offset + _ldistribution[it_index->first]; ++x)
+                        for(unsigned int x = offset, accumulate = 0; x < offset + _ldistribution[it_index->first]; ++x)
                             if(mapping[x].first == _rank) {
-                                (*_mapRecv)[it_index->first].emplace_back(mapping[x].second, x - offset);
-                                sol_loc[mapping[x].second] = (it_index->second)[x - offset];
+                                (*_mapRecv)[it_index->first].emplace_back(mapping[x].second, accumulate);
+                                sol_loc[mapping[x].second] = (it_index->second)[accumulate++];
                             }
                     }
                 }
