@@ -40,6 +40,55 @@ class DMatrix {
         enum Distribution : char {
             NON_DISTRIBUTED, DISTRIBUTED_SOL, DISTRIBUTED_SOL_AND_RHS = 3
         };
+        /* Function: splitCommunicator
+         *
+         *  If requested, splits a communicator into one made of master processes and another one made of slave processes.
+         *
+         * Parameters:
+         *    in             - Original communicator.
+         *    out            - Output communicator which may be left untouched.
+         *    exclude        - True if the master processes have to be excluded from the original communicator.
+         *    p              - Number of master processes.
+         *    T              - Master processes distribution topology. */
+        static inline bool splitCommunicator(const MPI_Comm& in, MPI_Comm& out, const bool& exclude, unsigned short& p, const unsigned short& T) {
+            int size, rank;
+            MPI_Comm_size(in, &size);
+            MPI_Comm_rank(in, &rank);
+            if(p > size / 2) {
+                p = size / 2;
+                if(rank == 0)
+                    std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size, the value has been reset to " << p << std::endl;
+            }
+            p = std::max(p, static_cast<unsigned short>(1));
+            if(exclude) {
+                MPI_Group oldGroup, newGroup;
+                MPI_Comm_group(in, &oldGroup);
+                int* pm = new int[p];
+                if(T == 1)
+                    std::iota(pm, pm + p, 0);
+                else if(T == 2) {
+                    float area = size * size / (2.0 * p);
+                    *pm = 0;
+                    for(unsigned short i = 1; i < p; ++i)
+                        pm[i] = static_cast<int>(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)) + 0.5);
+                }
+                else
+                    for(unsigned short i = 0; i < p; ++i)
+                        pm[i] = i * (size / p);
+                bool excluded = std::binary_search(pm, pm + p, rank);
+                if(excluded)
+                    MPI_Group_incl(oldGroup, p, pm, &newGroup);
+                else
+                    MPI_Group_excl(oldGroup, p, pm, &newGroup);
+                MPI_Comm_create(in, newGroup, &out);
+                MPI_Group_free(&oldGroup);
+                MPI_Group_free(&newGroup);
+                delete [] pm;
+                return excluded;
+            }
+            else
+                return false;
+        }
     protected:
         /* Typedef: pair_type
          *  std::pair of unsigned integers. */
@@ -203,9 +252,8 @@ class DMatrix {
                 MPI_Irecv(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, _communicator, rqSend + i++);
             for(unsigned int i = 0; i < map_recv.size(); ++i) {
                 int index;
-                typename map_type<K>::const_iterator it_index = map_recv.cbegin();
                 MPI_Waitany(map_recv.size(), rqRecv, &index, MPI_STATUS_IGNORE);
-                std::advance(it_index, index);
+                typename map_type<K>::const_iterator it_index = std::next(map_recv.cbegin(), index);
                 if(!isRHS) {
                     unsigned int offset = std::accumulate(lsol_loc_glob, lsol_loc_glob + it_index->first, 0);
                     for(unsigned int x = offset, accumulate = 0; x < offset + lsol_loc_glob[it_index->first]; ++x)
@@ -294,9 +342,8 @@ class DMatrix {
             }
             for(i = 0; i < map_recv.size(); ++i) {
                 int index;
-                typename map_type<K>::const_iterator it_index = map_recv.cbegin();
                 MPI_Waitany(map_recv.size(), rqRecv, &index, MPI_STATUS_IGNORE);
-                std::advance(it_index, index);
+                typename map_type<K>::const_iterator it_index = std::next(map_recv.cbegin(), index);
                 K* pt = map_recv[it_index->first].data();
                 for(std::vector<pair_type>::const_reference p : (*map_recv_index)[it_index->first]) {
                     if(P == 0)

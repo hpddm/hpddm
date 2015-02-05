@@ -495,7 +495,7 @@ class IterativeMethod {
             A.allocateSingle(pCurr);
             p.emplace_back(pCurr);
 
-            K* alpha = new K[2 * it];
+            K* alpha = new K[excluded ? std::max(static_cast<unsigned short>(2), it) : 2 * it];
             unsigned short i = 0;
             typename Wrapper<K>::ul_type resRel = std::numeric_limits<typename Wrapper<K>::ul_type>::max();
             while(i++ < it) {
@@ -535,10 +535,10 @@ class IterativeMethod {
                 }
                 else {
                     A.template project<excluded, 'N'>(zCurr, pCurr);
-                    std::fill(alpha + it, alpha + it + i, 0.0);
-                    MPI_Allreduce(MPI_IN_PLACE, alpha + it, i - 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    std::fill(alpha + i - 1, alpha + it + i + 2, 0.0);
-                    MPI_Allreduce(MPI_IN_PLACE, alpha + i - 1, 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    std::fill(alpha, alpha + i - 1, 0.0);
+                    MPI_Allreduce(MPI_IN_PLACE, alpha, i - 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    std::fill(alpha, alpha + 2, 0.0);
+                    MPI_Allreduce(MPI_IN_PLACE, alpha, 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     A.template project<excluded, 'T'>(storage[0]);
                 }
                 A.template computeDot<excluded>(&resRel, zCurr, zCurr, comm);

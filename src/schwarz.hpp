@@ -314,13 +314,12 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             unsigned int k, iPrev = 0;
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY) reduction(+ : iPrev)
             for(k = 0; k < intoOverlap.size(); ++k) {
-                auto it = intoOverlap.begin();
-                std::advance(it, k);
+                auto it = std::next(intoOverlap.cbegin(), k);
                 tmp[k].reserve(A->_ia[*it + 1] - A->_ia[*it]);
                 for(unsigned int j = A->_ia[*it]; j < A->_ia[*it + 1]; ++j) {
                     K value = _d[*it] * _d[A->_ja[j]] * A->_a[j];
                     if(std::abs(value) > HPDDM_EPS && intoOverlap.find(A->_ja[j]) != intoOverlap.cend())
-                            tmp[k].emplace_back(A->_ja[j], value);
+                        tmp[k].emplace_back(A->_ja[j], value);
                 }
                 iPrev += tmp[k].size();
             }

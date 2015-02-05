@@ -504,7 +504,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(U == 1 || _local)
             for(unsigned short i = 0; i < info[0]; ++i)
                 accumulate += (U == 1 ? _local : infoNeighbor[i + first]) * M[i + first].second.size();
-        *sendNeighbor = new K[accumulate];
+        if(excluded < 2)
+            *sendNeighbor = new K[accumulate];
         accumulate = 0;
         for(unsigned short i = 0; i < (S != 'S' ? info[0] : first); ++i) {
             sendNeighbor[i] = *sendNeighbor + accumulate;
@@ -880,8 +881,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
     }
     delete [] rqRecv;
-
-    delete [] *sendNeighbor;
+    if(excluded < 2)
+        delete [] *sendNeighbor;
     delete [] sendNeighbor;
     if(U != 2) {
         switch(Solver<K>::_distribution) {
