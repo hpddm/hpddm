@@ -368,33 +368,39 @@ template<class K>
 template<char N>
 inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const int* const k, const K* const alpha, bool sym,
                               const K* const a, const int* const ia, const int* const ja, const K* const x, const K* const beta, K* const y) {
-    int i, j, l;
-    K res;
     if(trans == &transa) {
         if(sym) {
             if(beta == &d__0)
                 std::fill(y, y + *m, K());
             else if(beta != &d__1)
                 scal(m, beta, y, &i__1);
-            for(i = 0; i < *m; ++i) {
+            for(int i = 0; i < *m; ++i) {
                 if(ia[i + 1] != ia[i]) {
-                    res = K();
-                    for(l = ia[i] - (N == 'F'); l < ia[i + 1] - 1 - (N == 'F'); ++l) {
-                        j = ja[l] - (N == 'F');
+                    K res = K();
+                    int l = ia[i] - (N == 'F');
+                    int j = ja[l] - (N == 'F');
+                    while(l < ia[i + 1] - 1 - (N == 'F')) {
                         res += a[l] * x[j];
                         y[j] += *alpha * a[l] * x[i];
+                        j = ja[++l] - (N == 'F');
                     }
-                    y[i] += *alpha * (res + a[ia[i + 1] - 1 - (N == 'F')] * x[i]);
+                    if(i != j) {
+                        res += a[l] * x[j];
+                        y[j] += *alpha * a[l] * x[i];
+                        y[i] += *alpha * res;
+                    }
+                    else
+                        y[i] += *alpha * (res + a[l] * x[i]);
                 }
             }
         }
         else {
             if(beta == &d__0)
                 std::fill(y, y + *m, K());
-#pragma omp parallel for private(l, i, res) schedule(static, HPDDM_GRANULARITY)
-            for(i = 0; i < *m; ++i) {
-                res = K();
-                for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
+#pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
+            for(int i = 0; i < *m; ++i) {
+                K res = K();
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
                     res += a[l] * x[ja[l] - (N == 'F')];
                 y[i] = *alpha * res + *beta * y[i];
             }
@@ -406,10 +412,10 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
         else if(beta != &d__1)
             scal(k, beta, y, &i__1);
         if(sym) {
-            for(i = 0; i < *m; ++i) {
-                res = K();
-                for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
-                    j = ja[l] - (N == 'F');
+            for(int i = 0; i < *m; ++i) {
+                K res = K();
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+                    int j = ja[l] - (N == 'F');
                     y[j] += *alpha * a[l] * x[i];
                     if(i != j)
                         res += a[l] * x[j];
@@ -418,10 +424,9 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
             }
         }
         else {
-            for(i = 0; i < *m; ++i) {
-                for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
+            for(int i = 0; i < *m; ++i)
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
                     y[ja[l] - (N == 'F')] += *alpha * a[l] * x[i];
-            }
         }
     }
 }
@@ -429,7 +434,6 @@ template<class K>
 template<char N>
 inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const int* const n, const int* const k, const K* const alpha, bool sym,
                               const K* const a, const int* const ia, const int* const ja, const K* const x, const int* const ldb, const K* const beta, K* const y, const int* const ldc) {
-    int i, l;
     if(trans == &transa) {
         int dimY = *m;
         K* res;
@@ -442,9 +446,9 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
             else if(beta != &d__1)
                 scal(&dimNY, beta, y, &i__1);
             res = new K[*n];
-            for(i = 0; i < dimY; ++i) {
+            for(int i = 0; i < dimY; ++i) {
                 std::fill(res, res + *n, K());
-                for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     j = ja[l] - (N == 'F');
                     if(i != j)
                         for(int r = 0; r < *n; ++r) {
@@ -462,10 +466,10 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
 #pragma omp parallel private(res)
             {
                 res = new K[*n];
-#pragma omp for private(l) schedule(static, HPDDM_GRANULARITY)
-                for(i = 0; i < dimY; ++i) {
+#pragma omp for schedule(static, HPDDM_GRANULARITY)
+                for(int i = 0; i < dimY; ++i) {
                     std::fill(res, res + *n, K());
-                    for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
+                    for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
                         axpy(n, a + l, x + ja[l] - (N == 'F'), k, res, &i__1);
                     axpby(*n, *alpha, res, 1, *beta, y + i, dimY);
                 }
@@ -483,9 +487,9 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
             scal(&dimNY, beta, y, &i__1);
         if(sym) {
             K* res = new K[*n];
-            for(i = 0; i < *m; ++i) {
+            for(int i = 0; i < *m; ++i) {
                 std::fill(res, res + *n, K());
-                for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     int j = ja[l] - (N == 'F');
                     if(i != j)
                         for(int r = 0; r < *n; ++r) {
@@ -502,12 +506,11 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
             delete [] res;
         }
         else {
-            for(i = 0; i < *m; ++i) {
-                for(l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+            for(int i = 0; i < *m; ++i)
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     const K scal = *alpha * a[l];
                     axpy(n, &scal, x + i, m, y + ja[l] - (N == 'F'), k);
                 }
-            }
         }
     }
 }

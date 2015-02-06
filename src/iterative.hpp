@@ -207,7 +207,7 @@ class IterativeMethod {
             int i;
             if(Type != CLASSICAL)
                 it = std::max(it, static_cast<unsigned short>((it / m) * m + 3));
-            while(j < it) {
+            while(j <= it) {
                 Wrapper<K>::axpby(n, 1.0 / beta, r, 1, 0.0, v[0], 1);
                 s[0] = beta;
                 MPI_Request rq;
@@ -233,10 +233,10 @@ class IterativeMethod {
                                 H[i][i + 1] = std::sqrt(beta);
                             }
                             else {
-                                int i_ = i + 1;
-                                Wrapper<K>::gemv(&(Wrapper<K>::transc), &n, &i_, &(Wrapper<K>::d__1), *v, &n, v[m + 1], &i__1, &(Wrapper<K>::d__0), H[i], &i__1);
+                                int tmp = i + 1;
+                                Wrapper<K>::gemv(&(Wrapper<K>::transc), &n, &tmp, &(Wrapper<K>::d__1), *v, &n, v[m + 1], &i__1, &(Wrapper<K>::d__0), H[i], &i__1);
                                 MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                                Wrapper<K>::gemv(&transa, &n, &i_, &(Wrapper<K>::d__2), *v, &n, H[i], &i__1, &(Wrapper<K>::d__1), v[m + 1], &i__1);
+                                Wrapper<K>::gemv(&transa, &n, &tmp, &(Wrapper<K>::d__2), *v, &n, H[i], &i__1, &(Wrapper<K>::d__1), v[m + 1], &i__1);
                                 beta = Wrapper<K>::dot(&n, v[m + 1], &i__1, v[m + 1], &i__1);
                                 MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                                 H[i][i + 1] = std::sqrt(beta);

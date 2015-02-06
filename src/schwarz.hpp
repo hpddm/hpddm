@@ -220,9 +220,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * See also: <Bdd::buildTwo>, <Feti::buildTwo>. */
         template<unsigned short excluded = 0, class Container>
         inline std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, Container& parm) {
-            MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K> A(*this, parm[NU]);
-            auto ret = super::template buildTwo<excluded, 2>(A, comm, parm);
-            return ret;
+            return super::template buildTwo<excluded, 2>(std::move(MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>(*this, parm[NU])), comm, parm);
         }
         /* Function: apply
          *

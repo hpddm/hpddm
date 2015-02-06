@@ -230,7 +230,8 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                 nnz = 0;
                 for(unsigned int i = 0; i < _A->_n; ++i) {
                     const typename Wrapper<K>::ul_type scal = _D[i];
-                    for(unsigned int j = _A->_ia[i]; j < _A->_ia[i + 1] - 1; ++j) {
+                    unsigned int j = _A->_ia[i];
+                    while(j < _A->_ia[i + 1] - 1) {
                         if(_D[_A->_ja[j]] > HPDDM_EPS) {
                             v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j]]);
                             ++nnz;
@@ -239,9 +240,16 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                             v[_A->_ja[j]].emplace_back(i, _A->_a[j] * scal);
                             ++nnz;
                         }
+                        ++j;
+                    }
+                    if(i != _A->_ja[j]) {
+                        if(_D[_A->_ja[j]] > HPDDM_EPS) {
+                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j]]);
+                            ++nnz;
+                        }
                     }
                     if(scal > HPDDM_EPS) {
-                        v[i].emplace_back(i, _A->_a[_A->_ia[i + 1] - 1] * scal);
+                        v[_A->_ja[j]].emplace_back(i, _A->_a[j] * scal);
                         ++nnz;
                     }
                 }

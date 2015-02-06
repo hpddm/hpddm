@@ -245,10 +245,9 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * See also: <Feti::buildTwo>, <Schwarz::buildTwo>.*/
         template<unsigned short excluded = 0, class Container>
         inline std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, Container& parm) {
-            BddProjection<Bdd<Solver, CoarseSolver, S, K>, K> s(*this, parm[NU]);
             if(!super::_schur && parm[NU])
                 super::_deficiency = parm[NU];
-            return super::template buildTwo<excluded, 3>(s, comm, parm);
+            return super::template buildTwo<excluded, 3>(std::move(BddProjection<Bdd<Solver, CoarseSolver, S, K>, K>(*this, parm[NU])), comm, parm);
         }
         /* Function: computeSolution
          *

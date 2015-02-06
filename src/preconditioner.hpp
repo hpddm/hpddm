@@ -93,7 +93,7 @@ class Preconditioner : public Subdomain<K> {
          *    comm           - Global MPI communicator.
          *    parm           - Vector of parameters. */
         template<unsigned short excluded, unsigned short N, class Operator, class Container>
-        inline std::pair<MPI_Request, const K*>* buildTwo(Operator& A, const MPI_Comm& comm, Container& parm) {
+        inline std::pair<MPI_Request, const K*>* buildTwo(Operator&& A, const MPI_Comm& comm, Container& parm) {
             std::pair<MPI_Request, const K*>* ret = nullptr;
             unsigned short allUniform[N];
             allUniform[0] = parm[NU];
