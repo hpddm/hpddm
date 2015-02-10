@@ -82,7 +82,7 @@ class Mumps : public DMatrix {
         /* Variable: strategy
          *  Ordering of the matrix during analysis phase. */
         char                        _strategy;
-        static const std::string   analysis[];
+        static const std::string  _analysis[];
     protected:
         /* Variable: numbering
          *  1-based indexing. */
@@ -149,7 +149,7 @@ class Mumps : public DMatrix {
             MUMPS_STRUC_C<K>::mumps_c(_id);
             if(DMatrix::_rank == 0) {
                 if(_id->infog[31] == 1 || _id->infog[31] == 2)
-                    std::cout << "                 (memory: " << _id->infog[20] << "MB -- ordering tool: " << analysis[_id->infog[6] + (_id->infog[31] == 1 ? 0 : 8)] << ")" << std::endl;
+                    std::cout << "                 (memory: " << _id->infog[20] << "MB -- ordering tool: " << _analysis[_id->infog[6] + (_id->infog[31] == 1 ? 0 : 8)] << ")" << std::endl;
                 else if(_id->infog[0] != 0)
                     std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
             }
@@ -215,7 +215,7 @@ class Mumps : public DMatrix {
 };
 
 template<class K>
-const std::string Mumps<K>::analysis[] = { "AMD", "", "AMF", "SCOTCH", "PORD", "METIS", "QAMD", "automatic sequential", "automatic parallel", "PT-SCOTCH", "ParMetis" };
+const std::string Mumps<K>::_analysis[] { "AMD", "", "AMF", "SCOTCH", "PORD", "METIS", "QAMD", "automatic sequential", "automatic parallel", "PT-SCOTCH", "ParMetis" };
 #endif // DMUMPS
 
 #ifdef MUMPSSUB

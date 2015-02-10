@@ -77,10 +77,9 @@ class Arpack : public Eigensolver<K> {
          *    communicator   - MPI communicator for selecting the threshold criterion. */
         template<template<class> class Solver>
         inline void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
-            int ido = 0;
             char bmat = 'G';
-            int iparam[11] = { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
-            int ipntr[std::is_same<K, typename Wrapper<K>::ul_type>::value ? 11 : 14] = { };
+            int iparam[11] { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
+            int ipntr[std::is_same<K, typename Wrapper<K>::ul_type>::value ? 11 : 14] { };
             if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
                 Eigensolver<K>::_nu = std::max(1, Eigensolver<K>::_n / 4);
             int ncv = 2 * Eigensolver<K>::_nu + 1;
@@ -101,7 +100,6 @@ class Arpack : public Eigensolver<K> {
             typename Wrapper<K>::ul_type* rwork = nullptr;
             if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
                 rwork = new typename Wrapper<K>::ul_type[Eigensolver<K>::_n];
-            int info = 0;
             K* vresid = vp + ncv * Eigensolver<K>::_n;
             Solver<K>* const prec = s ? s : new Solver<K>;
 #if defined(MUMPSSUB)
@@ -109,12 +107,11 @@ class Arpack : public Eigensolver<K> {
 #else
             prec->numfact(A, true);
 #endif
-            while(1) {
+            int ido = 0, info = 0;
+            while(ido != 99) {
                 aupd(&ido, &bmat, &(Eigensolver<K>::_n), _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv,
                      vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
-                if(ido == 99)
-                    break;
-                else if(ido == -1) {
+                if(ido == -1) {
                     Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                     prec->solve(workd + ipntr[1] - 1);
                 }

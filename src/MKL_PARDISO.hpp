@@ -151,16 +151,13 @@ class MklPardiso : public DMatrix {
             _iparm[18] = -1;
             _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
-            _iparm[39] = DMatrix::_distribution == DMatrix::NON_DISTRIBUTED ? 1 : 2;
+            _iparm[39] = 2;
             _iparm[40] = loc2glob[0];
             _iparm[41] = loc2glob[1];
             delete [] loc2glob;
             phase = 12;
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
-            if(DMatrix::_distribution == DMatrix::NON_DISTRIBUTED && DMatrix::_rank == 0)
-                _w = new K[DMatrix::_n];
-            else
-                _w = new K[_iparm[41] - _iparm[40] + 1];
+            _w = new K[_iparm[41] - _iparm[40] + 1];
         }
         /* Function: solve
          *
@@ -188,19 +185,17 @@ class MklPardiso : public DMatrix {
         template<class Container>
         inline void initialize(Container& parm) {
             if(DMatrix::_communicator != MPI_COMM_NULL) {
-                _comm = MPI_Comm_c2f((DMatrix::_communicator));
+                _comm = MPI_Comm_c2f(DMatrix::_communicator);
                 MPI_Comm_rank(DMatrix::_communicator, &(DMatrix::_rank));
             }
             if(parm[TOPOLOGY] == 1)
                 parm[TOPOLOGY] = 0;
-            if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL_AND_RHS && parm[DISTRIBUTION] != DMatrix::NON_DISTRIBUTED) {
+            if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL_AND_RHS) {
                 if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
                     std::cout << "WARNING -- only distributed solution and RHS and non distributed solution and RHS supported by the PARDISO interface, forcing the distribution to DISTRIBUTED_SOL_AND_RHS" << std::endl;
-                DMatrix::_distribution = DMatrix::DISTRIBUTED_SOL_AND_RHS;
                 parm[DISTRIBUTION] = DMatrix::DISTRIBUTED_SOL_AND_RHS;
             }
-            else
-                DMatrix::_distribution = static_cast<DMatrix::Distribution>(parm[DISTRIBUTION]);
+            DMatrix::_distribution = DMatrix::DISTRIBUTED_SOL_AND_RHS;
         }
 };
 #endif // DMKL_PARDISO

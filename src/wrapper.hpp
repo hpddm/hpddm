@@ -283,9 +283,9 @@ struct matdescr {
 };
 
 template<char N>
-const char matdescr<N>::a[6] = { 'G', '0', '0', N, '0', '0' };
+const char matdescr<N>::a[6] { 'G', '0', '0', N, '0', '0' };
 template<char N>
-const char matdescr<N>::b[6] = { 'S', 'L', 'N', N, '0', '0' };
+const char matdescr<N>::b[6] { 'S', 'L', 'N', N, '0', '0' };
 
 #define HPDDM_GENERATE_MKL(C, T)                                                                             \
 template<>                                                                                                   \
@@ -321,7 +321,7 @@ template<>                                                                      
 template<char N>                                                                                             \
 inline void Wrapper<T>::csrcsc(const int* const n, T* const a, int* const ja, int* const ia,                 \
                                T* const b, int* const jb, int* const ib) {                                   \
-    int job[6] = { 0, 0, N == 'F', 0, 0, 1 };                                                                \
+    int job[6] { 0, 0, N == 'F', 0, 0, 1 };                                                                  \
     int error;                                                                                               \
     mkl_ ## C ## csrcsc(job, n, a, ja, ia, b, jb, ib, &error);                                               \
 }                                                                                                            \
