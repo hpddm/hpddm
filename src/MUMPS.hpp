@@ -248,7 +248,7 @@ class MumpsSub {
             }
             _id->icntl[23] = detection;
             _id->cntl[2] = -1.0e-6;
-            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { return ++i; });
+            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
             _id->jcn = A->_ja;
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
@@ -302,7 +302,7 @@ class MumpsSub {
             delete [] listvar;
             if(_id->infog[0] != 0)
                 std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
-            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { return --i; });
+            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
         }
         inline unsigned short deficiency() const { return _id->infog[27]; }
         inline void solve(K* const x, const unsigned short& n = 1) const {

@@ -319,8 +319,8 @@ class PastixSub {
                 _values = A->_a;
                 _colptr = A->_ia;
                 _rows = A->_ja;
-                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { return ++i; });
-                std::for_each(_rows, _rows + A->_nnz, [](int& i) { return ++i; });
+                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { ++i; });
+                std::for_each(_rows, _rows + A->_nnz, [](int& i) { ++i; });
             }
             pastix_int_t* perm = new pastix_int_t[2 * _ncol];
             pastix_int_t* iperm = perm + _ncol;
@@ -348,8 +348,8 @@ class PastixSub {
             delete [] listvar;
             delete [] perm;
             if(_iparm[IPARM_SYM] == API_SYM_NO) {
-                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { return --i; });
-                std::for_each(_rows, _rows + A->_nnz, [](int& i) { return --i; });
+                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { --i; });
+                std::for_each(_rows, _rows + A->_nnz, [](int& i) { --i; });
             }
         }
         inline void solve(K* const x, const unsigned short& n = 1) const {

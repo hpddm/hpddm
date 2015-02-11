@@ -646,9 +646,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         unsigned int* offsetPosition;
         unsigned int idx;
         if(excluded < 2) {
-            idx = coefficients * _local + (S == 'S' ? (_local * (_local + 1)) / 2 : 0);
-            for(unsigned short i = 0; i < _sizeSplit - 1; ++i)
-                offsetIdx[i] += idx;
+            std::for_each(offsetIdx, offsetIdx + _sizeSplit - 1, [&](unsigned int& i) { i += coefficients * _local + (S == 'S' ? (_local * (_local + 1)) / 2 : 0); });
             idx = Operator::_pattern == 's' ? info[0] : M.size();
         }
         else
@@ -692,56 +690,61 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         for(unsigned int k = 1; k < _sizeSplit; ++k) {
             if(U == 1 || infoSplit[k][2]) {
                 unsigned int tmp = U == 1 ? (rankRelative + k - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * _local + (Solver<K>::_numbering == 'F') : offsetPosition[k];
-                unsigned int idxSlave = offsetIdx[k - 1];
                 unsigned int offsetSlave;
                 if(U != 1)
                     offsetSlave = std::accumulate(infoWorld, infoWorld + infoSplit[k][U != 1 ? 3 : 1], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
                 unsigned short i = 0;
+                int* colIdx = J + offsetIdx[k - 1];
                 if(S != 'S')
-                    for( ; infoSplit[k][(U != 1 ? 3 : 1) + i] < rankRelative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0) && i < infoSplit[k][0]; ++i) {
+                    while(infoSplit[k][(U != 1 ? 3 : 1) + i] < rankRelative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0) && i < infoSplit[k][0]) {
                         if(U != 1) {
                             if(i > 0)
                                 offsetSlave = std::accumulate(infoWorld + infoSplit[k][U != 1 ? 2 + i : i], infoWorld + infoSplit[k][(U != 1 ? 3 : 1) + i], offsetSlave);
                         }
                         else
                             offsetSlave = infoSplit[k][(U != 1 ? 3 : 1) + i] * _local + (Solver<K>::_numbering == 'F');
-                        for(unsigned int j = offsetSlave; j < offsetSlave + (U == 1 ? _local : infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]); ++j)
-                            J[idxSlave++] = j;
+                        std::iota(colIdx, colIdx + (U == 1 ? _local : infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]), offsetSlave);
+                        colIdx += (U == 1 ? _local : infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]);
+                        ++i;
                     }
-                for(unsigned int j = tmp; j < tmp + (U == 1 ? _local : infoSplit[k][1]); ++j)
-                    J[idxSlave++] = j;
-                for( ; i < infoSplit[k][0]; ++i) {
+                std::iota(colIdx, colIdx + (U == 1 ? _local : infoSplit[k][1]), tmp);
+                colIdx += (U == 1 ? _local : infoSplit[k][1]);
+                while(i < infoSplit[k][0]) {
                     if(U != 1) {
                         if(i > 0)
                             offsetSlave = std::accumulate(infoWorld + infoSplit[k][U != 1 ? 2 + i : i], infoWorld + infoSplit[k][(U != 1 ? 3 : 1) + i], offsetSlave);
                     }
                     else
                         offsetSlave = infoSplit[k][(U != 1 ? 3 : 1) + i] * _local + (Solver<K>::_numbering == 'F');
-                    for(unsigned int j = offsetSlave; j < offsetSlave + (U == 1 ? _local : infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]); ++j)
-                        J[idxSlave++] = j;
+                    std::iota(colIdx, colIdx + (U == 1 ? _local : infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]), offsetSlave);
+                    colIdx += (U == 1 ? _local : infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]);
+                    ++i;
                 }
-                int coefficientsSlave = idxSlave - offsetIdx[k - 1];
 #ifndef HPDDM_CSR_CO
-                std::fill(I + offsetIdx[k - 1], I + offsetIdx[k - 1] + coefficientsSlave, tmp);
+                int* rowIdx = I + std::distance(J, colIdx);
+                std::fill(I + offsetIdx[k - 1], rowIdx, tmp);
 #else
-                offsetSlave = U == 1 ? (k - (excluded == 2)) * _local : offsetPosition[k] - offsetPosition[1] + (excluded == 2 ? 0 : _local);
-                I[offsetSlave + 1] = coefficientsSlave;
+                offsetSlave = (U == 1 ? (k - (excluded == 2)) * _local : offsetPosition[k] - offsetPosition[1] + (excluded == 2 ? 0 : _local));
+                I[offsetSlave + 1] = colIdx - J - offsetIdx[k - 1];
 #if defined(HPDDM_LOC2GLOB) && !defined(HPDDM_CONTIGUOUS)
                 loc2glob[offsetSlave] = tmp;
 #endif
 #endif
-                for(i = 1; i < (U == 1 ? _local : infoSplit[k][1]); ++i, idxSlave += coefficientsSlave) {
+                unsigned int coefficientsSlave = colIdx - J - offsetIdx[k - 1];
+                for(i = 1; i < (U == 1 ? _local : infoSplit[k][1]); ++i) {
                     if(S == 'S')
                         --coefficientsSlave;
 #ifndef HPDDM_CSR_CO
-                    std::fill(I + idxSlave, I + idxSlave + coefficientsSlave, tmp + i);
+                    std::fill(rowIdx, rowIdx + coefficientsSlave, tmp + i);
+                    rowIdx += coefficientsSlave;
 #else
                     I[offsetSlave + 1 + i] = coefficientsSlave;
 #if defined(HPDDM_LOC2GLOB) && !defined(HPDDM_CONTIGUOUS)
                     loc2glob[offsetSlave + i] = tmp + i;
 #endif
 #endif
-                    std::copy(J + idxSlave - coefficientsSlave, J + idxSlave, J + idxSlave);
+                    std::copy(colIdx - coefficientsSlave, colIdx, colIdx);
+                    colIdx += coefficientsSlave;
                 }
 #if defined(HPDDM_LOC2GLOB) && defined(HPDDM_CONTIGUOUS)
                 if(excluded == 2 && k == 1)
