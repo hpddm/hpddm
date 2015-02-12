@@ -294,17 +294,21 @@ inline void Wrapper<T>::csrmv(bool sym, const int* const n, const T* const a, co
                               const int* const ja, const T* const x, T* const y) {                           \
     static_assert(N == 'C', "Unsupported matrix indexing");                                                  \
     if(sym)                                                                                                  \
-        mkl_cspblas_ ## C ## csrsymv("L", n, a, ia, ja, x, y);                                               \
+        mkl_cspblas_ ## C ## csrsymv("L", HPDDM_CONST(int, n), HPDDM_CONST(T, a), HPDDM_CONST(int, ia),      \
+                                     HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);                            \
     else                                                                                                     \
-        mkl_cspblas_ ## C ## csrgemv(&transa, n, a, ia, ja, x, y);                                           \
+        mkl_cspblas_ ## C ## csrgemv(HPDDM_CONST(char, &transa), HPDDM_CONST(int, n), HPDDM_CONST(T, a),     \
+                                     HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);      \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
 inline void Wrapper<T>::csrmv(const char* const trans, const int* const m, const int* const k,               \
                               const T* const alpha, bool sym, const T* const a, const int* const ia,         \
                               const int* const ja, const T* const x, const T* const beta, T* const y) {      \
-    mkl_ ## C ## csrmv(trans, m, k,                                                                          \
-                       alpha, sym ? matdescr<N>::b : matdescr<N>::a, a, ja, ia, ia + 1, x, beta, y);         \
+    mkl_ ## C ## csrmv(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, k),                   \
+                       HPDDM_CONST(T, alpha), HPDDM_CONST(char, sym ? matdescr<N>::b : matdescr<N>::a),      \
+                       HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia),                        \
+                       HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y);                \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
@@ -313,8 +317,12 @@ inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const
                               const T* const a, const int* const ia, const int* const ja,                    \
                               const T* const x, const int* const ldb, const T* const beta,                   \
                               T* const y, const int* const ldc) {                                            \
-    mkl_ ## C ## csrmm(trans, m, n, k, alpha, sym ? matdescr<N>::b : matdescr<N>::a,                         \
-                       a, ja, ia, ia + 1, x, ldb, beta, y, ldc);                                             \
+    mkl_ ## C ## csrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),                   \
+                       HPDDM_CONST(int, k), HPDDM_CONST(T, alpha),                                           \
+                       HPDDM_CONST(char, sym ? matdescr<N>::b : matdescr<N>::a), HPDDM_CONST(T, a),          \
+                       HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1,                 \
+                       HPDDM_CONST(T, x), HPDDM_CONST(int, ldb), HPDDM_CONST(T, beta),  y,                   \
+                       HPDDM_CONST(int, ldc));                                                               \
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
@@ -323,7 +331,7 @@ inline void Wrapper<T>::csrcsc(const int* const n, T* const a, int* const ja, in
                                T* const b, int* const jb, int* const ib) {                                   \
     int job[6] { 0, 0, N == 'F', 0, 0, 1 };                                                                  \
     int error;                                                                                               \
-    mkl_ ## C ## csrcsc(job, n, a, ja, ia, b, jb, ib, &error);                                               \
+    mkl_ ## C ## csrcsc(job, HPDDM_CONST(int, n), a, ja, ia, b, jb, ib, &error);                             \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Wrapper<T>::gthr(const int& n, const T* const y, T* const x, const int* const indx) {            \

@@ -44,10 +44,22 @@
 #define HPDDM_MAXCO           20
 #define HPDDM_GRANULARITY     50000
 #define HPDDM_OUTPUT_CO       0
+#ifndef HPDDM_MKL
+#ifdef INTEL_MKL_VERSION
+#define HPDDM_MKL             1
+#else
 #define HPDDM_MKL             0
+#endif
+#endif
+#ifndef HPDDM_SCHWARZ
 #define HPDDM_SCHWARZ         1
+#endif
+#ifndef HPDDM_FETI
 #define HPDDM_FETI            1
+#endif
+#ifndef HPDDM_BDD
 #define HPDDM_BDD             1
+#endif
 #define HPDDM_ICOLLECTIVE     0
 #define HPDDM_GMV             0
 
@@ -80,12 +92,17 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #ifndef MKL_INT
 #define MKL_INT int
 #endif
-#if HPDDM_MKL || defined(INTEL_MKL_VERSION)
+#if HPDDM_MKL
+#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
+#define HPDDM_CONST(T, V) const_cast<T*>(V)
+#else
+#define HPDDM_CONST(T, V) V
+#endif
 #define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #include <mkl_spblas.h>
 #include <mkl_vml.h>
 #endif // HPDDM_MKL || defined(INTEL_MKL_VERSION)
-#if defined(__powerpc__)
+#if defined(__powerpc__) || defined(INTEL_MKL_VERSION)
 #define HPDDM_F77(func) func
 #else
 #define HPDDM_F77(func) func ## _
@@ -181,7 +198,27 @@ std::string demangle(const char* name) {
 #endif // __GNUG__
 } // HPDDM
 #include "enum.hpp"
+#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
+#ifdef __INTEL_COMPILER
+
+#elif defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++11-compat-deprecated-writable-strings"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#endif
+#endif
 #include "wrapper.hpp"
+#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
+#ifdef __INTEL_COMPILER
+
+#elif defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+#endif
 #include "matrix.hpp"
 #include "dmatrix.hpp"
 
@@ -206,13 +243,17 @@ std::string demangle(const char* name) {
 #endif
 #include "SuiteSparse.hpp"
 #include "eigensolver.hpp"
-#if HPDDM_SCHWARZ
-#ifndef EIGENSOLVER
-#include "ARPACK.hpp"
-#endif
-#endif
 #if HPDDM_BDD || HPDDM_FETI
 #include "LAPACK.hpp"
+#endif
+#if HPDDM_SCHWARZ
+#ifndef EIGENSOLVER
+#if defined(INTEL_MKL_VERSION)
+#undef HPDDM_F77
+#define HPDDM_F77(func) func ## _
+#endif
+#include "ARPACK.hpp"
+#endif
 #endif
 
 #include "preconditioner.hpp"
