@@ -26,47 +26,62 @@
 #include <queue>
 
 namespace HPDDM {
+template<bool> class Members { };
+template<> class Members<true> {
+    protected:
+        const unsigned short                             _rank;
+        std::vector<std::vector<unsigned short>>  _vecSparsity;
+        Members(unsigned short r) : _rank(r) { };
+};
 template<char P, class Preconditioner, class K>
-class OperatorBase {
+class OperatorBase : protected Members<P != 's'> {
     protected:
         const Preconditioner&                               _p;
         K** const                                   _deflation;
         const vectorNeighbor&                             _map;
         std::vector<unsigned short>                  _sparsity;
-        std::vector<std::vector<unsigned short>>  _vecSparsity;
         const int                                           _n;
         const int                                       _local;
+        unsigned short                                 _signed;
+        unsigned short                           _connectivity;
+        template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
+        OperatorBase(const Preconditioner& p, const unsigned short& nu) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) { }
+        template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
+        OperatorBase(const Preconditioner& p, const unsigned short& nu) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) { }
     public:
         static constexpr char                     _pattern = P;
-        inline const std::vector<unsigned short>& getPattern() const { return _sparsity; }
-        OperatorBase(const Preconditioner& p, const unsigned short& nu) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) {
-            static_assert(P == 's', "Unsupported constructor with such a sparsity pattern");
+        template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
+        inline void sparsity(const unsigned short c) {
+            static_assert(Q == P, "Wrong sparsity pattern");
+            _connectivity = c;
             _sparsity.reserve(_map.size());
             for(const pairNeighbor& neighbor : _map)
                 _sparsity.emplace_back(neighbor.first);
         }
-        OperatorBase(const Preconditioner& p, const unsigned short& nu, const unsigned short& relative) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) {
-            static_assert(P == 'c', "Unsupported constructor with such a sparsity pattern");
+        template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
+        inline void sparsity(const unsigned short c) {
+            static_assert(Q == P, "Wrong sparsity pattern");
+            _connectivity = c;
+            _signed = _p.getSigned();
             if(!_map.empty()) {
-                _vecSparsity.resize(_map.size());
                 unsigned short** recvSparsity = new unsigned short*[_map.size() + 1];
-                *recvSparsity = new unsigned short[(HPDDM_MAXCO + 1) * _map.size()];
-                unsigned short* sendSparsity = *recvSparsity + HPDDM_MAXCO * _map.size();
+                *recvSparsity = new unsigned short[(_connectivity + 1) * _map.size()];
+                unsigned short* sendSparsity = *recvSparsity + _connectivity * _map.size();
                 MPI_Request* rq = new MPI_Request[2 * _map.size()];
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     sendSparsity[i] = _map[i].first;
-                    recvSparsity[i] = *recvSparsity + HPDDM_MAXCO * i;
-                    MPI_Irecv(recvSparsity[i], HPDDM_MAXCO, MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + i);
+                    recvSparsity[i] = *recvSparsity + _connectivity * i;
+                    MPI_Irecv(recvSparsity[i], _connectivity, MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + i);
                 }
                 for(unsigned short i = 0; i < _map.size(); ++i)
                     MPI_Isend(sendSparsity, _map.size(), MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + _map.size() + i);
+                Members<true>::_vecSparsity.resize(_map.size());
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     int index, count;
                     MPI_Status status;
                     MPI_Waitany(_map.size(), rq, &index, &status);
                     MPI_Get_count(&status, MPI_UNSIGNED_SHORT, &count);
-                    _vecSparsity[index].resize(count);
-                    std::copy(recvSparsity[index], recvSparsity[index] + count, _vecSparsity[index].begin());
+                    Members<true>::_vecSparsity[index].assign(recvSparsity[index], recvSparsity[index] + count);
                 }
                 MPI_Waitall(_map.size(), rq + _map.size(), MPI_STATUSES_IGNORE);
 
@@ -77,26 +92,35 @@ class OperatorBase {
                 _sparsity.reserve(_map.size());
                 std::vector<unsigned short> neighbors;
                 neighbors.reserve(_map.size());
-                for(const pairNeighbor& neighbor : _map)
-                    neighbors.emplace_back(neighbor.first);
+                std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { neighbors.emplace_back(n.first); });
                 typedef std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator> pairIt;
                 auto comp = [](const pairIt& lhs, const pairIt& rhs) { return *lhs.first > *rhs.first; };
                 std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)> pq(comp);
-                pq.push(std::make_pair(neighbors.cbegin(), neighbors.cend()));
-                for(const std::vector<unsigned short>& v : _vecSparsity)
-                    pq.push(std::make_pair(v.cbegin(), v.cend()));
+                pq.push({ neighbors.cbegin(), neighbors.cend() });
+                for(const std::vector<unsigned short>& v : Members<true>::_vecSparsity)
+                    pq.push({ v.cbegin(), v.cend() });
                 while(!pq.empty()) {
                     pairIt p = pq.top();
                     pq.pop();
-                    if(*p.first != relative && (_sparsity.empty() || (*p.first != _sparsity.back())))
+                    if(*p.first != Members<true>::_rank && (_sparsity.empty() || (*p.first != _sparsity.back())))
                         _sparsity.emplace_back(*p.first);
                     if(++p.first != p.second)
                         pq.push(p);
                 }
             }
         }
+        inline void adjustConnectivity(const MPI_Comm& comm) {
+#if 0
+            _connectivity *= _connectivity - 1;
+#else
+            _connectivity = _sparsity.size();
+            MPI_Allreduce(MPI_IN_PLACE, &_connectivity, 1, MPI_UNSIGNED_SHORT, MPI_MAX, comm);
+#endif
+        }
+        inline const std::vector<unsigned short>& getPattern() const { return _sparsity; }
+        inline unsigned short getConnectivity() const { return _connectivity; }
         template<char S, bool U, class T>
-        inline void initialize(T& in, const unsigned short* info, T const& out, MPI_Request* const& rqRecv, const unsigned short& rankWorld, const unsigned short& between, unsigned short*& infoNeighbor) {
+        inline void initialize(T& in, const unsigned short* info, T const& out, MPI_Request* const& rqRecv, unsigned short*& infoNeighbor) {
             static_assert(P == 'c', "Unsupported constructor with such a sparsity pattern");
             if(!U) {
                 infoNeighbor = new unsigned short[_map.size()];
@@ -119,8 +143,8 @@ class OperatorBase {
                     for(unsigned short i = 0; i < _map.size(); ++i) {
                         size = infoNeighbor[i];
                         std::vector<unsigned short>::const_iterator begin = _sparsity.cbegin();
-                        for(const unsigned short& rank : _vecSparsity[i]) {
-                            if(rank == rankWorld)
+                        for(const unsigned short& rank : Members<true>::_vecSparsity[i]) {
+                            if(rank == Members<true>::_rank)
                                 size += _local;
                             else {
                                 std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, _sparsity.cend(), rank);
@@ -140,24 +164,24 @@ class OperatorBase {
                     for(unsigned short i = 1; i < _map.size(); ++i)
                         displs.emplace_back(displs.back() + _local * (_map.size() + 1) * _map[i].second.size());
                     for(unsigned short i = 0; i < _map.size(); ++i)
-                        displs.emplace_back(displs.back() + _local * (_vecSparsity[i].size() + 1) * _map[i].second.size());
+                        displs.emplace_back(displs.back() + _local * (Members<true>::_vecSparsity[i].size() + 1) * _map[i].second.size());
                 }
             }
             else {
                 if(!U) {
                     unsigned short size = std::accumulate(infoNeighbor, infoNeighbor + _map.size(), 0);
                     if(!_map.empty()) {
-                        displs.emplace_back((size + _local * (0 < between)) * _map[0].second.size());
+                        displs.emplace_back((size + _local * (0 < _signed)) * _map[0].second.size());
                         size -= infoNeighbor[0];
                     }
                     for(unsigned short i = 1; i < _map.size(); ++i) {
-                        displs.emplace_back(displs.back() + (size + _local * (i < between)) * _map[i].second.size());
+                        displs.emplace_back(displs.back() + (size + _local * (i < _signed)) * _map[i].second.size());
                         size -= infoNeighbor[i];
                     }
                     for(unsigned short i = 0; i < _map.size(); ++i) {
-                        size = infoNeighbor[i] * !(i < between) + _local;
+                        size = infoNeighbor[i] * !(i < _signed) + _local;
                         std::vector<unsigned short>::const_iterator end = _sparsity.cend();
-                        for(std::vector<unsigned short>::const_reverse_iterator rit = _vecSparsity[i].rbegin(); *rit > rankWorld; ++rit) {
+                        for(std::vector<unsigned short>::const_reverse_iterator rit = Members<true>::_vecSparsity[i].rbegin(); *rit > Members<true>::_rank; ++rit) {
                             std::vector<unsigned short>::const_iterator idx = std::lower_bound(_sparsity.cbegin(), end, *rit);
                             size += info[std::distance(_sparsity.cbegin(), idx)];
                             end = idx - 1;
@@ -170,11 +194,11 @@ class OperatorBase {
                 }
                 else {
                     if(!_map.empty())
-                        displs.emplace_back(_local * (_map.size() + (0 < between)) * _map[0].second.size());
+                        displs.emplace_back(_local * (_map.size() + (0 < _signed)) * _map[0].second.size());
                     for(unsigned short i = 1; i < _map.size(); ++i)
-                        displs.emplace_back(displs.back() + _local * (_map.size() + (i < between) - i) * _map[i].second.size());
+                        displs.emplace_back(displs.back() + _local * (_map.size() + (i < _signed) - i) * _map[i].second.size());
                     for(unsigned short i = 0; i < _map.size(); ++i) {
-                        unsigned short size = std::distance(std::lower_bound(_vecSparsity[i].cbegin(), _vecSparsity[i].cend(), rankWorld), _vecSparsity[i].cend()) + !(i < between);
+                        unsigned short size = std::distance(std::lower_bound(Members<true>::_vecSparsity[i].cbegin(), Members<true>::_vecSparsity[i].cend(), Members<true>::_rank), Members<true>::_vecSparsity[i].cend()) + !(i < _signed);
                         displs.emplace_back(displs.back() + _local * size * _map[i].second.size());
                     }
                 }
@@ -207,7 +231,6 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         MatrixCSR<K, Wrapper<K>::I>*                    _C;
         const typename Wrapper<K>::ul_type* const       _D;
         K*                                           _work;
-        unsigned short                             _signed;
         template<char S, bool U>
         inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* infoNeighbor) {
             int m = U ? super::_local : *infoNeighbor;
@@ -284,14 +307,14 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             }
             work = new K[2 * k];
             _work = work + k;
-            _signed = s;
+            super::_signed = s;
         }
         template<char S, bool U, class T>
         inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
             Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(super::_n), &(super::_local), &(super::_n), &(Wrapper<K>::d__1), false, _C->_a, _C->_ia, _C->_ja, *super::_deflation, &(super::_n), &(Wrapper<K>::d__0), _work, &(super::_n));
             delete _C;
             MPI_Request rq;
-            for(unsigned short i = 0; i < _signed; ++i) {
+            for(unsigned short i = 0; i < super::_signed; ++i) {
                 if(U || info[i]) {
                     for(unsigned short j = 0; j < super::_local; ++j)
                         Wrapper<K>::gthr(super::_map[i].second.size(), _work + j * super::_n, in[i] + j * super::_map[i].second.size(), super::_map[i].second.data());
@@ -337,11 +360,9 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
         unsigned short                                       _consolidate;
         template<char S, bool U>
         inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
-            unsigned short rankWorld = super::_p.getRank();
-            unsigned short between   = super::_p.getSigned();
-            std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::_vecSparsity[index].cbegin(), super::_vecSparsity[index].cend(), rankWorld);
+            std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::_vecSparsity[index].cbegin(), super::_vecSparsity[index].cend(), super::_rank);
             unsigned int accumulate = 0;
-            if(!(index < between)) {
+            if(!(index < super::_signed)) {
                 for(unsigned short k = 0; k < (U ? super::_local : info[std::distance(super::_sparsity.cbegin(), std::lower_bound(super::_sparsity.cbegin(), super::_sparsity.cend(), super::_map[index].first))]); ++k) {
                     for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                         work[_offsets[super::_map[index].first] + super::_map[index].second[j] + k * super::_n] += in[k * super::_map[index].second.size() + j];
@@ -360,7 +381,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
                 for(std::vector<unsigned short>::const_iterator it = super::_vecSparsity[index].cbegin(); it != middle; ++it) {
                     if(!U) {
                         std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), *it);
-                        if(*it > super::_map[index].first || between > index)
+                        if(*it > super::_map[index].first || super::_signed > index)
                             for(unsigned short k = 0; k < info[std::distance(super::_sparsity.cbegin(), idx)]; ++k) {
                                 for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                     work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
@@ -374,7 +395,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
                         begin = idx + 1;
                     }
                     else {
-                        if(*it > super::_map[index].first || between > index)
+                        if(*it > super::_map[index].first || super::_signed > index)
                             for(unsigned short k = 0; k < super::_local; ++k) {
                                 for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                     work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
@@ -387,21 +408,21 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
                         accumulate += super::_local * super::_map[index].second.size();
                     }
                 }
-            if(index < between)
+            if(index < super::_signed)
                 for(unsigned short k = 0; k < super::_local; ++k) {
                     for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
-                        work[_offsets[rankWorld] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
+                        work[_offsets[super::_rank] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
                 }
             else
                 for(unsigned short k = 0; k < super::_local; ++k) {
                     for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
-                        work[_offsets[rankWorld] + super::_map[index].second[j] + k * super::_n] += in[accumulate + k * super::_map[index].second.size() + j];
+                        work[_offsets[super::_rank] + super::_map[index].second[j] + k * super::_n] += in[accumulate + k * super::_map[index].second.size() + j];
                 }
             accumulate += super::_local * super::_map[index].second.size();
             for(std::vector<unsigned short>::const_iterator it = middle + 1; it != super::_vecSparsity[index].cend(); ++it) {
                 if(!U) {
                     std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::_sparsity.cend(), *it);
-                    if(*it > super::_map[index].first && between > index)
+                    if(*it > super::_map[index].first && super::_signed > index)
                         for(unsigned short k = 0; k < info[std::distance(super::_sparsity.cbegin(), idx)]; ++k) {
                             for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                 work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
@@ -415,7 +436,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
                     begin = idx + 1;
                 }
                 else {
-                    if(*it > super::_map[index].first && between > index)
+                    if(*it > super::_map[index].first && super::_signed > index)
                         for(unsigned short k = 0; k < super::_local; ++k) {
                             for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                                 work[_offsets[*it] + super::_map[index].second[j] + k * super::_n] -= in[accumulate + k * super::_map[index].second.size() + j];
@@ -431,7 +452,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        FetiProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu, p.getRank()), _consolidate() {
+        FetiProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() {
             if(super::_deflation)
                 for(unsigned short i = 0; i < super::_local; ++i)
                     super::_deflation[i] += *super::_p.getLDR() - super::_n;
@@ -444,10 +465,8 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
         inline void initialize(unsigned int, K*&, unsigned short) { }
         template<char S, bool U, class T>
         inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
-            unsigned short rankWorld = super::_p.getRank();
-            unsigned short between = super::_p.getSigned();
             unsigned short* infoNeighbor;
-            super::template initialize<S, U>(in, info, out, rqRecv, rankWorld, between, infoNeighbor);
+            super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
             unsigned int* offset = new unsigned int[super::_map.size() + 2];
             offset[0] = 0;
@@ -465,13 +484,13 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
 
             K* tmp = new K[offset[super::_map.size() + 1] * super::_n]();
             const typename Wrapper<K>::ul_type* const* const m = super::_p.getScaling();
-            for(unsigned short i = 0; i < between; ++i) {
+            for(unsigned short i = 0; i < super::_signed; ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
                         tmp[super::_map[i].second[j] + k * super::_n] -= m[i][j] * (mult[accumulator[i] * super::_local + j + k * super::_map[i].second.size()] = - super::_deflation[k][super::_map[i].second[j]]);
                 MPI_Isend(mult + accumulator[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
             }
-            for(unsigned short i = between; i < super::_map.size(); ++i) {
+            for(unsigned short i = super::_signed; i < super::_map.size(); ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
                         tmp[super::_map[i].second[j] + k * super::_n] += m[i][j] * (mult[accumulator[i] * super::_local + j + k * super::_map[i].second.size()] =   super::_deflation[k][super::_map[i].second[j]]);
@@ -481,7 +500,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 int index;
                 MPI_Waitany(super::_map.size(), rqMult, &index, MPI_STATUS_IGNORE);
-                if(index < between)
+                if(index < super::_signed)
                     for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[index]); ++k)
                         for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                             tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] = - m[index][j] * mult[offset[index + 1] * nbMult + accumulator[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
@@ -501,7 +520,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
             delete [] mult;
 
             unsigned int accumulate = 0;
-            unsigned short stop = std::distance(super::_sparsity.cbegin(), std::upper_bound(super::_sparsity.cbegin(), super::_sparsity.cend(), rankWorld));
+            unsigned short stop = std::distance(super::_sparsity.cbegin(), std::upper_bound(super::_sparsity.cbegin(), super::_sparsity.cend(), super::_rank));
             if(S != 'S') {
                 _offsets.reserve(super::_sparsity.size() + 1);
                 for(unsigned short i = 0; i < stop; ++i) {
@@ -511,7 +530,7 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
             }
             else
                 _offsets.reserve(super::_sparsity.size() + 1 - stop);
-            _offsets.emplace(rankWorld, accumulate);
+            _offsets.emplace(super::_rank, accumulate);
             accumulate += super::_n * super::_local;
             for(unsigned short i = stop; i < super::_sparsity.size(); ++i) {
                 _offsets.emplace(super::_sparsity[i], accumulate);
@@ -521,15 +540,15 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
             work = new K[accumulate]();
 
             MPI_Request rq;
-            for(unsigned short i = 0; i < between; ++i) {
+            for(unsigned short i = 0; i < super::_signed; ++i) {
                 accumulate = super::_local;
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                        work[_offsets[rankWorld] + super::_map[i].second[j] + k * super::_n] -= (in[i][k * super::_map[i].second.size() + j] = - m[i][j] * tmp[super::_map[i].second[j] + k * super::_n]);
+                        work[_offsets[super::_rank] + super::_map[i].second[j] + k * super::_n] -= (in[i][k * super::_map[i].second.size() + j] = - m[i][j] * tmp[super::_map[i].second[j] + k * super::_n]);
                 for(unsigned short l = (S != 'S' ? 0 : i); l < super::_map.size(); ++l) {
                     for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[l]); ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j) {
-                            if(S != 'S' || !(l < between))
+                            if(S != 'S' || !(l < super::_signed))
                                 work[_offsets[super::_map[l].first] + super::_map[i].second[j] + k * super::_n] -= (in[i][(accumulate + k) * super::_map[i].second.size() + j] = - m[i][j] * tmp[super::_map[i].second[j] + (offset[l + 1] + k) * super::_n]);
                             else
                                 in[i][(accumulate + k) * super::_map[i].second.size() + j] = - m[i][j] * tmp[super::_map[i].second[j] + (offset[l + 1] + k) * super::_n];
@@ -541,20 +560,20 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
                     rqSend.emplace_back(rq);
                 }
             }
-            for(unsigned short i = between; i < super::_map.size(); ++i) {
+            for(unsigned short i = super::_signed; i < super::_map.size(); ++i) {
                 if(S != 'S') {
                     accumulate = super::_local;
                     for(unsigned short k = 0; k < super::_local; ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                            work[_offsets[rankWorld] + super::_map[i].second[j] + k * super::_n] += (in[i][k * super::_map[i].second.size() + j] =   m[i][j] * tmp[super::_map[i].second[j] + k * super::_n]);
+                            work[_offsets[super::_rank] + super::_map[i].second[j] + k * super::_n] += (in[i][k * super::_map[i].second.size() + j] =   m[i][j] * tmp[super::_map[i].second[j] + k * super::_n]);
                 }
                 else {
                     accumulate = 0;
                     for(unsigned short k = 0; k < super::_local; ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                            work[_offsets[rankWorld] + super::_map[i].second[j] + k * super::_n] += m[i][j] * tmp[super::_map[i].second[j] + k * super::_n];
+                            work[_offsets[super::_rank] + super::_map[i].second[j] + k * super::_n] += m[i][j] * tmp[super::_map[i].second[j] + k * super::_n];
                 }
-                for(unsigned short l = S != 'S' ? 0 : between; l < super::_map.size(); ++l) {
+                for(unsigned short l = S != 'S' ? 0 : super::_signed; l < super::_map.size(); ++l) {
                     for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[l]); ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j) {
                             if(S != 'S' || !(l < i))
@@ -644,11 +663,9 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         unsigned short                                       _consolidate;
         template<char S, bool U>
         inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
-            unsigned short rankWorld = super::_p.getRank();
-            unsigned short between   = super::_p.getSigned();
-            std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::_vecSparsity[index].cbegin(), super::_vecSparsity[index].cend(), rankWorld);
+            std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::_vecSparsity[index].cbegin(), super::_vecSparsity[index].cend(), super::_rank);
             unsigned int accumulate = 0;
-            if(S != 'S' || !(index < between)) {
+            if(S != 'S' || !(index < super::_signed)) {
                 for(unsigned short k = 0; k < (U ? super::_local : info[std::distance(super::_sparsity.cbegin(), std::lower_bound(super::_sparsity.cbegin(), super::_sparsity.cend(), super::_map[index].first))]); ++k)
                     for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
                         work[_offsets[super::_map[index].first] + super::_map[index].second[j] + k * super::_n] += in[k * super::_map[index].second.size() + j];
@@ -676,7 +693,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 }
             for(unsigned short k = 0; k < super::_local; ++k) {
                 for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
-                    work[_offsets[rankWorld] + super::_map[index].second[j] + k * super::_n] += in[accumulate + k * super::_map[index].second.size() + j];
+                    work[_offsets[super::_rank] + super::_map[index].second[j] + k * super::_n] += in[accumulate + k * super::_map[index].second.size() + j];
             }
             accumulate += super::_local * super::_map[index].second.size();
             for(std::vector<unsigned short>::const_iterator it = middle + 1; it != super::_vecSparsity[index].cend(); ++it) {
@@ -700,7 +717,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        BddProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu, p.getRank()), _consolidate() {
+        BddProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() {
             if(super::_deflation)
                 for(unsigned short i = 0; i < super::_local; ++i)
                     super::_deflation[i] += *super::_p.getLDR() - super::_n;
@@ -713,10 +730,8 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         inline void initialize(unsigned int, K*&, unsigned short) { }
         template<char S, bool U, class T>
         inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
-            unsigned short rankWorld = super::_p.getRank();
-            unsigned short between = super::_p.getSigned();
             unsigned short* infoNeighbor;
-            super::template initialize<S, U>(in, info, out, rqRecv, rankWorld, between, infoNeighbor);
+            super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
             unsigned int* offset = new unsigned int[super::_map.size() + 2];
             offset[0] = 0;
@@ -759,7 +774,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             delete [] mult;
 
             unsigned int accumulate = 0;
-            unsigned short stop = std::distance(super::_sparsity.cbegin(), std::upper_bound(super::_sparsity.cbegin(), super::_sparsity.cend(), rankWorld));
+            unsigned short stop = std::distance(super::_sparsity.cbegin(), std::upper_bound(super::_sparsity.cbegin(), super::_sparsity.cend(), super::_rank));
             if(S != 'S') {
                 _offsets.reserve(super::_sparsity.size() + 1);
                 for(unsigned short i = 0; i < stop; ++i) {
@@ -769,7 +784,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             }
             else
                 _offsets.reserve(super::_sparsity.size() + 1 - stop);
-            _offsets.emplace(rankWorld, accumulate);
+            _offsets.emplace(super::_rank, accumulate);
             accumulate += super::_n * super::_local;
             for(unsigned short i = stop; i < super::_sparsity.size(); ++i) {
                 _offsets.emplace(super::_sparsity[i], accumulate);
@@ -780,31 +795,31 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 
             MPI_Request rq;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                if(i < between || S != 'S') {
+                if(i < super::_signed || S != 'S') {
                     accumulate = super::_local;
                     for(unsigned short k = 0; k < super::_local; ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                            work[_offsets[rankWorld] + super::_map[i].second[j] + k * super::_n] = in[i][k * super::_map[i].second.size() + j] = tmp[super::_map[i].second[j] + k * super::_n];
+                            work[_offsets[super::_rank] + super::_map[i].second[j] + k * super::_n] = in[i][k * super::_map[i].second.size() + j] = tmp[super::_map[i].second[j] + k * super::_n];
                 }
                 else {
                     accumulate = 0;
                     for(unsigned short k = 0; k < super::_local; ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                            work[_offsets[rankWorld] + super::_map[i].second[j] + k * super::_n] = tmp[super::_map[i].second[j] + k * super::_n];
+                            work[_offsets[super::_rank] + super::_map[i].second[j] + k * super::_n] = tmp[super::_map[i].second[j] + k * super::_n];
                 }
-                for(unsigned short l = S != 'S' ? 0 : std::min(i, between); l < super::_map.size(); ++l) {
+                for(unsigned short l = S != 'S' ? 0 : std::min(i, super::_signed); l < super::_map.size(); ++l) {
                     for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[l]); ++k)
                         for(unsigned int j = 0; j < super::_map[i].second.size(); ++j) {
-                            if(S != 'S' || !(l < std::max(i, between)))
+                            if(S != 'S' || !(l < std::max(i, super::_signed)))
                                 work[_offsets[super::_map[l].first] + super::_map[i].second[j] + k * super::_n] = in[i][(accumulate + k) * super::_map[i].second.size() + j] = tmp[super::_map[i].second[j] + (offset[l + 1] + k) * super::_n];
                             else {
-                                if(i < between)
+                                if(i < super::_signed)
                                     in[i][(accumulate + k) * super::_map[i].second.size() + j] = tmp[super::_map[i].second[j] + (offset[l + 1] + k) * super::_n];
                                 else
                                     work[_offsets[super::_map[l].first] + super::_map[i].second[j] + k * super::_n] = tmp[super::_map[i].second[j] + (offset[l + 1] + k) * super::_n];
                             }
                         }
-                    if(S != 'S' || !(l < i) || i < between)
+                    if(S != 'S' || !(l < i) || i < super::_signed)
                         accumulate += U ? super::_local : infoNeighbor[l];
                 }
                 if(U || infoNeighbor[i]) {

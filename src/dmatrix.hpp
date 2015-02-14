@@ -166,19 +166,19 @@ class DMatrix {
             _mapSend = new map_type<pair_type>;
             _mapOwn = new std::vector<pair_type>;
             unsigned int offset = 0;
-            for(unsigned short z = 0; z < size; ++z)
-                for(unsigned int w = 0; w < lsol_loc_glob[z]; ++w)
-                    mapping[isol_loc_glob[offset++] - 1] = std::make_pair(z, w);
+            for(unsigned short i = 0; i < size; ++i)
+                for(unsigned int j = 0; j < lsol_loc_glob[i]; ++j)
+                    mapping[isol_loc_glob[offset++] - 1] = { i, j };
             offset = 0;
             if(_idistribution) {
-                for(unsigned short z = 0; z < size; ++z)
-                    for(unsigned int w = 0; w < _ldistribution[z]; ++w)
-                        mapping_user[_idistribution[offset++]] = std::make_pair(z, w);
+                for(unsigned short i = 0; i < size; ++i)
+                    for(unsigned int j = 0; j < _ldistribution[i]; ++j)
+                        mapping_user[_idistribution[offset++]] = { i, j };
             }
             else {
-                for(unsigned short z = 0; z < size; ++z)
-                    for(unsigned int w = 0; w < _ldistribution[z]; ++w)
-                        mapping_user[offset++] = std::make_pair(z, w);
+                for(unsigned short i = 0; i < size; ++i)
+                    for(unsigned int j = 0; j < _ldistribution[i]; ++j)
+                        mapping_user[offset++] = { i, j };
             }
             map_type<K> map_recv;
             map_type<K> map_send;
@@ -192,23 +192,23 @@ class DMatrix {
                     }
                 }
                 if(_idistribution)
-                    for(unsigned int x = offset; x < offset + _ldistribution[_rank]; ++x) {
-                        std::pair<unsigned short, unsigned int> tmp = mapping[_idistribution[x]];
+                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
+                        std::pair<unsigned short, unsigned int> tmp = mapping[_idistribution[i]];
                         if(tmp.first != _rank)
                             map_recv[tmp.first].resize(map_recv[tmp.first].size() + 1);
                         else {
-                            _mapOwn->emplace_back(mapping_user[_idistribution[x]].second, tmp.second);
-                            sol[mapping_user[_idistribution[x]].second] = sol_loc[tmp.second];
+                            _mapOwn->emplace_back(mapping_user[_idistribution[i]].second, tmp.second);
+                            sol[mapping_user[_idistribution[i]].second] = sol_loc[tmp.second];
                         }
                     }
                 else
-                    for(unsigned int x = offset; x < offset + _ldistribution[_rank]; ++x) {
-                        std::pair<unsigned short, unsigned int> tmp = mapping[x];
+                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
+                        std::pair<unsigned short, unsigned int> tmp = mapping[i];
                         if(tmp.first != _rank)
                             map_recv[tmp.first].resize(map_recv[tmp.first].size() + 1);
                         else {
-                            _mapOwn->emplace_back(mapping_user[x].second, tmp.second);
-                            sol[mapping_user[x].second] = sol_loc[tmp.second];
+                            _mapOwn->emplace_back(mapping_user[i].second, tmp.second);
+                            sol[mapping_user[i].second] = sol_loc[tmp.second];
                         }
                     }
             }
@@ -219,27 +219,27 @@ class DMatrix {
                         map_recv[tmp].resize(map_recv[tmp].size() + 1);
                 }
                 if(_idistribution)
-                    for(unsigned int x = offset; x < offset + _ldistribution[_rank]; ++x) {
-                        std::pair<unsigned short, unsigned int> tmp = mapping[_idistribution[x]];
+                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
+                        std::pair<unsigned short, unsigned int> tmp = mapping[_idistribution[i]];
                         if(tmp.first != _rank) {
-                            map_send[tmp.first].emplace_back(sol[x - offset]);
-                            (*_mapSend)[tmp.first].emplace_back(x - offset, tmp.second);
+                            map_send[tmp.first].emplace_back(sol[i - offset]);
+                            (*_mapSend)[tmp.first].emplace_back(i - offset, tmp.second);
                         }
                         else {
-                            _mapOwn->emplace_back(mapping[_idistribution[x]].second, mapping_user[_idistribution[x]].second);
-                            sol_loc[mapping[_idistribution[x]].second] = sol[mapping_user[_idistribution[x]].second];
+                            _mapOwn->emplace_back(mapping[_idistribution[i]].second, mapping_user[_idistribution[i]].second);
+                            sol_loc[mapping[_idistribution[i]].second] = sol[mapping_user[_idistribution[i]].second];
                         }
                     }
                 else
-                    for(unsigned int x = offset; x < offset + _ldistribution[_rank]; ++x) {
-                        std::pair<unsigned short, unsigned int> tmp = mapping[x];
+                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
+                        std::pair<unsigned short, unsigned int> tmp = mapping[i];
                         if(tmp.first != _rank) {
-                            map_send[tmp.first].emplace_back(sol[x - offset]);
-                            (*_mapSend)[tmp.first].emplace_back(x - offset, tmp.second);
+                            map_send[tmp.first].emplace_back(sol[i - offset]);
+                            (*_mapSend)[tmp.first].emplace_back(i - offset, tmp.second);
                         }
                         else {
-                            _mapOwn->emplace_back(mapping[x].second, mapping_user[x].second);
-                            sol_loc[mapping[x].second] = sol[mapping_user[x].second];
+                            _mapOwn->emplace_back(mapping[i].second, mapping_user[i].second);
+                            sol_loc[mapping[i].second] = sol[mapping_user[i].second];
                         }
                     }
             }
@@ -256,26 +256,26 @@ class DMatrix {
                 typename map_type<K>::const_iterator it_index = std::next(map_recv.cbegin(), index);
                 if(!isRHS) {
                     unsigned int offset = std::accumulate(lsol_loc_glob, lsol_loc_glob + it_index->first, 0);
-                    for(unsigned int x = offset, accumulate = 0; x < offset + lsol_loc_glob[it_index->first]; ++x)
-                        if(mapping_user[isol_loc_glob[x] - 1].first == _rank) {
-                            (*_mapRecv)[it_index->first].emplace_back(mapping_user[isol_loc_glob[x] - 1].second, accumulate);
-                            sol[mapping_user[isol_loc_glob[x] - 1].second] = (it_index->second)[accumulate++];
+                    for(unsigned int j = offset, accumulate = 0; j < offset + lsol_loc_glob[it_index->first]; ++j)
+                        if(mapping_user[isol_loc_glob[j] - 1].first == _rank) {
+                            (*_mapRecv)[it_index->first].emplace_back(mapping_user[isol_loc_glob[j] - 1].second, accumulate);
+                            sol[mapping_user[isol_loc_glob[j] - 1].second] = (it_index->second)[accumulate++];
                         }
                 }
                 else {
                     unsigned int offset = std::accumulate(_ldistribution, _ldistribution + it_index->first, 0);
                     if(_idistribution) {
-                        for(unsigned int x = offset, accumulate = 0; x < offset + _ldistribution[it_index->first]; ++x)
-                            if(mapping[_idistribution[x]].first == _rank) {
-                                (*_mapRecv)[it_index->first].emplace_back(mapping[_idistribution[x]].second, accumulate);
-                                sol_loc[mapping[_idistribution[x]].second] = (it_index->second)[accumulate++];
+                        for(unsigned int j = offset, accumulate = 0; j < offset + _ldistribution[it_index->first]; ++j)
+                            if(mapping[_idistribution[j]].first == _rank) {
+                                (*_mapRecv)[it_index->first].emplace_back(mapping[_idistribution[j]].second, accumulate);
+                                sol_loc[mapping[_idistribution[j]].second] = (it_index->second)[accumulate++];
                             }
                     }
                     else {
-                        for(unsigned int x = offset, accumulate = 0; x < offset + _ldistribution[it_index->first]; ++x)
-                            if(mapping[x].first == _rank) {
-                                (*_mapRecv)[it_index->first].emplace_back(mapping[x].second, accumulate);
-                                sol_loc[mapping[x].second] = (it_index->second)[accumulate++];
+                        for(unsigned int j = offset, accumulate = 0; j < offset + _ldistribution[it_index->first]; ++j)
+                            if(mapping[j].first == _rank) {
+                                (*_mapRecv)[it_index->first].emplace_back(mapping[j].second, accumulate);
+                                sol_loc[mapping[j].second] = (it_index->second)[accumulate++];
                             }
                     }
                 }

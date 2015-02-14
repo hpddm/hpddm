@@ -29,7 +29,6 @@
  *    HPDDM_VERSION       - Version of the framework.
  *    HPDDM_EPS           - Small positive number used internally for dropping values.
  *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
- *    HPDDM_MAXCO         - Assumed maximum connectivity between subdomains.
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
  *    HPDDM_OUTPUT_CO     - If set to one, the coarse operator is saved to disk (for debugging only).
  *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra back end.
@@ -41,7 +40,6 @@
 #define HPDDM_VERSION         000002
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
-#define HPDDM_MAXCO           20
 #define HPDDM_GRANULARITY     50000
 #define HPDDM_OUTPUT_CO       0
 #ifndef HPDDM_MKL

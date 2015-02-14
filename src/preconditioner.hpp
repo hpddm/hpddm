@@ -94,14 +94,31 @@ class Preconditioner : public Subdomain<K> {
          *    parm           - Vector of parameters. */
         template<unsigned short excluded, unsigned short N, class Operator, class Container>
         inline std::pair<MPI_Request, const K*>* buildTwo(Operator&& A, const MPI_Comm& comm, Container& parm) {
+            static_assert(N == 2 || N == 3, "Wrong template parameter");
             std::pair<MPI_Request, const K*>* ret = nullptr;
-            unsigned short allUniform[N];
-            allUniform[0] = parm[NU];
-            allUniform[1] = static_cast<unsigned short>(~parm[NU]);
+            unsigned short allUniform[N + 1];
+            allUniform[0] = Subdomain<K>::_map.size();
+            allUniform[1] = parm[NU];
+            allUniform[2] = static_cast<unsigned short>(~parm[NU]);
             if(N == 3)
-                allUniform[2] = parm[NU] > 0 ? parm[NU] : std::numeric_limits<unsigned short>::max();
-            MPI_Allreduce(MPI_IN_PLACE, allUniform, N, MPI_UNSIGNED_SHORT, MPI_BAND, comm);
-            if(parm[NU] > 0 || allUniform[0] != 0 || allUniform[1] != std::numeric_limits<unsigned short>::max()) {
+                allUniform[3] = parm[NU] > 0 ? parm[NU] : std::numeric_limits<unsigned short>::max();
+            {
+                auto f = [](void* in, void* inout, int*, MPI_Datatype*) -> void {
+                    unsigned short* input = static_cast<unsigned short*>(in);
+                    unsigned short* output = static_cast<unsigned short*>(inout);
+                    output[0] = std::max(output[0], input[0]);
+                    output[1] = output[1] & input[1];
+                    output[2] = output[2] & input[2];
+                    if(N == 3)
+                        output[3] = output[3] & input[3];
+                };
+                MPI_Op op;
+                MPI_Op_create(f, 1, &op);
+                MPI_Allreduce(MPI_IN_PLACE, allUniform, N + 1, MPI_UNSIGNED_SHORT, op, comm);
+                MPI_Op_free(&op);
+            }
+            A.sparsity(allUniform[0]);
+            if(parm[NU] > 0 || allUniform[1] != 0 || allUniform[2] != std::numeric_limits<unsigned short>::max()) {
                 if(!_co)
                     _co = new CoarseOperator;
 
@@ -109,9 +126,9 @@ class Preconditioner : public Subdomain<K> {
 
                 MPI_Barrier(comm);
                 double construction = MPI_Wtime();
-                if(allUniform[0] == parm[NU] && allUniform[1] == static_cast<unsigned short>(~parm[NU]))
+                if(allUniform[1] == parm[NU] && allUniform[2] == static_cast<unsigned short>(~parm[NU]))
                     ret = _co->template construction<1, excluded>(A, comm, parm);
-                else if(N == 3 && allUniform[0] == 0 && allUniform[1] == static_cast<unsigned short>(~allUniform[2]))
+                else if(N == 3 && allUniform[1] == 0 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]))
                     ret = _co->template construction<2, excluded>(A, comm, parm);
                 else
                     ret = _co->template construction<0, excluded>(A, comm, parm);
@@ -119,7 +136,7 @@ class Preconditioner : public Subdomain<K> {
                 if(_co->getRank() == 0) {
                     std::cout << "                 (" << parm[P] << " process" << (parm[P] > 1 ? "es" : "") << " -- topology = " << parm[TOPOLOGY] << " -- distribution = " << _co->getDistribution() << ")" << std::endl;
                     std::cout << std::scientific << " --- coarse operator transferred and factorized (in " << construction << ")" << std::endl;
-                    std::cout << "                                     (criterion: " << (allUniform[0] == parm[NU] && allUniform[1] == static_cast<unsigned short>(~parm[NU]) ? parm[NU] : (N == 3 && allUniform[1] == static_cast<unsigned short>(~allUniform[2]) ? -_co->getLocal() : 0)) << ")" << std::endl;
+                    std::cout << "                                     (criterion: " << (allUniform[1] == parm[NU] && allUniform[2] == static_cast<unsigned short>(~parm[NU]) ? parm[NU] : (N == 3 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]) ? -_co->getLocal() : 0)) << ")" << std::endl;
                 }
                 _uc = new K[_co->getSizeRHS()];
             }
