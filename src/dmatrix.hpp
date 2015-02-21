@@ -54,7 +54,7 @@ class DMatrix {
             int size, rank;
             MPI_Comm_size(in, &size);
             MPI_Comm_rank(in, &rank);
-            if(p > size / 2) {
+            if(p > size / 2 && size > 1) {
                 p = size / 2;
                 if(rank == 0)
                     std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size, the value has been reset to " << p << std::endl;

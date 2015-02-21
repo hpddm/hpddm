@@ -238,7 +238,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             if(!super::_co) {
                 if(_type == Prcndtnr::NO)
                     std::copy(in, in + Subdomain<K>::_dof, out);
-                else if(_type == Prcndtnr::SY || _type == Prcndtnr::OS) {
+                else if(_type == Prcndtnr::GE || _type == Prcndtnr::OG) {
                     if(!excluded) {
                         super::_s.solve(in, out);
                         Wrapper<K>::diagv(Subdomain<K>::_dof, _d, out);
@@ -247,7 +247,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 }
                 else {
                     if(!excluded) {
+                        if(_type == Prcndtnr::OS)
+                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
                         super::_s.solve(in, out);
+                        if(_type == Prcndtnr::OS)
+                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
                         Subdomain<K>::exchange(out);                                                         // out = A \ in
                     }
                 }
@@ -392,7 +396,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    out            - Output vector. */
         inline void GMV(const K* const in, K* const out) const {
 #if 0
-            typename Wrapper<K>::ul_type* tmp = new typename Wrapper<K>::ul_type[Subdomain<K>::_dof];
+            K* tmp = new K[Subdomain<K>::_dof];
             Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in, tmp);
             Wrapper<K>::template csrmv<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, tmp, out);
             delete [] tmp;

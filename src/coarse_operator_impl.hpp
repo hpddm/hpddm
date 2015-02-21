@@ -35,12 +35,12 @@ template<char T, bool exclude>
 inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Comm& comm, unsigned short& p) {
     MPI_Comm_size(comm, &_sizeWorld);
     MPI_Comm_rank(comm, &_rankWorld);
-    p = std::max(p, static_cast<unsigned short>(1));
-    if(p >= _sizeWorld) {
+    if(p > _sizeWorld / 2 && _sizeWorld > 1) {
         p = _sizeWorld / 2;
         if(_rankWorld == 0)
-            std::cout << "WARNING -- the number of master processes was set to a value >= MPI_Comm_size, the value of \"-p\" has been reset to " << _sizeWorld / 2 << std::endl;
+            std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size, the value has been reset to " << p << std::endl;
     }
+    p = std::max(p, static_cast<unsigned short>(1));
     if(p == 1) {
         MPI_Comm_dup(comm, &_gatherComm);
         MPI_Comm_dup(comm, &_scatterComm);
@@ -701,7 +701,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 unsigned short i = 0;
                 int* colIdx = J + offsetIdx[k - 1];
                 if(S != 'S')
-                    while(infoSplit[k][(U != 1 ? 3 : 1) + i] < rankRelative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0) && i < infoSplit[k][0]) {
+                    while(i < infoSplit[k][0] && infoSplit[k][(U != 1 ? 3 : 1) + i] < rankRelative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) {
                         if(U != 1) {
                             if(i > 0)
                                 offsetSlave = std::accumulate(infoWorld + infoSplit[k][2 + i], infoWorld + infoSplit[k][3 + i], offsetSlave);

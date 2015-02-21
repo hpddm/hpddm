@@ -146,16 +146,15 @@ class Lapack : public Eigensolver<K> {
             trd("L", &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), d, e, tau, work, &lwork, &info);
             char range = Eigensolver<K>::_threshold > 0.0 ? 'V' : 'I';
             char order = 'B';
-            int il = 1;
             int iu = Eigensolver<K>::_nu;
-            typename Wrapper<K>::ul_type vl = -2 * Eigensolver<K>::_tol;
+            typename Wrapper<K>::ul_type vl = -2 * HPDDM_EPS;
             typename Wrapper<K>::ul_type vu = Eigensolver<K>::_threshold;
             int nsplit;
             typename Wrapper<K>::ul_type* evr = e + Eigensolver<K>::_n - 1;
             int* iblock = new int[5 * Eigensolver<K>::_n];
             int* isplit = iblock + Eigensolver<K>::_n;
             int* iwork = isplit + Eigensolver<K>::_n;
-            stebz(&range, &order, &(Eigensolver<K>::_n), &vl, &vu, &il, &iu, &(Eigensolver<K>::_tol), d, e, &(Eigensolver<K>::_nu), &nsplit, evr, iblock, isplit, reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, &info);
+            stebz(&range, &order, &(Eigensolver<K>::_n), &vl, &vu, &i__1, &iu, &(Eigensolver<K>::_tol), d, e, &(Eigensolver<K>::_nu), &nsplit, evr, iblock, isplit, reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, &info);
             if(Eigensolver<K>::_threshold > 0.0)
                 Eigensolver<K>::selectNu(evr, communicator);
             if(Eigensolver<K>::_nu) {

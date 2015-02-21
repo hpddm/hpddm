@@ -103,7 +103,7 @@ class Subdomain {
                 MPI_Isend(_sbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + _map.size() + i);
             }
             MPI_Waitall(2 * _map.size(), _rq, MPI_STATUSES_IGNORE);
-}
+        }
         /* Function: initialize
          *
          *  Initializes all buffers for point-to-point communications and set internal pointers to user-defined values.
