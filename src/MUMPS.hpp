@@ -123,7 +123,6 @@ class Mumps : public DMatrix {
             _id->jcn_loc = J;
             _id->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
             _id->nrhs = 1;
-            _id->icntl[0] = 0; _id->icntl[1] = 0; _id->icntl[2] = 6; _id->icntl[3] = 0;
             _id->icntl[4] = 0;
             if(_strategy > 0 && _strategy < 9 && _strategy != 2) {
                 _id->icntl[27] = 1;             // 1: sequential analysis
@@ -225,7 +224,6 @@ class MumpsSub {
     private:
         typename MUMPS_STRUC_C<K>::trait* _id;
         int*                               _I;
-        char                        _strategy;
     public:
         MumpsSub() : _id(), _I() { }
         MumpsSub(const MumpsSub&) = delete;
@@ -253,13 +251,12 @@ class MumpsSub {
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
             if(_id->job == -1) {
-                _strategy = 3;
+                char strategy = 4;
                 _id->nrhs = 1;
-                _id->icntl[0] = 0; _id->icntl[1] = 0; _id->icntl[2] = 0; _id->icntl[3] = 0;
-                _id->icntl[4] = 0;
-                if(_strategy > 0 && _strategy < 9 && _strategy != 2) {
+                std::fill_n(_id->icntl, 5, 0);
+                if(strategy > 0 && strategy < 9 && strategy != 2) {
                     _id->icntl[27] = 1;             // 1: sequential analysis
-                    _id->icntl[6]  = _strategy - 1; //     0: AMD
+                    _id->icntl[6]  = strategy - 1;  //     0: AMD
                 }                                   //     1:
                                                     //     2: AMF
                                                     //     3: SCOTCH
