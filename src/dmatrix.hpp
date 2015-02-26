@@ -86,8 +86,10 @@ class DMatrix {
                 delete [] pm;
                 return excluded;
             }
-            else
+            else {
+                MPI_Comm_dup(in, &out);
                 return false;
+            }
         }
     protected:
         /* Typedef: pair_type

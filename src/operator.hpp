@@ -47,7 +47,11 @@ class OperatorBase : protected Members<P != 's'> {
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
         OperatorBase(const Preconditioner& p, const unsigned short& nu) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) { }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short& nu) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) { }
+        OperatorBase(const Preconditioner& p, const unsigned short& nu) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) {
+            const unsigned int offset = *_p.getLDR() - _n;
+            if(_deflation)
+                std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
+        }
     public:
         static constexpr char                     _pattern = P;
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
@@ -243,7 +247,6 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
         MatrixMultiplication(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'s', Preconditioner, K>(p, nu), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
-        ~MatrixMultiplication() { }
         inline void initialize(unsigned int k, K*& work, unsigned short s) {
             if(_A->_sym) {
                 std::vector<std::vector<std::pair<unsigned int, K>>> v(_A->_n);
@@ -452,15 +455,11 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        FetiProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() {
-            if(super::_deflation)
-                for(unsigned short i = 0; i < super::_local; ++i)
-                    super::_deflation[i] += *super::_p.getLDR() - super::_n;
-        }
+        FetiProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() { }
         ~FetiProjection() {
+            const unsigned int offset = *super::_p.getLDR() - super::_n;
             if(super::_deflation)
-                for(unsigned short i = 0; i < super::_local; ++i)
-                    super::_deflation[i] -= *super::_p.getLDR() - super::_n;
+                std::for_each(super::_deflation, super::_deflation + super::_local, [&](K*& v) { v -= offset; });
         }
         inline void initialize(unsigned int, K*&, unsigned short) { }
         template<char S, bool U, class T>
@@ -717,15 +716,11 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        BddProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() {
-            if(super::_deflation)
-                for(unsigned short i = 0; i < super::_local; ++i)
-                    super::_deflation[i] += *super::_p.getLDR() - super::_n;
-        }
+        BddProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() { }
         ~BddProjection() {
+            const unsigned int offset = *super::_p.getLDR() - super::_n;
             if(super::_deflation)
-                for(unsigned short i = 0; i < super::_local; ++i)
-                    super::_deflation[i] -= *super::_p.getLDR() - super::_n;
+                std::for_each(super::_deflation, super::_deflation + super::_local, [&](K*& v) { v -= offset; });
         }
         inline void initialize(unsigned int, K*&, unsigned short) { }
         template<char S, bool U, class T>

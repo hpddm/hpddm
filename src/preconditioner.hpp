@@ -124,7 +124,6 @@ class Preconditioner : public Subdomain<K> {
 
                 _co->setLocal(parm[NU]);
 
-                MPI_Barrier(comm);
                 double construction = MPI_Wtime();
                 if(allUniform[1] == parm[NU] && allUniform[2] == static_cast<unsigned short>(~parm[NU]))
                     ret = _co->template construction<1, excluded>(A, comm, parm);

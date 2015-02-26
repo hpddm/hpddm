@@ -149,13 +149,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             if(_schur) {
                 MPI_Request* rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
                 K** send = new K*[2 * Subdomain<K>::_map.size()];
-                unsigned int size = 0;
-                if(L == 'S')
-                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                        size += (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2;
-                else
-                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                        size += Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size();
+                unsigned int size = std::accumulate(Subdomain<K>::_map.cbegin(), Subdomain<K>::_map.cend(), 0, [](unsigned int sum, const pairNeighbor& n) { return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size()); });
                 *send = new K[2 * size];
                 K** recv = send + Subdomain<K>::_map.size();
                 *recv = *send + size;
@@ -349,11 +343,11 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     Subdomain<K>::_dof = Subdomain<K>::_a->_n;
                     std::vector<signed int> vec;
                     vec.reserve(Subdomain<K>::_dof);
-                    unsigned int i = 0, j = 0;
                     std::vector<std::vector<K>> deflationBoundary(super::getLocal());
                     for(std::vector<K>& deflation : deflationBoundary)
                         deflation.reserve(interface.size());
-                    for(unsigned int k = 0; i < interface.size(); ++k) {
+                    unsigned int j = 0;
+                    for(unsigned int k = 0, i = 0; i < interface.size(); ++k) {
                         if(k == interface[i]) {
                             vec.emplace_back(++i);
                             for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
@@ -377,34 +371,38 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     std::vector<std::vector<std::pair<unsigned int, K>>> tmpInteraction(interface.size());
                     tmpInterior.reserve(Subdomain<K>::_a->_nnz * (Subdomain<K>::_dof - interface.size()) / Subdomain<K>::_dof);
                     tmpBoundary.reserve(Subdomain<K>::_a->_nnz * interface.size() / Subdomain<K>::_dof);
-                    for(i = 0; i < interface.size(); ++i)
-                        tmpInteraction[i].reserve(std::max(Subdomain<K>::_a->_ia[interface[i] + 1] - Subdomain<K>::_a->_ia[interface[i]] - 1, 0));
+                    for(j = 0; j < interface.size(); ++j)
+                        tmpInteraction[j].reserve(std::max(Subdomain<K>::_a->_ia[interface[j] + 1] - Subdomain<K>::_a->_ia[interface[j]] - 1, 0));
                     _bb = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), interface.size(), true);
                     int* ii = new int[Subdomain<K>::_dof + 1];
                     ii[0] = 0;
                     _bb->_ia[0] = (Wrapper<K>::I == 'F');
                     std::pair<std::vector<int>, std::vector<int>> boundaryCond;
-                    boundaryCond.first.reserve(Subdomain<K>::_dof - interface.size());
-                    boundaryCond.second.reserve(interface.size());
-                    for(i = 0; i < Subdomain<K>::_dof; ++i) {
+                    if(!Subdomain<K>::_a->_sym) {
+                        boundaryCond.first.reserve(Subdomain<K>::_dof - interface.size());
+                        boundaryCond.second.reserve(interface.size());
+                    }
+                    for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
                         signed int row = vec[i];
                         unsigned int stop;
                         if(!Subdomain<K>::_a->_sym)
                             stop = std::distance(Subdomain<K>::_a->_ja, std::upper_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i + 1], i));
                         else
                             stop = Subdomain<K>::_a->_ia[i + 1];
-                        bool isBoundaryCond = true;
-                        for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
-                            if(i != Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
-                                isBoundaryCond = false;
-                            else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
-                                isBoundaryCond = false;
-                        }
-                        if(isBoundaryCond) {
-                            if(row > 0)
-                                boundaryCond.second.push_back(row);
-                            else
-                                boundaryCond.first.push_back(-row);
+                        if(!Subdomain<K>::_a->_sym) {
+                            bool isBoundaryCond = true;
+                            for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
+                                if(i != Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
+                                    isBoundaryCond = false;
+                                else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
+                                    isBoundaryCond = false;
+                            }
+                            if(isBoundaryCond) {
+                                if(row > 0)
+                                    boundaryCond.second.push_back(row);
+                                else
+                                    boundaryCond.first.push_back(-row);
+                            }
                         }
                         for(j = Subdomain<K>::_a->_ia[i]; j < stop; ++j) {
                             const K val = Subdomain<K>::_a->_a[j];
@@ -429,15 +427,13 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         else
                             _bb->_ia[row] = tmpBoundary.size() + (Wrapper<K>::I == 'F');
                     }
-                    for(i = 0; i < tmpInterior.size(); ++i) {
-                        Subdomain<K>::_a->_ja[i] = tmpInterior[i].first;
-                        Subdomain<K>::_a->_a[i] = tmpInterior[i].second;
+                    for(j = 0; j < tmpInterior.size(); ++j) {
+                        Subdomain<K>::_a->_ja[j] = tmpInterior[j].first;
+                        Subdomain<K>::_a->_a[j] = tmpInterior[j].second;
                     }
-                    for(i = 0, j = 0; i < tmpInteraction.size(); ++i)
-                        j += tmpInteraction[i].size();
-                    _bi = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), Subdomain<K>::_dof - interface.size(), j, false);
+                    _bi = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), Subdomain<K>::_dof - interface.size(), std::accumulate(tmpInteraction.cbegin(), tmpInteraction.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); }), false);
                     _bi->_ia[0] = (Wrapper<K>::I == 'F');
-                    for(i = 0, j = 0; i < tmpInteraction.size(); ++i) {
+                    for(unsigned int i = 0, j = 0; i < tmpInteraction.size(); ++i) {
                         std::sort(tmpInteraction[i].begin(), tmpInteraction[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
                         for(const std::pair<unsigned int, K>& p : tmpInteraction[i]) {
                             _bi->_ja[j] = p.first;
@@ -448,11 +444,11 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     _bb->_nnz = tmpBoundary.size();
                     _bb->_a = new K[_bb->_nnz];
                     _bb->_ja = new int[_bb->_nnz];
-                    for(i = 0; i < tmpBoundary.size(); ++i) {
-                        _bb->_ja[i] = tmpBoundary[i].first;
-                        _bb->_a[i] = tmpBoundary[i].second;
+                    for(j = 0; j < tmpBoundary.size(); ++j) {
+                        _bb->_ja[j] = tmpBoundary[j].first;
+                        _bb->_a[j] = tmpBoundary[j].second;
                     }
-                    for(i = 0; i < _bb->_n; ++i) {
+                    for(unsigned int i = 0; i < _bb->_n; ++i) {
                         if(Wrapper<K>::I == 'F')
                             for(j = 0; j < _bi->_ia[i + 1] - _bi->_ia[i]; ++j)
                                 Subdomain<K>::_a->_ja[ii[_bi->_m + i] + j] = _bi->_ja[_bi->_ia[i] - 1 + j] - 1;
@@ -472,22 +468,19 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     _ii = new MatrixCSR<K>(_bi->_m, _bi->_m, Subdomain<K>::_a->_ia[_bi->_m], Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, true);
                     Subdomain<K>::_dof = _bb->_n;
                 }
-                if(f) {
-                    unsigned int i = 0, j = 0;
-                    std::vector<K> fBoundary;
-                    fBoundary.reserve(interface.size());
-                    for(unsigned int k = 0; i < interface.size(); ++k) {
-                        if(k == interface[i]) {
-                            ++i;
-                            fBoundary.emplace_back(f[k]);
-                        }
-                        else {
-                            f[j] = f[k];
-                            ++j;
-                        }
+                if(f && interface[0] != _bi->_m) {
+                    std::vector<K> backup;
+                    backup.reserve(interface.size());
+                    backup.emplace_back(f[interface[0]]);
+                    unsigned int j = 0;
+                    unsigned int start = 0;
+                    while(++j < interface.size()) {
+                        std::copy(f + interface[j - 1] + 1, f + interface[j], f + start);
+                        start = interface[j] - j;
+                        backup.emplace_back(f[interface[j]]);
                     }
-                    std::copy(f + interface.back() + 1, f + _bi->_n + _bi->_m, f + j);
-                    std::copy(fBoundary.cbegin(), fBoundary.cend(), f + _bi->_m);
+                    std::copy(f + interface.back() + 1, f + Subdomain<K>::_a->_n, f + start);
+                    std::copy(backup.cbegin(), backup.cend(), f + _bi->_m);
                 }
             }
             else {
@@ -685,7 +678,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
                         tmp[val] /= (K(1.0) + tmp[val]);
             for(unsigned short i = 0; i < Subdomain<K>::_dof; ++i)
-                    storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
+                storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
             delete [] tmp;
             MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, Subdomain<K>::_communicator);
             storage[0] = std::sqrt(storage[0]);

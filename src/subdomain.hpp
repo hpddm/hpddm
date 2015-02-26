@@ -512,15 +512,13 @@ class Subdomain {
                     if(num[i] >= first && num[i] < last)
                             tmp[num[i] - first].reserve(A->_ia[i + 1] - A->_ia[i]);
                 }
-                nnz = 0;
                 for(unsigned int i = 0; i < A->_n; ++i) {
                     if(num[i] >= first && num[i] < last) {
                         for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1]; ++j)
                             tmp[num[i] - first].emplace_back(num[A->_ja[j]], A->_a[j]);
                     }
                 }
-                for(const std::vector<std::pair<unsigned int, K>>& v : tmp)
-                    nnz += v.size();
+                nnz = std::accumulate(tmp.cbegin(), tmp.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); });
                 if(!c)
                     c  = new K[nnz];
                 if(!ia)
