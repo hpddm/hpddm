@@ -131,11 +131,11 @@ inline void CoarseOperator<Solver, S, K>::constructionCollective(const unsigned 
     if(!U) {
         if(excluded)
             _sizeWorld -= p;
-        Solver<K>::_gatherCounts = new int[_sizeWorld];
-        Solver<K>::_displs = new int[_sizeWorld];
+        Solver<K>::_gatherCounts = new int[2 * _sizeWorld];
+        Solver<K>::_displs = Solver<K>::_gatherCounts + _sizeWorld;
 
-        Solver<K>::_displs[0] = 0;
         Solver<K>::_gatherCounts[0] = info[0];
+        Solver<K>::_displs[0] = 0;
         for(unsigned int i = 1, j = 1; j < _sizeWorld; ++i)
             if(!excluded || info[i] != 0)
                 Solver<K>::_gatherCounts[j++] = info[i];
@@ -143,11 +143,10 @@ inline void CoarseOperator<Solver, S, K>::constructionCollective(const unsigned 
         if(excluded)
             _sizeWorld += p;
         if(D == DMatrix::DISTRIBUTED_SOL) {
-            Solver<K>::_gatherSplitCounts = new int[_sizeSplit];
-            Solver<K>::_displsSplit = new int[_sizeSplit];
+            Solver<K>::_gatherSplitCounts = new int[2 * _sizeSplit];
+            Solver<K>::_displsSplit = Solver<K>::_gatherSplitCounts + _sizeSplit;
+            std::copy(infoSplit, infoSplit + _sizeSplit, Solver<K>::_gatherSplitCounts);
             Solver<K>::_displsSplit[0] = 0;
-            for(unsigned int i = 0; i < _sizeSplit; ++i)
-                Solver<K>::_gatherSplitCounts[i] = infoSplit[i];
             std::partial_sum(Solver<K>::_gatherSplitCounts, Solver<K>::_gatherSplitCounts + _sizeSplit - 1, Solver<K>::_displsSplit + 1);
         }
     }
@@ -162,11 +161,9 @@ template<char T, bool U, bool excluded>
 inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, const unsigned short* info) {
     if(T == 0) {
         if(!U) {
-            int accumulate = 0;
-            for(unsigned short i = 0; i < p - 1; ++i) {
+            unsigned int accumulate = 0;
+            for(unsigned short i = 0; i < p - 1; accumulate += Solver<K>::_ldistribution[i++])
                 Solver<K>::_ldistribution[i] = std::accumulate(info + i * (_sizeWorld / p), info + (i + 1) * (_sizeWorld / p), 0);
-                accumulate += Solver<K>::_ldistribution[i];
-            }
             Solver<K>::_ldistribution[p - 1] = Solver<K>::_n - accumulate;
         }
         else {
@@ -201,11 +198,9 @@ inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, cons
             }
         std::iota(Solver<K>::_idistribution + j, Solver<K>::_idistribution + Solver<K>::_n, j);
         if(!U) {
-            int accumulate = 0;
-            for(unsigned short i = 0; i < p - 1; ++i) {
+            unsigned int accumulate = 0;
+            for(unsigned short i = 0; i < p - 1; accumulate += Solver<K>::_ldistribution[i++])
                 Solver<K>::_ldistribution[i] = std::accumulate(info + p + i * (_sizeWorld / p - 1), info + p + (i + 1) * (_sizeWorld / p - 1), info[i]);
-                accumulate += Solver<K>::_ldistribution[i];
-            }
             Solver<K>::_ldistribution[p - 1] = Solver<K>::_n - accumulate;
         }
         else {
@@ -216,10 +211,8 @@ inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, cons
     else if(T == 2) {
         if(!U) {
             unsigned int accumulate = 0;
-            for(unsigned short i = 0; i < p - 1; ++i) {
+            for(unsigned short i = 0; i < p - 1; accumulate += Solver<K>::_ldistribution[i++])
                 Solver<K>::_ldistribution[i] = std::accumulate(info + Solver<K>::_ldistribution[i], info + Solver<K>::_ldistribution[i + 1], 0);
-                accumulate += Solver<K>::_ldistribution[i];
-            }
             Solver<K>::_ldistribution[p - 1] = Solver<K>::_n - accumulate;
         }
         else {
@@ -437,10 +430,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 if(!(S == 'S' && i < first))
                     tmp += infoNeighbor[i];
             }
-            for(unsigned short k = 1; k < _sizeSplit; ++k) {
+            for(unsigned short k = 1; k < _sizeSplit; size += infoSplit[k++][2])
                 offsetIdx[k - 1] = size;
-                size += infoSplit[k][2];
-            }
             if(excluded < 2)
                 size += _local * tmp + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local);
             if(S == 'S')
@@ -453,18 +444,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             nrow = (_sizeSplit - (excluded == 2)) * _local;
 #endif
             if(S == 'S') {
-                for(unsigned short i = 1; i < _sizeSplit; ++i) {
+                for(unsigned short i = 1; i < _sizeSplit; size += infoSplit[i++][0])
                     offsetIdx[i - 1] = size * _local * _local + (i - 1) * _local * (_local + 1) / 2;
-                    size += infoSplit[i][0];
-                }
                 info[0] -= first;
                 size = (size + info[0]) * _local * _local + _local * (_local + 1) / 2 * (_sizeSplit - (excluded == 2));
             }
             else {
-                for(unsigned short i = 1; i < _sizeSplit; ++i) {
+                for(unsigned short i = 1; i < _sizeSplit; size += infoSplit[i++][0])
                     offsetIdx[i - 1] = (i - 1 + size) * _local * _local;
-                    size += infoSplit[i][0];
-                }
                 size = (size + info[0] + _sizeSplit - (excluded == 2)) * _local * _local;
             }
         }
@@ -642,7 +629,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(U != 1)
             delete [] infoNeighbor;
         if(U == 0)
-            Solver<K>::_displs = new int[1];
+            Solver<K>::_displs = &_rankWorld;
         MPI_Waitall(rqSend.size(), rqSend.data(), MPI_STATUSES_IGNORE);
         delete [] work;
     }
@@ -972,7 +959,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
             else {
                 if(U == 0)
-                    Solver<K>::_displs = new int[1];
+                    Solver<K>::_displs = &_rankWorld;
                 _sizeRHS = _local;
             }
         }

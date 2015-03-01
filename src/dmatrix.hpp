@@ -372,8 +372,6 @@ class DMatrix {
             delete _mapOwn;
             delete [] _gatherCounts;
             delete [] _gatherSplitCounts;
-            delete [] _displs;
-            delete [] _displsSplit;
         }
         /* Function: getDistribution
          *  Returns <Coarse operator::distribution>. */
