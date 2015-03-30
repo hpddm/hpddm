@@ -37,7 +37,7 @@ install:
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export CXX_FLAGS="${CXX_FLAGS} -DFORCE_COMPLEX"; fi
   - if [ "$CO" == "GENERAL_CO" ]; then export CXX_FLAGS="${CXX_FLAGS} -DGENERAL_CO"; fi
   - cd interface
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -D${CO} -DD${SOLVER} -D${SOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77; fi # -I/usr/include/suitesparse -lamd -lcolamd -lumfpack -lcholmod
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -DD${SOLVER} -D${SUBSOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77; fi # -I/usr/include/suitesparse -lamd -lcolamd -lumfpack -lcholmod
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/local/include -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
 
 script:
