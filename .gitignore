@@ -13,10 +13,10 @@
 *.dylib
 *.dll
 
-# Fortran module files
+# Fortran Module Files
 *.mod
 
-# Compiled Static libraries
+# Compiled Static Libraries
 *.lai
 *.la
 *.a
@@ -34,9 +34,22 @@
 *.js
 *.nd
 
-# Temporary files
+# Temporary Files
 *.sw?
 *~
 .#*
 .DS_Store
 .fuse*
+
+# Log
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.log
+*.nav
+*.pdf
+*.run.xml
+*.snm
+*.vrb
+*.toc

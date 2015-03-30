@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2014-11-06
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -23,8 +24,7 @@
 #ifndef _SUITESPARSE_
 #define _SUITESPARSE_
 
-template<class K>
-class SuiteSparse;
+namespace HPDDM { template<class K> class SuiteSparse; }
 
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #if !defined(COARSEOPERATOR) && !defined(DSUITESPARSE)
@@ -41,7 +41,7 @@ class SuiteSparse;
 namespace HPDDM {
 template<class K>
 struct stsprs {
-    static_assert(std::is_same<double, typename Wrapper<K>::ul_type>::value, "UMFPACK only supports double-precision floating point scalars");
+    static_assert(std::is_same<double, typename Wrapper<K>::ul_type>::value, "UMFPACK only supports double-precision floating-point scalars");
 };
 
 template<>
@@ -93,9 +93,6 @@ struct stsprs<std::complex<double>> {
         umfpack_zi_free_numeric(numeric);
     }
 };
-
-template<class K>
-class SuiteSparse;
 
 #ifdef DSUITESPARSE
 #define COARSEOPERATOR HPDDM::SuiteSparse
@@ -167,7 +164,6 @@ class SuiteSparse : public DMatrix {
         }
         template<char S>
         inline void numfact(unsigned int ncol, int* I, int* J, K* C) {
-            static_assert(S == 'S' || std::is_same<double, typename Wrapper<K>::ul_type>::value, "UMFPACK only supports double-precision floating point scalars");
             if(S == 'S') {
                 _c = new cholmod_common;
                 cholmod_start(_c);

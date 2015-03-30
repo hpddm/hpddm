@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-10-04
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -859,7 +860,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         MPI_Barrier(Solver<K>::_communicator);
 #endif
 #ifdef HPDDM_CSR_CO
+#ifndef DHYPRE
         std::partial_sum(I, I + nrow + 1, I);
+#endif
 #ifndef HPDDM_LOC2GLOB
         Solver<K>::template numfact<S>(nrow, I, J, C);
 #else

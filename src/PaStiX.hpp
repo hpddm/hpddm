@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-10-04
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -102,7 +103,7 @@ class Pastix : public DMatrix {
          *  Array of data. */
         K*               _values2;
         /* Variable: dparm
-         *  Array of double-precision floating point parameters. */
+         *  Array of double-precision floating-point parameters. */
         double*            _dparm;
         /* Variable: ncol2
          *  Number of local rows. */

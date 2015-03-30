@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-10-04
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -25,12 +26,12 @@
 
 #include <cmath>
 
-#if defined(DMKL_PARDISO) || defined(DPASTIX) || defined(DSUITESPARSE)
+#if defined(DMKL_PARDISO) || defined(DPASTIX) || defined(DSUITESPARSE) || defined(DHYPRE)
 #define HPDDM_CSR_CO
 #endif
-#if defined(DPASTIX) || defined(DMKL_PARDISO)
+#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DHYPRE)
 #define HPDDM_LOC2GLOB
-#if defined(DMKL_PARDISO)
+#if defined(DMKL_PARDISO) || defined(DHYPRE)
 #define HPDDM_CONTIGUOUS
 #endif
 #endif

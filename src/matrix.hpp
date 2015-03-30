@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2013-03-12
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -119,7 +120,7 @@ class MatrixCSR {
         }
         /* Function: dump
          *  Outputs the matrix to an output stream. */
-        std::ostream& dump(std::ostream& f) const {
+        inline std::ostream& dump(std::ostream& f) const {
             f << "# First line: n m (is symmetric) nnz indexing" << std::endl;
             f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}" << std::endl;
             f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << std::endl;
@@ -134,5 +135,9 @@ class MatrixCSR {
             return f;
         }
 };
+template<class K>
+inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) {
+    return m.dump(f);
+}
 } // HPDDM
 #endif // _MATRIX_

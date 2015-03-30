@@ -1,11 +1,12 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
               Frédéric Nataf <nataf@ann.jussieu.fr>
         Date: 2012-12-15
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -496,7 +497,7 @@ class Subdomain {
             }
         }
         /* Function: distributedCSR
-         *  Assembles a distributed matrix that can by used by a backend such as PETSc.
+         *  Assembles a distributed matrix that can be used by a backend such as PETSc.
          *
          * See also: <Subdomain::globalMapping>. */
         inline bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c, const MatrixCSR<K>* const& A) const {

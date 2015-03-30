@@ -17,14 +17,14 @@ env:
   - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
   - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
   - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
-# - SOLVER=SUITESPARSE SUBSOLVER=SUITESPARSE
+  - SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get update -qq; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install -qq g++-4.9; fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libmumps-dev libarpack2-dev; fi # libsuitesparse-dev
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libmumps-dev libarpack2-dev libhypre-dev; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew tap homebrew/science; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install gcc arpack cmake scalapack veclibfort; fi
@@ -33,10 +33,11 @@ before_install:
 
 install:
   - export OMPI_CXX=$CXX
-  - if [ "$FORCE_SINGLE" == "ON" ]; then export CXX_FLAGS="-DFORCE_SINGLE -DGENERAL_CO"; fi
+  - if [ "$FORCE_SINGLE" == "ON" ]; then export CXX_FLAGS="-DFORCE_SINGLE"; fi
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export CXX_FLAGS="${CXX_FLAGS} -DFORCE_COMPLEX"; fi
+  - if [ "$CO" == "GENERAL_CO" ]; then export CXX_FLAGS="${CXX_FLAGS} -DGENERAL_CO"; fi
   - cd interface
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -DD${SOLVER} -D${SOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack-openmpi -larpack -lmpi_f77; fi # -I/usr/include/suitesparse -lamd -lcolamd -lumfpack -lcholmod
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -D${CO} -DD${SOLVER} -D${SOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77; fi # -I/usr/include/suitesparse -lamd -lcolamd -lumfpack -lcholmod
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/local/include -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
 
 script:

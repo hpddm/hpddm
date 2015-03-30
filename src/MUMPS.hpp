@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-10-04
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -206,7 +207,7 @@ class Mumps : public DMatrix {
                 MPI_Comm_rank(DMatrix::_communicator, &(DMatrix::_rank));
             if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL && parm[DISTRIBUTION] != DMatrix::NON_DISTRIBUTED) {
                 if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
-                    std::cout << "WARNING -- only distributed solution and non distributed solution and RHS supported by the MUMPS interface, forcing the distribution to NON_DISTRIBUTED" << std::endl;
+                    std::cout << "WARNING -- only distributed solution and nondistributed solution and RHS supported by the MUMPS interface, forcing the distribution to NON_DISTRIBUTED" << std::endl;
                 DMatrix::_distribution = DMatrix::NON_DISTRIBUTED;
                 parm[DISTRIBUTION] = DMatrix::NON_DISTRIBUTED;
             }

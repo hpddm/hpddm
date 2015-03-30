@@ -1,11 +1,12 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
               Frédéric Nataf <nataf@ann.jussieu.fr>
         Date: 2013-07-14
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -238,6 +239,9 @@ std::string demangle(const char* name) {
 #endif
 #if defined(DPASTIX) || defined(PASTIXSUB)
 #include "PaStiX.hpp"
+#endif
+#if defined(DHYPRE)
+#include "Hypre.hpp"
 #endif
 #include "SuiteSparse.hpp"
 #include "eigensolver.hpp"
