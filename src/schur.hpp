@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2013-03-10
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -100,9 +101,6 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             }
         }
     protected:
-        /* Variable: p
-         *  Solver used in <Schur::callNumfact> for pseudo-factorizing <Subdomain::a>. */
-        Solver<K>                     _p;
         /* Variable: bb
          *  Local matrix assembled on boundary degrees of freedom. */
         MatrixCSR<K, Wrapper<K>::I>* _bb;
@@ -121,6 +119,9 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Variable: structure
          *  Workspace array of size lower than or equal to <Subdomain::dof>. */
         K*                    _structure;
+        /* Variable: pinv
+         *  Solver used in <Schur::callNumfact> and <Bdd::callNumfact> for factorizing <Subdomain::a> or <Schur::schur>. */
+        void*                      _pinv;
         /* Variable: rankWorld
          *  Rank of the current subdomain in <Subdomain::communicator>. */
         int                   _rankWorld;
@@ -220,13 +221,16 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 nu = 0;
         }
     public:
-        Schur() : _bb(), _ii(), _bi(), _schur(), _work(), _structure(), _mult(), _signed(), _deficiency() { }
+        Schur() : _bb(), _ii(), _bi(), _schur(), _work(), _structure(), _pinv(), _mult(), _signed(), _deficiency() { }
         Schur(const Schur&) = delete;
         ~Schur() {
             delete _bb;
-            if(!_schur)
-                delete _ii;
             delete _bi;
+            delete _ii;
+            if(!HPDDM_QR || !_schur)
+                delete static_cast<Solver<K>*>(_pinv);
+            else
+                delete static_cast<QR<K>*>(_pinv);
             delete [] _schur;
             delete [] _work;
         }
@@ -256,19 +260,21 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *  Factorizes <Subdomain::a>. */
         inline void callNumfact() {
             if(Subdomain<K>::_a) {
+                _pinv = new Solver<K>();
+                Solver<K>* p = static_cast<Solver<K>*>(_pinv);
                 if(_deficiency) {
 #if defined(MUMPSSUB) || defined(PASTIXSUB)
-                    _p.numfact(Subdomain<K>::_a, true);
+                    p->numfact(Subdomain<K>::_a, true);
 #else
                     for(unsigned short i = 0; i < _deficiency; ++i)
                         _ii->_a[_ii->_ia[((i + 1) * _ii->_n) / (_deficiency + 1)] - 1] += HPDDM_PEN;
-                    _p.numfact(Subdomain<K>::_a);
+                    p->numfact(Subdomain<K>::_a);
                     for(unsigned short i = 0; i < _deficiency; ++i)
                         _ii->_a[_ii->_ia[((i + 1) * _ii->_n) / (_deficiency + 1)] - 1] -= HPDDM_PEN;
 #endif
                 }
                 else
-                    _p.numfact(Subdomain<K>::_a);
+                    p->numfact(Subdomain<K>::_a);
             }
             else
                 std::cerr << "The matrix '_a' has not been allocated => impossible to build the Neumann preconditioner" << std::endl;
@@ -285,8 +291,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
 #else
                 _schur[1] = _bi->_m + 1;
 #endif
-                if(_ii)
+                if(_ii) {
                     delete _ii;
+                    _ii = nullptr;
+                }
                 super::_s.numfact(Subdomain<K>::_a, true, _schur);
             }
             else

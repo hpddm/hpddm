@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2013-06-03
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -123,13 +124,13 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                         Wrapper<K>::diagv(Subdomain<K>::_dof, _m, x);
                     }
                     else {
-                        std::fill(x, x + Subdomain<K>::_dof, 0.0);
+                        std::fill(x, x + Subdomain<K>::_dof, K());
                         super::_co->template callSolver<excluded>(super::_uc);
                     }
                     Subdomain<K>::exchange(x);
                     super::applyLocalSchurComplement(x, r);
                     Subdomain<K>::exchange(r);
-                    Wrapper<K>::axpby(Subdomain<K>::_dof, 1.0, b ? b : super::_structure + super::_bi->_m, 1, -1.0, r, 1);
+                    Wrapper<K>::axpby(Subdomain<K>::_dof, Wrapper<K>::d__1, b ? b : super::_structure + super::_bi->_m, 1, Wrapper<K>::d__2, r, 1);
                 }
                 else
                     super::_co->template callSolver<excluded>(super::_uc);
@@ -137,7 +138,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             else if(!excluded) {
                 super::condensateEffort(f, r);
                 Subdomain<K>::exchange(r);
-                std::fill(x, x + Subdomain<K>::_dof, 0.0);
+                std::fill(x, x + Subdomain<K>::_dof, K());
             }
         }
         /* Function: apply
@@ -166,8 +167,12 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    out            - Output vector (optional). */
         inline void precond(K* const in, K* const out = nullptr) const {
             Wrapper<K>::diagv(Subdomain<K>::_dof, _m, in, super::_work + super::_bi->_m);
-            std::fill_n(super::_work, super::_bi->_m, 0.0);
-            super::_p.solve(super::_work);
+            if(!HPDDM_QR || !super::_schur) {
+                std::fill_n(super::_work, super::_bi->_m, K());
+                static_cast<Solver<K>*>(super::_pinv)->solve(super::_work);
+            }
+            else
+                static_cast<QR<K>*>(super::_pinv)->solve(super::_work + super::_bi->_m);
             if(out) {
                 Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, out);
                 Subdomain<K>::exchange(out);
@@ -176,6 +181,19 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, in);
                 Subdomain<K>::exchange(in);
             }
+        }
+        /* Function: callNumfact
+         *  Factorizes <Subdomain::a> or <Schur::schur> if available. */
+        inline void callNumfact() {
+            if(HPDDM_QR && super::_schur) {
+                delete super::_bb;
+                super::_bb = nullptr;
+                super::_pinv = new QR<K>(Subdomain<K>::_dof, super::_schur);
+                QR<K>* qr = static_cast<QR<K>*>(super::_pinv);
+                qr->decompose();
+            }
+            else
+                super::callNumfact();
         }
         /* Function: project
          *
@@ -213,7 +231,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     }
                     else {
                         super::_co->callSolver(super::_uc);
-                        std::fill_n(super::_structure + super::_bi->_m, Subdomain<K>::_dof, 0.0);
+                        std::fill_n(super::_structure + super::_bi->_m, Subdomain<K>::_dof, K());
                     }
                     Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_structure + super::_bi->_m);
                     Subdomain<K>::exchange(super::_structure + super::_bi->_m);

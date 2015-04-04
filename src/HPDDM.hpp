@@ -36,6 +36,7 @@
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
  *    HPDDM_BDD           - BDD methods enabled.
+ *    HPDDM_QR            - If set to one, pseudo-inverses of Schur complements are computed using dense QR decompositions.
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_GMV           - For overlapping Schwarz methods, this can be used to reduce the volume of communication for computing global matrix-vector products. */
 #define HPDDM_VERSION         000002
@@ -59,6 +60,7 @@
 #ifndef HPDDM_BDD
 #define HPDDM_BDD             1
 #endif
+#define HPDDM_QR              1
 #define HPDDM_ICOLLECTIVE     0
 #define HPDDM_GMV             0
 
@@ -100,7 +102,10 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 #define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #include <mkl_spblas.h>
 #include <mkl_vml.h>
-#endif // HPDDM_MKL || defined(INTEL_MKL_VERSION)
+#include <mkl_trans.h>
+#else
+#include <bitset>
+#endif // HPDDM_MKL
 #if defined(__powerpc__) || defined(INTEL_MKL_VERSION)
 #define HPDDM_F77(func) func
 #else
