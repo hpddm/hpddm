@@ -39,12 +39,24 @@ namespace HPDDM {
 template<class K>
 class Hypre : public DMatrix {
     private:
+        /* Variable: A
+         *  Hypre IJ matrix. */
         HYPRE_IJMatrix           _A;
+        /* Variable: b
+         *  Hypre IJ right-hand side. */
         HYPRE_IJVector           _b;
+        /* Variable: x
+         *  Hypre IJ solution vector. */
         HYPRE_IJVector           _x;
+        /* Variable: solver
+         *  Hypre solver. */
         HYPRE_Solver        _solver;
+        /* Variable: precond
+         *  Hypre preconditioner (not used when <Hypre::strategy> is set to one). */
         HYPRE_Solver       _precond;
         int                  _local;
+        /* Variable: strategy
+         *  Integer to set whether BoomerAMG should be used as a stand-alone solver (1), as a preconditioner for GMRES (0), or as a preconditioner for CG (2). */
         int               _strategy;
     protected:
         /* Variable: numbering

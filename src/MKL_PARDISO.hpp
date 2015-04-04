@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-10-07
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -192,7 +193,7 @@ class MklPardiso : public DMatrix {
                 parm[TOPOLOGY] = 0;
             if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL_AND_RHS) {
                 if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
-                    std::cout << "WARNING -- only distributed solution and RHS and non distributed solution and RHS supported by the PARDISO interface, forcing the distribution to DISTRIBUTED_SOL_AND_RHS" << std::endl;
+                    std::cout << "WARNING -- only distributed solution and RHS and nondistributed solution and RHS supported by the PARDISO interface, forcing the distribution to DISTRIBUTED_SOL_AND_RHS" << std::endl;
                 parm[DISTRIBUTION] = DMatrix::DISTRIBUTED_SOL_AND_RHS;
             }
             DMatrix::_distribution = DMatrix::DISTRIBUTED_SOL_AND_RHS;

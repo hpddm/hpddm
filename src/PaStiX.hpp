@@ -363,12 +363,7 @@ class PastixSub {
         }
         inline void solve(const K* const b, K* const x) const {
             std::copy(b, b + _ncol, x);
-            _iparm[IPARM_START_TASK] = API_TASK_SOLVE;
-            _iparm[IPARM_END_TASK]   = API_TASK_SOLVE;
-            pstx<K>::seq(const_cast<pastix_data_t**>(&_data), MPI_COMM_SELF,
-                         // _ncol, _colptr, _rows, _values,
-                         _ncol, NULL, NULL, NULL,
-                         NULL, NULL, x, 1, _iparm, _dparm);
+            solve(x);
         }
 };
 #endif // PASTIXSUB

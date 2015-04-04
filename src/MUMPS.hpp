@@ -314,12 +314,8 @@ class MumpsSub {
             MUMPS_STRUC_C<K>::mumps_c(_id);
         }
         inline void solve(const K* const b, K* const x) const {
-            _id->icntl[20] = 0;
             std::copy(b, b + _id->n, x);
-            _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);
-            _id->nrhs = 1;
-            _id->job = 3;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
+            solve(x);
         }
 };
 #endif // MUMPSSUB

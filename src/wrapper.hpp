@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2014-08-04
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -147,6 +148,9 @@ class Wrapper {
         }
         template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
         static inline void conjugate(const int&, const int&, const int&, T* const) { }
+        /* Function: transpose
+         *  Transposes a dense matrix in-place. */
+        static inline void transpose(K* const, const std::size_t, const std::size_t);
 };
 
 template<>
@@ -340,6 +344,10 @@ inline void Wrapper<T>::gthr(const int& n, const T* const y, T* const x, const i
 template<>                                                                                                   \
 inline void Wrapper<T>::sctr(const int& n, const T* const x, const int* const indx, T* const y) {            \
     cblas_ ## C ## sctr(n, x, indx, y);                                                                      \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::transpose(T* const a, const std::size_t n, const std::size_t m) {                    \
+    mkl_ ## C ## imatcopy('C', 'T', m, n, d__1, a, m, n);                                                    \
 }
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
@@ -565,6 +573,33 @@ inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, co
             v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
 }
 #endif // __APPLE__
+template<class K>
+inline void Wrapper<K>::transpose(K* const a, const std::size_t n, const std::size_t m) {
+    if(n != m) {
+        const int size = n * m - 1;
+        std::bitset<1024> b;
+        b[0] = b[size] = 1;
+        int i = 1;
+        while(i < size) {
+            int it = i;
+            K t = a[i];
+            do {
+                int next = (i * n) % size;
+                std::swap(a[next], t);
+                b[i] = 1;
+                i = next;
+            } while(i != it);
+
+            for(i = 1; i < size && b[i]; i++);
+        }
+    }
+    else {
+        for(int i = 0; i < n - 1; ++i)
+            for(int j = i + 1; j < n; ++j)
+                std::swap(a[i * n + j], a[j * n + i]);
+
+    }
+}
 #endif // HPDDM_MKL
 
 template<class K>

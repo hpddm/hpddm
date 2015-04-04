@@ -239,7 +239,7 @@ class SuiteSparse : public DMatrix {
                 MPI_Comm_rank(DMatrix::_communicator, &(DMatrix::_rank));
             if(parm[DISTRIBUTION] != DMatrix::NON_DISTRIBUTED) {
                 if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
-                    std::cout << "WARNING -- only non distributed solution and RHS supported by the SuiteSparse interface, forcing the distribution to NON_DISTRIBUTED" << std::endl;
+                    std::cout << "WARNING -- only nondistributed solution and RHS supported by the SuiteSparse interface, forcing the distribution to NON_DISTRIBUTED" << std::endl;
                 parm[DISTRIBUTION] = DMatrix::NON_DISTRIBUTED;
             }
             DMatrix::_distribution = DMatrix::NON_DISTRIBUTED;

@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2014-11-05
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -203,7 +204,7 @@ class IterativeMethod {
             if(Type != CLASSICAL)
                 it = std::max(it, static_cast<unsigned short>((it / m) * m + 3));
             while(j <= it) {
-                Wrapper<K>::axpby(n, 1.0 / beta, r, 1, 0.0, v[0], 1);
+                Wrapper<K>::axpby(n, 1.0 / beta, r, 1, K(), v[0], 1);
                 s[0] = beta;
                 MPI_Request rq;
                 if(Type != CLASSICAL)
@@ -219,9 +220,9 @@ class IterativeMethod {
                     if(Type == CLASSICAL || i > 1) {
                         if(Type == CLASSICAL) {
                             if(excluded) {
-                                std::fill(H[i], H[i] + i + 1, 0.0);
+                                std::fill(H[i], H[i] + i + 1, K());
                                 MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                                beta = 0.0;
+                                beta = typename Wrapper<K>::ul_type();
                                 MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                                 H[i][i + 1] = std::sqrt(beta);
                             }
