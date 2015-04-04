@@ -1,11 +1,12 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
               Frédéric Nataf <nataf@ann.jussieu.fr>
         Date: 2013-03-10
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -367,6 +368,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 A->_ja = nullptr;
             }
             nu = evp.getNu();
+            const int n = Subdomain<K>::_dof;
+            std::for_each(super::_ev, super::_ev + nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
         }
         template<bool sorted = true, bool scale = false>
         inline void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {
