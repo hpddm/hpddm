@@ -130,8 +130,7 @@ class Subdomain {
                 _map[j].second.reserve(r[j].size());
                 for(int k = 0; k < r[j].size(); ++k)
                     _map[j].second.emplace_back(r[j][k]);
-                size += _map[j].second.size();
-                ++j;
+                size += _map[j++].second.size();
             }
             _rq = new MPI_Request[2 * _map.size()];
             _rbuff.reserve(_map.size());
@@ -140,10 +139,10 @@ class Subdomain {
                 K* rbuff = new K[2 * size];
                 K* sbuff = rbuff + size;
                 size = 0;
-                for(unsigned short i = 0; i < _map.size(); ++i) {
+                for(const auto& i : _map) {
                     _rbuff.emplace_back(rbuff + size);
                     _sbuff.emplace_back(sbuff + size);
-                    size +=_map[i].second.size();
+                    size += i.second.size();
                 }
             }
         }

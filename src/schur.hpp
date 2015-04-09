@@ -306,12 +306,12 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Function: callNumfactPreconditioner
          *  Factorizes <Schur::ii> if <Schur::schur> is not available. */
         inline void callNumfactPreconditioner() {
-            if(_ii) {
-                if(!_schur)
+            if(!_schur) {
+                if(_ii)
                     super::_s.numfact(_ii);
+                else
+                    std::cerr << "The matrix '_ii' has not been allocated => impossible to build the Dirichlet preconditioner" << std::endl;
             }
-            else
-                std::cerr << "The matrix '_ii' has not been allocated => impossible to build the Dirichlet preconditioner" << std::endl;
         }
         /* Function: originalNumbering
          *

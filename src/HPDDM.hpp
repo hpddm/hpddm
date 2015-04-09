@@ -32,14 +32,14 @@
  *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
  *    HPDDM_OUTPUT_CO     - If set to one, the coarse operator is saved to disk (for debugging only).
- *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra back end.
+ *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra backend.
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
  *    HPDDM_BDD           - BDD methods enabled.
- *    HPDDM_QR            - If set to one, pseudo-inverses of Schur complements are computed using dense QR decompositions.
+ *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_GMV           - For overlapping Schwarz methods, this can be used to reduce the volume of communication for computing global matrix-vector products. */
-#define HPDDM_VERSION         000002
+#define HPDDM_VERSION         000003
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
