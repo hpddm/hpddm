@@ -200,6 +200,29 @@ std::string demangle(const char* name) {
     return name;
 }
 #endif // __GNUG__
+#ifdef __MINGW32__
+template<class T>
+static inline T sto(std::string s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
+    return atoi(s.c_str());
+}
+template<class T>
+static inline T sto(std::string s, typename std::enable_if<std::is_same<T, double>::value || std::is_same<T, float>::value>::type* = nullptr) {
+    return atof(s.c_str());
+}
+#else
+template<class T>
+static inline T sto(std::string s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
+    return std::stoi(s);
+}
+template<class T>
+static inline T sto(std::string s, typename std::enable_if<std::is_same<T, float>::value>::type* = nullptr) {
+    return std::stof(s);
+}
+template<class T>
+static inline T sto(std::string s, typename std::enable_if<std::is_same<T, double>::value>::type* = nullptr) {
+    return std::stod(s);
+}
+#endif // __MINGW32__
 } // HPDDM
 #include "enum.hpp"
 #if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201

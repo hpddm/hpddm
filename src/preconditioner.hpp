@@ -23,6 +23,15 @@
 #ifndef _PRECONDITIONER_
 #define _PRECONDITIONER_
 
+#define HPDDM_LAMBDA_F(in, input, inout, output, N)                                                          \
+    unsigned short* input = static_cast<unsigned short*>(in);                                                \
+    unsigned short* output = static_cast<unsigned short*>(inout);                                            \
+    output[0] = std::max(output[0], input[0]);                                                               \
+    output[1] = output[1] & input[1];                                                                        \
+    output[2] = output[2] & input[2];                                                                        \
+    if(N == 3)                                                                                               \
+        output[3] = output[3] & input[3];
+
 #include "subdomain.hpp"
 
 namespace HPDDM {
@@ -49,6 +58,13 @@ class Preconditioner : public Subdomain<K> {
         /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
         K*                 _uc;
+#ifdef __MINGW32__
+    private:
+        template<unsigned short N>
+        static inline void __stdcall f(void* in, void* inout, int*, MPI_Datatype*) {
+            HPDDM_LAMBDA_F(in, input, inout, output, N)
+        }
+#endif
     public:
         Preconditioner() : _co(), _ev(), _uc() { }
         Preconditioner(const Preconditioner&) = delete;
@@ -103,17 +119,15 @@ class Preconditioner : public Subdomain<K> {
             if(N == 3)
                 allUniform[3] = parm[NU] > 0 ? parm[NU] : std::numeric_limits<unsigned short>::max();
             {
-                auto f = [](void* in, void* inout, int*, MPI_Datatype*) -> void {
-                    unsigned short* input = static_cast<unsigned short*>(in);
-                    unsigned short* output = static_cast<unsigned short*>(inout);
-                    output[0] = std::max(output[0], input[0]);
-                    output[1] = output[1] & input[1];
-                    output[2] = output[2] & input[2];
-                    if(N == 3)
-                        output[3] = output[3] & input[3];
-                };
                 MPI_Op op;
+#ifndef __MINGW32__
+                auto f = [](void* in, void* inout, int*, MPI_Datatype*) -> void {
+                    HPDDM_LAMBDA_F(in, input, inout, output, N)
+                };
                 MPI_Op_create(f, 1, &op);
+#else
+                MPI_Op_create(&f<N>, 1, &op);
+#endif
                 MPI_Allreduce(MPI_IN_PLACE, allUniform, N + 1, MPI_UNSIGNED_SHORT, op, comm);
                 MPI_Op_free(&op);
             }

@@ -74,12 +74,12 @@ int main(int argc, char **argv) {
         return 0;
     }
     std::vector<std::string> arguments(argv + 1, argv + argc);
-    int prec = std::stoi(arguments[0]);
-    int Nx = std::stoi(arguments[1]);
-    int Ny = std::stoi(arguments[2]);
-    int overlap = std::stoi(arguments[3]);
-    HPDDM::Wrapper<K>::ul_type eps = std::stod(arguments[4]);
-    int sym = std::stoi(arguments[5]);
+    int prec = HPDDM::sto<int>(arguments[0]);
+    int Nx = HPDDM::sto<int>(arguments[1]);
+    int Ny = HPDDM::sto<int>(arguments[2]);
+    int overlap = HPDDM::sto<int>(arguments[3]);
+    HPDDM::Wrapper<K>::ul_type eps = HPDDM::sto<HPDDM::Wrapper<K>::ul_type>(arguments[4]);
+    int sym = HPDDM::sto<int>(arguments[5]);
     /*# Init #*/
     int rankWorld;
     int sizeWorld;

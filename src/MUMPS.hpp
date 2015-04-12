@@ -255,7 +255,7 @@ class MumpsSub {
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
             if(_id->job == -1) {
-                char strategy = (5 <= std::stoi(std::string(MUMPS_VERSION).substr(0, std::string(MUMPS_VERSION).find_first_of("."))) ? 4 : 3);
+                char strategy = (5 <= sto<int>(std::string(MUMPS_VERSION).substr(0, std::string(MUMPS_VERSION).find_first_of("."))) ? 4 : 3);
                 _id->nrhs = 1;
                 std::fill_n(_id->icntl, 5, 0);
                 if(strategy > 0 && strategy < 9 && strategy != 2) {
