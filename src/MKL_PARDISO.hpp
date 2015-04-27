@@ -214,6 +214,7 @@ class MklPardisoSub {
         int             _mtype;
         mutable int _iparm[64];
         int                 _n;
+        int           _partial;
     public:
         MklPardisoSub() : _pt(), _C(), _I(), _J(), _w() { }
         MklPardisoSub(const MklPardisoSub&) = delete;
@@ -263,8 +264,9 @@ class MklPardisoSub {
                 if(schur != nullptr) {
                     _iparm[35] = 2;
                     perm = new int[_n];
-                    std::fill(perm, perm + static_cast<int>(std::real(schur[1])), 0);
-                    std::fill(perm + static_cast<int>(std::real(schur[1])), perm + _n, 1);
+                    _partial = static_cast<int>(std::real(schur[1]));
+                    std::fill_n(perm, _partial, 0);
+                    std::fill(perm + _partial, perm + _n, 1);
                 }
                 _w = new K[_n];
             }
@@ -290,9 +292,18 @@ class MklPardisoSub {
         }
         inline void solve(K* x) const {
             int error;
-            int phase = 33;
             _iparm[5] = 1;
-            PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
+            if(!_partial) {
+                int phase = 33;
+                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
+            }
+            else {
+                int phase = 331;
+                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
+                std::fill(x + _partial, x + _n, K());
+                phase = 333;
+                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
+            }
         }
         inline void solve(K* const x, const unsigned short& n) const {
             int error;
@@ -305,9 +316,20 @@ class MklPardisoSub {
         }
         inline void solve(const K* const b, K* const x) const {
             int error;
-            int phase = 33;
-            _iparm[5] = 0;
-            PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), const_cast<K*>(b), x, &error);
+            if(!_partial) {
+                _iparm[5] = 0;
+                int phase = 33;
+                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), const_cast<K*>(b), x, &error);
+            }
+            else {
+                _iparm[5] = 1;
+                int phase = 331;
+                std::copy(b, b + _partial, x);
+                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
+                std::fill(x + _partial, x + _n, K());
+                phase = 333;
+                PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
+            }
         }
 };
 #endif // MKL_PARDISOSUB

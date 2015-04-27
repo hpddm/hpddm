@@ -157,19 +157,16 @@ class Lapack : public Eigensolver<K> {
             typename Wrapper<K>::ul_type* d = reinterpret_cast<typename Wrapper<K>::ul_type*>(tau + Eigensolver<K>::_n);
             typename Wrapper<K>::ul_type* e = d + Eigensolver<K>::_n;
             trd("L", &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), d, e, tau, work, &lwork, &info);
-            char range = Eigensolver<K>::_threshold > 0.0 ? 'V' : 'I';
-            char order = 'B';
-            int iu = Eigensolver<K>::_nu;
-            typename Wrapper<K>::ul_type vl = -2 * HPDDM_EPS;
+            typename Wrapper<K>::ul_type vl = -1.0 / HPDDM_EPS;
             typename Wrapper<K>::ul_type vu = Eigensolver<K>::_threshold;
+            int iu = Eigensolver<K>::_nu;
             int nsplit;
             typename Wrapper<K>::ul_type* evr = e + Eigensolver<K>::_n - 1;
             int* iblock = new int[5 * Eigensolver<K>::_n];
             int* isplit = iblock + Eigensolver<K>::_n;
             int* iwork = isplit + Eigensolver<K>::_n;
-            stebz(&range, &order, &(Eigensolver<K>::_n), &vl, &vu, &i__1, &iu, &(Eigensolver<K>::_tol), d, e, &(Eigensolver<K>::_nu), &nsplit, evr, iblock, isplit, reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, &info);
-            if(Eigensolver<K>::_threshold > 0.0)
-                Eigensolver<K>::selectNu(evr, communicator);
+            char range = Eigensolver<K>::_threshold > 0.0 ? 'V' : 'I';
+            stebz(&range, "B", &(Eigensolver<K>::_n), &vl, &vu, &i__1, &iu, &(Eigensolver<K>::_tol), d, e, &(Eigensolver<K>::_nu), &nsplit, evr, iblock, isplit, reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, &info);
             if(Eigensolver<K>::_nu) {
                 ev = new K*[Eigensolver<K>::_nu];
                 *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
@@ -178,8 +175,7 @@ class Lapack : public Eigensolver<K> {
                 int* ifailv = new int[Eigensolver<K>::_nu];
                 stein(&(Eigensolver<K>::_n), d, e, &(Eigensolver<K>::_nu), evr, iblock, isplit, *ev, &(Eigensolver<K>::_n), reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, ifailv, &info);
                 delete [] ifailv;
-                order = 'L';
-                mtr(&order, "L", &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), A, &(Eigensolver<K>::_n), tau, *ev, &(Eigensolver<K>::_n), work, &lwork, &info);
+                mtr("L", "L", &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), A, &(Eigensolver<K>::_n), tau, *ev, &(Eigensolver<K>::_n), work, &lwork, &info);
                 if(std::is_same<K, typename Wrapper<K>::ul_type>::value)
                     lwork += 3 * Eigensolver<K>::_n - 1;
                 else

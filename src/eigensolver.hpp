@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-12-15
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -59,9 +60,9 @@ class Eigensolver {
         template<class T>
         inline void selectNu(const T* const eigenvalues, const MPI_Comm& communicator) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, typename Wrapper<K>::ul_type>::value, "Wrong types");
-            unsigned short nevThreshold = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
-            MPI_Allreduce(MPI_IN_PLACE, &nevThreshold, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
-            _nu = std::min(_nu, static_cast<int>(nevThreshold));
+            unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
+            MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
+            _nu = std::min(_nu, static_cast<int>(nev));
         }
         /* Function: getTol
          *  Returns the value of <Eigensolver::tol>. */

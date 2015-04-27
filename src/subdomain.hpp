@@ -450,18 +450,22 @@ class Subdomain {
                 }
                 size = 0;
                 if(rankWorld != sizeWorld - 1) {
-                    if(_map[between].first == rankWorld + 1)
-                        sbuff[_map[between].second.size()] = begining;
-                    for(unsigned short i = between; i < _map.size(); ++i) {
-                        for(unsigned short j = 0; j < _map[i].second.size(); ++j)
-                            sbuff[size + j] = *(first + _map[i].second[j]);
-                        MPI_Isend(sbuff + size, _map[i].second.size() + (_map[i].first == rankWorld + 1), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + i);
-                        size += _map[i].second.size() + (_map[i].first == rankWorld + 1);
+                    if(between < _map.size()) {
+                        if(_map[between].first == rankWorld + 1) {
+                            sbuff[_map[between].second.size()] = begining;
+                            rq[1] = MPI_REQUEST_NULL;
+                        }
+                        else
+                            MPI_Isend(&begining, 1, MPI_UNSIGNED, rankWorld + 1, 10, _communicator, rq + 1);
+                        for(unsigned short i = between; i < _map.size(); ++i) {
+                            for(unsigned short j = 0; j < _map[i].second.size(); ++j)
+                                sbuff[size + j] = *(first + _map[i].second[j]);
+                            MPI_Isend(sbuff + size, _map[i].second.size() + (_map[i].first == rankWorld + 1), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + i);
+                            size += _map[i].second.size() + (_map[i].first == rankWorld + 1);
+                        }
                     }
-                    if(_map[between].first != rankWorld + 1)
-                        MPI_Isend(&begining, 1, MPI_UNSIGNED, rankWorld + 1, 10, _communicator, rq + 1);
                     else
-                        rq[1] = MPI_REQUEST_NULL;
+                        MPI_Isend(&begining, 1, MPI_UNSIGNED, rankWorld + 1, 10, _communicator, rq + 1);
                 }
                 else
                     rq[1] = MPI_REQUEST_NULL;

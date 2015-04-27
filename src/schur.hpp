@@ -284,6 +284,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         inline void computeSchurComplement() {
 #if defined(MUMPSSUB) || defined(PASTIXSUB) || defined(MKL_PARDISOSUB)
             if(Subdomain<K>::_a) {
+                if(_ii) {
+                    delete _ii;
+                    _ii = nullptr;
+                }
                 _schur = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 _schur[0] = Subdomain<K>::_dof;
 #if defined(MKL_PARDISOSUB)
@@ -291,10 +295,6 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
 #else
                 _schur[1] = _bi->_m + 1;
 #endif
-                if(_ii) {
-                    delete _ii;
-                    _ii = nullptr;
-                }
                 super::_s.numfact(Subdomain<K>::_a, true, _schur);
             }
             else
@@ -417,9 +417,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                             if(std::abs(val) > HPDDM_EPS) {
                                 const int col = vec[Subdomain<K>::_a->_ja[j]];
                                 if(col > 0) {
-                                    if(row < 0)
+                                    const bool cond = !std::binary_search(boundaryCond.second.cbegin(), boundaryCond.second.cend(), col);
+                                    if(row < 0 && cond)
                                         tmpInteraction[col - 1].emplace_back(-row - (Wrapper<K>::I != 'F'), val);
-                                    else if(col == row || !std::binary_search(boundaryCond.second.cbegin(), boundaryCond.second.cend(), col))
+                                    else if(col == row || cond)
                                         tmpBoundary.emplace_back(col - (Wrapper<K>::I != 'F'), val);
                                 }
                                 else if(col == row || !std::binary_search(boundaryCond.first.cbegin(), boundaryCond.first.cend(), -col)) {
