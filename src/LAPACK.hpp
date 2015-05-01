@@ -25,7 +25,6 @@
 #define _LAPACK_
 
 #define HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, SYM, ORT)                                                      \
-void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
                            const int*, T*, const int*, int*);                                                \
 void HPDDM_F77(C ## SYM ## gst)(const int*, const char*, const int*, T*, const int*,                         \
@@ -36,7 +35,9 @@ void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*,
 void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
                                 const T*, const int*, const T*, T*, const int*, T*, const int*, int*);       \
 void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, int*, int*);                      \
-void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);
+void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
+void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
+void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*);
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
 void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
                            const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
@@ -74,9 +75,6 @@ template<class K>
 class Lapack : public Eigensolver<K> {
     private:
         friend class QR<K>;
-        /* Function: potrf
-         *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
-        static inline void potrf(const char*, const int*, K*, const int*, int*);
         /* Function: trtrs
          *  Solves a system of linear equations with a triangular matrix. */
         static inline void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
@@ -106,6 +104,12 @@ class Lapack : public Eigensolver<K> {
         Lapack(int n, int nu)                                                                           : Eigensolver<K>(n, nu) { }
         Lapack(typename Wrapper<K>::ul_type threshold, int n, int nu)                                   : Eigensolver<K>(threshold, n, nu) { }
         Lapack(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int nu) : Eigensolver<K>(tol, threshold, n, nu) { }
+        /* Function: potrf
+         *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
+        static inline void potrf(const char*, const int*, K*, const int*, int*);
+        /* Function: potrs
+         *  Solves a system of linear equations with a Cholesky-factored matrix. */
+        static inline void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
         inline int workspace(const int* const m = nullptr) const {
@@ -139,7 +143,7 @@ class Lapack : public Eigensolver<K> {
          *    ev             - Array of eigenvectors. */
         inline void expand(K* const& B, K* const* const ev) const {
             int info;
-            trtrs("L", &transb, &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), B, &(Eigensolver<K>::_n), *ev, &(Eigensolver<K>::_n), &info);
+            trtrs("L", "T", "N", &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), B, &(Eigensolver<K>::_n), *ev, &(Eigensolver<K>::_n), &info);
         }
         /* Function: solve
          *
@@ -268,7 +272,7 @@ class QR {
                     jpvt.emplace_back(i);
                 else if(std::abs(_a[(_n + 1) * i]) > max / 1.0e-6) {
                     jpvt.clear();
-                    max = std::abs(_a[(i + 1) * _n]);
+                    max = std::abs(_a[(_n + 1) * i]);
                     i = 0;
                 }
                 else
@@ -283,19 +287,15 @@ class QR {
             int info;
             mqr("L", "T", &_n, &i__1, &_n, _a, &_n, _tau, x, &_n, _work, const_cast<int*>(&_lwork), &info);
 #if HPDDM_QR == 1
-            Lapack<K>::trtrs("U", "N", "N", &_rank, &i__1, _a, &_n, x, &_n, &info);
+            Lapack<K>::trtrs("L", "T", "N", &_rank, &i__1, _a, &_n, x, &_n, &info);
             Lapack<K>::lapmt(&i__0, &i__1, &_n, x, &i__1, const_cast<int*>(_jpvt.data()));
 #else
-            Lapack<K>::trtrs("U", "N", "N", &_n, &i__1, _a, &_n, x, &_n, &info);
+            Lapack<K>::trtrs("L", "T", "N", &_n, &i__1, _a, &_n, x, &_n, &info);
 #endif
         }
 };
 
 #define HPDDM_GENERATE_LAPACK(C, T, B, U, SYM, ORT)                                                          \
-template<>                                                                                                   \
-inline void Lapack<T>::potrf(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \
-    HPDDM_F77(C ## potrf)(uplo, n, a, lda, info);                                                            \
-}                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n,            \
                              const int* nrhs, const T* a, const int* lda, T* b, const int* ldb, int* info) { \
@@ -338,6 +338,15 @@ inline void QR<T>::geqrf(const int* m, const int* n, T* a, const int* lda, T* ta
 template<>                                                                                                   \
 inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx, int* k) {  \
     HPDDM_F77(C ## lapmt)(forwrd, m, n, x, ldx, k);                                                          \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::potrf(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \
+    HPDDM_F77(C ## potrf)(uplo, n, a, lda, info);                                                            \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, const T* a, const int* lda,    \
+                             T* b, const int* ldb, int* info) {                                              \
+    HPDDM_F77(C ## potrs)(uplo, n, nrhs, a, lda, b, ldb, info);                                              \
 }
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
 template<>                                                                                                   \

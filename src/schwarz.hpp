@@ -156,7 +156,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         inline void deflation(const K* const in, K* const out, const unsigned short& fuse = 0) const {
             if(fuse > 0) {
                 super::_co->reallocateRHS(const_cast<K*&>(super::_uc), fuse);
-                std::copy(out + Subdomain<K>::_dof, out + Subdomain<K>::_dof + fuse, super::_uc + super::getLocal());
+                std::copy_n(out + Subdomain<K>::_dof, fuse, super::_uc + super::getLocal());
             }
             if(excluded)
                 super::_co->template callSolver<excluded>(super::_uc, fuse);
@@ -171,7 +171,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 }
             }
             if(fuse > 0)
-                std::copy(super::_uc + super::getLocal(), super::_uc + super::getLocal() + fuse, out + Subdomain<K>::_dof);
+                std::copy_n(super::_uc + super::getLocal(), fuse, out + Subdomain<K>::_dof);
         }
 #if HPDDM_ICOLLECTIVE
         /* Function: Ideflation
@@ -190,7 +190,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         inline void Ideflation(const K* const in, K* const out, MPI_Request* rq, const unsigned short& fuse = 0) const {
             if(fuse > 0) {
                 super::_co->reallocateRHS(const_cast<K*&>(super::_uc), fuse);
-                std::copy(out + Subdomain<K>::_dof, out + Subdomain<K>::_dof + fuse, super::_uc + super::getLocal());
+                std::copy_n(out + Subdomain<K>::_dof, fuse, super::_uc + super::getLocal());
             }
             if(excluded)
                 super::_co->template IcallSolver<excluded>(super::_uc, rq, fuse);
@@ -200,7 +200,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 super::_co->template IcallSolver<excluded>(super::_uc, rq, fuse);
             }
             if(fuse > 0)
-                std::copy(super::_uc + super::getLocal(), super::_uc + super::getLocal() + fuse, out + Subdomain<K>::_dof);
+                std::copy_n(super::_uc + super::getLocal(), fuse, out + Subdomain<K>::_dof);
         }
 #endif // HPDDM_ICOLLECTIVE
         template<bool excluded>
@@ -235,10 +235,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    out            - Output vector.
          *    fuse           - Number of fused reductions (optional). */
         template<bool excluded = false>
-        inline void apply(K* const in, K* const out, const unsigned short& fuse = 0) const {
+        inline void apply(const K* const in, K* const out, const unsigned short& fuse = 0, K* work = nullptr) const {
             if(!super::_co) {
                 if(_type == Prcndtnr::NO)
-                    std::copy(in, in + Subdomain<K>::_dof, out);
+                    std::copy_n(in, Subdomain<K>::_dof, out);
                 else if(_type == Prcndtnr::GE || _type == Prcndtnr::OG) {
                     if(!excluded) {
                         super::_s.solve(in, out);
@@ -248,25 +248,31 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 }
                 else {
                     if(!excluded) {
-                        if(_type == Prcndtnr::OS)
-                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
-                        super::_s.solve(in, out);
-                        if(_type == Prcndtnr::OS)
-                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
+                        if(_type == Prcndtnr::OS) {
+                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in, out);
+                            super::_s.solve(out);
+                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, out);
+                        }
+                        else
+                            super::_s.solve(in, out);
                         Subdomain<K>::exchange(out);                                                         // out = A \ in
                     }
                 }
             }
             else {
+                if(!work)
+                    work = const_cast<K*>(in);
+                else
+                    std::copy_n(in, Subdomain<K>::_dof, work);
                 if(_type == Prcndtnr::AD) {
 #if HPDDM_ICOLLECTIVE
                     MPI_Request rq[2];
                     Ideflation<excluded>(in, out, rq, fuse);
                     if(!excluded) {
-                        super::_s.solve(in);                                                                                                                                                                  // out = A \ in
+                        super::_s.solve(work);                                                                                                                                                                // out = A \ in
                         MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
                         Wrapper<K>::gemv(&transa, &(Subdomain<K>::_dof), super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &i__1, &(Wrapper<K>::d__0), out, &i__1); // out = Z E \ Z^T in
-                        Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), in, &i__1, out, &i__1);
+                        Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
                         Wrapper<K>::diagv(Subdomain<K>::_dof, _d, out);
                         Subdomain<K>::exchange(out);                                                                                                                                                          // out = Z E \ Z^T in + A \ in
                     }
@@ -275,25 +281,25 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
 #else
                     deflation<excluded>(in, out, fuse);
                     if(!excluded) {
-                        super::_s.solve(in);
-                        Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), in, &i__1, out, &i__1);
+                        super::_s.solve(work);
+                        Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
                         Wrapper<K>::diagv(Subdomain<K>::_dof, _d, out);
                         Subdomain<K>::exchange(out);
                     }
 #endif // HPDDM_ICOLLECTIVE
                 }
                 else {
-                    deflation<excluded>(in, out, fuse);                                                      // out = Z E \ Z^T in
+                    deflation<excluded>(in, out, fuse);                                                        // out = Z E \ Z^T in
                     if(!excluded) {
-                        Wrapper<K>::template csrmv<'C'>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), in);
-                        Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
-                        Subdomain<K>::exchange(in);                                                          //  in = (I - A Z E \ Z^T) in
+                        Wrapper<K>::template csrmv<'C'>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                        Wrapper<K>::diagv(Subdomain<K>::_dof, _d, work);
+                        Subdomain<K>::exchange(work);                                                          //  in = (I - A Z E \ Z^T) in
                         if(_type == Prcndtnr::OS)
-                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
-                        super::_s.solve(in);
-                        Wrapper<K>::diagv(Subdomain<K>::_dof, _d, in);
-                        Subdomain<K>::exchange(in);                                                          //  in = D A \ (I - A Z E \ Z^T) in
-                        Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), in, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
+                            Wrapper<K>::diagv(Subdomain<K>::_dof, _d, work);
+                        super::_s.solve(work);
+                        Wrapper<K>::diagv(Subdomain<K>::_dof, _d, work);
+                        Subdomain<K>::exchange(work);                                                          //  in = D A \ (I - A Z E \ Z^T) in
+                        Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
                     }
                 }
             }

@@ -216,7 +216,7 @@ class MklPardisoSub {
         int                 _n;
         int           _partial;
     public:
-        MklPardisoSub() : _pt(), _C(), _I(), _J(), _w() { }
+        MklPardisoSub() : _pt(), _C(), _I(), _J(), _w(), _partial() { }
         MklPardisoSub(const MklPardisoSub&) = delete;
         ~MklPardisoSub() {
             delete [] _w;
@@ -324,7 +324,7 @@ class MklPardisoSub {
             else {
                 _iparm[5] = 1;
                 int phase = 331;
-                std::copy(b, b + _partial, x);
+                std::copy_n(b, _partial, x);
                 PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
                 std::fill(x + _partial, x + _n, K());
                 phase = 333;

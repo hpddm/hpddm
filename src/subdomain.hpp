@@ -573,9 +573,9 @@ class Subdomain {
             }
             else {
                 if(!T)
-                    std::copy(in, in + n, out);
+                    std::copy_n(in, n, out);
                 else
-                    std::copy(out, out + n, in);
+                    std::copy_n(out, n, in);
             }
         }
 };

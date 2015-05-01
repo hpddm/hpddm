@@ -314,7 +314,7 @@ class MumpsSub {
             MUMPS_STRUC_C<K>::mumps_c(_id);
         }
         inline void solve(const K* const b, K* const x) const {
-            std::copy(b, b + _id->n, x);
+            std::copy_n(b, _id->n, x);
             solve(x);
         }
 };

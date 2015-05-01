@@ -171,8 +171,14 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 std::fill_n(super::_work, super::_bi->_m, K());
                 static_cast<Solver<K>*>(super::_pinv)->solve(super::_work);
             }
-            else
-                static_cast<QR<K>*>(super::_pinv)->solve(super::_work + super::_bi->_m);
+            else {
+                if(super::_deficiency)
+                    static_cast<QR<K>*>(super::_pinv)->solve(super::_work + super::_bi->_m);
+                else {
+                    int info;
+                    Lapack<K>::potrs("L", &(Subdomain<K>::_dof), &i__1, static_cast<const K*>(super::_pinv), &(Subdomain<K>::_dof), super::_work + super::_bi->_m, &(Subdomain<K>::_dof), &info);
+                }
+            }
             if(out) {
                 Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, out);
                 Subdomain<K>::exchange(out);
@@ -188,9 +194,17 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             if(HPDDM_QR && super::_schur) {
                 delete super::_bb;
                 super::_bb = nullptr;
-                super::_pinv = new QR<K>(Subdomain<K>::_dof, super::_schur);
-                QR<K>* qr = static_cast<QR<K>*>(super::_pinv);
-                qr->decompose();
+                if(super::_deficiency) {
+                    super::_pinv = new QR<K>(Subdomain<K>::_dof, super::_schur);
+                    QR<K>* qr = static_cast<QR<K>*>(super::_pinv);
+                    qr->decompose();
+                }
+                else {
+                    super::_pinv = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
+                    Wrapper<K>::lacpy("L", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), super::_schur, &(Subdomain<K>::_dof), static_cast<K*>(super::_pinv), &(Subdomain<K>::_dof));
+                    int info;
+                    Lapack<K>::potrf("L", &(Subdomain<K>::_dof), static_cast<K*>(super::_pinv), &(Subdomain<K>::_dof), &info);
+                }
             }
             else
                 super::callNumfact();
@@ -247,7 +261,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::_co->template callSolver<excluded>(super::_uc);
             }
             else if(!excluded && out)
-                std::copy(in, in + Subdomain<K>::_dof, out);
+                std::copy_n(in, Subdomain<K>::_dof, out);
         }
         /* Function: buildTwo
          *
@@ -275,24 +289,24 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
-         *    x              - Solution vector.
-         *    f              - Right-hand side. */
+         *    f              - Right-hand side.
+         *    x              - Solution vector. */
         template<bool excluded>
-        inline void computeSolution(K* const x, const K* const f) const {
-            if(!excluded) {
-                std::copy(f, f + super::_bi->_m, x);
+        inline void computeSolution(const K* const f, K* const x) const {
+            if(!excluded && super::_bi->_m) {
+                std::copy_n(f, super::_bi->_m, x);
                 Wrapper<K>::template csrmv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &(super::_bi->_m), &(Wrapper<K>::d__2), false, super::_bi->_a, super::_bi->_ia, super::_bi->_ja, x + super::_bi->_m, &(Wrapper<K>::d__1), x);
                 if(!super::_schur)
                     super::_s.solve(x);
                 else {
-                    std::copy(x, x + super::_bi->_m, super::_structure);
+                    std::copy_n(x, super::_bi->_m, super::_structure);
                     super::_s.solve(super::_structure);
-                    std::copy(super::_structure, super::_structure + super::_bi->_m, x);
+                    std::copy_n(super::_structure, super::_bi->_m, x);
                 }
             }
         }
         template<bool>
-        inline void computeSolution(K* const, K* const* const) const { }
+        inline void computeSolution(K* const* const, K* const) const { }
         /* Function: computeDot
          *
          *  Computes the dot product of two vectors.

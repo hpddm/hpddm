@@ -195,7 +195,7 @@ class Hypre : public DMatrix {
                 HYPRE_ParCSRFlexGMRESSolve(_solver, parcsr_A, par_b, par_x);
             loc->data = b;
             loc = hypre_ParVectorLocalVector(reinterpret_cast<hypre_ParVector*>(hypre_IJVectorObject(reinterpret_cast<hypre_IJVector*>(_x))));
-            std::copy(loc->data, loc->data + _local, rhs);
+            std::copy_n(loc->data, _local, rhs);
         }
         /* Function: initialize
          *

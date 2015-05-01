@@ -360,7 +360,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::_co->template callSolver<excluded>(super::_uc);
             }
             else if(!excluded && out)
-                std::copy(*in, *in + super::_mult, *out);
+                std::copy_n(*in, super::_mult, *out);
         }
         /* Function: buildTwo
          *
@@ -398,10 +398,10 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
-         *    x              - Solution vector.
-         *    l              - Last iterate of the Lagrange multiplier. */
+         *    l              - Last iterate of the Lagrange multiplier.
+         *    x              - Solution vector. */
         template<bool excluded>
-        inline void computeSolution(K* const x, K* const* const l) const {
+        inline void computeSolution(K* const* const l, K* const x) const {
             if(!excluded) {
                 A<'T', 0>(_primal, l);                                                                                                                                                                                                       //    _primal = A^T l
                 std::fill(super::_structure, super::_structure + super::_bi->_m, K());
@@ -419,7 +419,8 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                             super::_co->template callSolver<excluded>(super::_uc);                                                                                                                                                           //        _uc = (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
                             Wrapper<K>::gemv(&transa, &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &i__1, &(Wrapper<K>::d__0), _primal, &i__1);                   //        x_b = x_b - R_b^T (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
                             Wrapper<K>::template csrmv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &(super::_bi->_m), &(Wrapper<K>::d__2), false, super::_bi->_a, super::_bi->_ia, super::_bi->_ja, _primal, &(Wrapper<K>::d__0), super::_work);
-                            super::_s.solve(super::_work);
+                            if(super::_bi->_m)
+                                super::_s.solve(super::_work);
                             Wrapper<K>::axpy(&(super::_bi->_m), &(Wrapper<K>::d__2), super::_work, &i__1, x, &i__1);
                             Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__2), _primal, &i__1, x + super::_bi->_m, &i__1);
                         }
@@ -435,7 +436,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 super::_co->template callSolver<excluded>(super::_uc);
         }
         template<bool>
-        inline void computeSolution(K* const, const K* const) const { }
+        inline void computeSolution(const K* const, K* const) const { }
         /* Function: computeDot
          *
          *  Computes the dot product of two Lagrange multipliers.

@@ -146,7 +146,7 @@ inline void CoarseOperator<Solver, S, K>::constructionCollective(const unsigned 
         if(D == DMatrix::DISTRIBUTED_SOL) {
             Solver<K>::_gatherSplitCounts = new int[2 * _sizeSplit];
             Solver<K>::_displsSplit = Solver<K>::_gatherSplitCounts + _sizeSplit;
-            std::copy(infoSplit, infoSplit + _sizeSplit, Solver<K>::_gatherSplitCounts);
+            std::copy_n(infoSplit, _sizeSplit, Solver<K>::_gatherSplitCounts);
             Solver<K>::_displsSplit[0] = 0;
             std::partial_sum(Solver<K>::_gatherSplitCounts, Solver<K>::_gatherSplitCounts + _sizeSplit - 1, Solver<K>::_displsSplit + 1);
         }
@@ -419,7 +419,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     recvcounts[k] = infoWorld[i];
                     std::copy_backward(infoWorld + k * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p) + j);
                 }
-                std::copy(recvcounts, recvcounts + p - 1, infoWorld + 1);
+                std::copy_n(recvcounts, p - 1, infoWorld + 1);
             }
             offset = std::accumulate(infoWorld, infoWorld + _rankWorld, 0);
             Solver<K>::_n = std::accumulate(infoWorld + _rankWorld, infoWorld + _sizeWorld, offset);
@@ -909,7 +909,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 size = _sizeWorld + _sizeSplit;
                 pt = new unsigned short[size];
                 if(rankSplit == 0) {
-                    std::copy(infoWorld, infoWorld + _sizeWorld, pt);
+                    std::copy_n(infoWorld, _sizeWorld, pt);
                     for(unsigned int i = 0; i < _sizeSplit; ++i)
                         pt[_sizeWorld + i] = infoSplit[i][1];
                 }

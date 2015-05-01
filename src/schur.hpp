@@ -229,8 +229,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             delete _ii;
             if(!HPDDM_QR || !_schur)
                 delete static_cast<Solver<K>*>(_pinv);
-            else
+            else if(_deficiency)
                 delete static_cast<QR<K>*>(_pinv);
+            else
+                delete [] static_cast<K*>(_pinv);
             delete [] _schur;
             delete [] _work;
         }
@@ -291,6 +293,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 _schur = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 _schur[0] = Subdomain<K>::_dof;
 #if defined(MKL_PARDISOSUB)
+#pragma message("Consider changing your linear solver if you need to compute solutions of singular systems")
                 _schur[1] = _bi->_m;
 #else
                 _schur[1] = _bi->_m + 1;
@@ -300,15 +303,17 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             else
                 std::cerr << "The matrix '_a' has not been allocated => impossible to build the Schur complement" << std::endl;
 #else
-#pragma message("Consider changing your linear solver if you need to compute Schur complements")
+#pragma message("Consider changing your linear solver if you need to compute solutions of singular systems or Schur complements")
 #endif
         }
         /* Function: callNumfactPreconditioner
          *  Factorizes <Schur::ii> if <Schur::schur> is not available. */
         inline void callNumfactPreconditioner() {
             if(!_schur) {
-                if(_ii)
-                    super::_s.numfact(_ii);
+                if(_ii) {
+                    if(_ii->_n)
+                        super::_s.numfact(_ii);
+                }
                 else
                     std::cerr << "The matrix '_ii' has not been allocated => impossible to build the Dirichlet preconditioner" << std::endl;
             }
@@ -536,12 +541,14 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         inline void applyLocalSchurComplement(K*& in, const int& n) const {
             K* out = new K[n * Subdomain<K>::_dof]();
             if(!_schur) {
-                K* tmp = new K[n * _bi->_m];
-                Wrapper<K>::template csrmm<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), tmp, &_bi->_m);
-                super::_s.solve(tmp, n);
-                Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &_bi->_m, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+                if(_bi->_m) {
+                    K* tmp = new K[n * _bi->_m];
+                    Wrapper<K>::template csrmm<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), tmp, &_bi->_m);
+                    super::_s.solve(tmp, n);
+                    Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &_bi->_m, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+                    delete [] tmp;
+                }
                 Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &_bb->_m, &(Wrapper<K>::d__2), out, &(Subdomain<K>::_dof));
-                delete [] tmp;
             }
             else
                 Wrapper<K>::symm("L", "L", &(Subdomain<K>::_dof), &n, &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
@@ -560,7 +567,8 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         inline void applyLocalSchurComplement(K* const in, K* const& out = nullptr) const {
             if(!_schur) {
                 Wrapper<K>::template csrmv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), _work);
-                super::_s.solve(_work);
+                if(_bi->_m)
+                    super::_s.solve(_work);
                 if(out) {
                     Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), out);
                     Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), out);
@@ -656,7 +664,8 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    f              - Input right-hand side.
          *    b              - Condensed right-hand side. */
         inline void condensateEffort(const K* const f, K* const b) const {
-            super::_s.solve(f, _structure);
+            if(_bi->_m)
+                super::_s.solve(f, _structure);
             std::copy_n(f + _bi->_m, Subdomain<K>::_dof, b ? b : _structure + _bi->_m);
             Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__2), false, _bi->_a, _bi->_ia, _bi->_ja, _structure, &(Wrapper<K>::d__1), b ? b : _structure + _bi->_m);
         }
@@ -673,7 +682,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         inline void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage) const {
             storage[0] = Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1);
             K* tmp = new K[Subdomain<K>::_a->_n];
-            std::copy(f, f + Subdomain<K>::_a->_n, tmp);
+            std::copy_n(f, Subdomain<K>::_a->_n, tmp);
             Subdomain<K>::exchange(tmp + _bi->_m);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)

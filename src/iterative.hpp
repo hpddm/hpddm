@@ -144,7 +144,7 @@ class IterativeMethod {
             K* sn = storage + 2 * m + 2;
             K* r = storage + 3 * m + 3;
             K* Ax = r + n;
-            std::copy(b, b + n, Ax);
+            std::copy_n(b, n, Ax);
             A.template apply<excluded>(Ax, r);
             storage[0] = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
 
@@ -208,7 +208,7 @@ class IterativeMethod {
                 s[0] = beta;
                 MPI_Request rq;
                 if(Type != CLASSICAL)
-                    std::copy(*v, *v + n, v[m + 1]);
+                    std::copy_n(*v, n, v[m + 1]);
                 for(i = 0; i < m && j <= it; ++i, ++j) {
 #if (OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000
                     if(Type == PIPELINED && i > 0)
@@ -283,7 +283,7 @@ class IterativeMethod {
                         int lda = n + (m + 2) * (Type == FUSED);
                         Wrapper<K>::gemv(&transa, &n, &i, &(Wrapper<K>::d__2), v[m + 2], &lda, H[i - 1], &i__1, &(Wrapper<K>::d__1), v[m + i + 2], &i__1);
                         if(i > 0) {
-                            std::copy(v[m + i + 1], v[m + i + 1] + n, v[i]);
+                            std::copy_n(v[m + i + 1], n, v[i]);
                             Wrapper<K>::gemv(&transa, &n, &i, &(Wrapper<K>::d__2), *v, &n, H[i - 1], &i__1, &(Wrapper<K>::d__1), v[i], &i__1);
                             H[i][i + 1] = Wrapper<K>::dot(&n, v[i], &i__1, v[i], &i__1);
                         }
@@ -371,7 +371,7 @@ class IterativeMethod {
                 if(std::abs(b[i]) > HPDDM_PEN * HPDDM_EPS)
                     depenalize(b[i], x[i]);
             A.GMV(x, z);
-            std::copy(b, b + n, r);
+            std::copy_n(b, n, r);
             Wrapper<K>::axpy(&n, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
 
             A.apply(r, z);
@@ -389,7 +389,7 @@ class IterativeMethod {
             if(resInit <= tol)
                 it = 0;
 
-            std::copy(z, z + n, p);
+            std::copy_n(z, n, p);
             unsigned short i = 0;
             while(i++ < it) {
                 Wrapper<K>::diagv(n, d, r, trash);
@@ -552,9 +552,9 @@ class IterativeMethod {
                     std::cout << "CG does not converges after " << i - 1 << " iteration" << (i > 2 ? "s" : "") << std::endl;
             }
             if(std::is_same<ptr_type, K*>::value)
-                A.template computeSolution<excluded>(x, f);
+                A.template computeSolution<excluded>(f, x);
             else
-                A.template computeSolution<excluded>(x, storage[1]);
+                A.template computeSolution<excluded>(storage[1], x);
             delete [] alpha;
             for(auto zCurr : z)
                 clean(zCurr);

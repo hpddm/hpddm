@@ -231,7 +231,7 @@ class SuiteSparse : public DMatrix {
             }
             else
                 stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, _tmp, rhs, _numeric, _control, NULL, _pattern, _W);
-            std::copy(_tmp, _tmp + DMatrix::_n, rhs);
+            std::copy_n(_tmp, DMatrix::_n, rhs);
         }
         template<class Container>
         inline void initialize(Container& parm) {
@@ -401,7 +401,7 @@ class SuiteSparseSub {
                 _x->nzmax = _x->nrow;
                 _x->x = _tmp;
                 cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
-                std::copy(_tmp, _tmp + _x->nrow, x);
+                std::copy_n(_tmp, _x->nrow, x);
             }
             else {
                 stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, _tmp, x, _numeric, _control, NULL, _pattern, _W);
@@ -417,7 +417,7 @@ class SuiteSparseSub {
                 _x->nzmax = _x->nrow;
                 _x->x = new K[n * _x->nrow];
                 cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
-                std::copy(static_cast<K*>(_x->x), static_cast<K*>(_x->x) + n * _x->nrow, x);
+                std::copy_n(static_cast<K*>(_x->x), n * _x->nrow, x);
                 delete [] static_cast<K*>(_x->x);
                 _x->x = NULL;
             }

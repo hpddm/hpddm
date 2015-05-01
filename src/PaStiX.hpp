@@ -362,7 +362,7 @@ class PastixSub {
                          NULL, NULL, x, n, _iparm, _dparm);
         }
         inline void solve(const K* const b, K* const x) const {
-            std::copy(b, b + _ncol, x);
+            std::copy_n(b, _ncol, x);
             solve(x);
         }
 };
