@@ -24,6 +24,20 @@
 #ifndef _EIGENSOLVER_
 #define _EIGENSOLVER_
 
+#define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
+void HPDDM_F77(B ## gesdd)(const char*, const int*, const int*, U*, const int*, U*, U*, const int*, U*,      \
+                           const int*, U*, const int*, int*, int*);                                          \
+void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, U*, T*, const int*, T*,      \
+                           const int*, T*, const int*, U*, int*, int*);
+
+#if !defined(INTEL_MKL_VERSION)
+extern "C" {
+HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, std::complex<double>, d, double)
+}
+#endif // INTEL_MKL_VERSION
+#undef HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX
+
 namespace HPDDM {
 /* Class: Eigensolver
  *
@@ -32,6 +46,10 @@ namespace HPDDM {
  *    K              - Scalar type. */
 template<class K>
 class Eigensolver {
+    private:
+        /* Function: gesdd
+         *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
+        static inline void gesdd(const char*, const int*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, K*, const int*, K*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, int*, int*);
     protected:
         /* Variable: tol
          *  Relative tolerance of the eigenvalue problem solver. */
@@ -70,6 +88,63 @@ class Eigensolver {
         /* Function: getNu
          *  Returns the value of <Eigensolver::nu>. */
         inline int getNu() const { return _nu; }
+        inline int workspace(const char* jobz, const int* const m) const {
+            int info;
+            int lwork = -1;
+            K wkopt;
+            gesdd(jobz, &(Eigensolver<K>::_n), m, nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, &(Eigensolver<K>::_n), nullptr, m, &wkopt, &lwork, nullptr, nullptr, &info);
+            return static_cast<int>(std::real(wkopt));
+        }
+        inline void svd(const char* jobz, const int* m, K* a, typename Wrapper<K>::ul_type* s, K* u, K* vt, K* work, const int* lwork, int* iwork, typename Wrapper<K>::ul_type* rwork = nullptr) const {
+            int info;
+            gesdd(jobz, &_n, m, a, &_n, s, u, &_n, vt, m, work, lwork, rwork, iwork, &info);
+        }
+        inline void purify(K* ev, const typename Wrapper<K>::ul_type* const d = nullptr) {
+            int lwork = workspace("N", &_nu);
+            K* a, *work;
+            typename Wrapper<K>::ul_type* rwork;
+            typename Wrapper<K>::ul_type* s;
+            if(std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+                a = new K[_n * _nu + lwork + _nu];
+                work = a + _n * _nu;
+                s = reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork;
+                rwork = nullptr;
+            }
+            else {
+                a = new K[_n * _nu + lwork];
+                work = a + _n * _nu;
+                s = new typename Wrapper<K>::ul_type[_nu + std::max(1, _nu * std::max(5 * _nu + 7, 2 * _n + 2 * _nu + 1))];
+                rwork = s + _nu;
+            }
+            if(d)
+                Wrapper<K>::diagm(_n, _nu, d, ev, a);
+            else
+                std::copy_n(ev, _nu * _n, a);
+            int* iwork = new int[8 * _n];
+            int info;
+            gesdd("N", &_n, &_nu, a, &_n, s, nullptr, &_n, nullptr, &_nu, work, &lwork, rwork, iwork, &info);
+            delete [] iwork;
+            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
+                delete [] s;
+            delete [] a;
+        }
 };
+
+#define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
+template<>                                                                                                   \
+inline void Eigensolver<U>::gesdd(const char* jobz, const int* m, const int* n, U* a, const int* lda, U* s,  \
+                                  U* u, const int* ldu, U* vt, const int* ldvt, U* work, const int* lwork,   \
+                                  U*, int* iwork, int* info) {                                               \
+    HPDDM_F77(B ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, iwork, info);                \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Eigensolver<T>::gesdd(const char* jobz, const int* m, const int* n, T* a, const int* lda, U* s,  \
+                                  T* u, const int* ldu, T* vt, const int* ldvt, T* work, const int* lwork,   \
+                                  U* rwork, int* iwork, int* info) {                                         \
+    HPDDM_F77(C ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, iwork, info);         \
+}
+HPDDM_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_LAPACK_COMPLEX(z, std::complex<double>, d, double)
+#undef HPDDM_GENERATE_LAPACK_COMPLEX
 } // HPDDM
 #endif // _EIGENSOLVER_

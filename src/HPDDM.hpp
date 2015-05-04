@@ -60,7 +60,7 @@
 #ifndef HPDDM_BDD
 #define HPDDM_BDD             1
 #endif
-#define HPDDM_QR              1
+#define HPDDM_QR              2
 #define HPDDM_ICOLLECTIVE     0
 #define HPDDM_GMV             0
 

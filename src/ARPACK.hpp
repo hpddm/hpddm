@@ -26,14 +26,16 @@
 #define EIGENSOLVER HPDDM::Arpack
 
 #define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U)                                                              \
-void HPDDM_F77(B ## saupd)(int*, char*, int*, const char*, int*, U*, U*, int*, U*, int*,                      \
+void HPDDM_F77(B ## saupd)(int*, const char*, int*, const char*, int*, U*, U*, int*, U*, int*,                \
                            int*, int*, U*, U*, int*, int*, int, int);                                         \
-void HPDDM_F77(B ## seupd)(const int*, char*, int*, U*, U*, int*, const U*, char*, int*, const char*, int*,   \
-                           U*, U*, int*, U*, int*, int*, int*, U*, U*, int*, int*, int, int, int);            \
-void HPDDM_F77(C ## naupd)(int*, char*, int*, const char*, int*, U*, T*, int*,                                \
+void HPDDM_F77(B ## seupd)(const int*, const char*, int*, U*, U*, int*, const U*, const char*, int*,          \
+                           const char*, int*, U*, U*, int*, U*, int*, int*, int*, U*, U*, int*, int*, int,    \
+                           int, int);                                                                         \
+void HPDDM_F77(C ## naupd)(int*, const char*, int*, const char*, int*, U*, T*, int*,                          \
                            T*, int*, int*, int*, T*, T*, int*, U*, int*, int, int);                           \
-void HPDDM_F77(C ## neupd)(const int*, char*, int*, T*, T*, int*, const T*, T*, char*, int*, const char*,     \
-                           int*, U*, T*, int*, T*, int*, int*, int*, T*, T*, int*, U*, int*, int, int, int);  \
+void HPDDM_F77(C ## neupd)(const int*, const char*, int*, T*, T*, int*, const T*, T*, const char*, int*,      \
+                           const char*, int*, U*, T*, int*, T*, int*, int*, int*, T*, T*, int*, U*, int*,     \
+                           int, int, int);
 
 extern "C" {
 HPDDM_GENERATE_ARPACK_EXTERN(c, std::complex<float>, s, float)
@@ -58,10 +60,10 @@ class Arpack : public Eigensolver<K> {
         static constexpr const char* const _which = std::is_same<K, typename Wrapper<K>::ul_type>::value ? "LM" : "LM";
         /* Function: aupd
          *  Iterates the implicitly restarted Arnoldi method. */
-        static inline void aupd(int*, char*, int*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
+        static inline void aupd(int*, const char*, int*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
         /* Function: eupd
          *  Post-processes the eigenpairs computed with <Arpack::aupd>. */
-        static inline void eupd(const int*, char*, int*, K*, K*, int*, const K*, K*, char*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
+        static inline void eupd(const int*, const char*, int*, K*, K*, int*, const K*, K*, const char*, const char*, int*, typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
     public:
         Arpack(int n, int nu)                                                                                              : Eigensolver<K>(n, nu), _it(100) { }
         Arpack(typename Wrapper<K>::ul_type threshold, int n, int nu)                                                      : Eigensolver<K>(threshold, n, nu), _it(100) { }
@@ -77,7 +79,6 @@ class Arpack : public Eigensolver<K> {
          *    communicator   - MPI communicator for selecting the threshold criterion. */
         template<template<class> class Solver>
         inline void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
-            char bmat = 'G';
             int iparam[11] { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
             int ipntr[std::is_same<K, typename Wrapper<K>::ul_type>::value ? 11 : 14] { };
             if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
@@ -107,19 +108,32 @@ class Arpack : public Eigensolver<K> {
 #else
             prec->numfact(A, true);
 #endif
-            int ido = 0, info = 0;
-            while(ido != 99) {
-                aupd(&ido, &bmat, &(Eigensolver<K>::_n), _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv,
-                     vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
-                if(ido == -1) {
-                    Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
-                    prec->solve(workd + ipntr[1] - 1);
+            int info;
+            auto loop = [&]() {
+                int ido = 0;
+                while(ido != 99) {
+                    aupd(&ido, "G", &(Eigensolver<K>::_n), _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv,
+                         vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
+                    if(ido == -1) {
+                        Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
+                        prec->solve(workd + ipntr[1] - 1);
+                    }
+                    else if(ido == 1)
+                        prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
+                    else
+                        Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                 }
-                else if(ido == 1)
-                    prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
-                else
-                    Wrapper<K>::template csrmv<'C'>(B->_sym, &(Eigensolver<K>::_n), B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
-            }
+            };
+            do {
+                info = 0;
+                loop();
+                if(info == -9999) {
+                    Eigensolver<K>::_nu = std::ceil(2 * Eigensolver<K>::_nu / 3);
+                    std::fill_n(iparam + 4, 7, 0);
+                    iparam[2] = _it, iparam[6] = 3;
+                    ncv = 2 * Eigensolver<K>::_nu + 1;
+                }
+            } while(info == -9999 && Eigensolver<K>::_nu > 1);
             if(s == nullptr)
                 delete prec;
             Eigensolver<K>::_nu = iparam[4];
@@ -129,9 +143,8 @@ class Arpack : public Eigensolver<K> {
                 *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
                 for(unsigned short i = 1; i < Eigensolver<K>::_nu; ++i)
                     ev[i] = *ev + i * Eigensolver<K>::_n;
-                char HowMny = 'A';
                 int* select = new int[ncv];
-                eupd(&i__1, &HowMny, select, evr, *ev, &(Eigensolver<K>::_n), &(Wrapper<K>::d__0), workev, &bmat,
+                eupd(&i__1, "A", select, evr, *ev, &(Eigensolver<K>::_n), &(Wrapper<K>::d__0), workev, "G",
                      _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv, vp, iparam,
                      ipntr, workd, workl, &lworkl, rwork, &info);
                 delete [] select;
@@ -146,15 +159,15 @@ class Arpack : public Eigensolver<K> {
 
 #define HPDDM_GENERATE_ARPACK(C, T, B, U)                                                                    \
 template<>                                                                                                   \
-inline void Arpack<U>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, U* tol,                \
+inline void Arpack<U>::aupd(int* ido, const char* bmat, int* n, const char* which, int* nu, U* tol,          \
                             U* vresid, int* ncv, U* vp, int* iparam, int* ipntr, U* workd, U* workl,         \
                             int* lworkl, U*, int* info) {                                                    \
     HPDDM_F77(B ## saupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                          \
                           ipntr, workd, workl, lworkl, info, 1, 2);                                          \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<U>::eupd(const int* rvec, char* HowMny, int* select, U* evr, U* ev, int* n,               \
-                            const U* sigma, U*, char* bmat, const char* which, int* nu, U* tol,              \
+inline void Arpack<U>::eupd(const int* rvec, const char* HowMny, int* select, U* evr, U* ev, int* n,         \
+                            const U* sigma, U*, const char* bmat, const char* which, int* nu, U* tol,        \
                             U* vresid, int* necv, U* vp, int* iparam, int* ipntr,                            \
                             U* workd, U* workl, int* lworkl, U*, int* info) {                                \
     HPDDM_F77(B ## seupd)(rvec, HowMny, select, evr, ev, n, sigma, bmat,                                     \
@@ -162,15 +175,15 @@ inline void Arpack<U>::eupd(const int* rvec, char* HowMny, int* select, U* evr, 
                           ipntr, workd, workl, lworkl, info, 1, 1, 2);                                       \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<T>::aupd(int* ido, char* bmat, int* n, const char* which, int* nu, U* tol,                \
+inline void Arpack<T>::aupd(int* ido, const char* bmat, int* n, const char* which, int* nu, U* tol,          \
                             T* vresid, int* ncv, T* vp, int* iparam, int* ipntr, T* workd,                   \
                             T* workl, int* lworkl, U* rwork, int* info) {                                    \
     HPDDM_F77(C ## naupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam,                          \
                           ipntr, workd, workl, lworkl, rwork, info, 1, 2);                                   \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Arpack<T>::eupd(const int* rvec, char* HowMny, int* select, T* evr,                              \
-                            T* ev, int* n, const T* sigma, T* workev, char* bmat, const char* which,         \
+inline void Arpack<T>::eupd(const int* rvec, const char* HowMny, int* select, T* evr,                        \
+                            T* ev, int* n, const T* sigma, T* workev, const char* bmat, const char* which,   \
                             int* nu, U* tol, T* vresid, int* necv, T* vp, int* iparam, int* ipntr,           \
                             T* workd, T* workl, int* lworkl, U* rwork, int* info) {                          \
     HPDDM_F77(C ## neupd)(rvec, HowMny, select, evr, ev, n, sigma, workev, bmat,                             \

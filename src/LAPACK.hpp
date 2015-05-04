@@ -41,10 +41,6 @@ void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const 
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
 void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
                            const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
-void HPDDM_F77(B ## gesdd)(const char*, const int*, const int*, U*, const int*, U*, U*, const int*, U*,      \
-                           const int*, U*, const int*, int*, int*);                                          \
-void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, U*, T*, const int*, T*,      \
-                           const int*, T*, const int*, U*, int*, int*);                                      \
 void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, const int*, U*, U*, int*, int*);          \
 void HPDDM_F77(C ## geqp3)(const int*, const int*, T*, const int*, const int*, T*, T*, int*, U*, int*);      \
 void HPDDM_F77(B ## ormqr)(const char*, const char*, const int*, const int*, const int*, const U*,           \
@@ -96,9 +92,6 @@ class Lapack : public Eigensolver<K> {
         /* Function: mtr
          *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::trd>. */
         static inline void mtr(const char*, const char*, const char*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
-        /* Function: gesdd
-         *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
-        static inline void gesdd(const char*, const int*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, K*, const int*, K*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, int*, int*);
     public:
         Lapack(int n)                                                                                   : Eigensolver<K>(n) { }
         Lapack(int n, int nu)                                                                           : Eigensolver<K>(n, nu) { }
@@ -112,14 +105,11 @@ class Lapack : public Eigensolver<K> {
         static inline void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
-        inline int workspace(const int* const m = nullptr) const {
+        inline int workspace() const {
             int info;
             int lwork = -1;
             K wkopt;
-            if(m)
-                gesdd("S", &(Eigensolver<K>::_n), m, nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, &(Eigensolver<K>::_n), nullptr, m, &wkopt, &lwork, nullptr, nullptr, &info);
-            else
-                trd("L", &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
+            trd("L", &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
             return static_cast<int>(std::real(wkopt));
         }
         /* Function: reduce
@@ -186,10 +176,6 @@ class Lapack : public Eigensolver<K> {
                     lwork += 4 * Eigensolver<K>::_n - 1;
             }
             delete [] iblock;
-        }
-        inline void svd(const int* m, K* a, typename Wrapper<K>::ul_type* s, K* u, K* vt, K* work, const int* lwork, int* iwork, typename Wrapper<K>::ul_type* rwork = nullptr) const {
-            int info;
-            gesdd("S", &(Eigensolver<K>::_n), m, a, &(Eigensolver<K>::_n), s, u, &(Eigensolver<K>::_n), vt, m, work, lwork, rwork, iwork, &info);
         }
 };
 
@@ -287,10 +273,10 @@ class QR {
             int info;
             mqr("L", "T", &_n, &i__1, &_n, _a, &_n, _tau, x, &_n, _work, const_cast<int*>(&_lwork), &info);
 #if HPDDM_QR == 1
-            Lapack<K>::trtrs("L", "T", "N", &_rank, &i__1, _a, &_n, x, &_n, &info);
+            Lapack<K>::trtrs("U", "N", "N", &_rank, &i__1, _a, &_n, x, &_n, &info);
             Lapack<K>::lapmt(&i__0, &i__1, &_n, x, &i__1, const_cast<int*>(_jpvt.data()));
 #else
-            Lapack<K>::trtrs("L", "T", "N", &_n, &i__1, _a, &_n, x, &_n, &info);
+            Lapack<K>::trtrs("U", "N", "N", &_n, &i__1, _a, &_n, x, &_n, &info);
 #endif
         }
 };
@@ -349,18 +335,6 @@ inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, co
     HPDDM_F77(C ## potrs)(uplo, n, nrhs, a, lda, b, ldb, info);                                              \
 }
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
-template<>                                                                                                   \
-inline void Lapack<U>::gesdd(const char* jobz, const int* m, const int* n, U* a, const int* lda, U* s, U* u, \
-                             const int* ldu, U* vt, const int* ldvt, U* work, const int* lwork, U*,          \
-                             int* iwork, int* info) {                                                        \
-    HPDDM_F77(B ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, iwork, info);                \
-}                                                                                                            \
-template<>                                                                                                   \
-inline void Lapack<T>::gesdd(const char* jobz, const int* m, const int* n, T* a, const int* lda, U* s, T* u, \
-                             const int* ldu, T* vt, const int* ldvt, T* work, const int* lwork, U* rwork,    \
-                             int* iwork, int* info) {                                                        \
-    HPDDM_F77(C ## gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, iwork, info);         \
-}                                                                                                            \
 template<>                                                                                                   \
 inline void QR<U>::geqp3(const int* m, const int* n, U* a, const int* lda, int* jpvt, U* tau, U* work,       \
                        int* lwork, U* rwork, int* info) {                                                    \

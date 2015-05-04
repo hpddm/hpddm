@@ -198,7 +198,12 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 }
                 evp.solve(A, super::_ev, work, lwork, Subdomain<K>::_communicator);
                 nu = evp.getNu();
-                _deficiency = std::distance(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork, std::upper_bound(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork, reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork + nu, evp.getTol()));
+                if(nu && *(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork) < 2 * evp.getTol()) {
+                    _deficiency = 1;
+                    typename Wrapper<K>::ul_type relative = *(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork);
+                    while(_deficiency < nu && std::abs(*(reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork + _deficiency) / relative) * std::cbrt(evp.getTol()) < 1)
+                        ++_deficiency;
+                }
                 if(A != *recv)
                     delete [] A;
                 if(nu)
