@@ -335,10 +335,11 @@ class IterativeMethod {
                             i -= 2;
                         if(!excluded) {
                             update<side>(A, n, x, i, H, s, v);
-                            A.GMV(x, Ax);
+                            A.GMV(x, side == 'L' ? Ax : r);
                         }
-                        Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, Ax, 1);
-                        A.template apply<excluded>(Ax, r);
+                        Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, side == 'L' ? Ax : r, 1);
+                        if(side == 'L')
+                            A.template apply<excluded>(Ax, r);
                         beta = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
                         MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                         beta = std::sqrt(beta);
