@@ -32,8 +32,8 @@ If you use this software, please cite the following paper: http://dl.acm.org/cit
 ###### Collaborators/contributors
 [Lea Conen](http://icsweb.inf.unisi.ch/cms/index.php/people/12-lea-conen.html)  
 [Victorita Dolean](http://www-math.unice.fr/~dolean/Home.html)  
-[Ryadh Haferssas](https://www.ljll.math.upmc.fr/~haferssas/)--
+[Ryadh Haferssas](https://www.ljll.math.upmc.fr/~haferssas/)  
 [Frédéric Hecht](http://www.ann.jussieu.fr/hecht/)  
 [Christophe Prud'homme](http://www.prudhomm.org/)  
-[Nicole Spillane](http://www.ann.jussieu.fr/~spillane/)--
+[Nicole Spillane](http://www.ann.jussieu.fr/~spillane/)  
 Pierre-Henri Tournier
