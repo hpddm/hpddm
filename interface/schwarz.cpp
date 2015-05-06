@@ -448,6 +448,17 @@ int main(int argc, char **argv) {
         A.computeError(sol, f, storage);
         if(rankWorld == 0)
             std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
+        if(prec != 0) {
+            if(rankWorld == 0)
+                std::cout << std::scientific << " --- now solving the same system with right preconditioning and modified Gram-Schmidt" << std::endl;
+            unsigned short it = 100;
+            unsigned short restart = 30;
+            std::fill_n(sol, ndof, K());
+            HPDDM::IterativeMethod::GMRES<HPDDM::MODIFIED, 'R'>(A, sol, f, restart, it, eps, A.getCommunicator(), rankWorld == 0 ? 1 : 0);
+            A.computeError(sol, f, storage);
+            if(rankWorld == 0)
+                std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
+        }
         delete [] d;
     }
     else {

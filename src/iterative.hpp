@@ -67,13 +67,21 @@ class IterativeMethod {
          *    h              - Hessenberg matrix.
          *    s              - Coefficients in the Krylov subspace.
          *    v              - Basis of the Krylov subspace. */
-        template<class K>
-        static inline void update(const int& n, K* const x, const int& k, const K* const* const h, K* const s, const K* const* const v) {
+        template<char side, class Operator, class K>
+        static inline void update(const Operator& A, const int& n, K* const x, const int& k, const K* const* const h, K* const s, const K* const* const v) {
             for(int i = k; i-- > 0; ) {
                 K alpha = -(s[i] /= h[i][i]);
                 Wrapper<K>::axpy(&i, &alpha, h[i], &i__1, s, &i__1);
             }
-            Wrapper<K>::gemm(&transa, &transa, &n, &i__1, &k, &(Wrapper<K>::d__1), *v, &n, s, &k, &(Wrapper<K>::d__1), x, &n);
+            if(side == 'L')
+                Wrapper<K>::gemm(&transa, &transa, &n, &i__1, &k, &(Wrapper<K>::d__1), *v, &n, s, &k, &(Wrapper<K>::d__1), x, &n);
+            else {
+                K* work = new K[2 * n];
+                Wrapper<K>::gemm(&transa, &transa, &n, &i__1, &k, &(Wrapper<K>::d__1), *v, &n, s, &k, &(Wrapper<K>::d__0), work, &n);
+                A.apply(work, work + n);
+                Wrapper<K>::axpy(&n, &(Wrapper<K>::d__1), work + n, &i__1, x, &i__1);
+                delete [] work;
+            }
         }
         template<class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
         static inline void clean(T* const& pt) {
@@ -132,10 +140,11 @@ class IterativeMethod {
          *    tol            - Tolerance for relative residual decrease.
          *    comm           - Global MPI communicator.
          *    verbosity      - Level of verbosity. */
-        template<Gmres Type = CLASSICAL, bool excluded = false, class Operator, class K>
+        template<Gmres type = CLASSICAL, char side = 'L', bool excluded = false, class Operator, class K>
         static inline int GMRES(const Operator& A, K* const x, const K* const b,
                                 unsigned short& m, unsigned short& it, typename Wrapper<K>::ul_type tol,
                                 const MPI_Comm& comm, unsigned short verbosity) {
+            static_assert(side == 'L' || side == 'R', "The preconditioner can only be applied to the 'L'eft or to the 'R'ight");
             const int n = excluded ? 0 : A.getDof();
             m = std::min(m, it);
             K* const storage = new K[3 * (m + 1) + 2 * n];
@@ -152,10 +161,11 @@ class IterativeMethod {
                 for(unsigned int i = 0; i < n; ++i)
                     if(std::abs(b[i]) > HPDDM_PEN * HPDDM_EPS)
                         depenalize(b[i], x[i]);
-                A.GMV(x, Ax);
+                A.GMV(x, side == 'L' ? Ax : r);
             }
-            Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, Ax, 1);
-            A.template apply<excluded>(Ax, r);
+            Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, side == 'L' ? Ax : r, 1);
+            if(side == 'L')
+                A.template apply<excluded>(Ax, r);
             storage[1] = Wrapper<K>::dot(&n, r, &i__1, r, &i__1);
             MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
 
@@ -179,18 +189,20 @@ class IterativeMethod {
                 }
             }
 
-            K** const v = new K*[(m + 1 + (Type == FUSED || Type == CLASSICAL)) * (1 + (Type != CLASSICAL))];
+            constexpr bool ASYNC = (type != CLASSICAL && type != MODIFIED);
+            static_assert(!(side == 'R' && ASYNC), "'R'ight preconditioning cannot be used with pipelined or fused GMRES");
+            K** const v = new K*[(m + 1 + (type == FUSED || !ASYNC)) * (1 + ASYNC)];
             if(!excluded) {
-                *v = new K[(m + 1 + (Type == FUSED || Type == CLASSICAL)) * (1 + (Type != CLASSICAL)) * n + (m + 2) * (m + 2) * (Type == FUSED)]();
-                for(unsigned short i = 1; i < (m + 1 + (Type == FUSED || Type == CLASSICAL)); ++i)
+                *v = new K[(m + 1 + (type == FUSED || !ASYNC)) * (1 + ASYNC) * n + (m + 2) * (m + 2) * (type == FUSED)]();
+                for(unsigned short i = 1; i < (m + 1 + (type == FUSED || !ASYNC)); ++i)
                     v[i] = *v + i * n;
-                if(Type != CLASSICAL)
-                    for(unsigned short i = 0; i < (m + 1 + (Type == FUSED)); ++i)
-                        v[m + 1 + (Type == FUSED) + i] = v[m + (Type == FUSED)] + i * (n + (m + 2) * (Type == FUSED));
+                if(ASYNC)
+                    for(unsigned short i = 0; i < (m + 1 + (type == FUSED)); ++i)
+                        v[m + 1 + (type == FUSED) + i] = v[m + (type == FUSED)] + i * (n + (m + 2) * (type == FUSED));
             }
 
             K** const H = new K*[m];
-            if(Type != FUSED || excluded) {
+            if(type != FUSED || excluded) {
                 *H = new K[(m + 1) * m];
                 for(unsigned short i = 1; i < m; ++i)
                     H[i] = *H + i * (m + 1);
@@ -201,36 +213,56 @@ class IterativeMethod {
 
             unsigned short j = 1;
             int i;
-            if(Type != CLASSICAL)
+            if(ASYNC)
                 it = std::max(it, static_cast<unsigned short>((it / m) * m + 3));
             while(j <= it) {
                 Wrapper<K>::axpby(n, 1.0 / beta, r, 1, K(), v[0], 1);
                 s[0] = beta;
                 MPI_Request rq;
-                if(Type != CLASSICAL)
+                if(ASYNC)
                     std::copy_n(*v, n, v[m + 1]);
                 for(i = 0; i < m && j <= it; ++i, ++j) {
 #if (OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000
-                    if(Type == PIPELINED && i > 0)
+                    if(type == PIPELINED && i > 0)
                         MPI_Iallreduce(MPI_IN_PLACE, H[i - 1], i + 1 - (i == 1), Wrapper<K>::mpi_type(), MPI_SUM, comm, &rq);
 #endif
-                    if(!excluded)
-                        A.GMV(v[i + (Type != CLASSICAL) * (m + 1)], Ax);
-                    A.template apply<excluded>(Ax, v[m + (Type == CLASSICAL ? 1 : i + 2)], Type == FUSED ? i + (i > 1) : 0);
-                    if(Type == CLASSICAL || i > 1) {
-                        if(Type == CLASSICAL) {
+                    if(side == 'L') {
+                        if(!excluded)
+                            A.GMV(v[i + ASYNC * (m + 1)], Ax);
+                        A.template apply<excluded>(Ax, v[m + (!ASYNC ? 1 : i + 2)], type == FUSED ? i + (i > 1) : 0);
+                    }
+                    else {
+                        A.template apply<excluded>(v[i + ASYNC * (m + 1)], r, 0, Ax);
+                        if(!excluded)
+                            A.GMV(r, v[m + (!ASYNC ? 1 : i + 2)]);
+                    }
+                    if(!ASYNC || i > 1) {
+                        if(!ASYNC) {
                             if(excluded) {
                                 std::fill(H[i], H[i] + i + 1, K());
-                                MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                                if(type == MODIFIED)
+                                    for(int k = 0; k < i + 1; ++k)
+                                        MPI_Allreduce(MPI_IN_PLACE, H[i] + k, 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                                else
+                                    MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                                 beta = typename Wrapper<K>::ul_type();
                                 MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                                 H[i][i + 1] = std::sqrt(beta);
                             }
                             else {
-                                int tmp = i + 1;
-                                Wrapper<K>::gemv(&(Wrapper<K>::transc), &n, &tmp, &(Wrapper<K>::d__1), *v, &n, v[m + 1], &i__1, &(Wrapper<K>::d__0), H[i], &i__1);
-                                MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                                Wrapper<K>::gemv(&transa, &n, &tmp, &(Wrapper<K>::d__2), *v, &n, H[i], &i__1, &(Wrapper<K>::d__1), v[m + 1], &i__1);
+                                if(type == MODIFIED)
+                                    for(unsigned short k = 0; k < i + 1; ++k) {
+                                        H[i][k] = Wrapper<K>::dot(&n, v[m + 1], &i__1, v[k], &i__1);
+                                        MPI_Allreduce(MPI_IN_PLACE, H[i] + k, 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                                        H[i][i + 1] = -H[i][k];
+                                        Wrapper<K>::axpy(&n, H[i] + i + 1, v[k], &i__1, v[m + 1], &i__1);
+                                    }
+                                else {
+                                    int tmp = i + 1;
+                                    Wrapper<K>::gemv(&(Wrapper<K>::transc), &n, &tmp, &(Wrapper<K>::d__1), *v, &n, v[m + 1], &i__1, &(Wrapper<K>::d__0), H[i], &i__1);
+                                    MPI_Allreduce(MPI_IN_PLACE, H[i], i + 1, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                                    Wrapper<K>::gemv(&transa, &n, &tmp, &(Wrapper<K>::d__2), *v, &n, H[i], &i__1, &(Wrapper<K>::d__1), v[m + 1], &i__1);
+                                }
                                 beta = Wrapper<K>::dot(&n, v[m + 1], &i__1, v[m + 1], &i__1);
                                 MPI_Allreduce(MPI_IN_PLACE, &beta, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                                 H[i][i + 1] = std::sqrt(beta);
@@ -238,7 +270,7 @@ class IterativeMethod {
                             }
                         }
                         else {
-                            if(Type == PIPELINED)
+                            if(type == PIPELINED)
                                 MPI_Wait(&rq, MPI_STATUS_IGNORE);
                             H[i - 2][i - 1] = std::sqrt(H[i - 1][i]);
                             i -= 2;
@@ -259,11 +291,11 @@ class IterativeMethod {
                             std::cout << "GMRES: " << std::setw(3) << j << " " << std::scientific << std::abs(s[i + 1]) << " " <<  norm << " " <<  std::abs(s[i + 1]) / norm << " < " << tol << std::endl;
                         if(std::abs(s[i + 1]) / norm <= tol)
                             break;
-                        if(Type != CLASSICAL) {
+                        if(ASYNC) {
                             ++i;
                             delta = K(1.0) / H[i - 1][i];
                             Wrapper<K>::scal(&n, &delta, v[i], &i__1);
-                            if(Type == FUSED) {
+                            if(type == FUSED) {
                                 Wrapper<K>::scal(&n, &delta, v[m + i + 2], &i__1);
                                 Wrapper<K>::scal(&n, &delta, v[m + i + 3], &i__1);
                             }
@@ -277,10 +309,10 @@ class IterativeMethod {
                             ++i;
                         }
                     }
-                    if(Type != CLASSICAL) {
-                        if(Type == PIPELINED && i == 1)
+                    if(ASYNC) {
+                        if(type == PIPELINED && i == 1)
                             MPI_Wait(&rq, MPI_STATUS_IGNORE);
-                        int lda = n + (m + 2) * (Type == FUSED);
+                        int lda = n + (m + 2) * (type == FUSED);
                         Wrapper<K>::gemv(&transa, &n, &i, &(Wrapper<K>::d__2), v[m + 2], &lda, H[i - 1], &i__1, &(Wrapper<K>::d__1), v[m + i + 2], &i__1);
                         if(i > 0) {
                             std::copy_n(v[m + i + 1], n, v[i]);
@@ -299,10 +331,10 @@ class IterativeMethod {
                         break;
                     }
                     else {
-                        if(Type != CLASSICAL)
+                        if(ASYNC)
                             i -= 2;
                         if(!excluded) {
-                            update(n, x, i, H, s, v);
+                            update<side>(A, n, x, i, H, s, v);
                             A.GMV(x, Ax);
                         }
                         Wrapper<K>::axpby(n, 1.0, b, 1, -1.0, Ax, 1);
@@ -317,11 +349,11 @@ class IterativeMethod {
             }
             if(i == m && j != it + 1) {
                 --i;
-                if(Type != CLASSICAL)
+                if(ASYNC)
                     i -= 2;
             }
             if(!excluded)
-                update(n, x, i + 1, H, s, v);
+                update<side>(A, n, x, i + 1, H, s, v);
             it = j;
             if(verbosity) {
                 if(std::abs(s[i + 1]) / norm <= tol)
@@ -332,7 +364,7 @@ class IterativeMethod {
             if(!excluded)
                 delete [] *v;
             delete [] v;
-            if(Type != FUSED || excluded)
+            if(type != FUSED || excluded)
                 delete [] *H;
             delete [] H;
             delete [] storage;

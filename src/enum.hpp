@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-10-04
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -42,13 +43,14 @@ enum Parameter : char {
  *
  *  Defines the type of GMRES used.
  *
- *    CLASSICAL      - Classical GMRES.
+ *    CLASSICAL      - GMRES with classical Gram-Schmidt process to orthogonalize against the Krylov space.
+ *    MODIFIED       - GMRES with modified Gram-Schmidt process to orthogonalize against the Krylov space.
  *    PIPELINED      - Pipelined GMRES.
  *    FUSED          - Fused pipelined GMRES.
  *
  * See also: <Iterative method::GMRES>. */
 enum Gmres : char {
-    CLASSICAL, PIPELINED, FUSED
+    CLASSICAL, MODIFIED, PIPELINED, FUSED
 };
 /* Enum: FetiPrcndtnr
  *
