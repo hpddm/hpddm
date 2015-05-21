@@ -117,7 +117,7 @@ class Eigensolver {
                 rwork = s + _nu;
             }
             if(d)
-                Wrapper<K>::diagm(_n, _nu, d, ev, a);
+                Wrapper<K>::diag(_n, _nu, d, ev, a);
             else
                 std::copy_n(ev, _nu * _n, a);
             int* iwork = new int[8 * _n];

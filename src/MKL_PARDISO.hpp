@@ -32,32 +32,11 @@
 #endif
 
 namespace HPDDM {
-template<class>
+template<class K>
 struct prds {
-};
-template<>
-struct prds<float> {
-    static constexpr int SPD =  2;
-    static constexpr int SYM = -2;
-    static constexpr int UNS =  1;
-};
-template<>
-struct prds<double> {
-    static constexpr int SPD =  2;
-    static constexpr int SYM = -2;
-    static constexpr int UNS =  1;
-};
-template<>
-struct prds<std::complex<float>> {
-    static constexpr int SPD =  4;
-    static constexpr int SYM = -4;
-    static constexpr int UNS =  3;
-};
-template<>
-struct prds<std::complex<double>> {
-    static constexpr int SPD =  4;
-    static constexpr int SYM = -4;
-    static constexpr int UNS =  3;
+    static constexpr int SPD = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 2 : 4;
+    static constexpr int SYM = std::is_same<K, typename Wrapper<K>::ul_type>::value ? -2 : -4;
+    static constexpr int UNS = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 1 : 3;
 };
 
 #ifdef DMKL_PARDISO
@@ -305,15 +284,6 @@ class MklPardisoSub {
                 PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
             }
         }
-        inline void solve(K* const x, const unsigned short& n) const {
-            int error;
-            int phase = 33;
-            int nrhs = n;
-            _iparm[5] = 1;
-            K* w = new K[_n * n];
-            PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), x, w, &error);
-            delete [] w;
-        }
         inline void solve(const K* const b, K* const x) const {
             int error;
             if(!_partial) {
@@ -330,6 +300,22 @@ class MklPardisoSub {
                 phase = 333;
                 PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
             }
+        }
+        inline void solve(K* const x, const unsigned short& n) const {
+            int error;
+            int phase = 33;
+            int nrhs = n;
+            _iparm[5] = 1;
+            K* w = new K[_n * n];
+            PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), x, w, &error);
+            delete [] w;
+        }
+        inline void solve(const K* const b, K* const x, const unsigned short& n) const {
+            int error;
+            int phase = 33;
+            int nrhs = n;
+            _iparm[5] = 0;
+            PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), const_cast<K*>(b), x, &error);
         }
 };
 #endif // MKL_PARDISOSUB

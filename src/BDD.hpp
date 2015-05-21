@@ -110,7 +110,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     Subdomain<K>::exchange(b ? b : super::_structure + super::_bi->_m);
                     if(super::_ev) {
                         std::copy_n(b ? b : super::_structure + super::_bi->_m, Subdomain<K>::_dof, x);
-                        Wrapper<K>::diagv(Subdomain<K>::_dof, _m, x);
+                        Wrapper<K>::diag(Subdomain<K>::_dof, _m, x);
                         if(super::_schur) {
                             Wrapper<K>::gemv(&transb, &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), x, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);
                             super::_co->template callSolver<excluded>(super::_uc);
@@ -121,7 +121,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                             super::_co->template callSolver<excluded>(super::_uc);
                             Wrapper<K>::gemv(&transa, &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), super::_uc, &i__1, &(Wrapper<K>::d__0), x, &i__1);
                         }
-                        Wrapper<K>::diagv(Subdomain<K>::_dof, _m, x);
+                        Wrapper<K>::diag(Subdomain<K>::_dof, _m, x);
                     }
                     else {
                         std::fill(x, x + Subdomain<K>::_dof, K());
@@ -166,7 +166,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    in             - Input vector.
          *    out            - Output vector (optional). */
         inline void precond(K* const in, K* const out = nullptr) const {
-            Wrapper<K>::diagv(Subdomain<K>::_dof, _m, in, super::_work + super::_bi->_m);
+            Wrapper<K>::diag(Subdomain<K>::_dof, _m, in, super::_work + super::_bi->_m);
             if(!HPDDM_QR || !super::_schur) {
                 std::fill_n(super::_work, super::_bi->_m, K());
                 static_cast<Solver<K>*>(super::_pinv)->solve(super::_work);
@@ -180,11 +180,11 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 }
             }
             if(out) {
-                Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, out);
+                Wrapper<K>::diag(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, out);
                 Subdomain<K>::exchange(out);
             }
             else {
-                Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, in);
+                Wrapper<K>::diag(Subdomain<K>::_dof, _m, super::_work + super::_bi->_m, in);
                 Subdomain<K>::exchange(in);
             }
         }
@@ -229,9 +229,9 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                         apply(in, super::_structure + super::_bi->_m);
                     if(super::_ev) {
                         if(trans == 'N')
-                            Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_structure + super::_bi->_m);
+                            Wrapper<K>::diag(Subdomain<K>::_dof, _m, super::_structure + super::_bi->_m);
                         else
-                            Wrapper<K>::diagv(Subdomain<K>::_dof, _m, in, super::_structure + super::_bi->_m);
+                            Wrapper<K>::diag(Subdomain<K>::_dof, _m, in, super::_structure + super::_bi->_m);
                         if(super::_schur) {
                             Wrapper<K>::gemv(&transb, &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_structure + super::_bi->_m, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);
                             super::_co->template callSolver<excluded>(super::_uc);
@@ -247,7 +247,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                         super::_co->callSolver(super::_uc);
                         std::fill_n(super::_structure + super::_bi->_m, Subdomain<K>::_dof, K());
                     }
-                    Wrapper<K>::diagv(Subdomain<K>::_dof, _m, super::_structure + super::_bi->_m);
+                    Wrapper<K>::diag(Subdomain<K>::_dof, _m, super::_structure + super::_bi->_m);
                     Subdomain<K>::exchange(super::_structure + super::_bi->_m);
                     if(trans == 'T')
                         apply(super::_structure + super::_bi->_m);
@@ -320,7 +320,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<bool excluded>
         inline void computeDot(typename Wrapper<K>::ul_type* const val, const K* const a, const K* const b, const MPI_Comm& comm) const {
             if(!excluded) {
-                Wrapper<K>::diagv(Subdomain<K>::_dof, _m, a, super::_work);
+                Wrapper<K>::diag(Subdomain<K>::_dof, _m, a, super::_work);
                 *val = Wrapper<K>::dot(&(Subdomain<K>::_dof), super::_work, &i__1, b, &i__1);
             }
             else

@@ -110,6 +110,10 @@ class Wrapper {
         template<char>
         static inline void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
                                  const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
+        /* Function: csrmm(square)
+         *  Computes a sparse square matrix-matrix product. */
+        template<char>
+        static inline void csrmm(bool, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
         /* Function: csrmm
          *  Computes a scalar-sparse matrix-matrix product. */
         template<char>
@@ -127,15 +131,18 @@ class Wrapper {
         /* Function: sctr
          *  Scatters the elements of a compressed sparse vector into full-storage form. */
         static inline void sctr(const int&, const K* const, const int* const, K* const);
-        /* Function: diagv(in-place)
+        /* Function: diag(in-place)
          *  Computes a vector-vector element-wise multiplication. */
-        static inline void diagv(const int&, const ul_type* const, K* const);
-        /* Function: diagv
+        static inline void diag(const int&, const ul_type* const, K* const);
+        /* Function: diag
          *  Computes a vector-vector element-wise multiplication. */
-        static inline void diagv(const int&, const ul_type* const, const K* const, K* const);
-        /* Function: diagm
+        static inline void diag(const int&, const ul_type* const, const K* const, K* const);
+        /* Function: diag(in-place)
          *  Computes a vector-matrix element-wise multiplication. */
-        static inline void diagm(const int&, const int&, const ul_type* const, const K* const, K* const);
+        static inline void diag(const int&, const int&, const ul_type* const, K* const);
+        /* Function: diag
+         *  Computes a vector-matrix element-wise multiplication. */
+        static inline void diag(const int&, const int&, const ul_type* const, const K* const, K* const);
         /* Function: axpby
          *  Computes two scalar-vector products. */
         static inline void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
@@ -272,8 +279,12 @@ HPDDM_GENERATE_BLAS_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_BLAS_COMPLEX(z, std::complex<double>, d, double)
 
 template<class K>
-inline void Wrapper<K>::diagv(const int& n, const ul_type* const d, K* const in) {
-    diagv(n, d, nullptr, in);
+inline void Wrapper<K>::diag(const int& n, const ul_type* const d, K* const in) {
+    diag(n, d, nullptr, in);
+}
+template<class K>
+inline void Wrapper<K>::diag(const int& m, const int& n, const ul_type* const d, K* const in) {
+    diag(m, n, d, nullptr, in);
 }
 
 #if HPDDM_MKL
@@ -321,12 +332,24 @@ inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const
                               const T* const a, const int* const ia, const int* const ja,                    \
                               const T* const x, const int* const ldb, const T* const beta,                   \
                               T* const y, const int* const ldc) {                                            \
-    mkl_ ## C ## csrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),                   \
-                       HPDDM_CONST(int, k), HPDDM_CONST(T, alpha),                                           \
-                       HPDDM_CONST(char, sym ? matdescr<N>::b : matdescr<N>::a), HPDDM_CONST(T, a),          \
-                       HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1,                 \
-                       HPDDM_CONST(T, x), HPDDM_CONST(int, ldb), HPDDM_CONST(T, beta),  y,                   \
-                       HPDDM_CONST(int, ldc));                                                               \
+    if(*n != 1) {                                                                                            \
+        if(N != 'F') {                                                                                       \
+            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { ++i; });         \
+            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { ++i; });         \
+        }                                                                                                    \
+        mkl_ ## C ## csrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),               \
+                           HPDDM_CONST(int, k), HPDDM_CONST(T, alpha),                                       \
+                           HPDDM_CONST(char, sym ? matdescr<'F'>::b : matdescr<'F'>::a), HPDDM_CONST(T, a),  \
+                           HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1,             \
+                           HPDDM_CONST(T, x), HPDDM_CONST(int, ldb), HPDDM_CONST(T, beta),  y,               \
+                           HPDDM_CONST(int, ldc));                                                           \
+        if(N != 'F') {                                                                                       \
+            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { --i; });         \
+            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { --i; });         \
+        }                                                                                                    \
+    }                                                                                                        \
+    else                                                                                                     \
+        csrmv<N>(trans, m, k, alpha, sym, a, ia, ja, x, beta, y);                                            \
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
@@ -351,17 +374,18 @@ inline void Wrapper<T>::transpose(T* const a, const std::size_t n, const std::si
 }
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
-inline void Wrapper<T>::diagv(const int& n, const T* const d, const T* const in, T* const out) {             \
-    if(in)                                                                                                   \
-        v ## C ## Mul(n, d, in, out);                                                                        \
-    else                                                                                                     \
-        v ## C ## Mul(n, d, out, out);                                                                       \
+inline void Wrapper<T>::diag(const int& n, const T* const d, const T* const in, T* const out) {              \
+    diag(n, i__1, d, in, out);                                                                               \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Wrapper<T>::diagm(const int& m, const int& n, const T* const d,                                  \
-                              const T* const in, T* const out) {                                             \
-    for(int i = 0; i < n; ++i)                                                                               \
-        v ## C ## Mul(m, d, in + i * m, out + i * m);                                                        \
+inline void Wrapper<T>::diag(const int& m, const int& n, const T* const d,                                   \
+                             const T* const in, T* const out) {                                              \
+    if(in)                                                                                                   \
+        for(int i = 0; i < n; ++i)                                                                           \
+            v ## C ## Mul(m, d, in + i * m, out + i * m);                                                    \
+    else                                                                                                     \
+        for(int i = 0; i < n; ++i)                                                                           \
+            v ## C ## Mul(m, d, out + i * m, out + i * m);                                                   \
 }
 HPDDM_GENERATE_MKL(s, float)
 HPDDM_GENERATE_MKL(d, double)
@@ -576,21 +600,23 @@ inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, co
 template<class K>
 inline void Wrapper<K>::transpose(K* const a, const std::size_t n, const std::size_t m) {
     if(n != m) {
-        const int size = n * m - 1;
-        std::bitset<1024> b;
-        b[0] = b[size] = 1;
-        int i = 1;
-        while(i < size) {
-            int it = i;
-            K t = a[i];
-            do {
-                int next = (i * n) % size;
-                std::swap(a[next], t);
-                b[i] = 1;
-                i = next;
-            } while(i != it);
+        if(n != 1 && m != 1) {
+            const int size = n * m - 1;
+            std::bitset<1024> b;
+            b[0] = b[size] = 1;
+            int i = 1;
+            while(i < size) {
+                int it = i;
+                K t = a[i];
+                do {
+                    int next = (i * n) % size;
+                    std::swap(a[next], t);
+                    b[i] = 1;
+                    i = next;
+                } while(i != it);
 
-            for(i = 1; i < size && b[i]; i++);
+                for(i = 1; i < size && b[i]; i++);
+            }
         }
     }
     else {
@@ -603,19 +629,24 @@ inline void Wrapper<K>::transpose(K* const a, const std::size_t n, const std::si
 #endif // HPDDM_MKL
 
 template<class K>
-inline void Wrapper<K>::diagv(const int& n, const ul_type* const d, const K* const in, K* const out) {
-    if(in)
-        for(unsigned int i = 0; i < n; ++i)
-            out[i] = d[i] * in[i];
-    else
-        for(unsigned int i = 0; i < n; ++i)
-            out[i] *= d[i];
+inline void Wrapper<K>::diag(const int& n, const ul_type* const d, const K* const in, K* const out) {
+    diag(n, i__1, d, in, out);
 }
 template<class K>
-inline void Wrapper<K>::diagm(const int& m, const int& n, const ul_type* const d, const K* const in, K* const out) {
-    for(int i = 0; i < n; ++i)
-        for(int j = 0; j < m; ++j)
-            out[j + i * m] = d[j] * in[j + i * m];
+inline void Wrapper<K>::diag(const int& m, const int& n, const ul_type* const d, const K* const in, K* const out) {
+    if(in)
+        for(int i = 0; i < n; ++i)
+            for(int j = 0; j < m; ++j)
+                out[j + i * m] = d[j] * in[j + i * m];
+    else
+        for(int i = 0; i < n; ++i)
+            for(int j = 0; j < m; ++j)
+                out[j + i * m] *= d[j];
+}
+template<class K>
+template<char N>
+inline void Wrapper<K>::csrmm(bool sym, const int* const n, const int* const m, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
+    csrmm<N>(&transa, n, m, n, &d__1, sym, a, ia, ja, x, n, &d__0, y, n);
 }
 
 template<class Idx, class T>

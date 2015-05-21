@@ -77,19 +77,21 @@ class Subdomain {
          *
          * Parameter:
          *    in             - Input vector. */
-        inline void exchange(K* const in) const {
-            for(unsigned short i = 0; i < _map.size(); ++i) {
-                MPI_Irecv(_rbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                Wrapper<K>::gthr(_map[i].second.size(), in, _sbuff[i], _map[i].second.data());
-                MPI_Isend(_sbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + _map.size() + i);
+        inline void exchange(K* const in, const unsigned short& mu = 1) const {
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    MPI_Irecv(_rbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
+                    Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _sbuff[i], _map[i].second.data());
+                    MPI_Isend(_sbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + _map.size() + i);
+                }
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    int index;
+                    MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
+                    for(unsigned int j = 0; j < _map[index].second.size(); ++j)
+                        in[_map[index].second[j] + nu * _dof] += _rbuff[index][j];
+                }
+                MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
             }
-            for(unsigned short i = 0; i < _map.size(); ++i) {
-                int index;
-                MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
-                for(unsigned int j = 0; j < _map[index].second.size(); ++j)
-                    in[_map[index].second[j]] += _rbuff[index][j];
-            }
-            MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
         }
         /* Function: recvBuffer
          *
@@ -171,6 +173,16 @@ class Subdomain {
         /* Function: getMatrix
          *  Returns a constant pointer to <Subdomain::a>. */
         inline const MatrixCSR<K>* getMatrix() const { return _a; }
+        /* Function: setMatrix
+         *  Sets the pointer <Subdomain::a>. */
+        inline void setMatrix(MatrixCSR<K>* const& a) {
+            if(_a && a && _a->_n == a->_n && _a->_m == a->_m && _a->_nnz == a->_nnz) {
+                delete _a;
+                _a = a;
+            }
+            else
+                std::cerr << "The structures of the matrices don't match" << std::endl;
+        }
         /* Function: interaction
          *
          *  Builds a vector of matrices to store interactions with neighboring subdomains.

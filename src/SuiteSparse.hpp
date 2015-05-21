@@ -429,18 +429,21 @@ class SuiteSparseSub {
                 }
             }
         }
-        inline void solve(const K* const b, K* const x) const {
+        inline void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
             if(_c) {
-                _b->ncol = 1;
+                _b->ncol = n;
                 _b->nzmax = _x->nrow;
                 _b->x = const_cast<K*>(b);
-                _x->ncol = 1;
+                _x->ncol = n;
                 _x->nzmax = _x->nrow;
                 _x->x = x;
                 cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
             }
-            else
-                stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, x, b, _numeric, _control, NULL, _pattern, _W);
+            else {
+                int ld = std::distance(_tmp, _W);
+                for(unsigned short i = 0; i < n; ++i)
+                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, x + i * ld, b + i * ld, _numeric, _control, NULL, _pattern, _W);
+            }
         }
 };
 #endif // SUITESPARSESUB

@@ -114,8 +114,10 @@ class Mumps : public DMatrix {
          *    C              - Array of data. */
         template<char S>
         inline void numfact(unsigned int nz, int* I, int* J, K* C) {
-            _id = new typename MUMPS_STRUC_C<K>::trait;
-            _id->job = -1; _id->par = 1; _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
+            _id = new typename MUMPS_STRUC_C<K>::trait();
+            _id->job = -1;
+            _id->par = 1;
+            _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
             if(S == 'S')
                 _id->sym = 1;
             else
@@ -241,7 +243,7 @@ class MumpsSub {
         }
         inline void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             if(!_id) {
-                _id = new typename MUMPS_STRUC_C<K>::trait;
+                _id = new typename MUMPS_STRUC_C<K>::trait();
                 _id->job = -1;
                 _id->par = 1;
                 _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
@@ -313,9 +315,9 @@ class MumpsSub {
             _id->job = 3;
             MUMPS_STRUC_C<K>::mumps_c(_id);
         }
-        inline void solve(const K* const b, K* const x) const {
-            std::copy_n(b, _id->n, x);
-            solve(x);
+        inline void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
+            std::copy_n(b, n * _id->n, x);
+            solve(x, n);
         }
 };
 #endif // MUMPSSUB

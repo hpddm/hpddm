@@ -241,7 +241,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             std::fill(work, work + m * super::_n, 0.0);
             for(unsigned short i = 0; i < m; ++i)
                 Wrapper<K>::sctr(super::_map[index].second.size(), in + i * super::_map[index].second.size(), super::_map[index].second.data(), work + i * super::_n);
-            Wrapper<K>::diagm(super::_n, m, _D, work, _work);
+            Wrapper<K>::diag(super::_n, m, _D, work, _work);
             Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &(super::_local), &m, &(super::_n), &(Wrapper<K>::d__1), *super::_deflation, &(super::_n), _work, &(super::_n), &(Wrapper<K>::d__0), work, &(super::_local));
         }
     public:
@@ -314,7 +314,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         }
         template<char S, bool U, class T>
         inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
-            Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(super::_n), &(super::_local), &(super::_n), &(Wrapper<K>::d__1), false, _C->_a, _C->_ia, _C->_ja, *super::_deflation, &(super::_n), &(Wrapper<K>::d__0), _work, &(super::_n));
+            Wrapper<K>::template csrmm<Wrapper<K>::I>(false, &(super::_n), &(super::_local), _C->_a, _C->_ia, _C->_ja, *super::_deflation, _work);
             delete _C;
             MPI_Request rq;
             for(unsigned short i = 0; i < super::_signed; ++i) {
@@ -325,7 +325,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                     rqSend.emplace_back(rq);
                 }
             }
-            Wrapper<K>::diagm(super::_n, super::_local, _D, _work, work);
+            Wrapper<K>::diag(super::_n, super::_local, _D, _work, work);
         }
         template<char S, bool U>
         inline void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
@@ -833,7 +833,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             if(++_consolidate == super::_map.size()) {
                 const typename Wrapper<K>::ul_type* const m = super::_p.getScaling();
                 for(unsigned short j = 0; j < coefficients + (S == 'S') * super::_local; ++j)
-                    Wrapper<K>::diagv(super::_n, m, arrayC + j * super::_n);
+                    Wrapper<K>::diag(super::_n, m, arrayC + j * super::_n);
                 if(S != 'S')
                     Wrapper<K>::gemm(&transb, &transa, &coefficients, &(super::_local), &(super::_n), &(Wrapper<K>::d__1), arrayC, &(super::_n), *super::_deflation, super::_p.getLDR(), &(Wrapper<K>::d__0), C, &coefficients);
                 else
