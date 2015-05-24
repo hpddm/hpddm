@@ -374,10 +374,6 @@ inline void Wrapper<T>::transpose(T* const a, const std::size_t n, const std::si
 }
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
-inline void Wrapper<T>::diag(const int& n, const T* const d, const T* const in, T* const out) {              \
-    diag(n, i__1, d, in, out);                                                                               \
-}                                                                                                            \
-template<>                                                                                                   \
 inline void Wrapper<T>::diag(const int& m, const int& n, const T* const d,                                   \
                              const T* const in, T* const out) {                                              \
     if(in)                                                                                                   \
@@ -386,6 +382,10 @@ inline void Wrapper<T>::diag(const int& m, const int& n, const T* const d,      
     else                                                                                                     \
         for(int i = 0; i < n; ++i)                                                                           \
             v ## C ## Mul(m, d, out + i * m, out + i * m);                                                   \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::diag(const int& n, const T* const d, const T* const in, T* const out) {              \
+    diag(n, i__1, d, in, out);                                                                               \
 }
 HPDDM_GENERATE_MKL(s, float)
 HPDDM_GENERATE_MKL(d, double)
