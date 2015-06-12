@@ -35,6 +35,25 @@ template<> class Members<true> {
 };
 template<char P, class Preconditioner, class K>
 class OperatorBase : protected Members<P != 's'> {
+    private:
+        template<class T>
+        class has_LDR {
+            private:
+                typedef char one;
+                typedef one (&two)[2];
+                template<class C> static one test(decltype(&C::getLDR));
+                template<class C> static two test(...);
+            public:
+                static constexpr bool value = (sizeof(test<T>(0)) == sizeof(one));
+        };
+        template<class Q = Preconditioner, typename std::enable_if<has_LDR<Q>::value>::type* = nullptr>
+        inline void offsetDeflation(const Q& p) {
+            const unsigned int offset = *_p.getLDR() - _n;
+            if(_deflation && offset)
+                std::for_each(_deflation, _deflation + _local, [&](K*& v) { v -= offset; });
+        }
+        template<class Q = Preconditioner, typename std::enable_if<!has_LDR<Q>::value>::type* = nullptr>
+        inline void offsetDeflation(const Q& p) { }
     protected:
         const Preconditioner&                               _p;
         K** const                                   _deflation;
@@ -49,8 +68,11 @@ class OperatorBase : protected Members<P != 's'> {
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
         OperatorBase(const Preconditioner& p, const unsigned short& nu) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) {
             const unsigned int offset = *_p.getLDR() - _n;
-            if(_deflation)
+            if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
+        }
+        ~OperatorBase() {
+            offsetDeflation(_p);
         }
     public:
         static constexpr char                     _pattern = P;
@@ -456,11 +478,6 @@ class FetiProjection : public OperatorBase<'c', Preconditioner, K> {
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
         FetiProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() { }
-        ~FetiProjection() {
-            const unsigned int offset = *super::_p.getLDR() - super::_n;
-            if(super::_deflation)
-                std::for_each(super::_deflation, super::_deflation + super::_local, [&](K*& v) { v -= offset; });
-        }
         inline void initialize(unsigned int, K*&, unsigned short) { }
         template<char S, bool U, class T>
         inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
@@ -717,11 +734,6 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
         BddProjection(const Preconditioner& p, const unsigned short& nu) : OperatorBase<'c', Preconditioner, K>(p, nu), _consolidate() { }
-        ~BddProjection() {
-            const unsigned int offset = *super::_p.getLDR() - super::_n;
-            if(super::_deflation)
-                std::for_each(super::_deflation, super::_deflation + super::_local, [&](K*& v) { v -= offset; });
-        }
         inline void initialize(unsigned int, K*&, unsigned short) { }
         template<char S, bool U, class T>
         inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {

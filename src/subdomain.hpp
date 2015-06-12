@@ -124,15 +124,18 @@ class Subdomain {
                 _communicator = MPI_COMM_WORLD;
             _a = a;
             _dof = _a->_n;
-            _map.resize(o.size());
+            _map.reserve(o.size());
             unsigned int size = 0;
             unsigned short j = 0;
             for(const auto& i : o) {
-                _map[j].first = i;
-                _map[j].second.reserve(r[j].size());
-                for(int k = 0; k < r[j].size(); ++k)
-                    _map[j].second.emplace_back(r[j][k]);
-                size += _map[j++].second.size();
+                if(r[j].size() > 0) {
+                    _map.emplace_back(i, typename decltype(_map)::value_type::second_type());
+                    _map.back().second.reserve(r[j].size());
+                    for(int k = 0; k < r[j].size(); ++k)
+                        _map.back().second.emplace_back(r[j][k]);
+                    size += _map.back().second.size();
+                }
+                ++j;
             }
             _rq = new MPI_Request[2 * _map.size()];
             _rbuff.reserve(_map.size());
