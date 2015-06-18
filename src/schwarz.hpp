@@ -420,7 +420,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     if(!isBoundaryCond)
                         storage[2 * nu + 1] += _d[i] * std::norm(tmp[nu * Subdomain<K>::_dof + i]);
                     if(std::abs(f[nu * Subdomain<K>::_dof + i]) > HPDDM_EPS * HPDDM_PEN)
-                        storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i] / HPDDM_PEN);
+                        storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i] / K(HPDDM_PEN));
                     else
                         storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i]);
                 }

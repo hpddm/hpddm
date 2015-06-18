@@ -683,9 +683,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         for(unsigned int k = 1; k < _sizeSplit; ++k) {
             if(U == 1 || infoSplit[k][2]) {
                 unsigned int tmp = U == 1 ? (rankRelative + k - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * _local + (Solver<K>::_numbering == 'F') : offsetPosition[k];
-                unsigned int offsetSlave;
-                if(U != 1)
-                    offsetSlave = std::accumulate(infoWorld, infoWorld + infoSplit[k][3], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
+                unsigned int offsetSlave = static_cast<unsigned int>(Solver<K>::_numbering == 'F');
+                if(U != 1 && infoSplit[k][0])
+                    offsetSlave = std::accumulate(infoWorld, infoWorld + infoSplit[k][3], offsetSlave);
                 unsigned short i = 0;
                 int* colIdx = J + offsetIdx[k - 1];
                 if(S != 'S')

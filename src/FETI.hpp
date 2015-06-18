@@ -378,17 +378,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         inline std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, Container& parm) {
             if(!super::_schur && parm[NU])
                 super::_deficiency = parm[NU];
-#if 0
-            if(P == FetiPrcndtnr::DIRICHLET || P == FetiPrcndtnr::LUMPED) {
-#endif
-                return super::template buildTwo<excluded, 3>(std::move(FetiProjection<Feti<Solver, CoarseSolver, S, K, P>, K>(*this, parm[NU])), comm, parm);
-#if 0
-            }
-            else if(P == FetiPrcndtnr::SUPERLUMPED || P == FetiPrcndtnr::NONE) {
-                FetiProjectionSimple<Feti<Solver, CoarseSolver, S, K, P>, K> s(*this, parm[NU]);
-                return super::template buildTwo<excluded, 3>(s, comm, parm);
-            }
-#endif
+            return super::template buildTwo<excluded, 3>(std::move(FetiProjection<decltype(*this), P, K>(*this, parm[NU])), comm, parm);
         }
         /* Function: computeSolution
          *
