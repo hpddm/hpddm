@@ -223,6 +223,8 @@ static inline T sto(std::string s, typename std::enable_if<std::is_same<T, doubl
     return std::stod(s);
 }
 #endif // __MINGW32__
+template<class T>
+using alias = T;
 } // HPDDM
 #include "enum.hpp"
 #if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201

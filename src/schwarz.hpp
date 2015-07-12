@@ -94,7 +94,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         inline void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a);
             if(fact) {
-                super::_s.~decltype(super::_s)();
+                super::_s.~alias<decltype(super::_s)>();
                 super::_s.numfact(a);
             }
         }
