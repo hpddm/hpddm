@@ -178,13 +178,11 @@ class Subdomain {
         inline const MatrixCSR<K>* getMatrix() const { return _a; }
         /* Function: setMatrix
          *  Sets the pointer <Subdomain::a>. */
-        inline void setMatrix(MatrixCSR<K>* const& a) {
-            if(_a && a && _a->_n == a->_n && _a->_m == a->_m && _a->_nnz == a->_nnz) {
-                delete _a;
-                _a = a;
-            }
-            else
-                std::cerr << "The structures of the matrices don't match" << std::endl;
+        inline bool setMatrix(MatrixCSR<K>* const& a) {
+            bool ret = !(_a && a && _a->_n == a->_n && _a->_m == a->_m && _a->_nnz == a->_nnz);
+            delete _a;
+            _a = a;
+            return ret;
         }
         /* Function: interaction
          *

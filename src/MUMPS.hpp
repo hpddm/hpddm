@@ -238,6 +238,7 @@ class MumpsSub {
                 _id->job = -2;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
                 delete _id;
+                _id = nullptr;
             }
             delete [] _I;
         }

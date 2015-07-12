@@ -285,6 +285,7 @@ class PastixSub {
                              0, NULL, NULL, NULL,
                              NULL, NULL, NULL, 1, _iparm, _dparm);
                 delete [] _iparm;
+                _iparm = nullptr;
                 delete [] _dparm;
             }
         }

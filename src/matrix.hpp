@@ -85,6 +85,8 @@ class MatrixCSR {
             if(A->_sym == _sym && A->_nnz >= _nnz) {
                 if(A->_ia == _ia && A->_ja == _ja)
                     return true;
+                else if(!A->_free)
+                    return false;
                 else {
                     bool same = true;
                     K* a = new K[_nnz];

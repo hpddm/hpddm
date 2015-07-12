@@ -277,10 +277,12 @@ class SuiteSparseSub {
                 cholmod_free_dense(&_E, _c);
                 cholmod_finish(_c);
                 delete _c;
+                _c = nullptr;
             }
             else {
                 delete [] _pattern;
                 delete [] _control;
+                _control = nullptr;
                 stsprs<K>::umfpack_free_numeric(&_numeric);
             }
         }

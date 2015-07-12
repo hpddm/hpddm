@@ -199,6 +199,7 @@ class MklPardisoSub {
         MklPardisoSub(const MklPardisoSub&) = delete;
         ~MklPardisoSub() {
             delete [] _w;
+            _w = nullptr;
             int phase = -1;
             int error;
             int idum;

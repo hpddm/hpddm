@@ -153,6 +153,10 @@ class Preconditioner : public Subdomain<K> {
                 }
                 _uc = new K[_co->getSizeRHS()];
             }
+            else {
+                delete _co;
+                _co = nullptr;
+            }
             return ret;
         }
         /* Function: getVectors
