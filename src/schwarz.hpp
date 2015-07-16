@@ -49,9 +49,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * GE           - Nonsymmetric preconditioner, e.g. Restricted Additive Schwarz method.
          * OS           - Optimized symmetric preconditioner, e.g. Optimized Schwarz method.
          * OG           - Optimized nonsymmetric preconditioner, e.g. Optimized Restricted Additive Schwarz method.
-         * AD           - Additive two-level Schwarz method. */
+         * AD           - Additive two-level Schwarz method.
+         * BA           - Balanced two-level Schwarz method. */
         enum class Prcndtnr : char {
-            NO, SY, GE, OS, OG, AD
+            NO, SY, GE, OS, OG, AD, BA
         };
     private:
         /* Variable: d
@@ -94,7 +95,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         inline void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a);
             if(fact) {
-                super::_s.~alias<decltype(super::_s)>();
+                using type = alias<Solver<K>>;
+                super::_s.~type();
                 super::_s.numfact(a);
             }
         }
@@ -288,6 +290,13 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                         super::_s.solve(work);
                         Wrapper<K>::diag(Subdomain<K>::_dof, _d, work);
                         Subdomain<K>::exchange(work);                                                          //  in = D A \ (I - A Z E \ Z^T) in
+                        if(_type == Prcndtnr::BA) {
+                            K* tmp = new K[Subdomain<K>::_dof];
+                            GMV(work, tmp, mu);
+                            deflation<excluded>(nullptr, tmp, fuse);
+                            Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__2), tmp, &i__1, work, &i__1);
+                            delete [] tmp;
+                        }
                         Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
                     }
                 }
