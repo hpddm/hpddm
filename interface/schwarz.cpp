@@ -1,11 +1,12 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
               Ralf Deiterding <ralf.deiterding@dlr.de>
         Date: 2013-05-22
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -61,30 +62,26 @@ int main(int argc, char **argv) {
 #else
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, NULL);
 #endif
-    if(argc < 7 || argc > 10) {
-        int rankWorld;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
-        if(rankWorld == 0) {
-            std::cout << "Parameters expected: prec Nx Ny overlap eps symmetry" << std::endl;
-            std::cout << "           prec = 0  => one-level RAS" << std::endl;
-            std::cout << "           prec = -1 => two-level Nicolaides" << std::endl;
-            std::cout << "           prec = M  => two-level GenEO" << std::endl;
-        }
-        MPI_Finalize();
-        return 0;
-    }
     std::vector<std::string> arguments(argv + 1, argv + argc);
-    int prec = HPDDM::sto<int>(arguments[0]);
-    int Nx = HPDDM::sto<int>(arguments[1]);
-    int Ny = HPDDM::sto<int>(arguments[2]);
-    int overlap = HPDDM::sto<int>(arguments[3]);
-    HPDDM::Wrapper<K>::ul_type eps = HPDDM::sto<HPDDM::Wrapper<K>::ul_type>(arguments[4]);
-    int sym = HPDDM::sto<int>(arguments[5]);
     /*# Init #*/
     int rankWorld;
     int sizeWorld;
     MPI_Comm_size(MPI_COMM_WORLD, &sizeWorld);
     MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
+    HPDDM::Option& opt = *HPDDM::Option::get();
+    opt.parse(arguments, rankWorld == 0, {
+        std::forward_as_tuple("Nx=<100>", "Number of grid points in the x-direction.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("Ny=<100>", "Number of grid points in the y-direction.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("overlap=<1>", "Number of grid points in the overlap.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("symmetric_csr", "Assemble symmetric matrices.", HPDDM::Option::Arg::anything),
+        std::forward_as_tuple("nonuniform", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::anything)
+    });
+    const int Nx = opt.app()["Nx"];
+    const int Ny = opt.app()["Ny"];
+    const int overlap = opt.app()["overlap"];
+    const bool sym = opt.app().find("symmetric_csr") != opt.app().cend();
+    if(rankWorld != 0)
+        opt.remove("verbosity");
     int xGrid = int(sqrt(sizeWorld));
     while(sizeWorld % xGrid != 0)
         --xGrid;
@@ -311,7 +308,7 @@ int main(int argc, char **argv) {
     int* in = nullptr;
     int* jn = nullptr;
     K* neumann = nullptr;
-    if(prec > 0) {
+    if(opt.set("schwarz_coarse_correction") && opt["geneo_nu"] > 0) {
         if(sym) {
             int nnzNeumann = 2 * nnz - ndof;
             in = new int[ndof + 1];
@@ -378,11 +375,6 @@ int main(int argc, char **argv) {
     }
     HPDDM::MatrixCSR<K>* Mat = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, a, ia, ja, sym, true);
     double timing;
-    /*# Deflation #*/
-    K** deflation = new K*[1];
-    *deflation = new K[ndof];
-    std::fill(*deflation, *deflation + ndof, 1.0);
-    /*# DeflationEnd #*/
     if(sizeWorld > 1) {
         /*# Creation #*/
         HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symmetryCoarseOperator, K> A;
@@ -401,63 +393,40 @@ int main(int argc, char **argv) {
             MPI_Barrier(MPI_COMM_WORLD);
         }
         timing = MPI_Wtime();
-        if(prec != 0) {
-            A.setType(0);
+        if(opt.set("schwarz_coarse_correction")) {
             /*# Factorization #*/
-            std::vector<unsigned short> parm(5);
-            parm[HPDDM::P] = 1;
-            parm[HPDDM::TOPOLOGY] = 0;
-            if(std::find(arguments.begin() + 6, arguments.end(), "-distributed_sol") != arguments.end()) {
-                if(std::find(arguments.begin() + 6, arguments.end(), "-distributed_rhs") != arguments.end())
-                    parm[HPDDM::DISTRIBUTION] = HPDDM::DMatrix::DISTRIBUTED_SOL_AND_RHS;
-                else
-                    parm[HPDDM::DISTRIBUTION] = HPDDM::DMatrix::DISTRIBUTED_SOL;
-            }
-            else
-                parm[HPDDM::DISTRIBUTION] = HPDDM::DMatrix::NON_DISTRIBUTED;
-            parm[HPDDM::STRATEGY] = 3;
-            if(prec > 0) {
-                parm[HPDDM::NU] = prec;
-                if(std::find(arguments.begin() + 6, arguments.end(), "-nonuniform") != arguments.end())
-                    parm[HPDDM::NU] += std::max(-prec + 1, (-1)^rankWorld * rankWorld);
-                HPDDM::Wrapper<K>::ul_type threshold = 0.0;
-                A.solveGEVP<HPDDM::Arpack>(N, parm[HPDDM::NU], threshold);
+            unsigned short nu = opt["geneo_nu"];
+            if(nu > 0) {
+                if(opt.app().find("nonuniform") != opt.app().cend())
+                    nu += std::max(static_cast<int>(-opt["geneo_nu"] + 1), (-1)^rankWorld * rankWorld);
+                HPDDM::Wrapper<K>::ul_type threshold = std::max(0.0, opt.val("geneo_threshold"));
+                A.solveGEVP<HPDDM::Arpack>(N, nu, threshold);
+                opt["geneo_nu"] = nu;
             }
             else {
-                parm[HPDDM::NU] = 1;
+                nu = 1;
+                K** deflation = new K*[1];
+                *deflation = new K[ndof];
+                std::fill(*deflation, *deflation + ndof, 1.0);
                 A.setVectors(deflation);
             }
-            A.super::initialize(parm[HPDDM::NU]);
-            A.buildTwo(MPI_COMM_WORLD, parm);
+            A.super::initialize(nu);
+            A.buildTwo(MPI_COMM_WORLD);
             A.callNumfact();
             /*# FactorizationEnd #*/
             /*# Solution #*/
-            unsigned short it = 100, restart = 30, m = 1;
-            HPDDM::IterativeMethod::GMRES(A, sol, f, m, restart, it, eps, A.getCommunicator(), rankWorld == 0 ? 1 : 0);
+            HPDDM::IterativeMethod::GMRES(A, sol, f, 1, A.getCommunicator());
             /*# SolutionEnd #*/
         }
         else {
-            A.setType(1);
             A.callNumfact();
-            unsigned short it = 100;
-            HPDDM::IterativeMethod::CG(A, sol, f, it, eps, A.getCommunicator(), rankWorld == 0 ? 1 : 0);
+            HPDDM::IterativeMethod::CG(A, sol, f, A.getCommunicator());
         }
         timing = MPI_Wtime() - timing;
         HPDDM::Wrapper<K>::ul_type storage[2];
         A.computeError(sol, f, storage);
         if(rankWorld == 0)
             std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
-        if(prec != 0) {
-            if(rankWorld == 0)
-                std::cout << std::scientific << " --- now solving the same system with right preconditioning and modified Gram-Schmidt" << std::endl;
-            unsigned short it = 100, restart = 30, m = 1;
-            std::fill_n(sol, ndof, K());
-            HPDDM::IterativeMethod::GMRES<HPDDM::MODIFIED, 'R'>(A, sol, f, m, restart, it, eps, A.getCommunicator(), rankWorld == 0 ? 1 : 0);
-            A.computeError(sol, f, storage);
-            if(rankWorld == 0)
-                std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
-        }
-        delete [] d;
     }
     else {
         SUBDOMAIN<K> S;
@@ -474,13 +443,9 @@ int main(int argc, char **argv) {
         delete [] tmp;
         delete Mat;
     }
+    delete [] d;
 
-    if(prec >= 0) {
-        if(deflation)
-            delete [] *deflation;
-        delete [] deflation;
-    }
-    if(prec > 0) {
+    if(opt.set("schwarz_coarse_correction") && opt["geneo_nu"] > 0) {
         delete N;
         delete [] neumann;
         if(sym) {

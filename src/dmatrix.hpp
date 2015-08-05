@@ -34,11 +34,11 @@ class DMatrix {
          *
          *  Defines the distribution of both right-hand sides and solution vectors.
          *
-         * NON_DISTRIBUTED         - Neither are distributed, both are centralized on the root of <DMatrix::communicator>.
+         * CENTRALIZED             - Neither are distributed, both are centralized on the root of <DMatrix::communicator>.
          * DISTRIBUTED_SOL         - Right-hand sides are centralized, while solution vectors are distributed on <DMatrix::communicator>.
          * DISTRIBUTED_SOL_AND_RHS - Both are distributed on <DMatrix::communicator>. */
         enum Distribution : char {
-            NON_DISTRIBUTED, DISTRIBUTED_SOL, DISTRIBUTED_SOL_AND_RHS = 3
+            CENTRALIZED, DISTRIBUTED_SOL, DISTRIBUTED_SOL_AND_RHS
         };
         /* Function: splitCommunicator
          *
@@ -50,7 +50,7 @@ class DMatrix {
          *    exclude        - True if the master processes have to be excluded from the original communicator.
          *    p              - Number of master processes.
          *    T              - Master processes distribution topology. */
-        static inline bool splitCommunicator(const MPI_Comm& in, MPI_Comm& out, const bool& exclude, unsigned short& p, const unsigned short& T) {
+        static bool splitCommunicator(const MPI_Comm& in, MPI_Comm& out, const bool& exclude, unsigned short& p, const unsigned short& T) {
             int size, rank;
             MPI_Comm_size(in, &size);
             MPI_Comm_rank(in, &rank);
@@ -59,7 +59,8 @@ class DMatrix {
                 if(rank == 0)
                     std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size, the value has been reset to " << p << std::endl;
             }
-            p = std::max(p, static_cast<unsigned short>(1));
+            else if(p < 1)
+                p = 1;
             if(exclude) {
                 MPI_Group oldGroup, newGroup;
                 MPI_Comm_group(in, &oldGroup);
@@ -150,7 +151,7 @@ class DMatrix {
          *    sol_loc        - Vector following the numbering of the direct solver.
          *    sol            - Vector following the numbering of the user. */
         template<bool isRHS, class K>
-        inline void initializeMap(const int& info, const int* const isol_loc, K* const sol_loc, K* const sol) {
+        void initializeMap(const int& info, const int* const isol_loc, K* const sol_loc, K* const sol) {
             int size;
             MPI_Comm_size(_communicator, &size);
             int* lsol_loc_glob = new int[size];
@@ -301,7 +302,7 @@ class DMatrix {
          *    res            - Vector following the numbering of the user.
          *    fuse           - Number of fused reductions (optional). */
         template<char P, class K>
-        inline void redistribute(K* const vec, K* const res, const unsigned short& fuse = 0) {
+        void redistribute(K* const vec, K* const res, const unsigned short& fuse = 0) {
             map_type<pair_type>* map_recv_index;
             map_type<pair_type>* map_send_index;
             if(P == 0 || P == 1) {
@@ -359,6 +360,38 @@ class DMatrix {
             MPI_Waitall(map_send.size(), rqSend, MPI_STATUSES_IGNORE);
             delete [] rqSend;
         }
+        /* Function: initialize
+         *
+         *  Initializes <DMatrix::rank> and <DMatrix::distribution>.
+         *
+         * Parameters:
+         *    solver         - Name of the solver.
+         *    list           - Supported <DMatrix::Distribution>s. */
+        void initialize(char const* solver, std::initializer_list<Distribution> list) {
+            Option& opt = *Option::get();
+            _distribution = static_cast<Distribution>(opt["master_distribution"]);
+            std::initializer_list<Distribution>::iterator it = std::find(list.begin(), list.end(), _distribution);
+            if(it == list.end()) {
+                opt["master_distribution"] = _distribution = *list.begin();
+                if(_communicator != MPI_COMM_NULL && _rank == 0) {
+                    std::cout << "WARNING -- " << solver << " only supports the following distribution" << (list.size() > 1 ? "s" : "") << ":";
+                    for(std::initializer_list<Distribution>::iterator it = list.begin(); it != list.end(); ++it) {
+                        switch(*it) {
+                            case CENTRALIZED: std::cout << " 'centralized'"; break;
+                            case DISTRIBUTED_SOL: std::cout << " 'distributed sol'"; break;
+                            case DISTRIBUTED_SOL_AND_RHS: std::cout << " 'distributed sol and rhs'"; break;
+                        }
+                        if(list.size() > 1 && it != list.end() - 1)
+                            std::cout << ",";
+                    }
+                    switch(_distribution) {
+                        case CENTRALIZED: std::cout << " (forcing the distribution to 'centralized')" << std::endl; break;
+                        case DISTRIBUTED_SOL: std::cout << " (forcing the distribution to 'distributed sol')" << std::endl; break;
+                        case DISTRIBUTED_SOL_AND_RHS: std::cout << " (forcing the distribution to 'distributed sol and rhs')" << std::endl; break;
+                    }
+                }
+            }
+        }
     public:
         DMatrix() : _mapRecv(), _mapSend(), _mapOwn(), _ldistribution(), _idistribution(), _gatherCounts(), _gatherSplitCounts(), _displs(), _displsSplit(), _communicator(MPI_COMM_NULL), _n(), _rank(), _distribution() { }
         DMatrix(const DMatrix&) = delete;
@@ -372,11 +405,6 @@ class DMatrix {
             delete _mapOwn;
             delete [] _gatherCounts;
             delete [] _gatherSplitCounts;
-        }
-        /* Function: getDistribution
-         *  Returns <Coarse operator::distribution>. */
-        inline Distribution getDistribution() const {
-            return _distribution;
         }
 };
 } // HPDDM

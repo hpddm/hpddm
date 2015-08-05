@@ -106,7 +106,7 @@ class MklPardiso : public DMatrix {
          *    J              - Array of column indices.
          *    C              - Array of data. */
         template<char S>
-        inline void numfact(unsigned int ncol, int* I, int* loc2glob, int* J, K* C) {
+        void numfact(unsigned int ncol, int* I, int* loc2glob, int* J, K* C) {
             _I = I;
             _J = J;
             _C = C;
@@ -150,32 +150,16 @@ class MklPardiso : public DMatrix {
          *    rhs            - Input right-hand side, solution vector is stored in-place.
          *    fuse           - Number of fused reductions (optional). */
         template<DMatrix::Distribution D>
-        inline void solve(K* rhs, const unsigned short& fuse = 0) {
+        void solve(K* rhs, const unsigned short& fuse = 0) {
             int error;
             int phase = 33;
             K ddum;
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), rhs, _w, const_cast<int*>(&_comm), &error);
         }
-        /* Function: initialize
-         *
-         *  Initializes <MKL Pardiso::comm>,  <DMatrix::rank>, and <DMatrix::distribution>.
-         *
-         * Parameter:
-         *    parm           - Vector of parameters. */
-        template<class Container>
-        inline void initialize(Container& parm) {
-            if(DMatrix::_communicator != MPI_COMM_NULL) {
+        void initialize() {
+            if(DMatrix::_communicator != MPI_COMM_NULL)
                 _comm = MPI_Comm_c2f(DMatrix::_communicator);
-                MPI_Comm_rank(DMatrix::_communicator, &(DMatrix::_rank));
-            }
-            if(parm[TOPOLOGY] == 1)
-                parm[TOPOLOGY] = 0;
-            if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL_AND_RHS) {
-                if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
-                    std::cout << "WARNING -- only distributed solution and RHS and nondistributed solution and RHS supported by the PARDISO interface, forcing the distribution to DISTRIBUTED_SOL_AND_RHS" << std::endl;
-                parm[DISTRIBUTION] = DMatrix::DISTRIBUTED_SOL_AND_RHS;
-            }
-            DMatrix::_distribution = DMatrix::DISTRIBUTED_SOL_AND_RHS;
+            DMatrix::initialize("PARDISO", { DISTRIBUTED_SOL_AND_RHS });
         }
 };
 #endif // DMKL_PARDISO
@@ -213,7 +197,7 @@ class MklPardisoSub {
             if(_mtype == prds<K>::SYM)
                 delete [] _C;
         }
-        inline void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+        void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             int* perm = nullptr;
             int phase, error;
             K ddum;
@@ -270,7 +254,7 @@ class MklPardisoSub {
             if(_mtype == prds<K>::SPD)
                 delete [] _C;
         }
-        inline void solve(K* x) const {
+        void solve(K* x) const {
             int error;
             _iparm[5] = 1;
             if(!_partial) {
@@ -285,7 +269,7 @@ class MklPardisoSub {
                 PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
             }
         }
-        inline void solve(const K* const b, K* const x) const {
+        void solve(const K* const b, K* const x) const {
             int error;
             if(!_partial) {
                 _iparm[5] = 0;
@@ -302,7 +286,7 @@ class MklPardisoSub {
                 PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), x, const_cast<K*>(_w), &error);
             }
         }
-        inline void solve(K* const x, const unsigned short& n) const {
+        void solve(K* const x, const unsigned short& n) const {
             int error;
             int phase = 33;
             int nrhs = n;
@@ -311,7 +295,7 @@ class MklPardisoSub {
             PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), const_cast<int*>(&_mtype), &phase, const_cast<int*>(&_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), x, w, &error);
             delete [] w;
         }
-        inline void solve(const K* const b, K* const x, const unsigned short& n) const {
+        void solve(const K* const b, K* const x, const unsigned short& n) const {
             int error;
             int phase = 33;
             int nrhs = n;

@@ -40,7 +40,7 @@ template<>
 struct MUMPS_STRUC_C<float> {
     typedef SMUMPS_STRUC_C trait;
     typedef float mumps_type;
-    static inline void mumps_c(SMUMPS_STRUC_C* id) {
+    static void mumps_c(SMUMPS_STRUC_C* id) {
         smumps_c(id);
     }
 };
@@ -48,7 +48,7 @@ template<>
 struct MUMPS_STRUC_C<double> {
     typedef DMUMPS_STRUC_C trait;
     typedef double mumps_type;
-    static inline void mumps_c(DMUMPS_STRUC_C* id) {
+    static void mumps_c(DMUMPS_STRUC_C* id) {
         dmumps_c(id);
     }
 };
@@ -56,7 +56,7 @@ template<>
 struct MUMPS_STRUC_C<std::complex<float>> {
     typedef CMUMPS_STRUC_C trait;
     typedef mumps_complex mumps_type;
-    static inline void mumps_c(CMUMPS_STRUC_C* id) {
+    static void mumps_c(CMUMPS_STRUC_C* id) {
         cmumps_c(id);
     }
 };
@@ -64,7 +64,7 @@ template<>
 struct MUMPS_STRUC_C<std::complex<double>> {
     typedef ZMUMPS_STRUC_C trait;
     typedef mumps_double_complex mumps_type;
-    static inline void mumps_c(ZMUMPS_STRUC_C* id) {
+    static void mumps_c(ZMUMPS_STRUC_C* id) {
         zmumps_c(id);
     }
 };
@@ -83,16 +83,12 @@ class Mumps : public DMatrix {
         /* Variable: id
          *  Internal data pointer. */
         typename MUMPS_STRUC_C<K>::trait* _id;
-        /* Variable: strategy
-         *  Ordering of the matrix during analysis phase. */
-        char                        _strategy;
-        static const std::string  _analysis[];
     protected:
         /* Variable: numbering
          *  1-based indexing. */
         static constexpr char _numbering = 'F';
     public:
-        Mumps() : _id(), _strategy(3) { }
+        Mumps() : _id() { }
         ~Mumps() {
             if(_id) {
                 _id->job = -2;
@@ -113,13 +109,14 @@ class Mumps : public DMatrix {
          *    J              - Array of column indices.
          *    C              - Array of data. */
         template<char S>
-        inline void numfact(unsigned int nz, int* I, int* J, K* C) {
+        void numfact(unsigned int nz, int* I, int* J, K* C) {
             _id = new typename MUMPS_STRUC_C<K>::trait();
             _id->job = -1;
             _id->par = 1;
             _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
+            Option& opt = *Option::get();
             if(S == 'S')
-                _id->sym = 1;
+                _id->sym = opt.set("master_mumps_not_spd") ? 2 : 1;
             else
                 _id->sym = 0;
             MUMPS_STRUC_C<K>::mumps_c(_id);
@@ -130,34 +127,17 @@ class Mumps : public DMatrix {
             _id->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
             _id->nrhs = 1;
             _id->icntl[4] = 0;
-            if(_strategy > 0 && _strategy < 9 && _strategy != 2) {
-                _id->icntl[27] = 1;             // 1: sequential analysis
-                _id->icntl[6]  = _strategy - 1; //     0: AMD
-            }                                   //     1:
-                                                //     2: AMF
-                                                //     3: SCOTCH
-                                                //     4: PORD
-                                                //     5: METIS
-                                                //     6: QAMD
-                                                //     7: automatic
-            else if(_strategy > 8 && _strategy < 12) {
-                _id->icntl[27] = 2;             // 2: parallel analysis
-                _id->icntl[28] = _strategy - 9; //     0: automatic
-            }                                   //     1: PT-STOCH
-                                                //     2: ParMetis
-            _id->icntl[8]  = 1;
-            _id->icntl[10] = 0;                 // verbose level
-            _id->icntl[17] = 3;                 // distributed matrix input
-            _id->icntl[19] = 0;                 // dense RHS
-            _id->icntl[13] = 75;                // percentage increase in the estimated working space
-            _id->job = 4;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
-            if(DMatrix::_rank == 0) {
-                if(_id->infog[31] == 1 || _id->infog[31] == 2)
-                    std::cout << "                 (memory: " << _id->infog[20] << "MB -- ordering tool: " << _analysis[_id->infog[6] + (_id->infog[31] == 1 ? 0 : 8)] << ")" << std::endl;
-                else if(_id->infog[0] != 0)
-                    std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
+            for(unsigned short i = 6; i < 40; ++i) {
+                double val = opt.val("master_mumps_icntl_" + to_string(i + 1));
+                if(val != std::numeric_limits<double>::lowest())
+                    _id->icntl[i] = static_cast<int>(val);
             }
+            _id->job = 4;
+            if(opt.val("verbosity") < 2)
+                _id->icntl[2] = 0;
+            MUMPS_STRUC_C<K>::mumps_c(_id);
+            if(DMatrix::_rank == 0 && _id->infog[0] != 0)
+                std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
             _id->icntl[2] = 0;
             delete [] I;
         }
@@ -171,7 +151,7 @@ class Mumps : public DMatrix {
          * Parameter:
          *    rhs            - Input right-hand side, solution vector is stored in-place. */
         template<DMatrix::Distribution D>
-        inline void solve(K* rhs) {
+        void solve(K* rhs) {
             if(D == DMatrix::DISTRIBUTED_SOL) {
                 _id->icntl[20] = 1;
                 int info = _id->info[22];
@@ -197,30 +177,10 @@ class Mumps : public DMatrix {
                 MUMPS_STRUC_C<K>::mumps_c(_id);
             }
         }
-        /* Function: initialize
-         *
-         *  Initializes <Mumps::strategy>, <DMatrix::rank>, and <DMatrix::distribution>.
-         *
-         * Parameter:
-         *    parm           - Vector of parameters. */
-        template<class Container>
-        inline void initialize(Container& parm) {
-            if(DMatrix::_communicator != MPI_COMM_NULL)
-                MPI_Comm_rank(DMatrix::_communicator, &(DMatrix::_rank));
-            if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL && parm[DISTRIBUTION] != DMatrix::NON_DISTRIBUTED) {
-                if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
-                    std::cout << "WARNING -- only distributed solution and nondistributed solution and RHS supported by the MUMPS interface, forcing the distribution to NON_DISTRIBUTED" << std::endl;
-                DMatrix::_distribution = DMatrix::NON_DISTRIBUTED;
-                parm[DISTRIBUTION] = DMatrix::NON_DISTRIBUTED;
-            }
-            else
-                DMatrix::_distribution = static_cast<DMatrix::Distribution>(parm[DISTRIBUTION]);
-            _strategy = parm[STRATEGY];
+        void initialize() {
+            DMatrix::initialize("MUMPS", { CENTRALIZED, DISTRIBUTED_SOL });
         }
 };
-
-template<class K>
-const std::string Mumps<K>::_analysis[] { "AMD", "", "AMF", "SCOTCH", "PORD", "METIS", "QAMD", "automatic sequential", "automatic parallel", "PT-SCOTCH", "ParMetis" };
 #endif // DMUMPS
 
 #ifdef MUMPSSUB
@@ -242,7 +202,7 @@ class MumpsSub {
             }
             delete [] _I;
         }
-        inline void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+        void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             if(!_id) {
                 _id = new typename MUMPS_STRUC_C<K>::trait();
                 _id->job = -1;
@@ -258,29 +218,15 @@ class MumpsSub {
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
             if(_id->job == -1) {
-                char strategy = (5 <= sto<int>(std::string(MUMPS_VERSION).substr(0, std::string(MUMPS_VERSION).find_first_of("."))) ? 4 : 3);
                 _id->nrhs = 1;
                 std::fill_n(_id->icntl, 5, 0);
-                if(strategy > 0 && strategy < 9 && strategy != 2) {
-                    _id->icntl[27] = 1;             // 1: sequential analysis
-                    _id->icntl[6]  = strategy - 1;  //     0: AMD
-                }                                   //     1:
-                                                    //     2: AMF
-                                                    //     3: SCOTCH
-                                                    //     4: PORD
-                                                    //     5: METIS
-                                                    //     6: QAMD
-                                                    //     7: automatic
-                else {
-                    _id->icntl[27] = 1;
-                    _id->icntl[6]  = 7;
-                }
-                _id->icntl[8]  = 1;
-                _id->icntl[10] = 0;
-                _id->icntl[17] = 0;
-                _id->icntl[19] = 0;
-                _id->icntl[13] = 80;
                 _id->n = A->_n;
+                Option& opt = *Option::get();
+                for(unsigned short i = 6; i < 40; ++i) {
+                    double val = opt.val("mumps_icntl_" + to_string(i + 1));
+                    if(val != std::numeric_limits<double>::lowest())
+                        _id->icntl[i] = static_cast<int>(val);
+                }
                 _id->lrhs = A->_n;
                 _I = new int[A->_nnz];
                 _id->nz = A->_nnz;
@@ -308,15 +254,15 @@ class MumpsSub {
                 std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
             std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
         }
-        inline unsigned short deficiency() const { return _id->infog[27]; }
-        inline void solve(K* const x, const unsigned short& n = 1) const {
+        unsigned short deficiency() const { return _id->infog[27]; }
+        void solve(K* const x, const unsigned short& n = 1) const {
             _id->icntl[20] = 0;
             _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);
             _id->nrhs = n;
             _id->job = 3;
             MUMPS_STRUC_C<K>::mumps_c(_id);
         }
-        inline void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
+        void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
             std::copy_n(b, n * _id->n, x);
             solve(x, n);
         }

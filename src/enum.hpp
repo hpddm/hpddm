@@ -25,33 +25,6 @@
 #define _ENUM_
 
 namespace HPDDM {
-/* Enum: Parameter
- *
- *  Parameters for the construction of a distributed matrix.
- *
- *    NU             - Number of eigenvalues on current subdomain.
- *    P              - Number of master processes.
- *    TOPOLOGY       - Distribution of the matrix.
- *    DISTRIBUTION   - Controls whether right-hand sides and solution vectors should be distributed or not.
- *    STRATEGY       - Strategy of the direct solver for the analysis phase.
- *
- * See also: <DMatrix>. */
-enum Parameter : char {
-    NU, P, TOPOLOGY, DISTRIBUTION, STRATEGY
-};
-/* Enum: Gmres
- *
- *  Defines the type of GMRES used.
- *
- *    CLASSICAL      - GMRES with classical Gram-Schmidt process to orthogonalize against the Krylov space.
- *    MODIFIED       - GMRES with modified Gram-Schmidt process to orthogonalize against the Krylov space.
- *    PIPELINED      - Pipelined GMRES.
- *    FUSED          - Fused pipelined GMRES.
- *
- * See also: <Iterative method::GMRES>. */
-enum Gmres : char {
-    CLASSICAL, MODIFIED, PIPELINED, FUSED
-};
 /* Enum: FetiPrcndtnr
  *
  *  Defines the FETI preconditioner used in the projection.

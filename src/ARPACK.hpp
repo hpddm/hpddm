@@ -60,10 +60,10 @@ class Arpack : public Eigensolver<K> {
         static constexpr const char* const _which = std::is_same<K, typename Wrapper<K>::ul_type>::value ? "LM" : "LM";
         /* Function: aupd
          *  Iterates the implicitly restarted Arnoldi method. */
-        static inline void aupd(int*, const char*, const int*, const char*, const int*, const typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
+        static void aupd(int*, const char*, const int*, const char*, const int*, const typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
         /* Function: eupd
          *  Post-processes the eigenpairs computed with <Arpack::aupd>. */
-        static inline void eupd(const int*, const char*, int*, K*, K*, const int*, const K*, K*, const char*, const char*, const int*, const typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
+        static void eupd(const int*, const char*, int*, K*, K*, const int*, const K*, K*, const char*, const char*, const int*, const typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
     public:
         Arpack(int n, int nu)                                                                                              : Eigensolver<K>(n, nu), _it(100) { }
         Arpack(typename Wrapper<K>::ul_type threshold, int n, int nu)                                                      : Eigensolver<K>(threshold, n, nu), _it(100) { }
@@ -78,7 +78,7 @@ class Arpack : public Eigensolver<K> {
          *    ev             - Array of eigenvectors.
          *    communicator   - MPI communicator for selecting the threshold criterion. */
         template<template<class> class Solver>
-        inline void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
+        void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
             int iparam[11] { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
             int ipntr[std::is_same<K, typename Wrapper<K>::ul_type>::value ? 11 : 14] { };
             if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)

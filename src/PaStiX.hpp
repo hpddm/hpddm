@@ -32,42 +32,36 @@ extern "C" {
 #define HPDDM_GENERATE_PASTIX(C, T)                                                                          \
 template<>                                                                                                   \
 struct pstx<T> {                                                                                             \
-    static inline void dist(pastix_data_t** pastix_data, MPI_Comm pastix_comm,                               \
-                            pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,                         \
-                            T* avals, pastix_int_t* loc2glob, pastix_int_t* perm, pastix_int_t* invp,        \
-                            T* b, pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {                    \
+    static void dist(pastix_data_t** pastix_data, MPI_Comm pastix_comm, pastix_int_t n, pastix_int_t* colptr,\
+                     pastix_int_t* row, T* avals, pastix_int_t* loc2glob, pastix_int_t* perm,                \
+                     pastix_int_t* invp, T* b, pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {       \
         C ## _dpastix(pastix_data, pastix_comm,                                                              \
                       n, colptr, row, avals, loc2glob, perm, invp, b, rhs, iparm, dparm);                    \
     }                                                                                                        \
-    static inline void seq(pastix_data_t** pastix_data, MPI_Comm pastix_comm,                                \
-                           pastix_int_t n, pastix_int_t* colptr, pastix_int_t* row,                          \
-                           T* avals, pastix_int_t* perm, pastix_int_t* invp,                                 \
-                           T* b, pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {                     \
+    static void seq(pastix_data_t** pastix_data, MPI_Comm pastix_comm, pastix_int_t n, pastix_int_t* colptr, \
+                    pastix_int_t* row, T* avals, pastix_int_t* perm, pastix_int_t* invp, T* b,               \
+                    pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {                                  \
         C ## _pastix(pastix_data, pastix_comm, n, colptr, row, avals, perm, invp, b, rhs, iparm, dparm);     \
     }                                                                                                        \
-    static inline pastix_int_t cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, T* a,     \
-                                               T* rhs, pastix_int_t nrhs, pastix_int_t* l2g,                 \
-                                               pastix_int_t dn, pastix_int_t** dia,                          \
-                                               pastix_int_t** dja, T** da,                                   \
-                                               T** drhs, pastix_int_t* dl2g,                                 \
-                                               MPI_Comm comm, pastix_int_t dof) {                            \
-        return C ## _cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia,                                  \
-                                     dja, da, drhs, dl2g, comm, dof);                                        \
+    static pastix_int_t cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, T* a, T* rhs,    \
+                                        pastix_int_t nrhs, pastix_int_t* l2g, pastix_int_t dn,               \
+                                        pastix_int_t** dia, pastix_int_t** dja, T** da, T** drhs,            \
+                                        pastix_int_t* dl2g, MPI_Comm comm, pastix_int_t dof) {               \
+        return C ## _cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia, dja, da, drhs, dl2g, comm, dof); \
     }                                                                                                        \
-    static inline void initParam(pastix_int_t* iparm, double* dparm) {                                       \
+    static void initParam(pastix_int_t* iparm, double* dparm) {                                              \
         C ## _pastix_initParam(iparm, dparm);                                                                \
     }                                                                                                        \
-    static inline pastix_int_t getLocalNodeNbr(pastix_data_t** pastix_data) {                                \
+    static pastix_int_t getLocalNodeNbr(pastix_data_t** pastix_data) {                                       \
         return C ## _pastix_getLocalNodeNbr(pastix_data);                                                    \
     }                                                                                                        \
-    static inline pastix_int_t getLocalNodeLst(pastix_data_t** pastix_data, pastix_int_t* nodelst) {         \
+    static pastix_int_t getLocalNodeLst(pastix_data_t** pastix_data, pastix_int_t* nodelst) {                \
         return C ## _pastix_getLocalNodeLst(pastix_data, nodelst);                                           \
     }                                                                                                        \
-    static inline pastix_int_t setSchurUnknownList(pastix_data_t* pastix_data, pastix_int_t n,               \
-                                                   pastix_int_t* list) {                                     \
+    static pastix_int_t setSchurUnknownList(pastix_data_t* pastix_data, pastix_int_t n, pastix_int_t* list) {\
         return C ## _pastix_setSchurUnknownList(pastix_data, n, list);                                       \
     }                                                                                                        \
-    static inline pastix_int_t setSchurArray(pastix_data_t* pastix_data, T* array) {                         \
+    static pastix_int_t setSchurArray(pastix_data_t* pastix_data, T* array) {                                \
         return C ## _pastix_setSchurArray(pastix_data, array);                                               \
     }                                                                                                        \
     static constexpr API_FACT LLT = API_FACT_LLT;                                                            \
@@ -76,8 +70,7 @@ struct pstx<T> {                                                                
 
 namespace HPDDM {
 template<class>
-struct pstx {
-};
+struct pstx { };
 HPDDM_GENERATE_PASTIX(s, float)
 HPDDM_GENERATE_PASTIX(d, double)
 #if defined(PASTIX_HAS_COMPLEX)
@@ -155,7 +148,7 @@ class Pastix : public DMatrix {
          *    J              - Array of column indices.
          *    C              - Array of data. */
         template<char S>
-        inline void numfact(unsigned int ncol, int* I, int* loc2glob, int* J, K* C) {
+        void numfact(unsigned int ncol, int* I, int* loc2glob, int* J, K* C) {
             _iparm = new pastix_int_t[IPARM_SIZE];
             _dparm = new double[DPARM_SIZE];
 
@@ -221,7 +214,7 @@ class Pastix : public DMatrix {
          *    rhs            - Input right-hand side, solution vector is stored in-place.
          *    fuse           - Number of fused reductions (optional). */
         template<DMatrix::Distribution D>
-        inline void solve(K* rhs, const unsigned short& fuse = 0) {
+        void solve(K* rhs, const unsigned short& fuse = 0) {
             K* rhs2 = new K[_ncol2];
             if(!DMatrix::_mapOwn && !DMatrix::_mapRecv)
                 DMatrix::initializeMap<1>(_ncol2, _loc2glob2, rhs2, rhs);
@@ -237,22 +230,8 @@ class Pastix : public DMatrix {
             DMatrix::redistribute<2>(rhs, rhs2, fuse);
             delete [] rhs2;
         }
-        /* Function: initialize
-         *
-         *  Initializes <DMatrix::rank> and <DMatrix::distribution>.
-         *
-         * Parameter:
-         *    parm           - Vector of parameters. */
-        template<class Container>
-        inline void initialize(Container& parm) {
-            if(DMatrix::_communicator != MPI_COMM_NULL)
-                MPI_Comm_rank(DMatrix::_communicator, &(DMatrix::_rank));
-            if(parm[DISTRIBUTION] != DMatrix::DISTRIBUTED_SOL_AND_RHS) {
-                if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_rank == 0)
-                    std::cout << "WARNING -- only distributed solution and RHS supported by the PaStiX interface, forcing the distribution to DISTRIBUTED_SOL_AND_RHS" << std::endl;
-                parm[DISTRIBUTION] = DMatrix::DISTRIBUTED_SOL_AND_RHS;
-            }
-            DMatrix::_distribution = DMatrix::DISTRIBUTED_SOL_AND_RHS;
+        void initialize() {
+            DMatrix::initialize("PaStiX", { DISTRIBUTED_SOL_AND_RHS });
         }
 };
 #endif // DPASTIX
@@ -289,7 +268,7 @@ class PastixSub {
                 delete [] _dparm;
             }
         }
-        inline void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+        void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             if(!_iparm) {
                 _iparm = new pastix_int_t[IPARM_SIZE];
                 _dparm = new double[DPARM_SIZE];
@@ -354,7 +333,7 @@ class PastixSub {
                 std::for_each(_rows, _rows + A->_nnz, [](int& i) { --i; });
             }
         }
-        inline void solve(K* const x, const unsigned short& n = 1) const {
+        void solve(K* const x, const unsigned short& n = 1) const {
             _iparm[IPARM_START_TASK] = API_TASK_SOLVE;
             _iparm[IPARM_END_TASK]   = API_TASK_SOLVE;
             pstx<K>::seq(const_cast<pastix_data_t**>(&_data), MPI_COMM_SELF,
@@ -362,7 +341,7 @@ class PastixSub {
                          _ncol, NULL, NULL, NULL,
                          NULL, NULL, x, n, _iparm, _dparm);
         }
-        inline void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
+        void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
             std::copy_n(b, n * _ncol, x);
             solve(x, n);
         }

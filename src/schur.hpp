@@ -49,7 +49,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    recv           - Buffer for receiving the local Schur complement of each neighboring subdomains.
          *    res            - Restriction of the global Schur complement. */
         template<char L>
-        inline void exchangeSchurComplement(MPI_Request* const& rq, K* const* const& send, K* const* const& recv, K* const& res) const {
+        void exchangeSchurComplement(MPI_Request* const& rq, K* const* const& send, K* const* const& recv, K* const& res) const {
             if(send && recv && res) {
                 if(L == 'S')
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
@@ -146,7 +146,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L>
-        inline void solveGEVP(const typename Wrapper<K>::ul_type* const d, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold) {
+        void solveGEVP(const typename Wrapper<K>::ul_type* const d, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold) {
             if(_schur) {
                 MPI_Request* rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
                 K** send = new K*[2 * Subdomain<K>::_map.size()];
@@ -247,7 +247,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Function: initialize
          *  Sets <Schur::rankWorld> and <Schur::signed>, and allocates <Schur::mult>, <Schur::work>, and <Schur::structure>. */
         template<bool m>
-        inline void initialize() {
+        void initialize() {
             MPI_Comm_rank(Subdomain<K>::_communicator, &_rankWorld);
             for(const pairNeighbor& neighbor : Subdomain<K>::_map) {
                 _mult += neighbor.second.size();
@@ -265,7 +265,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         }
         /* Function: callNumfact
          *  Factorizes <Subdomain::a>. */
-        inline void callNumfact() {
+        void callNumfact() {
             if(Subdomain<K>::_a) {
                 _pinv = new Solver<K>();
                 Solver<K>* p = static_cast<Solver<K>*>(_pinv);
@@ -288,7 +288,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         }
         /* Function: computeSchurComplement
          *  Computes the explicit Schur complement <Schur::schur>. */
-        inline void computeSchurComplement() {
+        void computeSchurComplement() {
 #if defined(MUMPSSUB) || defined(PASTIXSUB) || defined(MKL_PARDISOSUB)
             if(Subdomain<K>::_a) {
                 if(_ii) {
@@ -313,7 +313,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         }
         /* Function: callNumfactPreconditioner
          *  Factorizes <Schur::ii> if <Schur::schur> is not available. */
-        inline void callNumfactPreconditioner() {
+        void callNumfactPreconditioner() {
             if(!_schur) {
                 if(_ii) {
                     if(_ii->_n)
@@ -331,7 +331,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    interface      - Numbering of the interface.
          *    in             - Input vector. */
         template<class Container>
-        inline void originalNumbering(const Container& interface, K* const in) const {
+        void originalNumbering(const Container& interface, K* const in) const {
             if(interface[0] != _bi->_m) {
                 unsigned int end = Subdomain<K>::_a->_n;
                 std::vector<K> backup(in + _bi->_m, in + end);
@@ -355,7 +355,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    interface      - Numbering of the interface.
          *    f              - Right-hand side to renumber (optional). */
         template<class Container>
-        inline void renumber(const Container& interface, K* const& f = nullptr) {
+        void renumber(const Container& interface, K* const& f = nullptr) {
             if(!interface.empty()) {
                 if(!_ii) {
                     Subdomain<K>::_dof = Subdomain<K>::_a->_n;
@@ -513,7 +513,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *
          * Parameter:
          *    pt             - Reference to the array in which to store the values. */
-        inline void stiffnessScaling(K* const& pt) {
+        void stiffnessScaling(K* const& pt) {
             if(_bb) {
                 for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
                     unsigned int idx = _bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1);
@@ -530,10 +530,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         }
         /* Function: getMult
          *  Returns the value of <Schur::mult>. */
-        inline int getMult() const { return _mult; }
+        int getMult() const { return _mult; }
         /* Function: getSigned
          *  Returns the value of <Schur::signed>. */
-        inline unsigned short getSigned() const { return _signed; }
+        unsigned short getSigned() const { return _signed; }
         /* Function: applyLocalSchurComplement(n)
          *
          *  Applies the local Schur complement to multiple right-hand sides.
@@ -543,7 +543,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    n              - Number of input vectors.
          *
          * See also: <Feti::applyLocalPreconditioner(n)>. */
-        inline void applyLocalSchurComplement(K*& in, const int& n) const {
+        void applyLocalSchurComplement(K*& in, const int& n) const {
             K* out = new K[n * Subdomain<K>::_dof]();
             if(!_schur) {
                 if(_bi->_m) {
@@ -569,7 +569,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    out            - Output vector (optional).
          *
          * See also: <Feti::applyLocalPreconditioner> and <Bdd::apply>. */
-        inline void applyLocalSchurComplement(K* const in, K* const& out = nullptr) const {
+        void applyLocalSchurComplement(K* const in, K* const& out = nullptr) const {
             if(!_schur) {
                 Wrapper<K>::template csrmv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), _work);
                 if(_bi->_m)
@@ -600,7 +600,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    n              - Number of input vectors.
          *
          * See also: <Feti::applyLocalPreconditioner(n)>. */
-        inline void applyLocalLumpedMatrix(K*& in, const int& n) const {
+        void applyLocalLumpedMatrix(K*& in, const int& n) const {
             K* out = new K[n * Subdomain<K>::_dof];
             Wrapper<K>::template csrmm<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
             delete [] in;
@@ -615,7 +615,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    out            - Output vector (optional).
          *
          * See also: <Feti::applyLocalPreconditioner>. */
-        inline void applyLocalLumpedMatrix(K* const in) const {
+        void applyLocalLumpedMatrix(K* const in) const {
             Wrapper<K>::template csrmv<Wrapper<K>::I>(&transa, &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__0), _work + _bi->_m);
             std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
         }
@@ -628,7 +628,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    n              - Number of input vectors.
          *
          * See also: <Feti::applyLocalPreconditioner(n)>. */
-        inline void applyLocalSuperlumpedMatrix(K*& in, const int& n) const {
+        void applyLocalSuperlumpedMatrix(K*& in, const int& n) const {
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
                 K d = _bb->_a[_bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
                 for(int j = 0; j < n; ++j)
@@ -644,23 +644,19 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    out            - Output vector (optional).
          *
          * See also: <Feti::applyLocalPreconditioner>. */
-        inline void applyLocalSuperlumpedMatrix(K* const in) const {
+        void applyLocalSuperlumpedMatrix(K* const in) const {
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
                 in[i] *= _bb->_a[_bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
         }
         /* Function: getRank
          *  Returns the value of <Schur::rankWorld>. */
-        inline int getRank() const { return _rankWorld; }
+        int getRank() const { return _rankWorld; }
         /* Function: getLDR
          *  Returns the address of the leading dimension of <Preconditioner::ev>. */
-        inline const int* getLDR() const {
-            return _schur ? &_bi->_n : &(super::_a->_n);
-        }
+        const int* getLDR() const { return _schur ? &_bi->_n : &(super::_a->_n); }
         /* Function: getEliminated
          *  Returns the number of eliminated unknowns of <Subdomain<K>::a>, i.e. the number of columns of <Schur::bi>. */
-        inline unsigned int getEliminated() const {
-            return _bi ? _bi->_m : 0;
-        }
+        unsigned int getEliminated() const { return _bi ? _bi->_m : 0; }
         /* Function: condensateEffort
          *
          *  Performs static condensation.
@@ -668,7 +664,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          * Parameters:
          *    f              - Input right-hand side.
          *    b              - Condensed right-hand side. */
-        inline void condensateEffort(const K* const f, K* const b) const {
+        void condensateEffort(const K* const f, K* const b) const {
             if(_bi->_m)
                 super::_s.solve(f, _structure);
             std::copy_n(f + _bi->_m, Subdomain<K>::_dof, b ? b : _structure + _bi->_m);
@@ -684,7 +680,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    storage        - Array to store both values.
          *
          * See also: <Schwarz::computeError>. */
-        inline void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage) const {
+        void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage) const {
             storage[0] = Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1);
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);
@@ -709,7 +705,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         }
         /* Function: getAllDof
          *  Returns the number of local interior and boundary degrees of freedom (with the right multiplicity). */
-        inline unsigned int getAllDof() const {
+        unsigned int getAllDof() const {
             unsigned int dof = Subdomain<K>::_a->_n;
             for(unsigned int k = 0; k < Subdomain<K>::_dof; ++k) {
                 bool exit = false;
@@ -723,10 +719,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             return dof;
         }
         template<char N = 'C'>
-        inline void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
+        void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global);
         }
-        inline bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
+        bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);
         }
 };

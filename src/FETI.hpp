@@ -60,7 +60,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    primal         - Primal unknowns.
          *    dual           - Dual unknowns. */
         template<char trans, bool scale>
-        inline void A(K* const primal, K* const* const dual) const {
+        void A(K* const primal, K* const* const dual) const {
             static_assert(trans == 'T' || trans == 'N', "Unsupported value for argument 'trans'");
             if(trans == 'T') {
                 std::fill(primal, primal + Subdomain<K>::_dof, K());
@@ -89,13 +89,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             }
         }
         template<class U, typename std::enable_if<std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
-        inline void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
+        void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
             dual = new U*[2 * Subdomain<K>::_map.size()];
             m    = dual + Subdomain<K>::_map.size();
         }
         template<class U, typename std::enable_if<!std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
-        inline void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
+        void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
             dual = new U*[Subdomain<K>::_map.size()];
             m    = new typename Wrapper<U>::ul_type*[Subdomain<K>::_map.size()];
@@ -116,7 +116,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         typedef Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
         /* Function: initialize
          *  Allocates <Feti::primal>, <Feti::dual>, and <Feti::m> and calls <Schur::initialize>. */
-        inline void initialize() {
+        void initialize() {
             super::template initialize<true>();
             _primal = super::_structure + super::_bi->_m;
             allocate(_dual, _m);
@@ -140,7 +140,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    b              - Condensed right-hand side.
          *    r              - First residual. */
         template<bool excluded>
-        inline void start(K* const x, const K* const f, K* const* const l, K* const* const r) const {
+        void start(K* const x, const K* const f, K* const* const l, K* const* const r) const {
             Solver<K>* p = static_cast<Solver<K>*>(super::_pinv);
             if(super::_co) {
                 if(!excluded) {
@@ -191,7 +191,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *
          * Parameter:
          *    mult           - Reference to a Lagrange multiplier. */
-        inline void allocateSingle(K**& mult) const {
+        void allocateSingle(K**& mult) const {
             mult  = new K*[Subdomain<K>::_map.size()];
             *mult = new K[super::_mult];
             for(unsigned short i = 1; i < Subdomain<K>::_map.size(); ++i)
@@ -207,7 +207,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameter:
          *    array          - Reference to an array of Lagrange multipliers. */
         template<unsigned short N>
-        inline void allocateArray(K** (&array)[N]) const {
+        void allocateArray(K** (&array)[N]) const {
             *array  = new K*[N * Subdomain<K>::_map.size()];
             **array = new K[N * super::_mult];
             for(unsigned short i = 0; i < N; ++i) {
@@ -224,7 +224,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    scaling        - Type of scaling (multiplicity, stiffness or coefficient scaling).
          *    rho            - Physical local coefficients (optional). */
-        inline void buildScaling(const char& scaling, const K* const& rho = nullptr) {
+        void buildScaling(const char& scaling, const K* const& rho = nullptr) {
             initialize();
             std::vector<std::pair<unsigned short, unsigned int>>* array = new std::vector<std::pair<unsigned short, unsigned int>>[Subdomain<K>::_dof];
             for(const pairNeighbor& neighbor: Subdomain<K>::_map)
@@ -253,7 +253,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector (optional). */
-        inline void apply(K* const* const in, K* const* const out = nullptr) const {
+        void apply(K* const* const in, K* const* const out = nullptr) const {
             A<'T', 0>(_primal, in);
             std::fill(super::_structure, super::_structure + super::_bi->_m, K());
             static_cast<Solver<K>*>(super::_pinv)->solve(super::_structure);
@@ -270,7 +270,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    u              - Input vectors.
          *    n              - Number of input vectors. */
         template<FetiPrcndtnr q = P>
-        inline void applyLocalPreconditioner(K*& u, unsigned short n) const {
+        void applyLocalPreconditioner(K*& u, unsigned short n) const {
             switch(q) {
                 case FetiPrcndtnr::DIRICHLET:   super::applyLocalSchurComplement(u, n); break;
                 case FetiPrcndtnr::LUMPED:      super::applyLocalLumpedMatrix(u, n); break;
@@ -288,7 +288,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameter:
          *    u              - Input vector. */
         template<FetiPrcndtnr q = P>
-        inline void applyLocalPreconditioner(K* const u) const {
+        void applyLocalPreconditioner(K* const u) const {
             switch(q) {
                 case FetiPrcndtnr::DIRICHLET:   super::applyLocalSchurComplement(u); break;
                 case FetiPrcndtnr::LUMPED:      super::applyLocalLumpedMatrix(u); break;
@@ -304,7 +304,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    in             - Input vector.
          *    out            - Output vector (optional). */
         template<FetiPrcndtnr q = P>
-        inline void precond(K* const* const in, K* const* const out = nullptr) const {
+        void precond(K* const* const in, K* const* const out = nullptr) const {
             A<'T', 1>(_primal, in);
             applyLocalPreconditioner<q>(_primal);
             A<'N', 1>(_primal, out ? out : in);
@@ -321,7 +321,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    in             - Input vector.
          *    out            - Output vector (optional). */
         template<bool excluded, char trans>
-        inline void project(K* const* const in, K* const* const out = nullptr) const {
+        void project(K* const* const in, K* const* const out = nullptr) const {
             static_assert(trans == 'T' || trans == 'N', "Unsupported value for argument 'trans'");
             if(super::_co) {
                 if(!excluded) {
@@ -369,16 +369,16 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Template Parameter:
          *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
-         * Parameters:
+         * Parameter:
          *    comm           - Global MPI communicator.
-         *    parm           - Vector of parameters.
          *
          * See also: <Bdd::buildTwo>, <Schwarz::buildTwo>.*/
-        template<unsigned short excluded = 0, class Container>
-        inline std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, Container& parm) {
-            if(!super::_schur && parm[NU])
-                super::_deficiency = parm[NU];
-            return super::template buildTwo<excluded, 3>(std::move(FetiProjection<decltype(*this), P, K>(*this, parm[NU])), comm, parm);
+        template<unsigned short excluded = 0>
+        std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
+            const Option& opt = *Option::get();
+            if(!super::_schur && opt["geneo_nu"])
+                super::_deficiency = opt["geneo_nu"];
+            return super::template buildTwo<excluded, 3>(std::move(FetiProjection<decltype(*this), P, K>(*this)), comm);
         }
         /* Function: computeSolution
          *
@@ -391,7 +391,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    l              - Last iterate of the Lagrange multiplier.
          *    x              - Solution vector. */
         template<bool excluded>
-        inline void computeSolution(K* const* const l, K* const x) const {
+        void computeSolution(K* const* const l, K* const x) const {
             if(!excluded) {
                 A<'T', 0>(_primal, l);                                                                                                                                                                                                       //    _primal = A^T l
                 std::fill(super::_structure, super::_structure + super::_bi->_m, K());
@@ -426,7 +426,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 super::_co->template callSolver<excluded>(super::_uc);
         }
         template<bool>
-        inline void computeSolution(const K* const, K* const) const { }
+        void computeSolution(const K* const, K* const) const { }
         /* Function: computeDot
          *
          *  Computes the dot product of two Lagrange multipliers.
@@ -438,7 +438,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    a              - Left-hand side.
          *    b              - Right-hand side. */
         template<bool excluded>
-        inline void computeDot(typename Wrapper<K>::ul_type* const val, const K* const* const a, const K* const* const b, const MPI_Comm& comm) const {
+        void computeDot(typename Wrapper<K>::ul_type* const val, const K* const* const a, const K* const* const b, const MPI_Comm& comm) const {
             if(!excluded)
                 *val = Wrapper<K>::dot(&(super::_mult), *a, &i__1, *b, &i__1) / 2.0;
             else
@@ -447,7 +447,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Feti::m>. */
-        inline const typename Wrapper<K>::ul_type* const* getScaling() const { return _m; }
+        const typename Wrapper<K>::ul_type* const* getScaling() const { return _m; }
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -459,7 +459,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L = 'S'>
-        inline void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type&) {
+        void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type&) {
             typename Wrapper<K>::ul_type* const pt = reinterpret_cast<typename Wrapper<K>::ul_type*>(_primal);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)

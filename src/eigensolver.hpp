@@ -49,7 +49,7 @@ class Eigensolver {
     private:
         /* Function: gesdd
          *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
-        static inline void gesdd(const char*, const int*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, K*, const int*, K*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, int*, int*);
+        static void gesdd(const char*, const int*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, K*, const int*, K*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, int*, int*);
     protected:
         /* Variable: tol
          *  Relative tolerance of the eigenvalue problem solver. */
@@ -65,8 +65,8 @@ class Eigensolver {
         int                                 _nu;
     public:
         Eigensolver(int n)                                                                                    : _tol(), _threshold(), _n(n), _nu() { }
-        Eigensolver(int n, int& nu)                                                                           : _tol(1.0e-6), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
-        Eigensolver(typename Wrapper<K>::ul_type threshold, int n, int& nu)                                   : _tol(threshold > 0.0 ? HPDDM_EPS : 1.0e-6), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
+        Eigensolver(int n, int& nu)                                                                           : _tol((*Option::get())["geneo_eigensolver_tol"]), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
+        Eigensolver(typename Wrapper<K>::ul_type threshold, int n, int& nu)                                   : _tol(threshold > 0.0 ? HPDDM_EPS : (*Option::get())["geneo_eigensolver_tol"]), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
         Eigensolver(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int& nu) : _tol(threshold > 0.0 ? HPDDM_EPS : tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { nu = _nu; }
         /* Function: selectNu
          *
@@ -76,7 +76,7 @@ class Eigensolver {
          *    eigenvalues   - Input array used to store eigenvalues in ascending order.
          *    communicator  - MPI communicator (usually <Subdomain::communicator>) on which the criterion <Eigensolver::nu> has to be uniformized. */
         template<class T>
-        inline void selectNu(const T* const eigenvalues, const MPI_Comm& communicator) {
+        void selectNu(const T* const eigenvalues, const MPI_Comm& communicator) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, typename Wrapper<K>::ul_type>::value, "Wrong types");
             unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
             MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
@@ -84,22 +84,22 @@ class Eigensolver {
         }
         /* Function: getTol
          *  Returns the value of <Eigensolver::tol>. */
-        inline typename Wrapper<K>::ul_type getTol() const { return _tol; }
+        typename Wrapper<K>::ul_type getTol() const { return _tol; }
         /* Function: getNu
          *  Returns the value of <Eigensolver::nu>. */
-        inline int getNu() const { return _nu; }
-        inline int workspace(const char* jobz, const int* const m) const {
+        int getNu() const { return _nu; }
+        int workspace(const char* jobz, const int* const m) const {
             int info;
             int lwork = -1;
             K wkopt;
             gesdd(jobz, &(Eigensolver<K>::_n), m, nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, &(Eigensolver<K>::_n), nullptr, m, &wkopt, &lwork, nullptr, nullptr, &info);
             return static_cast<int>(std::real(wkopt));
         }
-        inline void svd(const char* jobz, const int* m, K* a, typename Wrapper<K>::ul_type* s, K* u, K* vt, K* work, const int* lwork, int* iwork, typename Wrapper<K>::ul_type* rwork = nullptr) const {
+        void svd(const char* jobz, const int* m, K* a, typename Wrapper<K>::ul_type* s, K* u, K* vt, K* work, const int* lwork, int* iwork, typename Wrapper<K>::ul_type* rwork = nullptr) const {
             int info;
             gesdd(jobz, &_n, m, a, &_n, s, u, &_n, vt, m, work, lwork, rwork, iwork, &info);
         }
-        inline void purify(K* ev, const typename Wrapper<K>::ul_type* const d = nullptr) {
+        void purify(K* ev, const typename Wrapper<K>::ul_type* const d = nullptr) {
             int lwork = workspace("N", &_nu);
             K* a, *work;
             typename Wrapper<K>::ul_type* rwork;

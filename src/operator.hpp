@@ -34,7 +34,7 @@ template<> class Members<true> {
         std::vector<std::vector<unsigned short>>     _vecSparsity;
         const unsigned short                                _rank;
         unsigned short                               _consolidate;
-        Members(unsigned short r) : _rank(r), _consolidate() { };
+        Members(unsigned short r) : _rank(r), _consolidate() { }
 };
 template<char P, class Preconditioner, class K>
 class OperatorBase : protected Members<P != 's'> {
@@ -50,13 +50,13 @@ class OperatorBase : protected Members<P != 's'> {
                 static constexpr bool value = (sizeof(test<T>(0)) == sizeof(one));
         };
         template<class Q = Preconditioner, typename std::enable_if<has_LDR<Q>::value>::type* = nullptr>
-        inline void offsetDeflation(const Q& p) {
+        void offsetDeflation() {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v -= offset; });
         }
         template<class Q = Preconditioner, typename std::enable_if<!has_LDR<Q>::value>::type* = nullptr>
-        inline void offsetDeflation(const Q& p) { }
+        void offsetDeflation() { }
     protected:
         const Preconditioner&                 _p;
         K** const                     _deflation;
@@ -67,18 +67,16 @@ class OperatorBase : protected Members<P != 's'> {
         unsigned short                   _signed;
         unsigned short             _connectivity;
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short& nu) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) { }
+        OperatorBase(const Preconditioner& p) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(p.getLocal()) { }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short& nu) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(nu) {
+        OperatorBase(const Preconditioner& p) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(p.getLocal()) {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
         }
-        ~OperatorBase() {
-            offsetDeflation(_p);
-        }
+        ~OperatorBase() { offsetDeflation(); }
         template<char S, bool U, class T>
-        inline void initialize(T& in, const unsigned short* info, T const& out, MPI_Request* const& rqRecv, unsigned short*& infoNeighbor) {
+        void initialize(T& in, const unsigned short* info, T const& out, MPI_Request* const& rqRecv, unsigned short*& infoNeighbor) {
             static_assert(P == 'c' || P == 'f', "Unsupported constructor with such a sparsity pattern");
             if(!U) {
                 if(P == 'c') {
@@ -183,7 +181,7 @@ class OperatorBase : protected Members<P != 's'> {
                 *in = nullptr;
         }
         template<char S, char N, bool U, char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        inline void assembleOperator(int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor) {
+        void assembleOperator(int* I, int* J, int coefficients, unsigned int offsetI, unsigned int* offsetJ, unsigned short* const& infoNeighbor) {
             if(Members<true>::_consolidate == _map.size()) {
                 unsigned short between = std::distance(_sparsity.cbegin(), std::lower_bound(_sparsity.cbegin(), _sparsity.cend(), _p.getRank()));
                 unsigned int offset = 0;
@@ -228,14 +226,14 @@ class OperatorBase : protected Members<P != 's'> {
     public:
         static constexpr char _pattern = P != 's' ? 'c' : 's';
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        inline void sparsity(const unsigned short c) {
+        void sparsity(const unsigned short c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _connectivity = c;
             _sparsity.reserve(_map.size());
             std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
         }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        inline void sparsity(const unsigned short c) {
+        void sparsity(const unsigned short c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _connectivity = c;
             _signed = _p.getSigned();
@@ -310,7 +308,7 @@ class OperatorBase : protected Members<P != 's'> {
                 }
             }
         }
-        inline void adjustConnectivity(const MPI_Comm& comm) {
+        void adjustConnectivity(const MPI_Comm& comm) {
             if(P == 'c') {
 #if 0
                 _connectivity *= _connectivity - 1;
@@ -320,10 +318,10 @@ class OperatorBase : protected Members<P != 's'> {
 #endif
             }
         }
-        inline const std::vector<unsigned short>& getPattern() const { return _sparsity; }
-        inline unsigned short getConnectivity() const { return _connectivity; }
+        const std::vector<unsigned short>& getPattern() const { return _sparsity; }
+        unsigned short getConnectivity() const { return _connectivity; }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        inline void initialize(unsigned int, K*&, unsigned short) { }
+        void initialize(unsigned int, K*&, unsigned short) { }
 };
 
 #if HPDDM_SCHWARZ
@@ -336,7 +334,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         const typename Wrapper<K>::ul_type* const       _D;
         K*                                           _work;
         template<char S, bool U>
-        inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* infoNeighbor) {
+        void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* infoNeighbor) {
             int m = U ? super::_local : *infoNeighbor;
             std::fill(work, work + m * super::_n, 0.0);
             for(unsigned short i = 0; i < m; ++i)
@@ -346,8 +344,8 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        MatrixMultiplication(const Preconditioner& p, const unsigned short& nu) : super(p, nu), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
-        inline void initialize(unsigned int k, K*& work, unsigned short s) {
+        MatrixMultiplication(const Preconditioner& p) : super(p), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
+        void initialize(unsigned int k, K*& work, unsigned short s) {
             if(_A->_sym) {
                 std::vector<std::vector<std::pair<unsigned int, K>>> v(_A->_n);
                 unsigned int nnz = std::floor((_A->_nnz + _A->_n - 1) / _A->_n) * 2;
@@ -411,7 +409,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             super::_signed = s;
         }
         template<char S, bool U, class T>
-        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
+        void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
             Wrapper<K>::template csrmm<Wrapper<K>::I>(false, &(super::_n), &(super::_local), _C->_a, _C->_ia, _C->_ja, *super::_deflation, _work);
             delete _C;
             MPI_Request rq;
@@ -426,7 +424,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             Wrapper<K>::diag(super::_n, super::_local, _D, _work, work);
         }
         template<char S, bool U>
-        inline void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             for(unsigned short j = 0; j < (U ? super::_local : *infoNeighbor); ++j) {
                 K* pt = C + j;
@@ -435,7 +433,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             }
         }
         template<char S, char N, bool U>
-        inline void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             unsigned int offset = U ? super::_map[index].first * super::_local + (N == 'F') : *offsetJ;
             for(unsigned short i = 0; i < super::_local; ++i) {
@@ -458,7 +456,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
     private:
         typedef OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K> super;
         template<char S, bool U>
-        inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
+        void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
             std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::_vecSparsity[index].cbegin(), super::_vecSparsity[index].cend(), super::_rank);
             unsigned int accumulate = 0;
             if(!(index < super::_signed)) {
@@ -539,9 +537,9 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        FetiProjection(const Preconditioner& p, const unsigned short& nu) : super(p, nu) { }
+        FetiProjection(const Preconditioner& p) : super(p) { }
         template<char S, bool U, class T>
-        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
+        void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;
             super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
@@ -686,7 +684,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                 delete [] infoNeighbor;
         }
         template<char S, bool U>
-        inline void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             if(++super::_consolidate == super::_map.size()) {
                 if(S != 'S')
@@ -699,9 +697,9 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
             }
         }
         template<char S, char N, bool U>
-        inline void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             assembleForMaster<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
-            super::template assembleOperator<S, N, U>(I, J, C, coefficients, offsetI, offsetJ, arrayC, infoNeighbor);
+            super::template assembleOperator<S, N, U>(I, J, coefficients, offsetI, offsetJ, infoNeighbor);
         }
 };
 #endif // HPDDM_FETI
@@ -712,7 +710,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
     private:
         typedef OperatorBase<'c', Preconditioner, K> super;
         template<char S, bool U>
-        inline void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
+        void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* info) {
             std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::_vecSparsity[index].cbegin(), super::_vecSparsity[index].cend(), super::_rank);
             unsigned int accumulate = 0;
             if(S != 'S' || !(index < super::_signed)) {
@@ -763,9 +761,9 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        BddProjection(const Preconditioner& p, const unsigned short& nu) : super(p, nu) { }
+        BddProjection(const Preconditioner& p) : super(p) { }
         template<char S, bool U, class T>
-        inline void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
+        void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;
             super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
@@ -869,7 +867,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 delete [] infoNeighbor;
         }
         template<char S, bool U>
-        inline void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             if(++super::_consolidate == super::_map.size()) {
                 const typename Wrapper<K>::ul_type* const m = super::_p.getScaling();
@@ -885,9 +883,9 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             }
         }
         template<char S, char N, bool U>
-        inline void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             assembleForMaster<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
-            super::template assembleOperator<S, N, U>(I, J, C, coefficients, offsetI, offsetJ, arrayC, infoNeighbor);
+            super::template assembleOperator<S, N, U>(I, J, coefficients, offsetI, offsetJ, infoNeighbor);
         }
 };
 #endif // HPDDM_BDD

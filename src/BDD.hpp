@@ -52,15 +52,15 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         typedef Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
         /* Function: initialize
          *  Allocates <Bdd::m> and calls <Schur::initialize>. */
-        inline void initialize() {
+        void initialize() {
             super::template initialize<false>();
             _m = new typename Wrapper<K>::ul_type[Subdomain<K>::_dof];
         }
-        inline void allocateSingle(K*& primal) const {
+        void allocateSingle(K*& primal) const {
             primal = new K[Subdomain<K>::_dof];
         }
         template<unsigned short N>
-        inline void allocateArray(K* (&array)[N]) const {
+        void allocateArray(K* (&array)[N]) const {
             *array = new K[N * Subdomain<K>::_dof];
             for(unsigned short i = 1; i < N; ++i)
                 array[i] = *array + i * Subdomain<K>::_dof;
@@ -72,7 +72,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    scaling        - Type of scaling (multiplicity, stiffness or coefficient scaling).
          *    rho            - Physical local coefficients (optional). */
-        inline void buildScaling(const char& scaling, const K* const& rho = nullptr) {
+        void buildScaling(const char& scaling, const K* const& rho = nullptr) {
             initialize();
             std::fill(_m, _m + Subdomain<K>::_dof, 1.0);
             if((scaling == 'r' && rho) || scaling == 'k') {
@@ -103,7 +103,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    b              - Condensed right-hand side.
          *    r              - First residual. */
         template<bool excluded>
-        inline void start(K* const x, const K* const f, K* const b, K* r) const {
+        void start(K* const x, const K* const f, K* const b, K* r) const {
             if(super::_co) {
                 if(!excluded) {
                     super::condensateEffort(f, b);
@@ -148,7 +148,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector (optional). */
-        inline void apply(K* const in, K* const out = nullptr) const {
+        void apply(K* const in, K* const out = nullptr) const {
             if(out) {
                 super::applyLocalSchurComplement(in, out);
                 Subdomain<K>::exchange(out);
@@ -165,7 +165,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector (optional). */
-        inline void precond(K* const in, K* const out = nullptr) const {
+        void precond(K* const in, K* const out = nullptr) const {
             Wrapper<K>::diag(Subdomain<K>::_dof, _m, in, super::_work + super::_bi->_m);
             if(!HPDDM_QR || !super::_schur) {
                 std::fill_n(super::_work, super::_bi->_m, K());
@@ -190,7 +190,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         }
         /* Function: callNumfact
          *  Factorizes <Subdomain::a> or <Schur::schur> if available. */
-        inline void callNumfact() {
+        void callNumfact() {
             if(HPDDM_QR && super::_schur) {
                 delete super::_bb;
                 super::_bb = nullptr;
@@ -221,7 +221,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    in             - Input vector.
          *    out            - Output vector (optional). */
         template<bool excluded, char trans>
-        inline void project(K* const in, K* const out = nullptr) const {
+        void project(K* const in, K* const out = nullptr) const {
             static_assert(trans == 'T' || trans == 'N', "Unsupported value for argument 'trans'");
             if(super::_co) {
                 if(!excluded) {
@@ -270,16 +270,16 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Template Parameter:
          *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
-         * Parameters:
+         * Parameter:
          *    comm           - Global MPI communicator.
-         *    parm           - Vector of parameters.
          *
          * See also: <Feti::buildTwo>, <Schwarz::buildTwo>.*/
-        template<unsigned short excluded = 0, class Container>
-        inline std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, Container& parm) {
-            if(!super::_schur && parm[NU])
-                super::_deficiency = parm[NU];
-            return super::template buildTwo<excluded, 3>(std::move(BddProjection<Bdd<Solver, CoarseSolver, S, K>, K>(*this, parm[NU])), comm, parm);
+        template<unsigned short excluded = 0>
+        std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
+            const Option& opt = *Option::get();
+            if(!super::_schur && opt["geneo_nu"])
+                super::_deficiency = opt["geneo_nu"];
+            return super::template buildTwo<excluded, 3>(std::move(BddProjection<Bdd<Solver, CoarseSolver, S, K>, K>(*this)), comm);
         }
         /* Function: computeSolution
          *
@@ -292,7 +292,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    f              - Right-hand side.
          *    x              - Solution vector. */
         template<bool excluded>
-        inline void computeSolution(const K* const f, K* const x) const {
+        void computeSolution(const K* const f, K* const x) const {
             if(!excluded && super::_bi->_m) {
                 std::copy_n(f, super::_bi->_m, x);
                 Wrapper<K>::template csrmv<Wrapper<K>::I>(&transb, &(Subdomain<K>::_dof), &(super::_bi->_m), &(Wrapper<K>::d__2), false, super::_bi->_a, super::_bi->_ia, super::_bi->_ja, x + super::_bi->_m, &(Wrapper<K>::d__1), x);
@@ -306,7 +306,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             }
         }
         template<bool>
-        inline void computeSolution(K* const* const, K* const) const { }
+        void computeSolution(K* const* const, K* const) const { }
         /* Function: computeDot
          *
          *  Computes the dot product of two vectors.
@@ -318,7 +318,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    a              - Left-hand side.
          *    b              - Right-hand side. */
         template<bool excluded>
-        inline void computeDot(typename Wrapper<K>::ul_type* const val, const K* const a, const K* const b, const MPI_Comm& comm) const {
+        void computeDot(typename Wrapper<K>::ul_type* const val, const K* const a, const K* const b, const MPI_Comm& comm) const {
             if(!excluded) {
                 Wrapper<K>::diag(Subdomain<K>::_dof, _m, a, super::_work);
                 *val = Wrapper<K>::dot(&(Subdomain<K>::_dof), super::_work, &i__1, b, &i__1);
@@ -329,7 +329,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Bdd::m>. */
-        inline const typename Wrapper<K>::ul_type* getScaling() const { return _m; }
+        const typename Wrapper<K>::ul_type* getScaling() const { return _m; }
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -341,7 +341,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L = 'S'>
-        inline void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type& threshold = 0.0) {
+        void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type& threshold = 0.0) {
             super::template solveGEVP<L>(_m, nu, threshold);
         }
 };

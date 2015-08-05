@@ -1,6 +1,5 @@
 os:
   - linux
-# - osx
 
 git:
   depth: 1
@@ -44,15 +43,17 @@ install:
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export CXX_FLAGS="${CXX_FLAGS} -DFORCE_COMPLEX"; fi
   - if [ "$CO" == "GENERAL_CO" ]; then export CXX_FLAGS="${CXX_FLAGS} -DGENERAL_CO"; fi
   - cd interface
-  - if [ "$CXX" == "g++" ]; then export OMPI_CXX="g++-4.9"; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -DD${SOLVER} -D${SUBSOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77; fi # -I/usr/include/suitesparse -lamd -lcolamd -lumfpack -lcholmod
+  - if [ "$CXX" == "g++" ]; then export OMPI_CXX="g++-4.9"; export CXX_FLAGS="-Wno-literal-suffix ${CXX_FLAGS}"; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -DD${SOLVER} -D${SUBSOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77; fi
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/local/include -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
 
 script:
-  - mpirun -np 1 ./a.out 0 100 100 0 1.0e-6 0
-  - mpirun -np 2 ./a.out 2 100 100 1 1.0e-6 1
-  - mpirun -np 4 ./a.out 10 100 100 1 1.0e-6 1
-  - mpirun -np 4 ./a.out 10 100 100 1 1.0e-6 1 -nonuniform
+  - mpirun -np 1 ./a.out -hpddm_verbosity
+  - mpirun -np 1 ./a.out -symmetric_csr -hpddm_verbosity
+  - mpirun -np 2 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr
+  - mpirun -np 4 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2
+  - mpirun -np 4 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr
+  - mpirun -np 8 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40
 
 notifications:
   email:

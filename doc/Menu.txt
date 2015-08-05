@@ -59,6 +59,7 @@ File: Subdomain  (subdomain.hpp)
 File: SuiteSparse  (SuiteSparse.hpp)
 File: Wrapper  (wrapper.hpp)
 File: Hypre  (Hypre.hpp)
+File: Option  (option.hpp)
 
 Group: Index  {
 

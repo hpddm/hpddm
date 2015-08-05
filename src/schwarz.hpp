@@ -48,9 +48,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * SY           - Symmetric preconditioner, e.g. Additive Schwarz method.
          * GE           - Nonsymmetric preconditioner, e.g. Restricted Additive Schwarz method.
          * OS           - Optimized symmetric preconditioner, e.g. Optimized Schwarz method.
-         * OG           - Optimized nonsymmetric preconditioner, e.g. Optimized Restricted Additive Schwarz method.
-         * AD           - Additive two-level Schwarz method.
-         * BA           - Balanced two-level Schwarz method. */
+         * OG           - Optimized nonsymmetric preconditioner, e.g. Optimized Restricted Additive Schwarz method. */
         enum class Prcndtnr : char {
             NO, SY, GE, OS, OG, AD, BA
         };
@@ -63,36 +61,39 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         Prcndtnr                         _type;
     public:
         Schwarz() : _d() { }
-        ~Schwarz() { }
+        ~Schwarz() { _d = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
         typedef Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
         /* Function: initialize
          *  Sets <Schwarz::d>. */
         template<class Container = std::vector<int>>
-        inline void initialize(typename Wrapper<K>::ul_type* const& d) {
+        void initialize(typename Wrapper<K>::ul_type* const& d) {
             _d = d;
-        }
-        /* Function: setType
-         *  Sets <Schwarz::type>. */
-        inline void setType(bool sym) {
-            _type = sym ? Prcndtnr::SY : Prcndtnr::GE;
-        }
-        inline void setType(Prcndtnr t) {
-            _type = t;
         }
         /* Function: callNumfact
          *  Factorizes <Subdomain::a> or another user-supplied matrix, useful for <Prcndtnr::OS> and <Prcndtnr::OG>. */
-        inline void callNumfact(MatrixCSR<K>* const& A = nullptr) {
+        void callNumfact(MatrixCSR<K>* const& A = nullptr) {
+            Option& opt = *Option::get();
             if(A != nullptr) {
-                if(_type == Prcndtnr::SY)
+                if(opt["schwarz_method"] == 1)
                     _type = Prcndtnr::OS;
                 else
                     _type = Prcndtnr::OG;
             }
-            super::_s.numfact(A ? A : Subdomain<K>::_a, _type == Prcndtnr::OS ? true : false);
+            else {
+                if(opt["schwarz_method"] == 3)
+                    _type = Prcndtnr::SY;
+                else if(opt["schwarz_method"] == 5)
+                    _type = Prcndtnr::NO;
+                else {
+                    _type = Prcndtnr::GE;
+                    opt["schwarz_method"] = 0;
+                }
+            }
+            super::_s.numfact(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a, _type == Prcndtnr::OS ? true : false);
         }
-        inline void setMatrix(MatrixCSR<K>* const& a) {
+        void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a);
             if(fact) {
                 using type = alias<Solver<K>>;
@@ -106,7 +107,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *
          * Parameter:
          *    d              - Array of values. */
-        inline void multiplicityScaling(typename Wrapper<K>::ul_type* const d) const {
+        void multiplicityScaling(typename Wrapper<K>::ul_type* const d) const {
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                 typename Wrapper<K>::ul_type* const recv = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_rbuff[i]);
                 typename Wrapper<K>::ul_type* const send = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_sbuff[i]);
@@ -131,7 +132,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Schwarz::d>. */
-        inline const typename Wrapper<K>::ul_type* getScaling() const { return _d; }
+        const typename Wrapper<K>::ul_type* getScaling() const { return _d; }
         /* Function: deflation
          *
          *  Computes a coarse correction.
@@ -144,7 +145,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    out            - Output vector.
          *    fuse           - Number of fused reductions (optional). */
         template<bool excluded>
-        inline void deflation(const K* const in, K* const out, const unsigned short& fuse = 0) const {
+        void deflation(const K* const in, K* const out, const unsigned short& fuse = 0) const {
             if(fuse > 0) {
                 super::_co->reallocateRHS(const_cast<K*&>(super::_uc), fuse);
                 std::copy_n(out + Subdomain<K>::_dof, fuse, super::_uc + super::getLocal());
@@ -178,7 +179,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    rq             - MPI request to check completion of the MPI transfers.
          *    fuse           - Number of fused reductions (optional). */
         template<bool excluded>
-        inline void Ideflation(const K* const in, K* const out, MPI_Request* rq, const unsigned short& fuse = 0) const {
+        void Ideflation(const K* const in, K* const out, MPI_Request* rq, const unsigned short& fuse = 0) const {
             if(fuse > 0) {
                 super::_co->reallocateRHS(const_cast<K*&>(super::_uc), fuse);
                 std::copy_n(out + Subdomain<K>::_dof, fuse, super::_uc + super::getLocal());
@@ -195,7 +196,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         }
 #endif // HPDDM_ICOLLECTIVE
         template<bool excluded>
-        inline void deflation(K* const out, const unsigned short& fuse = 0) const {
+        void deflation(K* const out, const unsigned short& fuse = 0) const {
             deflation<excluded>(nullptr, out, fuse);
         }
         /* Function: buildTwo
@@ -205,14 +206,13 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Template Parameter:
          *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
-         * Parameters:
+         * Parameter:
          *    comm           - Global MPI communicator.
-         *    parm           - Vector of parameters.
          *
          * See also: <Bdd::buildTwo>, <Feti::buildTwo>. */
-        template<unsigned short excluded = 0, class Container>
-        inline std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, Container& parm) {
-            return super::template buildTwo<excluded, 2>(std::move(MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>(*this, parm[NU])), comm, parm);
+        template<unsigned short excluded = 0>
+        std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
+            return super::template buildTwo<excluded, 2>(std::move(MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>(*this)), comm);
         }
         /* Function: apply
          *
@@ -226,8 +226,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    out            - Output vector.
          *    fuse           - Number of fused reductions (optional). */
         template<bool excluded = false>
-        inline void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr, const unsigned short& fuse = 0) const {
-            if(!super::_co) {
+        void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr, const unsigned short& fuse = 0) const {
+            int correction = std::max(Option::get()->val("schwarz_coarse_correction"), -1.0);
+            if(!super::_co || correction == -1) {
                 if(_type == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::_dof, out);
                 else if(_type == Prcndtnr::GE || _type == Prcndtnr::OG) {
@@ -255,7 +256,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     work = const_cast<K*>(in);
                 else
                     std::copy_n(in, Subdomain<K>::_dof, work);
-                if(_type == Prcndtnr::AD) {
+                if(correction == 1) {
 #if HPDDM_ICOLLECTIVE
                     MPI_Request rq[2];
                     Ideflation<excluded>(in, out, rq, fuse);
@@ -290,7 +291,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                         super::_s.solve(work);
                         Wrapper<K>::diag(Subdomain<K>::_dof, _d, work);
                         Subdomain<K>::exchange(work);                                                          //  in = D A \ (I - A Z E \ Z^T) in
-                        if(_type == Prcndtnr::BA) {
+                        if(correction == 2) {
                             K* tmp = new K[Subdomain<K>::_dof];
                             GMV(work, tmp, mu);
                             deflation<excluded>(nullptr, tmp, fuse);
@@ -311,7 +312,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    B              - Output matrix used in GenEO.
          *
          * See also: <Schwarz::solveGEVP>. */
-        inline void scaleIntoOverlap(const MatrixCSR<K>* const& A, MatrixCSR<K>*& B) const {
+        void scaleIntoOverlap(const MatrixCSR<K>* const& A, MatrixCSR<K>*& B) const {
             std::set<unsigned int> intoOverlap;
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(unsigned int i : neighbor.second)
@@ -356,7 +357,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Precision of the eigensolver. */
         template<template<class> class Eps>
-        inline void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
+        void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
             Eps<K> evp(threshold, Subdomain<K>::_dof, nu);
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
             MatrixCSR<K>* rhs = nullptr;
@@ -371,12 +372,12 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 A->_ia = nullptr;
                 A->_ja = nullptr;
             }
-            nu = evp.getNu();
+            (*Option::get())["geneo_nu"] = nu = evp.getNu();
             const int n = Subdomain<K>::_dof;
             std::for_each(super::_ev, super::_ev + nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
         }
         template<bool sorted = true, bool scale = false>
-        inline void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {
+        void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {
             Subdomain<K>::template interaction<'C', sorted, scale>(blocks, _d);
         }
         /* Function: GMV
@@ -386,7 +387,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector. */
-        inline void GMV(const K* const in, K* const out, const unsigned short& mu = 1) const {
+        void GMV(const K* const in, K* const out, const unsigned short& mu = 1) const {
 #if 0
             K* tmp = new K[mu * Subdomain<K>::_dof];
             Wrapper<K>::diag(Subdomain<K>::_dof, mu, _d, in, tmp);
@@ -411,7 +412,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    storage        - Array to store both values.
          *
          * See also: <Schur::computeError>. */
-        inline void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage, const unsigned short& mu = 1) const {
+        void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage, const unsigned short& mu = 1) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
             GMV(x, tmp, mu);
@@ -446,10 +447,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             std::for_each(storage, storage + 2 * mu, [](typename Wrapper<K>::ul_type& b) { b = std::sqrt(b); });
         }
         template<char N = 'C'>
-        inline void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
+        void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global, _d);
         }
-        inline bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
+        bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, Subdomain<K>::_a);
         }
 };

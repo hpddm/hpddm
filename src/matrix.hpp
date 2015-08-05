@@ -24,9 +24,6 @@
 #ifndef _MATRIX_
 #define _MATRIX_
 
-#include <iostream>
-#include <iomanip>
-
 namespace HPDDM {
 /* Class: MatrixCSR
  *
@@ -81,7 +78,7 @@ class MatrixCSR {
          *
          * Parameter:
          *    A              - Input matrix. */
-        inline bool sameSparsity(MatrixCSR<K>* const& A) const {
+        bool sameSparsity(MatrixCSR<K>* const& A) const {
             if(A->_sym == _sym && A->_nnz >= _nnz) {
                 if(A->_ia == _ia && A->_ja == _ja)
                     return true;
@@ -122,7 +119,7 @@ class MatrixCSR {
         }
         /* Function: dump
          *  Outputs the matrix to an output stream. */
-        inline std::ostream& dump(std::ostream& f) const {
+        std::ostream& dump(std::ostream& f) const {
             f << "# First line: n m (is symmetric) nnz indexing" << std::endl;
             f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}" << std::endl;
             f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << std::endl;
@@ -138,8 +135,6 @@ class MatrixCSR {
         }
 };
 template<class K>
-inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) {
-    return m.dump(f);
-}
+inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) { return m.dump(f); }
 } // HPDDM
 #endif // _MATRIX_

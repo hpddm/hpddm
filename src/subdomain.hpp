@@ -25,8 +25,6 @@
 #ifndef _SUBDOMAIN_
 #define _SUBDOMAIN_
 
-#include <unordered_map>
-
 namespace HPDDM {
 /* Class: Subdomain
  *
@@ -67,17 +65,17 @@ class Subdomain {
         }
         /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
-        inline const MPI_Comm& getCommunicator() const { return _communicator; }
+        const MPI_Comm& getCommunicator() const { return _communicator; }
         /* Function: getMap
          *  Returns a reference to <Subdomain::map>. */
-        inline const vectorNeighbor& getMap() const { return _map; }
+        const vectorNeighbor& getMap() const { return _map; }
         /* Function: exchange
          *
          *  Exchanges and reduces values of duplicated unknowns.
          *
          * Parameter:
          *    in             - Input vector. */
-        inline void exchange(K* const in, const unsigned short& mu = 1) const {
+        void exchange(K* const in, const unsigned short& mu = 1) const {
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     MPI_Irecv(_rbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
@@ -99,7 +97,7 @@ class Subdomain {
          *
          * Parameter:
          *    in             - Input vector. */
-        inline void recvBuffer(const K* const in) const {
+        void recvBuffer(const K* const in) const {
             for(unsigned short i = 0; i < _map.size(); ++i) {
                 MPI_Irecv(_rbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
                 Wrapper<K>::gthr(_map[i].second.size(), in, _sbuff[i], _map[i].second.data());
@@ -117,7 +115,7 @@ class Subdomain {
          *    r              - Local-to-neighbor mappings.
          *    comm           - MPI communicator of the domain decomposition. */
         template<class Neighbor, class Mapping>
-        inline void initialize(MatrixCSR<K>* const& a, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr) {
+        void initialize(MatrixCSR<K>* const& a, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr) {
             if(comm)
                 _communicator = *comm;
             else
@@ -153,7 +151,7 @@ class Subdomain {
         }
         /* Function: initialize(dummy)
          *  Dummy function for masters excluded from the domain decomposition. */
-        inline void initialize(MPI_Comm* const& comm = nullptr) {
+        void initialize(MPI_Comm* const& comm = nullptr) {
             if(comm)
                 _communicator = *comm;
             else
@@ -165,20 +163,20 @@ class Subdomain {
          *
          * Parameter:
          *    comm          - Reference MPI communicator. */
-        inline bool exclusion(const MPI_Comm& comm) const {
+        bool exclusion(const MPI_Comm& comm) const {
             int result;
             MPI_Comm_compare(_communicator, comm, &result);
             return result != MPI_CONGRUENT;
         }
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */
-        inline int getDof() const { return _dof; }
+        int getDof() const { return _dof; }
         /* Function: getMatrix
          *  Returns a constant pointer to <Subdomain::a>. */
-        inline const MatrixCSR<K>* getMatrix() const { return _a; }
+        const MatrixCSR<K>* getMatrix() const { return _a; }
         /* Function: setMatrix
          *  Sets the pointer <Subdomain::a>. */
-        inline bool setMatrix(MatrixCSR<K>* const& a) {
+        bool setMatrix(MatrixCSR<K>* const& a) {
             bool ret = !(_a && a && _a->_n == a->_n && _a->_m == a->_m && _a->_nnz == a->_nnz);
             delete _a;
             _a = a;
@@ -198,7 +196,7 @@ class Subdomain {
          *    scaling        - Local partition of unity.
          *    pt             - Pointer to a <MatrixCSR>. */
         template<char N, bool sorted = true, bool scale = false>
-        inline void interaction(std::vector<const MatrixCSR<K>*>& v, const typename Wrapper<K>::ul_type* const scaling = nullptr, const MatrixCSR<K, N>* const pt = nullptr) const {
+        void interaction(std::vector<const MatrixCSR<K>*>& v, const typename Wrapper<K>::ul_type* const scaling = nullptr, const MatrixCSR<K, N>* const pt = nullptr) const {
             const MatrixCSR<K, N>& ref = pt ? *pt : *_a;
             if(ref._n != _dof || ref._m != _dof)
                 std::cerr << "Problem with the input matrix" << std::endl;
@@ -404,7 +402,7 @@ class Subdomain {
          *    global        - Global number of unknowns.
          *    d             - Local partition of unity (optional). */
         template<char N, class It>
-        inline void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const typename Wrapper<K>::ul_type* const d = nullptr) const {
+        void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const typename Wrapper<K>::ul_type* const d = nullptr) const {
             unsigned int between = 0;
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);
@@ -516,7 +514,7 @@ class Subdomain {
          *  Assembles a distributed matrix that can be used by a backend such as PETSc.
          *
          * See also: <Subdomain::globalMapping>. */
-        inline bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c, const MatrixCSR<K>* const& A) const {
+        bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c, const MatrixCSR<K>* const& A) const {
             if(first != 0 || last != A->_n) {
                 unsigned int nnz = 0;
                 unsigned int dof = 0;
@@ -566,7 +564,7 @@ class Subdomain {
          *
          * See also: <Subdomain::globalMapping>. */
         template<bool T>
-        inline void distributedVec(unsigned int* num, unsigned int first, unsigned int last, K* const& in, K*& out, unsigned int n) const {
+        void distributedVec(unsigned int* num, unsigned int first, unsigned int last, K* const& in, K*& out, unsigned int n) const {
             if(first != 0 || last != n) {
                 unsigned int dof = 0;
                 for(unsigned int i = 0; i < n; ++i) {
