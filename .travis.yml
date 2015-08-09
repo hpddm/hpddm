@@ -51,9 +51,9 @@ script:
   - mpirun -np 1 ./a.out -hpddm_verbosity
   - mpirun -np 1 ./a.out -symmetric_csr -hpddm_verbosity
   - mpirun -np 2 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr
-  - mpirun -np 4 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2
+  - mpirun -np 4 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80
   - mpirun -np 4 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr
-  - mpirun -np 8 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40
+  - mpirun -np 8 ./a.out -hpddm_tol=1e-6 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40 -hpddm_variant=right
 
 notifications:
   email:

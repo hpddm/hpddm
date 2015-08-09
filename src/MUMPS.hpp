@@ -116,7 +116,7 @@ class Mumps : public DMatrix {
             _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
             Option& opt = *Option::get();
             if(S == 'S')
-                _id->sym = opt.set("master_mumps_not_spd") ? 2 : 1;
+                _id->sym = opt.set("master_not_spd") ? 2 : 1;
             else
                 _id->sym = 0;
             MUMPS_STRUC_C<K>::mumps_c(_id);

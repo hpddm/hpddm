@@ -110,8 +110,9 @@ class MklPardiso : public DMatrix {
             _I = I;
             _J = J;
             _C = C;
+            Option& opt = *Option::get();
             if(S == 'S')
-                _mtype = prds<K>::SPD;
+                _mtype = opt.set("master_not_spd") ? prds<K>::SYM : prds<K>::SPD;
             else
                 _mtype = prds<K>::UNS;
             int phase, error;
@@ -136,7 +137,7 @@ class MklPardiso : public DMatrix {
             _iparm[41] = loc2glob[1];
             delete [] loc2glob;
             phase = 12;
-            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val("verbosity") < 2 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
             _w = new K[_iparm[41] - _iparm[40] + 1];
         }
         /* Function: solve

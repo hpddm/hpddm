@@ -74,7 +74,7 @@ inline Option::Option(construct_key) {
 #endif
              { "master_topology",               0 } };
 }
-inline int Option::parse(std::vector<std::string>& args, bool display, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> reg) {
+inline int Option::parse(std::vector<std::string>& args, bool display, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg) {
     if(args.size() == 0 && reg.size() == 0)
         return 0;
     std::vector<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> option {
@@ -90,7 +90,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),
         std::forward_as_tuple("schwarz_coarse_correction=(deflated|additive|balanced)", "Switch to a multilevel preconditioner.", Arg::argument),
 #endif
-        std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO-specific options:"; return true; }),
+        std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Local number of GenEO vectors to compute.", Arg::integer),
         std::forward_as_tuple("geneo_tol=<eps>", "Local threshold for selecting GenEO vectors.", Arg::numeric),
         std::forward_as_tuple("geneo_eigensolver_tol=<1.0e-6>", "Requested tolerance of eigenpairs computed by ARPACK or LAPACK.", Arg::numeric),
@@ -102,7 +102,6 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
 #endif
 #ifdef DMUMPS
         std::forward_as_tuple("master_mumps_icntl_([6-9]|[1-3][0-9]|40)=<val>", "Integer control parameters of MUMPS for the coarse operator solvers.", Arg::integer),
-        std::forward_as_tuple("master_mumps_not_spd", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::anything),
 #elif defined(DHYPRE)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Hypre-specific options:"; return true; }),
         std::forward_as_tuple("master_hypre_solver=(fgmres|pcg|amg)", "Solver used by Hypre to solve coarse systems.", Arg::argument),
@@ -127,7 +126,11 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
 #endif
             std::string("2)"), "Distribution of the master processes.", Arg::integer),
 #endif
-        std::forward_as_tuple("master_exclude", "Exclude the master processes from the domain decomposition.", Arg::anything) };
+        std::forward_as_tuple("master_exclude", "Exclude the master processes from the domain decomposition.", Arg::anything)
+#if defined(DMUMPS) || defined(DPASTIX)
+      , std::forward_as_tuple("master_not_spd", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::anything)
+#endif
+    };
 
     if(reg.size() != 0) {
         if(_app == nullptr)
@@ -139,8 +142,11 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
             if(n != std::string::npos && n + 2 < def.size()) {
                 std::string val = def.substr(n + 2, def.size() - n - 3);
                 def = def.substr(0, n);
-                if(std::get<2>(x)(def, val, true))
-                    (*_app)[def] = sto<double>(val);
+                if(std::get<2>(x)(def, val, true)) {
+                    auto target = std::get<2>(x).target<bool (*)(const std::string&, const std::string&, bool)>();
+                    if(!target || (*target != Arg::argument))
+                        (*_app)[def] = sto<double>(val);
+                }
             }
         }
     }

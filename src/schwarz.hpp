@@ -212,7 +212,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * See also: <Bdd::buildTwo>, <Feti::buildTwo>. */
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
-            return super::template buildTwo<excluded, 2>(std::move(MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>(*this)), comm);
+            return super::template buildTwo<excluded, MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm);
         }
         /* Function: apply
          *
@@ -227,7 +227,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    fuse           - Number of fused reductions (optional). */
         template<bool excluded = false>
         void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr, const unsigned short& fuse = 0) const {
-            int correction = std::max(Option::get()->val("schwarz_coarse_correction"), -1.0);
+            const int correction = Option::get()->val("schwarz_coarse_correction", -1.0);
             if(!super::_co || correction == -1) {
                 if(_type == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::_dof, out);

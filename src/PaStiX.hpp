@@ -64,8 +64,6 @@ struct pstx<T> {                                                                
     static pastix_int_t setSchurArray(pastix_data_t* pastix_data, T* array) {                                \
         return C ## _pastix_setSchurArray(pastix_data, array);                                               \
     }                                                                                                        \
-    static constexpr API_FACT LLT = API_FACT_LLT;                                                            \
-    static constexpr API_FACT LDLT = API_FACT_LDLT;                                                          \
 };
 
 namespace HPDDM {
@@ -153,13 +151,18 @@ class Pastix : public DMatrix {
             _dparm = new double[DPARM_SIZE];
 
             pstx<K>::initParam(_iparm, _dparm);
-            _iparm[IPARM_VERBOSE]             = API_VERBOSE_NO;
+            Option& opt = *Option::get();
+            double val = opt.val("verbosity");
+            if(val < 2)
+                _iparm[IPARM_VERBOSE]         = API_VERBOSE_NOT;
+            else
+                _iparm[IPARM_VERBOSE]         = val - 1;
             _iparm[IPARM_MATRIX_VERIFICATION] = API_NO;
             _iparm[IPARM_START_TASK]          = API_TASK_INIT;
             _iparm[IPARM_END_TASK]            = API_TASK_INIT;
             if(S == 'S') {
                 _iparm[IPARM_SYM]             = API_SYM_YES;
-                _iparm[IPARM_FACTORIZATION]   = pstx<K>::LLT;
+                _iparm[IPARM_FACTORIZATION]   = opt.set("master_not_spd") ? API_FACT_LDLT : API_FACT_LLT;
             }
             else {
                 _iparm[IPARM_SYM]             = API_SYM_NO;
@@ -173,8 +176,8 @@ class Pastix : public DMatrix {
                           ncol, I, J, NULL, loc2glob,
                           perm, NULL, NULL, 1, _iparm, _dparm);
 
-            _iparm[IPARM_START_TASK]      = API_TASK_ORDERING;
-            _iparm[IPARM_END_TASK]        = API_TASK_ANALYSE;
+            _iparm[IPARM_START_TASK]          = API_TASK_ORDERING;
+            _iparm[IPARM_END_TASK]            = API_TASK_ANALYSE;
 
             pstx<K>::dist(&_data, DMatrix::_communicator,
                           ncol, I, J, NULL, loc2glob,
@@ -192,14 +195,14 @@ class Pastix : public DMatrix {
                                      _ncol2, &_colptr2, &_rows2, &_values2, NULL, _loc2glob2,
                                      DMatrix::_communicator, 1);
 
-            _iparm[IPARM_START_TASK]   = API_TASK_NUMFACT;
-            _iparm[IPARM_END_TASK]     = API_TASK_NUMFACT;
+            _iparm[IPARM_START_TASK]          = API_TASK_NUMFACT;
+            _iparm[IPARM_END_TASK]            = API_TASK_NUMFACT;
 
             pstx<K>::dist(&_data, DMatrix::_communicator,
                           _ncol2, _colptr2, _rows2, _values2, _loc2glob2,
                           NULL, NULL, NULL, 1, _iparm, _dparm);
 
-            _iparm[IPARM_CSCD_CORRECT] = API_YES;
+            _iparm[IPARM_CSCD_CORRECT]        = API_YES;
             delete [] I;
             delete [] loc2glob;
         }
@@ -293,7 +296,7 @@ class PastixSub {
                 }
             }
             if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = detection ? pstx<K>::LDLT : pstx<K>::LLT;
+                _iparm[IPARM_FACTORIZATION]       = detection ? API_FACT_LDLT : API_FACT_LLT;
                 Wrapper<K>::template csrcsc<'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
             }
             else {

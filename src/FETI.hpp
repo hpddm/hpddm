@@ -378,7 +378,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             const Option& opt = *Option::get();
             if(!super::_schur && opt["geneo_nu"])
                 super::_deficiency = opt["geneo_nu"];
-            return super::template buildTwo<excluded, 3>(std::move(FetiProjection<decltype(*this), P, K>(*this)), comm);
+            return super::template buildTwo<excluded, FetiProjection<decltype(*this), P, K>>(this, comm);
         }
         /* Function: computeSolution
          *

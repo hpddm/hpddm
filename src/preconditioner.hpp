@@ -75,6 +75,9 @@ class Preconditioner : public Subdomain<K> {
             delete [] _ev;
             delete [] _uc;
         }
+        /* Typedef: super
+         *  Type of the immediate parent class <Subdomain>. */
+        typedef Subdomain<K> super;
         /* Function: initialize
          *
          *  Initializes a two-level preconditioner.
@@ -105,10 +108,11 @@ class Preconditioner : public Subdomain<K> {
          * Parameters:
          *    A              - Operator used in the definition of the Galerkin matrix.
          *    comm           - Global MPI communicator. */
-        template<unsigned short excluded, unsigned short N, class Operator>
-        std::pair<MPI_Request, const K*>* buildTwo(Operator&& A, const MPI_Comm& comm) {
-            static_assert(N == 2 || N == 3, "Wrong template parameter");
+        template<unsigned short excluded, class Operator, class Prcndtnr>
+        std::pair<MPI_Request, const K*>* buildTwo(Prcndtnr* B, const MPI_Comm& comm) {
+            static_assert(std::is_same<typename Prcndtnr::super&, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super&, decltype(*this)>::value, "Wrong preconditioner");
             std::pair<MPI_Request, const K*>* ret = nullptr;
+            constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value ? 2 : 3;
             unsigned short allUniform[N + 1];
             allUniform[0] = Subdomain<K>::_map.size();
             const Option& opt = *Option::get();
@@ -129,7 +133,6 @@ class Preconditioner : public Subdomain<K> {
                 MPI_Allreduce(MPI_IN_PLACE, allUniform, N + 1, MPI_UNSIGNED_SHORT, op, comm);
                 MPI_Op_free(&op);
             }
-            A.sparsity(allUniform[0]);
             if(nu > 0 || allUniform[1] != 0 || allUniform[2] != std::numeric_limits<unsigned short>::max()) {
                 if(!_co) {
                     _co = new CoarseOperator;
@@ -137,11 +140,11 @@ class Preconditioner : public Subdomain<K> {
                 }
                 double construction = MPI_Wtime();
                 if(allUniform[1] == nu && allUniform[2] == static_cast<unsigned short>(~nu))
-                    ret = _co->template construction<1, excluded>(A, comm);
+                    ret = _co->template construction<1, excluded>(std::move(Operator(*B, allUniform[0])), comm);
                 else if(N == 3 && allUniform[1] == 0 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]))
-                    ret = _co->template construction<2, excluded>(A, comm);
+                    ret = _co->template construction<2, excluded>(std::move(Operator(*B, allUniform[0])), comm);
                 else
-                    ret = _co->template construction<0, excluded>(A, comm);
+                    ret = _co->template construction<0, excluded>(std::move(Operator(*B, allUniform[0])), comm);
                 construction = MPI_Wtime() - construction;
                 if(_co->getRank() == 0 && opt.set("verbosity")) {
                     std::stringstream ss;

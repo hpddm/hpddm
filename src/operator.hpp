@@ -67,12 +67,85 @@ class OperatorBase : protected Members<P != 's'> {
         unsigned short                   _signed;
         unsigned short             _connectivity;
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(p.getLocal()) { }
+        OperatorBase(const Preconditioner& p, const unsigned short&& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _connectivity(c) {
+            static_assert(Q == P, "Wrong sparsity pattern");
+            _sparsity.reserve(_map.size());
+            std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
+        }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _sparsity(), _n(p.getDof()), _local(p.getLocal()) {
+        OperatorBase(const Preconditioner& p, const unsigned short&& c) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _signed(_p.getSigned()), _connectivity(c) {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
+            static_assert(Q == P, "Wrong sparsity pattern");
+            if(!_map.empty()) {
+                unsigned short** recvSparsity = new unsigned short*[_map.size() + 1];
+                *recvSparsity = new unsigned short[(_connectivity + 1) * _map.size()];
+                unsigned short* sendSparsity = *recvSparsity + _connectivity * _map.size();
+                MPI_Request* rq = new MPI_Request[2 * _map.size()];
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    sendSparsity[i] = _map[i].first;
+                    recvSparsity[i] = *recvSparsity + _connectivity * i;
+                    MPI_Irecv(recvSparsity[i], _connectivity, MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + i);
+                }
+                for(unsigned short i = 0; i < _map.size(); ++i)
+                    MPI_Isend(sendSparsity, _map.size(), MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + _map.size() + i);
+                Members<true>::_vecSparsity.resize(_map.size());
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    int index, count;
+                    MPI_Status status;
+                    MPI_Waitany(_map.size(), rq, &index, &status);
+                    MPI_Get_count(&status, MPI_UNSIGNED_SHORT, &count);
+                    Members<true>::_vecSparsity[index].assign(recvSparsity[index], recvSparsity[index] + count);
+                }
+                MPI_Waitall(_map.size(), rq + _map.size(), MPI_STATUSES_IGNORE);
+
+                delete [] *recvSparsity;
+                delete [] recvSparsity;
+                delete [] rq;
+
+                _sparsity.reserve(_map.size());
+                if(P == 'c') {
+                    std::vector<unsigned short> neighbors;
+                    neighbors.reserve(_map.size());
+                    std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { neighbors.emplace_back(n.first); });
+                    typedef std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator> pairIt;
+                    auto comp = [](const pairIt& lhs, const pairIt& rhs) { return *lhs.first > *rhs.first; };
+                    std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)> pq(comp);
+                    pq.push({ neighbors.cbegin(), neighbors.cend() });
+                    for(const std::vector<unsigned short>& v : Members<true>::_vecSparsity)
+                        pq.push({ v.cbegin(), v.cend() });
+                    while(!pq.empty()) {
+                        pairIt p = pq.top();
+                        pq.pop();
+                        if(*p.first != Members<true>::_rank && (_sparsity.empty() || (*p.first != _sparsity.back())))
+                            _sparsity.emplace_back(*p.first);
+                        if(++p.first != p.second)
+                            pq.push(p);
+                    }
+                }
+                else {
+                    std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
+                    for(std::vector<unsigned short>& v : Members<true>::_vecSparsity) {
+                        unsigned short i = 0, j = 0, k = 0;
+                        while(i < v.size() && j < _sparsity.size()) {
+                            if(v[i] == Members<true>::_rank) {
+                                v[k++] = Members<true>::_rank;
+                                ++i;
+                            }
+                            else if(v[i] < _sparsity[j])
+                                ++i;
+                            else if(v[i] > _sparsity[j])
+                                ++j;
+                            else {
+                                v[k++] = _sparsity[j++];
+                                ++i;
+                            }
+                        }
+                        v.resize(k);
+                    }
+                }
+            }
         }
         ~OperatorBase() { offsetDeflation(); }
         template<char S, bool U, class T>
@@ -225,89 +298,6 @@ class OperatorBase : protected Members<P != 's'> {
         }
     public:
         static constexpr char _pattern = P != 's' ? 'c' : 's';
-        template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        void sparsity(const unsigned short c) {
-            static_assert(Q == P, "Wrong sparsity pattern");
-            _connectivity = c;
-            _sparsity.reserve(_map.size());
-            std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
-        }
-        template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        void sparsity(const unsigned short c) {
-            static_assert(Q == P, "Wrong sparsity pattern");
-            _connectivity = c;
-            _signed = _p.getSigned();
-            if(!_map.empty()) {
-                unsigned short** recvSparsity = new unsigned short*[_map.size() + 1];
-                *recvSparsity = new unsigned short[(_connectivity + 1) * _map.size()];
-                unsigned short* sendSparsity = *recvSparsity + _connectivity * _map.size();
-                MPI_Request* rq = new MPI_Request[2 * _map.size()];
-                for(unsigned short i = 0; i < _map.size(); ++i) {
-                    sendSparsity[i] = _map[i].first;
-                    recvSparsity[i] = *recvSparsity + _connectivity * i;
-                    MPI_Irecv(recvSparsity[i], _connectivity, MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + i);
-                }
-                for(unsigned short i = 0; i < _map.size(); ++i)
-                    MPI_Isend(sendSparsity, _map.size(), MPI_UNSIGNED_SHORT, _map[i].first, 4, _p.getCommunicator(), rq + _map.size() + i);
-                Members<true>::_vecSparsity.resize(_map.size());
-                for(unsigned short i = 0; i < _map.size(); ++i) {
-                    int index, count;
-                    MPI_Status status;
-                    MPI_Waitany(_map.size(), rq, &index, &status);
-                    MPI_Get_count(&status, MPI_UNSIGNED_SHORT, &count);
-                    Members<true>::_vecSparsity[index].assign(recvSparsity[index], recvSparsity[index] + count);
-                }
-                MPI_Waitall(_map.size(), rq + _map.size(), MPI_STATUSES_IGNORE);
-
-                delete [] *recvSparsity;
-                delete [] recvSparsity;
-                delete [] rq;
-
-                _sparsity.reserve(_map.size());
-                if(P == 'c') {
-                    std::vector<unsigned short> neighbors;
-                    neighbors.reserve(_map.size());
-                    std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { neighbors.emplace_back(n.first); });
-                    typedef std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator> pairIt;
-                    auto comp = [](const pairIt& lhs, const pairIt& rhs) { return *lhs.first > *rhs.first; };
-                    std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)> pq(comp);
-                    pq.push({ neighbors.cbegin(), neighbors.cend() });
-                    for(const std::vector<unsigned short>& v : Members<true>::_vecSparsity)
-                        pq.push({ v.cbegin(), v.cend() });
-                    while(!pq.empty()) {
-                        pairIt p = pq.top();
-                        pq.pop();
-                        if(*p.first != Members<true>::_rank && (_sparsity.empty() || (*p.first != _sparsity.back())))
-                            _sparsity.emplace_back(*p.first);
-                        if(++p.first != p.second)
-                            pq.push(p);
-                    }
-                }
-                else {
-                    std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
-                    for(std::vector<unsigned short>& v : Members<true>::_vecSparsity) {
-                        unsigned short i = 0, j = 0, k = 0;
-                        while(i < v.size() && j < _sparsity.size()) {
-                            if(v[i] == Members<true>::_rank) {
-                                v[k++] = Members<true>::_rank;
-                                ++i;
-                            }
-                            else if(v[i] < _sparsity[j]) {
-                                ++i;
-                            }
-                            else if(v[i] > _sparsity[j]) {
-                                ++j;
-                            }
-                            else {
-                                v[k++] = _sparsity[j++];
-                                ++i;
-                            }
-                        }
-                        v.resize(k);
-                    }
-                }
-            }
-        }
         void adjustConnectivity(const MPI_Comm& comm) {
             if(P == 'c') {
 #if 0
@@ -344,7 +334,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        MatrixMultiplication(const Preconditioner& p) : super(p), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
+        MatrixMultiplication(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
         void initialize(unsigned int k, K*& work, unsigned short s) {
             if(_A->_sym) {
                 std::vector<std::vector<std::pair<unsigned int, K>>> v(_A->_n);
@@ -537,7 +527,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        FetiProjection(const Preconditioner& p) : super(p) { }
+        FetiProjection(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)) { }
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;
@@ -761,7 +751,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        BddProjection(const Preconditioner& p) : super(p) { }
+        BddProjection(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)) { }
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;

@@ -35,7 +35,11 @@ namespace HPDDM {
  *  A class to handle internal options of HPDDM or custom options as defined by the user in its application. */
 class Option {
     private:
+        /* Variable: opt
+         *  Unordered map that stores the internal options of HPDDM. */
         std::unordered_map<std::string, double>  _opt;
+        /* Variable: app
+         *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
         std::unordered_map<std::string, double>* _app;
         class construct_key { };
     public:
@@ -51,7 +55,9 @@ class Option {
                     size_t max = output.back().size();
                     for(const auto& x : map) {
                         double intpart;
-                        if(x.second < 1000 && std::modf(x.second, &intpart) == 0.0)
+                        if(x.second < -10000000 && x.first[-x.second - 10000000] == '_')
+                            output.emplace_back(" │  " + x.first.substr(0, -x.second - 10000000) + ": " + x.first.substr(-x.second - 10000000 + 1));
+                        else if(x.second < 1000 && std::modf(x.second, &intpart) == 0.0)
                             output.emplace_back(" │  " + x.first + ": " + to_string(static_cast<int>(x.second)));
                         else {
                             std::stringstream ss;
@@ -85,30 +91,38 @@ class Option {
             }
             delete _app;
         }
+        /* Function: get
+         *  Returns a shared pointer to <Option::opt>. */
         static std::shared_ptr<Option> get() {
             static std::shared_ptr<Option> instance = std::make_shared<Option>(construct_key());
             return instance;
         }
+        /* Function: app
+         *  Returns a constant reference of <Option::app>. */
         std::unordered_map<std::string, double>& app() const { return *_app; }
         bool set(const std::string& key) const { return _opt.find(key) != _opt.cend(); }
+        /* Function: remove
+         *
+         *  Removes a key from the unordered map <Option::opt>.
+         *
+         * Parameter:
+         *    key            - Key to remove for <Option::opt>. */
         void remove(const std::string& key) { _opt.erase(key); }
-        double val(const std::string& key) const {
+        /* Function: val
+         *
+         *  Returns the value of the key given as an argument, or use a default value if the key is not in <Option::opt>.
+         *
+         * Parameter:
+         *    key            - Key to remove for <Option::opt>. */
+        double val(const std::string& key, double d = std::numeric_limits<double>::lowest()) const {
             std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
             if(it == _opt.cend())
-                return std::numeric_limits<double>::lowest();
+                return d;
             else
                 return it->second;
         }
         const double& operator[](const std::string& key) const { return _opt.at(key); }
-        double& operator[](const std::string& key) { return _opt.at(key); }
-        int parse(int argc, const char** argv, bool display = true) {
-            std::vector<std::string> args(argv + 1, argv + argc);
-            return parse(args, display);
-        }
-        int parse(std::string& arg, bool display = true) {
-            std::vector<std::string> args(1, arg);
-            return parse(args, display);
-        }
+        double& operator[](const std::string& key) { return _opt[key]; }
         struct Arg {
             static bool integer(const std::string& opt, const std::string& s, bool verbose) {
                 char* endptr = nullptr;
@@ -137,12 +151,45 @@ class Option {
                 if(!s.empty() && s[0] != '-')
                     return true;
                 if(verbose)
-                    std::cerr << "'" << opt << "' requires an argument ('" << s << "' was supplied)" << std::endl;
+                    std::cerr << "'" << opt << "' requires a valid argument ('" << s << "' was supplied)" << std::endl;
                 return false;
             }
             static bool anything(const std::string&, const std::string&, bool) { return true; }
         };
-        int parse(std::vector<std::string>&, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> reg = { });
+        /* Function: prefix
+         *
+         *  Looks for a key in <Option::opt> or <Option::app> that starts with the prefix given as an argument.
+         *
+         * Parameter:
+         *    pre            - Prefix to look for. */
+        std::string prefix(const std::string& pre, bool internal = false) const {
+            if(!internal && _app == nullptr)
+                return std::string();
+            std::unordered_map<std::string, double>::const_iterator pIt[2];
+            if(internal) {
+                pIt[0] = _opt.cbegin();
+                pIt[1] = _opt.cend();
+            }
+            else {
+                pIt[0] = _app->cbegin();
+                pIt[1] = _app->cend();
+            }
+            std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { return std::mismatch(pre.begin(), pre.end(), p.first.begin()).first == pre.end(); });
+            if(it != pIt[1] && it->first.size() > pre.size() + 1)
+                return it->first.substr(pre.size() + 1);
+            else
+                return std::string();
+        }
+        template<class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type* = nullptr>
+        int parse(int argc, T** argv, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { }) {
+            std::vector<std::string> args(argv + 1, argv + argc);
+            return parse(args, display, reg);
+        }
+        int parse(std::string& arg, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { }) {
+            std::vector<std::string> args(1, arg);
+            return parse(args, display, reg);
+        }
+        int parse(std::vector<std::string>&, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { });
         template<class T>
         void insert(std::unordered_map<std::string, double>& map, const T& option, std::string& str, const std::string& arg) {
             std::string::size_type n = str.find("=");
@@ -228,9 +275,16 @@ class Option {
                         if(found != std::string::npos)
                             map[str] = std::count(empty.begin(), empty.begin() + found, '|');
 #endif
+                        else
+                            std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
                     }
-                    else if(success)
-                        map[str] = sto<double>(val);
+                    else if(success) {
+                        auto target = std::get<2>(*it).template target<bool (*)(const std::string&, const std::string&, bool)>();
+                        if(!target || (*target != Arg::argument))
+                            map[str] = sto<double>(val);
+                        else
+                            map[str + "_" + val] = -static_cast<int>(str.size()) - 10000000;
+                    }
                 }
                 else
                     map[str];

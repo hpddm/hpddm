@@ -158,7 +158,7 @@ class CoarseOperator : public Solver<K> {
         /* Function: construction
          *  Wrapper function to call all needed subroutines. */
         template<unsigned short U, unsigned short excluded, class Operator>
-        std::pair<MPI_Request, const K*>* construction(Operator&, const MPI_Comm&);
+        std::pair<MPI_Request, const K*>* construction(Operator&&, const MPI_Comm&);
         /* Function: callSolver
          *
          *  Solves a coarse system.
