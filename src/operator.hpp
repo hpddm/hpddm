@@ -70,7 +70,8 @@ class OperatorBase : protected Members<P != 's'> {
         OperatorBase(const Preconditioner& p, const unsigned short&& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _connectivity(c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _sparsity.reserve(_map.size());
-            std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
+            for(const pairNeighbor& n : _map)
+                _sparsity.emplace_back(n.first);
         }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
         OperatorBase(const Preconditioner& p, const unsigned short&& c) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _signed(_p.getSigned()), _connectivity(c) {
@@ -125,7 +126,8 @@ class OperatorBase : protected Members<P != 's'> {
                     }
                 }
                 else {
-                    std::for_each(_map.cbegin(), _map.cend(), [&](const pairNeighbor& n) { _sparsity.emplace_back(n.first); });
+                    for(const pairNeighbor& n : _map)
+                        _sparsity.emplace_back(n.first);
                     for(std::vector<unsigned short>& v : Members<true>::_vecSparsity) {
                         unsigned short i = 0, j = 0, k = 0;
                         while(i < v.size() && j < _sparsity.size()) {

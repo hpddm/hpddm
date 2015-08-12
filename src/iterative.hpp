@@ -154,7 +154,7 @@ class IterativeMethod {
          *    b              - Right-hand side(s).
          *    mu             - Number of right-hand sides.
          *    comm           - Global MPI communicator. */
-        template<bool excluded = false, class Operator, class K>
+        template<bool excluded = false, class Operator = void, class K = double>
         static int GMRES(const Operator& A, K* const x, const K* const b, const unsigned short& mu, const MPI_Comm& comm) {
             Option& opt = *Option::get();
             unsigned short it = opt["max_it"];
