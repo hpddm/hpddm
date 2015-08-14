@@ -79,6 +79,7 @@
 #include <iostream>
 #include <iomanip>
 #include <unordered_map>
+#include <bitset>
 #include <complex>
 static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double), "Incorrect sizes");
 #ifdef _OPENMP
@@ -108,8 +109,6 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 # include <mkl_spblas.h>
 # include <mkl_vml.h>
 # include <mkl_trans.h>
-#else
-# include <bitset>
 #endif // HPDDM_MKL
 #if defined(__powerpc__) || defined(INTEL_MKL_VERSION)
 # define HPDDM_F77(func) func

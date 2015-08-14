@@ -627,7 +627,6 @@ inline void Wrapper<K>::transpose(K* const a, const std::size_t n, const std::si
         for(int i = 0; i < n - 1; ++i)
             for(int j = i + 1; j < n; ++j)
                 std::swap(a[i * n + j], a[j * n + i]);
-
     }
 }
 #endif // HPDDM_MKL

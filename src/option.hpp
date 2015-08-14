@@ -114,12 +114,13 @@ class Option {
          *
          * Parameter:
          *    key            - Key to remove for <Option::opt>. */
-        double val(const std::string& key, double d = std::numeric_limits<double>::lowest()) const {
+        template<class T = double>
+        T val(const std::string& key, T d = std::numeric_limits<T>::lowest()) const {
             std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
             if(it == _opt.cend())
                 return d;
             else
-                return it->second;
+                return static_cast<T>(it->second);
         }
         const double& operator[](const std::string& key) const { return _opt.at(key); }
         double& operator[](const std::string& key) { return _opt[key]; }

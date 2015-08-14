@@ -83,7 +83,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
         std::forward_as_tuple("verbosity(=<integer>)", "Use verbose output.", Arg::anything),
         std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
-        std::forward_as_tuple("gs=(classical|modified)", "Classical (faster) or modified (more robust) Gram-Schmidt process.", Arg::argument),
+        std::forward_as_tuple("gs=(classical|modified|none)", "Classical (faster) or modified (more robust) Gram-Schmidt process, or no orthogonalization at all.", Arg::argument),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left or right or flexible preconditioning.", Arg::argument),
 #ifdef HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),

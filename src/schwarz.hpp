@@ -227,7 +227,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    fuse           - Number of fused reductions (optional). */
         template<bool excluded = false>
         void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr, const unsigned short& fuse = 0) const {
-            const int correction = Option::get()->val("schwarz_coarse_correction", -1.0);
+            const int correction = Option::get()->val("schwarz_coarse_correction", -1);
             if(!super::_co || correction == -1) {
                 if(_type == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::_dof, out);
