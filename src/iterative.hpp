@@ -418,6 +418,8 @@ class IterativeMethod {
         template<bool excluded = false, class Operator, class K>
         static int CG(Operator& A, K* const x, const K* const b, const MPI_Comm& comm) {
             Option& opt = *Option::get();
+            if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
+                return GMRES(A, x, b, 1, comm);
             unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
             const int n = A.getDof();

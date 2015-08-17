@@ -374,7 +374,6 @@ int main(int argc, char **argv) {
         }
     }
     HPDDM::MatrixCSR<K>* Mat = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, a, ia, ja, sym, true);
-    double timing;
     if(sizeWorld > 1) {
         /*# Creation #*/
         HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symmetryCoarseOperator, K> A;
@@ -392,7 +391,6 @@ int main(int argc, char **argv) {
             }
             MPI_Barrier(MPI_COMM_WORLD);
         }
-        timing = MPI_Wtime();
         if(opt.set("schwarz_coarse_correction")) {
             /*# Factorization #*/
             unsigned short nu = opt["geneo_nu"];
@@ -414,15 +412,15 @@ int main(int argc, char **argv) {
             A.buildTwo(MPI_COMM_WORLD);
             A.callNumfact();
             /*# FactorizationEnd #*/
-            /*# Solution #*/
-            HPDDM::IterativeMethod::GMRES(A, sol, f, 1, A.getCommunicator());
-            /*# SolutionEnd #*/
         }
-        else {
+        else
             A.callNumfact();
+        /*# Solution #*/
+        if(opt["krylov_method"] == 1)
             HPDDM::IterativeMethod::CG(A, sol, f, A.getCommunicator());
-        }
-        timing = MPI_Wtime() - timing;
+        else
+            HPDDM::IterativeMethod::GMRES(A, sol, f, 1, A.getCommunicator());
+        /*# SolutionEnd #*/
         HPDDM::Wrapper<K>::ul_type storage[2];
         A.computeError(sol, f, storage);
         if(rankWorld == 0)
@@ -430,10 +428,8 @@ int main(int argc, char **argv) {
     }
     else {
         SUBDOMAIN<K> S;
-        timing = MPI_Wtime();
         S.numfact(Mat);
         S.solve(f, sol);
-        timing = MPI_Wtime() - timing;
         HPDDM::Wrapper<K>::ul_type nrmb = HPDDM::Wrapper<K>::nrm2(&ndof, f, &(HPDDM::i__1));
         K* tmp = new K[ndof];
         HPDDM::Wrapper<K>::csrmv<'C'>(sym, &ndof, a, ia, ja, sol, tmp);

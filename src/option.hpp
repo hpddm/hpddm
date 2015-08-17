@@ -181,6 +181,18 @@ class Option {
             else
                 return std::string();
         }
+        /* Function: any_of
+         *
+         *  Returns true if the value of a given key in <Option::opt> takes its value in the std::initializer_list given as an argument.
+         *
+         * Parameters:
+         *    key            - Key to look for.
+         *    list           - List of values to search for. */
+        template<class T>
+        bool any_of(const std::string& key, std::initializer_list<T> list) const {
+            std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
+            return (it != _opt.cend() && std::any_of(list.begin(), list.end(), [&](const T& t) { return t == static_cast<T>(it->second); }));
+        }
         template<class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type* = nullptr>
         int parse(int argc, T** argv, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { }) {
             std::vector<std::string> args(argv + 1, argv + argc);

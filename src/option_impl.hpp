@@ -28,6 +28,7 @@ inline Option::Option(construct_key) {
     _app = nullptr;
     _opt = { { "tol",                           1.0e-8 },
              { "max_it",                        100 },
+             { "krylov_method",                 0 },
              { "gmres_restart",                 50 },
              { "gs",                            0 },
              { "variant",                       0 },
@@ -81,6 +82,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("help", "Display available options.", Arg::anything),
         std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm.", Arg::numeric),
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
+        std::forward_as_tuple("krylov_method=(gmres|cg)", "Generalized Minimal Residual Method or Conjugate Gradient.", Arg::argument),
         std::forward_as_tuple("verbosity(=<integer>)", "Use verbose output.", Arg::anything),
         std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
         std::forward_as_tuple("gs=(classical|modified|none)", "Classical (faster) or modified (more robust) Gram-Schmidt process, or no orthogonalization at all.", Arg::argument),
