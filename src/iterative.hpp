@@ -32,26 +32,26 @@ class IterativeMethod {
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
         template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
-        static void allocate(K*& dir, K*& p, const int& n, bool orthogonalize = false, const unsigned short it = 1) {
-            if(!orthogonalize) {
-                dir = new K[3 + 4 * n];
-                p = dir + 3;
+        static void allocate(K*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1) {
+            if(extra == 0) {
+                dir = new K[2 + std::max(1, 4 * n)];
+                p = dir + 2;
             }
             else {
-                dir = new K[1 + 2 * it + (4 + it) * n];
+                dir = new K[1 + 2 * it + std::max(1, (4 + extra * it) * n)];
                 p = dir + 1 + 2 * it;
             }
         }
         template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
-        static void allocate(typename Wrapper<K>::ul_type*& dir, K*& p, const int& n, bool orthogonalize = false, const unsigned short it = 1) {
+        static void allocate(typename Wrapper<K>::ul_type*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1) {
             static_assert(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value, "Wrong types");
-            if(!orthogonalize) {
-                dir = new typename Wrapper<K>::ul_type[3];
-                p = new K[4 * n];
+            if(extra == 0) {
+                dir = new typename Wrapper<K>::ul_type[2];
+                p = new K[std::max(1, 4 * n)];
             }
             else {
                 dir = new typename Wrapper<K>::ul_type[1 + 2 * it];
-                p = new K[(4 + it) * n];
+                p = new K[std::max(1, (4 + extra * it) * n)];
             }
         }
         /* Function: depenalize
@@ -425,10 +425,10 @@ class IterativeMethod {
             const int n = A.getDof();
             typename Wrapper<K>::ul_type* dir;
             K* trash;
-            allocate(dir, trash, n, opt["gs"] != 2, it);
+            allocate(dir, trash, n, opt["variant"] == 2 ? 2 : (opt["gs"] != 2 ? 1 : 0), it);
             K* z = trash + n;
-            K* r = trash + 2 * n;
-            K* p = trash + 3 * n;
+            K* r = z + n;
+            K* p = r + n;
             const typename Wrapper<K>::ul_type* const d = A.getScaling();
 
             for(unsigned int i = 0; i < n; ++i)
@@ -438,10 +438,10 @@ class IterativeMethod {
             std::copy_n(b, n, r);
             Wrapper<K>::axpy(&n, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
 
-            A.apply(r, z, 1, p);
+            A.apply(r, p, 1, z);
 
-            Wrapper<K>::diag(n, d, z, p);
-            dir[0] = Wrapper<K>::dot(&n, z, &i__1, p, &i__1);
+            Wrapper<K>::diag(n, d, p, trash);
+            dir[0] = Wrapper<K>::dot(&n, trash, &i__1, p, &i__1);
             MPI_Allreduce(MPI_IN_PLACE, dir, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
             typename Wrapper<K>::ul_type resInit = std::sqrt(dir[0]);
 
@@ -453,11 +453,19 @@ class IterativeMethod {
             if(resInit <= tol)
                 it = 0;
 
-            std::copy_n(z, n, p);
             unsigned short i = 0;
             while(i++ < it) {
-                Wrapper<K>::diag(n, d, r, trash);
-                dir[0] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
+                dir[0] = Wrapper<K>::dot(&n, r, &i__1, trash, &i__1);
+                if(opt["variant"] == 2 && i > 1) {
+                    for(unsigned short k = 0; k < i - 1; ++k)
+                        dir[1 + k] = -Wrapper<K>::dot(&n, trash, &i__1, p + (1 + it + k) * n, &i__1) / dir[1 + it + k];
+                    MPI_Allreduce(MPI_IN_PLACE, dir + 1, i - 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
+                    std::copy_n(z, n, p);
+                    for(unsigned short k = 0; k < i - 1; ++k) {
+                        trash[0] = dir[1 + k];
+                        Wrapper<K>::axpy(&n, trash, p + (1 + k) * n, &i__1, p, &i__1);
+                    }
+                }
                 A.GMV(p, z);
                 if(opt["gs"] != 2 && i > 1) {
                     Wrapper<K>::diag(n, d, z, trash);
@@ -465,31 +473,33 @@ class IterativeMethod {
                         dir[1 + k] = -Wrapper<K>::dot(&n, trash, &i__1, p + (1 + k) * n, &i__1) / dir[1 + it + k];
                     MPI_Allreduce(MPI_IN_PLACE, dir + 1, i - 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short k = 0; k < i - 1; ++k) {
-                        K val(dir[1 + k]);
-                        Wrapper<K>::axpy(&n, &val, p + (1 + k) * n, &i__1, p, &i__1);
+                        trash[0] = dir[1 + k];
+                        Wrapper<K>::axpy(&n, trash, p + (1 + k) * n, &i__1, p, &i__1);
                     }
                     A.GMV(p, z);
                 }
                 Wrapper<K>::diag(n, d, p, trash);
                 dir[1] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
                 MPI_Allreduce(MPI_IN_PLACE, dir, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
-                dir[2] = dir[0] / dir[1];
-                if(opt["gs"] != 2) {
+                if(opt["gs"] != 2 || opt["variant"] == 2) {
                     dir[it + i] = dir[1];
                     std::copy_n(p, n, p + i * n);
+                    if(opt["variant"] == 2)
+                        std::copy_n(z, n, p + (it + i) * n);
                 }
-                trash[0] = dir[2];
+                trash[0] = dir[0] / dir[1];
                 Wrapper<K>::axpy(&n, trash, p, &i__1, x, &i__1);
                 trash[0] = -trash[0];
                 Wrapper<K>::axpy(&n, trash, z, &i__1, r, &i__1);
 
                 A.apply(r, z, 1, trash);
                 Wrapper<K>::diag(n, d, z, trash);
-                dir[1] = Wrapper<K>::dot(&n, r, &i__1, trash, &i__1);
-                dir[2] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
-                MPI_Allreduce(MPI_IN_PLACE, dir + 1, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
-                Wrapper<K>::axpby(n, 1.0, z, 1, dir[1] / dir[0], p, 1);
-                dir[0] = std::sqrt(dir[2]);
+                dir[1] = Wrapper<K>::dot(&n, r, &i__1, trash, &i__1) / dir[0];
+                dir[0] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
+                MPI_Allreduce(MPI_IN_PLACE, dir, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
+                if(opt["variant"] != 2)
+                    Wrapper<K>::axpby(n, 1.0, z, 1, dir[1], p, 1);
+                dir[0] = std::sqrt(dir[0]);
                 if(opt.set("verbosity")) {
                     if(tol > 0)
                         std::cout << "CG: " << std::setw(3) << i << " " << std::scientific << dir[0] << " " << resInit << " " << dir[0] / resInit << " < " << tol << std::endl;
