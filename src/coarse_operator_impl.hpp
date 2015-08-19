@@ -25,10 +25,6 @@
 #define _COARSE_OPERATOR_IMPL_
 
 #include "coarse_operator.hpp"
-#if HPDDM_OUTPUT_CO
-#include <iterator>
-#include <fstream>
-#endif
 
 namespace HPDDM {
 template<template<class> class Solver, char S, class K>
@@ -832,35 +828,32 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             delete [] offsetPosition;
         }
         delete [] work;
-#if HPDDM_OUTPUT_CO
-        std::string fileName = "E_distributed_";
-        if(excluded == 2)
-            fileName += "excluded_";
-        std::ofstream txtE { fileName + S + "_" + Solver<K>::_numbering + "_" + to_string(T) + "_" + to_string(Solver<K>::_rank) + ".txt" };
+        std::string filename = opt.prefix("master_filename", true);
+        if(filename.size() > 0) {
+            if(excluded == 2)
+                filename += "_excluded";
+            std::ofstream output { filename + "_" + S + "_" + Solver<K>::_numbering + "_" + to_string(T) + "_" + to_string(Solver<K>::_rank) + ".txt" };
 #ifndef HPDDM_CSR_CO
-        for(unsigned int i = 0; i < size; ++i)
-            txtE << "(" << std::setw(4) << I[i] << ", " << std::setw(4) << J[i] << ") = " << std::scientific << C[i] << std::endl;
+            for(unsigned int i = 0; i < size; ++i)
+                output << std::setw(9) << I[i] + (Solver<K>::_numbering == 'C') << std::setw(9) << J[i] + (Solver<K>::_numbering == 'C') << " " << std::scientific << C[i] << std::endl;
 #else
-        unsigned int accumulate = 0;
-        for(unsigned int i = 0; i < nrow; ++i) {
-            accumulate += I[i];
+            unsigned int accumulate = 0;
+            for(unsigned int i = 0; i < nrow; ++i) {
+                accumulate += I[i];
+                for(unsigned int j = 0; j < I[i + 1]; ++j)
+                    output << std::setw(9) <<
 #ifndef HPDDM_LOC2GLOB
-            for(unsigned int j = 0; j < I[i + 1]; ++j)
-                txtE << "(" << std::setw(4) << i << ", " << std::setw(4) << J[accumulate + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
+                    i + 1 <<
+#elif !defined(HPDDM_CONTIGUOUS)
+                    loc2glob[i] + (Solver<K>::_numbering == 'C') <<
 #else
-#ifndef HPDDM_CONTIGUOUS
-            for(unsigned int j = 0; j < I[i + 1]; ++j)
-                txtE << "(" << std::setw(4) << loc2glob[i] << ", " << std::setw(4) << J[accumulate + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
-#else
-            for(unsigned int j = 0; j < I[i + 1]; ++j)
-                txtE << "(" << std::setw(4) << loc2glob[0] + i << ", " << std::setw(4) << J[accumulate + j - (Solver<K>::_numbering == 'F')] << ") = " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << " (" << I[i] << " -- " << I[i + 1] << ")" << std::endl;
+                    loc2glob[0] + i + (Solver<K>::_numbering == 'C') <<
 #endif
+                    std::setw(9) << J[accumulate + j - (Solver<K>::_numbering == 'F')] + (Solver<K>::_numbering == 'C') << " " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << std::endl;
+            }
 #endif
+            output.close();
         }
-#endif
-        txtE.close();
-        MPI_Barrier(Solver<K>::_communicator);
-#endif
 #ifdef HPDDM_CSR_CO
 #ifndef DHYPRE
         std::partial_sum(I, I + nrow + 1, I);

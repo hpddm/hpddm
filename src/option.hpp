@@ -163,7 +163,7 @@ class Option {
          *
          * Parameter:
          *    pre            - Prefix to look for. */
-        std::string prefix(const std::string& pre, bool internal = false) const {
+        std::string prefix(const std::string& pre, const bool internal = false) const {
             if(!internal && _app == nullptr)
                 return std::string();
             std::unordered_map<std::string, double>::const_iterator pIt[2];

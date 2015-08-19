@@ -127,8 +127,8 @@ class MatrixCSR {
             int old = f.precision();
             for(unsigned int i = 0; i < _n; ++i) {
                 unsigned int ke = _ia[i + 1] - (N == 'F');
-                for( ; k < ke; ++k)
-                    f << std::setw(9) << i + 1 << " " << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setprecision(20) << _a[k] << std::endl;
+                while(k < ke)
+                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setprecision(20) << _a[k++] << std::endl;
             }
             f.precision(old);
             return f;

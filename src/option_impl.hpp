@@ -128,6 +128,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
 #endif
             std::string("2)"), "Distribution of the master processes.", Arg::integer),
 #endif
+        std::forward_as_tuple("master_filename=<output_file>", "Save the coarse operator to disk.", Arg::argument),
         std::forward_as_tuple("master_exclude", "Exclude the master processes from the domain decomposition.", Arg::anything)
 #if defined(DMUMPS) || defined(DPASTIX)
       , std::forward_as_tuple("master_not_spd", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::anything)
@@ -229,6 +230,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
             wrap(std::get<1>(x));
         }
     }
+    _opt.rehash(_opt.size());
     return 0;
 }
 } // HPDDM

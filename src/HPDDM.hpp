@@ -31,7 +31,6 @@
  *    HPDDM_EPS           - Small positive number used internally for dropping values.
  *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
- *    HPDDM_OUTPUT_CO     - If set to one, the coarse operator is saved to disk (for debugging only).
  *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra backend.
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
@@ -43,7 +42,6 @@
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
-#define HPDDM_OUTPUT_CO       0
 #ifndef HPDDM_MKL
 # ifdef INTEL_MKL_VERSION
 #  define HPDDM_MKL           1
@@ -77,6 +75,7 @@
 #endif // HPDDM_ICOLLECTIVE
 
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <unordered_map>
 #include <bitset>
