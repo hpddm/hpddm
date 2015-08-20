@@ -72,11 +72,11 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    scaling        - Type of scaling (multiplicity, stiffness or coefficient scaling).
          *    rho            - Physical local coefficients (optional). */
-        void buildScaling(const char& scaling, const K* const& rho = nullptr) {
+        void buildScaling(unsigned short& scaling, const K* const& rho = nullptr) {
             initialize();
             std::fill(_m, _m + Subdomain<K>::_dof, 1.0);
-            if((scaling == 'r' && rho) || scaling == 'k') {
-                if(scaling == 'k')
+            if((scaling == 2 && rho) || scaling == 1) {
+                if(scaling == 1)
                     super::stiffnessScaling(super::_work);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, super::_work);
@@ -85,10 +85,12 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[Subdomain<K>::_map[i].second[j]] *= std::real(Subdomain<K>::_sbuff[i][j]) / std::real(Subdomain<K>::_sbuff[i][j] + _m[Subdomain<K>::_map[i].second[j]] * Subdomain<K>::_rbuff[i][j]);
             }
-            else
+            else {
+                scaling = 0;
                 for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                     for(pairNeighbor::second_type::const_reference p : neighbor.second)
                         _m[p] /= (1.0 + _m[p]);
+            }
         }
         /* Function: start
          *

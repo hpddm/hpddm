@@ -291,7 +291,7 @@ using alias = T;
 #endif
 #include "SuiteSparse.hpp"
 #include "eigensolver.hpp"
-#if HPDDM_BDD || HPDDM_FETI
+#if HPDDM_FETI || HPDDM_BDD
 # include "LAPACK.hpp"
 #endif
 #if HPDDM_SCHWARZ

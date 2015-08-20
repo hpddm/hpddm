@@ -224,14 +224,14 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    scaling        - Type of scaling (multiplicity, stiffness or coefficient scaling).
          *    rho            - Physical local coefficients (optional). */
-        void buildScaling(const char& scaling, const K* const& rho = nullptr) {
+        void buildScaling(unsigned short& scaling, const K* const& rho = nullptr) {
             initialize();
             std::vector<std::pair<unsigned short, unsigned int>>* array = new std::vector<std::pair<unsigned short, unsigned int>>[Subdomain<K>::_dof];
             for(const pairNeighbor& neighbor: Subdomain<K>::_map)
                 for(unsigned int j = 0; j < neighbor.second.size(); ++j)
                     array[neighbor.second[j]].emplace_back(neighbor.first, j);
-            if((scaling == 'r' && rho) || scaling == 'k') {
-                if(scaling == 'k')
+            if((scaling == 2 && rho) || scaling == 1) {
+                if(scaling == 1)
                     super::stiffnessScaling(_primal);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, _primal);
@@ -240,10 +240,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[i][j] = std::real(Subdomain<K>::_rbuff[i][j] / _primal[Subdomain<K>::_map[i].second[j]]);
             }
-            else
+            else {
+                scaling = 0;
                 for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[i][j] = 1.0 / (1.0 + array[Subdomain<K>::_map[i].second[j]].size());
+            }
             delete [] array;
         }
         /* Function: apply

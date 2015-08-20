@@ -32,8 +32,11 @@ inline Option::Option(construct_key) {
              { "gmres_restart",                 50 },
              { "gs",                            0 },
              { "variant",                       0 },
-#ifdef HPDDM_SCHWARZ
+#if HPDDM_SCHWARZ
              { "schwarz_method",                0 },
+#endif
+#if HPDDM_FETI || HPDDM_BDD
+             { "substructuring_scaling",        0 },
 #endif
              { "geneo_nu",                      20 },
              { "geneo_eigensolver_tol",         1.0e-6 },
@@ -87,10 +90,14 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
         std::forward_as_tuple("gs=(classical|modified|none)", "Classical (faster) or modified (more robust) Gram-Schmidt process, or no orthogonalization at all.", Arg::argument),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left or right or flexible preconditioning.", Arg::argument),
-#ifdef HPDDM_SCHWARZ
+#if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),
         std::forward_as_tuple("schwarz_coarse_correction=(deflated|additive|balanced)", "Switch to a multilevel preconditioner.", Arg::argument),
+#endif
+#if HPDDM_FETI || HPDDM_BDD
+        std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Substructuring methods options:"; return true; }),
+        std::forward_as_tuple("substructuring_scaling=(multiplicity|stiffness|coefficient)", "Type of scaling used for the preconditioner.", Arg::argument),
 #endif
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Local number of GenEO vectors to compute.", Arg::integer),

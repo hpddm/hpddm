@@ -70,7 +70,7 @@ class Option {
                     std::sort(output.begin() + 2, output.end() - 1, [](const std::string& a, const std::string& b) {
                         std::pair<std::string::const_iterator, std::string::const_iterator> p(std::find_if(a.cbegin(), a.cend(), ::isdigit), std::find_if(b.cbegin(), b.cend(), ::isdigit));
                         if(p.first != a.cend() && p.second != b.cend()) {
-                            std::pair<size_t, size_t> v(std::distance(a.begin(), p.first), std::distance(b.begin(), p.second));
+                            std::pair<size_t, size_t> v(std::distance(a.cbegin(), p.first), std::distance(b.cbegin(), p.second));
                             if(a.substr(0, v.first) == b.substr(0, v.second))
                                 return sto<int>(a.substr(v.first, a.size())) < sto<int>(b.substr(v.second, b.size()));
                             else
@@ -279,14 +279,14 @@ class Option {
                         success = false;
                     if(!empty.empty()) {
 #if !defined(HPDDM_NO_REGEX)
-                        std::regex words_regex(val, std::regex_constants::icase);
-                        auto words_begin = std::sregex_iterator(empty.cbegin(), empty.cend(), words_regex);
+                        std::regex words_regex(empty, std::regex_constants::icase);
+                        auto words_begin = std::sregex_iterator(val.cbegin(), val.cend(), words_regex);
                         if(std::distance(words_begin, std::sregex_iterator()) == 1)
-                            map[str] = std::count(empty.begin(), empty.begin() + words_begin->position(), '|');
+                            map[str] = std::count(empty.cbegin(), empty.cbegin() + empty.find(val), '|');
 #else
                         std::string::size_type found = empty.find(val);
                         if(found != std::string::npos)
-                            map[str] = std::count(empty.begin(), empty.begin() + found, '|');
+                            map[str] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
 #endif
                         else
                             std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
