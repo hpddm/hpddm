@@ -25,28 +25,28 @@
 #define _LAPACK_
 
 #define HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, SYM, ORT)                                                      \
-void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
-                           const int*, T*, const int*, int*);                                                \
 void HPDDM_F77(C ## SYM ## gst)(const int*, const char*, const int*, T*, const int*,                         \
                                 const T*, const int*, int*);                                                 \
 void HPDDM_F77(C ## SYM ## trd)(const char*, const int*, T*, const int*, U*, U*, T*, T*, const int*, int*);  \
-void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
 void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*, const int*,                 \
                            const int*, T*, const int*, U*, int*, int*, int*);                                \
 void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
                                 const T*, const int*, const T*, T*, const int*, T*, const int*, int*);       \
-void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, int*, int*);                      \
+void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, const int*, int*);                \
+void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
+void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
+                           const int*, T*, const int*, int*);                                                \
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*);
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
 void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
                            const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
-void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, const int*, U*, U*, int*, int*);          \
-void HPDDM_F77(C ## geqp3)(const int*, const int*, T*, const int*, const int*, T*, T*, int*, U*, int*);      \
+void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, const int*, U*, U*, const int*, int*);    \
+void HPDDM_F77(C ## geqp3)(const int*, const int*, T*, const int*, const int*, T*, T*, const int*, U*, int*);\
 void HPDDM_F77(B ## ormqr)(const char*, const char*, const int*, const int*, const int*, const U*,           \
-                           const int*, const U*, U*, const int*, U*, int*, int*);                            \
+                           const int*, const U*, U*, const int*, U*, const int*, int*);                      \
 void HPDDM_F77(C ## unmqr)(const char*, const char*, const int*, const int*, const int*, const T*,           \
-                           const int*, const T*, T*, const int*, T*, int*, int*);
+                           const int*, const T*, T*, const int*, T*, const int*, int*);
 
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
@@ -71,18 +71,12 @@ template<class K>
 class Lapack : public Eigensolver<K> {
     private:
         friend class QR<K>;
-        /* Function: trtrs
-         *  Solves a system of linear equations with a triangular matrix. */
-        static void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
         /* Function: gst
          *  Reduces a symmetric or Hermitian definite generalized eigenvalue problem to a standard form. */
         static void gst(const int*, const char*, const int*, K*, const int*, K*, const int*, int*);
         /* Function: trd
          *  Reduces a symmetric or Hermitian matrix to a tridiagonal form. */
         static void trd(const char*, const int*, K*, const int*, typename Wrapper<K>::ul_type*, typename Wrapper<K>::ul_type*, K*, K*, const int*, int*);
-        /* Function: lapmt
-         *  Performs a forward or backward permutation of the columns of a matrix. */
-        static void lapmt(const int*, const int*, const int*, K*, const int*, int*);
         /* Function: stebz
          *  Computes selected eigenvalues of a symmetric tridiagonal matrix by bisection. */
         static void stebz(const char*, const char*, const int*, const typename Wrapper<K>::ul_type*, const typename Wrapper<K>::ul_type*, const int*, const int*, const typename Wrapper<K>::ul_type*, const typename Wrapper<K>::ul_type*, const typename Wrapper<K>::ul_type*, int*, int*, typename Wrapper<K>::ul_type*, int*, int*, typename Wrapper<K>::ul_type*, int*, int*);
@@ -97,6 +91,12 @@ class Lapack : public Eigensolver<K> {
         Lapack(int n, int nu)                                                                           : Eigensolver<K>(n, nu) { }
         Lapack(typename Wrapper<K>::ul_type threshold, int n, int nu)                                   : Eigensolver<K>(threshold, n, nu) { }
         Lapack(typename Wrapper<K>::ul_type tol, typename Wrapper<K>::ul_type threshold, int n, int nu) : Eigensolver<K>(tol, threshold, n, nu) { }
+        /* Function: lapmt
+         *  Performs a forward or backward permutation of the columns of a matrix. */
+        static void lapmt(const int*, const int*, const int*, K*, const int*, int*);
+        /* Function: trtrs
+         *  Solves a system of linear equations with a triangular matrix. */
+        static void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
         /* Function: potrf
          *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
         static void potrf(const char*, const int*, K*, const int*, int*);
@@ -199,28 +199,28 @@ class QR {
 #endif
         /* Function: geqrf
          *  Computes the QR decomposition of a rectangular matrix. */
-        static void geqrf(const int*, const int*, K*, const int*, K*, K*, int*, int*);
+        static void geqrf(const int*, const int*, K*, const int*, K*, K*, const int*, int*);
         /* Function: geqp3
          *  Computes the QR decomposition of a rectangular matrix with column pivoting. */
-        static void geqp3(const int*, const int*, K*, const int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
+        static void geqp3(const int*, const int*, K*, const int*, int*, K*, K*, const int*, typename Wrapper<K>::ul_type*, int*);
         /* Function: mqr
          *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <QR::geq>. */
-        static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, int*, int*);
+        static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
         int workspace() const {
             int info;
-            std::pair<int, int> lwork { -1, -1 };
+            int lwork[2] { -1, -1 };
             K wkopt;
 #if HPDDM_QR == 1
-            geqp3(&_n, &_n, nullptr, &_n, nullptr, nullptr, &wkopt, &lwork.first, nullptr, &info);
+            geqp3(&_n, &_n, nullptr, &_n, nullptr, nullptr, &wkopt, lwork, nullptr, &info);
 #else
-            geqrf(&_n, &_n, nullptr, &_n, nullptr, &wkopt, &lwork.first, &info);
+            geqrf(&_n, &_n, nullptr, &_n, nullptr, &wkopt, lwork, &info);
 #endif
-            lwork.first = static_cast<int>(std::real(wkopt));
-            mqr("L", "T", &_n, &i__1, &_n, nullptr, &_n, nullptr, nullptr, &_n, &wkopt, &lwork.second, &info);
-            lwork.second = static_cast<int>(std::real(wkopt));
-            return std::max(lwork.first, lwork.second);
+            lwork[0] = static_cast<int>(std::real(wkopt));
+            mqr("L", "T", &_n, &i__1, &_n, nullptr, &_n, nullptr, nullptr, &_n, &wkopt, lwork + 1, &info);
+            lwork[1] = static_cast<int>(std::real(wkopt));
+            return *std::max_element(lwork, lwork + 1);
         }
     public:
         QR(int n, const K* const cpy = nullptr) : _n(n), _lwork(workspace()), _a(new K[_n * (_n + 1) + _lwork]), _tau(_a + _n * _n), _work(_tau + _n) {
@@ -271,10 +271,10 @@ class QR {
          *  Computes the solution of a least squares problem. */
         void solve(K* const x) const {
             int info;
-            mqr("L", "T", &_n, &i__1, &_n, _a, &_n, _tau, x, &_n, _work, const_cast<int*>(&_lwork), &info);
+            mqr("L", "T", &_n, &i__1, &_n, _a, &_n, _tau, x, &_n, _work, &_lwork, &info);
 #if HPDDM_QR == 1
             Lapack<K>::trtrs("U", "N", "N", &_rank, &i__1, _a, &_n, x, &_n, &info);
-            Lapack<K>::lapmt(&i__0, &i__1, &_n, x, &i__1, const_cast<int*>(_jpvt.data()));
+            Lapack<K>::lapmt(&i__0, &i__1, &_n, x, &i__1, _jpvt.data());
 #else
             Lapack<K>::trtrs("U", "N", "N", &_n, &i__1, _a, &_n, x, &_n, &info);
 #endif
@@ -282,11 +282,6 @@ class QR {
 };
 
 #define HPDDM_GENERATE_LAPACK(C, T, B, U, SYM, ORT)                                                          \
-template<>                                                                                                   \
-inline void Lapack<T>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n,            \
-                             const int* nrhs, const T* a, const int* lda, T* b, const int* ldb, int* info) { \
-    HPDDM_F77(C ## trtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info);                                 \
-}                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::gst(const int* itype, const char* uplo, const int* n,                                 \
                            T* a, const int* lda, T* b, const int* ldb, int* info) {                          \
@@ -304,10 +299,6 @@ inline void Lapack<T>::trd(const char* uplo, const int* n, T* a, const int* lda,
     HPDDM_F77(C ## SYM ## trd)(uplo, n, a, lda, d, e, tau, work, lwork, info);                               \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx, int* k) {  \
-    HPDDM_F77(C ## lapmt)(forwrd, m, n, x, ldx, k);                                                          \
-}                                                                                                            \
-template<>                                                                                                   \
 inline void Lapack<T>::mtr(const char* side, const char* uplo, const char* trans, const int* m,              \
                            const int* n, const T* a, const int* lda, const T* tau, T* c, const int* ldc,     \
                            T* work, const int* lwork, int* info) {                                           \
@@ -321,9 +312,18 @@ inline void Lapack<T>::stebz(const char* range, const char* order, const int* n,
                           work, iwork, info);                                                                \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void QR<T>::geqrf(const int* m, const int* n, T* a, const int* lda, T* tau, T* work, int* lwork,      \
-                         int* info) {                                                                        \
+inline void QR<T>::geqrf(const int* m, const int* n, T* a, const int* lda, T* tau, T* work,                  \
+                         const int* lwork, int* info) {                                                      \
     HPDDM_F77(C ## geqrf)(m, n, a, lda, tau, work, lwork, info);                                             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx, int* k) {  \
+    HPDDM_F77(C ## lapmt)(forwrd, m, n, x, ldx, k);                                                          \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n,            \
+                             const int* nrhs, const T* a, const int* lda, T* b, const int* ldb, int* info) { \
+    HPDDM_F77(C ## trtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info);                                 \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::potrf(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \
@@ -337,24 +337,24 @@ inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, co
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
 template<>                                                                                                   \
 inline void QR<U>::geqp3(const int* m, const int* n, U* a, const int* lda, int* jpvt, U* tau, U* work,       \
-                       int* lwork, U* rwork, int* info) {                                                    \
+                         const int* lwork, U* rwork, int* info) {                                            \
     HPDDM_F77(B ## geqp3)(m, n, a, lda, jpvt, tau, work, lwork, info);                                       \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void QR<T>::geqp3(const int* m, const int* n, T* a, const int* lda, int* jpvt, T* tau, T* work,       \
-                       int* lwork, U* rwork, int* info) {                                                    \
+                         const int* lwork, U* rwork, int* info) {                                            \
     HPDDM_F77(C ## geqp3)(m, n, a, lda, jpvt, tau, work, lwork, rwork, info);                                \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void QR<U>::mqr(const char* side, const char* trans, const int* m, const int* n, const int* k,        \
                        const U* a, const int* lda, const U* tau, U* c, const int* ldc, U* work,              \
-                       int* lwork, int* info) {                                                              \
+                       const int* lwork, int* info) {                                                        \
     HPDDM_F77(B ## ormqr)(side, trans, m, n, k, a, lda, tau, c, ldc, work, lwork, info);                     \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void QR<T>::mqr(const char* side, const char* trans, const int* m, const int* n, const int* k,        \
                        const T* a, const int* lda, const T* tau, T* c, const int* ldc, T* work,              \
-                       int* lwork, int* info) {                                                              \
+                       const int* lwork, int* info) {                                                        \
     HPDDM_F77(C ## unmqr)(side, trans, m, n, k, a, lda, tau, c, ldc, work, lwork, info);                     \
 }
 HPDDM_GENERATE_LAPACK(s, float, s, float, sy, or)

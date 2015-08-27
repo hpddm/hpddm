@@ -175,7 +175,6 @@ HPDDM_GENERATE_EXTERN_AXPBY(z, std::complex<double>, d, double)
 #endif // INTEL_MKL_VERSION
 
 #include <vector>
-#include <algorithm>
 #include <numeric>
 
 namespace HPDDM {

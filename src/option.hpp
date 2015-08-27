@@ -68,13 +68,13 @@ class Option {
                     }
                     output.emplace_back(" └");
                     std::sort(output.begin() + 2, output.end() - 1, [](const std::string& a, const std::string& b) {
-                        std::pair<std::string::const_iterator, std::string::const_iterator> p(std::find_if(a.cbegin(), a.cend(), ::isdigit), std::find_if(b.cbegin(), b.cend(), ::isdigit));
-                        if(p.first != a.cend() && p.second != b.cend()) {
-                            std::pair<size_t, size_t> v(std::distance(a.cbegin(), p.first), std::distance(b.cbegin(), p.second));
-                            if(a.substr(0, v.first) == b.substr(0, v.second))
-                                return sto<int>(a.substr(v.first, a.size())) < sto<int>(b.substr(v.second, b.size()));
+                        std::string::const_iterator p[2] { std::find_if(a.cbegin(), a.cend(), ::isdigit), std::find_if(b.cbegin(), b.cend(), ::isdigit) };
+                        if(p[0] != a.cend() && p[1] != b.cend()) {
+                            std::iterator_traits<std::string::const_iterator>::difference_type v[2] { std::distance(a.cbegin(), p[0]), std::distance(b.cbegin(), p[1]) };
+                            if(a.substr(0, v[0]) == b.substr(0, v[1]))
+                                return sto<int>(a.substr(v[0], a.size())) < sto<int>(b.substr(v[1], b.size()));
                             else
-                                return a.substr(0, v.first) < b.substr(0, v.second);
+                                return a.substr(0, v[0]) < b.substr(0, v[1]);
                         }
                         else
                             return a < b;

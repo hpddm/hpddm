@@ -82,14 +82,22 @@ class IterativeMethod {
          *    v              - Basis of the Krylov subspace. */
         template<class Operator, class K>
         static void update(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, const K* const* const v, const short* const hasConverged, const unsigned short& mu = 1) {
-            int incx = mu;
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                for(int i = std::abs(hasConverged[nu]); i-- > 0; ) {
-                    K alpha = -(s[i * mu + nu] /= h[i][i * mu + nu]);
-                    Wrapper<K>::axpy(&i, &alpha, h[i] + nu, &incx, s + nu, &incx);
-                }
-            }
             int tmp[2] { mu * n, mu };
+            if(mu == 1) {
+                tmp[0] = std::abs(*hasConverged);
+                tmp[1] = std::distance(h[0], h[1]);
+                int info;
+                Lapack<K>::trtrs("U", "N", "N", tmp, &i__1, *h, tmp + 1, s, tmp + 1, &info);
+                tmp[0] = n;
+                tmp[1] = 1;
+            }
+            else
+                for(unsigned short nu = 0; nu < mu; ++nu) {
+                    for(int i = std::abs(hasConverged[nu]); i-- > 0; ) {
+                        K alpha = -(s[i * mu + nu] /= h[i][i * mu + nu]);
+                        Wrapper<K>::axpy(&i, &alpha, h[i] + nu, tmp + 1, s + nu, tmp + 1);
+                    }
+                }
             if(variant == 'L') {
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     if(hasConverged[nu] != -1) {
@@ -227,7 +235,7 @@ class IterativeMethod {
                 return 0;
             }
 
-            K** const v = new K*[(m + 2) * (1 + (variant == 'F')) + m];
+            K** const v = new K*[(m + 2) * (1 + (variant == 'F')) + std::max(static_cast<unsigned short>(2), m)];
             K** const H = v + (m + 2) * (1 + (variant == 'F'));
             if(!excluded) {
                 *v = new K[((m + 2) * (1 + (variant == 'F')) * n) * mu]();
@@ -236,8 +244,11 @@ class IterativeMethod {
             }
 
             *H = Ax + mu * n;
-            for(unsigned short i = 1; i < m; ++i)
-                H[i] = *H + i * (m + 1) * mu;
+            if(m < 2)
+                H[1] = *H + (m + 1) * mu;
+            else
+                for(unsigned short i = 1; i < m; ++i)
+                    H[i] = *H + i * (m + 1) * mu;
 
             unsigned short j = 1;
             int i;
