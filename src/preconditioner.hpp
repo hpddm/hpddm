@@ -1,10 +1,11 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <jolivet@ann.jussieu.fr>
+   Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
         Date: 2012-12-15
 
    Copyright (C) 2011-2014 Université de Grenoble
+                 2015      Eidgenössische Technische Hochschule Zürich
 
    HPDDM is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published
@@ -33,6 +34,8 @@
         output[3] = output[3] & input[3];
 
 #include "subdomain.hpp"
+#include "coarse_operator_impl.hpp"
+#include "operator.hpp"
 
 namespace HPDDM {
 /* Class: Preconditioner

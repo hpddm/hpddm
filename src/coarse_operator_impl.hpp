@@ -180,7 +180,7 @@ inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, cons
             if(p == 1)
                 *Solver<K>::_ldistribution = Solver<K>::_n;
             else {
-                std::fill(Solver<K>::_ldistribution, Solver<K>::_ldistribution + p - 1, _local * (_sizeWorld / p - excluded));
+                std::fill_n(Solver<K>::_ldistribution, p - 1, _local * (_sizeWorld / p - excluded));
                 Solver<K>::_ldistribution[p - 1] = Solver<K>::_n - _local * (_sizeWorld / p - excluded) * (p - 1);
             }
         }
@@ -214,7 +214,7 @@ inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, cons
             Solver<K>::_ldistribution[p - 1] = Solver<K>::_n - accumulate;
         }
         else {
-            std::fill(Solver<K>::_ldistribution, Solver<K>::_ldistribution + p - 1, _local * (_sizeWorld / p - excluded));
+            std::fill_n(Solver<K>::_ldistribution, p - 1, _local * (_sizeWorld / p - excluded));
             Solver<K>::_ldistribution[p - 1] = Solver<K>::_n - _local * (_sizeWorld / p - excluded) * (p - 1);
         }
     }
@@ -401,7 +401,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 recvcounts[p - 1] = _sizeWorld - Solver<K>::_ldistribution[p - 1];
             }
             else {
-                std::fill(recvcounts, recvcounts + p - 1, _sizeWorld / p);
+                std::fill_n(recvcounts, p - 1, _sizeWorld / p);
                 recvcounts[p - 1] = _sizeWorld - (p - 1) * (_sizeWorld / p);
             }
             std::partial_sum(recvcounts, recvcounts + p - 1, displs + 1);
@@ -511,7 +511,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
         }
         else
-            std::fill(rqRecv, rqRecv + info[0], MPI_REQUEST_NULL);
+            std::fill_n(rqRecv, info[0], MPI_REQUEST_NULL);
     }
     else {
         rqSend.reserve(M.size());
@@ -535,11 +535,11 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 before += (U == 1 ? _local : infoNeighbor[j]);
             K* const pt = (rankSplit != 0 ? sendMaster + before : C + before);
             Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), pt, &coefficients);
-            Wrapper<K>::conjugate(_local, _local, coefficients, pt);
+            Wrapper<K>::conjugate(_local, _local, pt, coefficients);
             if(rankSplit == 0)
                 for(unsigned short j = 0; j < _local; ++j) {
 #ifndef HPDDM_CSR_CO
-                    std::fill(I + before + j * coefficients, I + before + j * coefficients + _local, offset + j);
+                    std::fill_n(I + before + j * coefficients, _local, offset + j);
 #endif
                     std::iota(J + before + j * coefficients, J + before + j * coefficients + _local, offset);
                 }
@@ -561,7 +561,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &_local, &_local, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), C, &_local);
                 for(unsigned short j = _local; j-- > 0; ) {
 #ifndef HPDDM_CSR_CO
-                    std::fill(I + j * (coefficients + _local) - (j * (j - 1)) / 2, I + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + _local, offset + j);
+                    std::fill_n(I + j * (coefficients + _local) - (j * (j - 1)) / 2, _local - j, offset + j);
 #endif
                     std::iota(J + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + j, J + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + _local, offset + j);
                     if(coefficients >= _local)
@@ -726,7 +726,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     if(S == 'S')
                         --coefficientsSlave;
 #ifndef HPDDM_CSR_CO
-                    std::fill(rowIdx, rowIdx + coefficientsSlave, tmp + i);
+                    std::fill_n(rowIdx, coefficientsSlave, tmp + i);
                     rowIdx += coefficientsSlave;
 #else
                     I[offsetSlave + 1 + i] = coefficientsSlave;

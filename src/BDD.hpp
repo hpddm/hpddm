@@ -74,7 +74,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    rho            - Physical local coefficients (optional). */
         void buildScaling(unsigned short& scaling, const K* const& rho = nullptr) {
             initialize();
-            std::fill(_m, _m + Subdomain<K>::_dof, 1.0);
+            std::fill_n(_m, Subdomain<K>::_dof, 1.0);
             if((scaling == 2 && rho) || scaling == 1) {
                 if(scaling == 1)
                     super::stiffnessScaling(super::_work);
@@ -126,7 +126,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                         Wrapper<K>::diag(Subdomain<K>::_dof, _m, x);
                     }
                     else {
-                        std::fill(x, x + Subdomain<K>::_dof, K());
+                        std::fill_n(x, Subdomain<K>::_dof, K());
                         super::_co->template callSolver<excluded>(super::_uc);
                     }
                     Subdomain<K>::exchange(x);
@@ -140,7 +140,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             else if(!excluded) {
                 super::condensateEffort(f, r);
                 Subdomain<K>::exchange(r);
-                std::fill(x, x + Subdomain<K>::_dof, K());
+                std::fill_n(x, Subdomain<K>::_dof, K());
             }
         }
         /* Function: apply

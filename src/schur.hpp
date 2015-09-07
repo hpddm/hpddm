@@ -24,6 +24,8 @@
 #ifndef _SCHUR_
 #define _SCHUR_
 
+#include "preconditioner.hpp"
+
 namespace HPDDM {
 /* Class: Schur
  *
@@ -692,7 +694,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             Subdomain<K>::exchange(_work + _bi->_m);
             Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
             storage[1] = Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1);
-            std::fill(tmp, tmp + Subdomain<K>::_dof, 1.0);
+            std::fill_n(tmp, Subdomain<K>::_dof, K(1.0));
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
                         tmp[val] /= (K(1.0) + tmp[val]);

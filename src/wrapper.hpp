@@ -149,15 +149,39 @@ class Wrapper {
         /* Function: conjugate
          *  Conjugates all elements of a matrix. */
         template<class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static void conjugate(const int& m, const int& n, const int& ld, T* const in) {
-            for(int i = 0; i < n; ++i)
-                std::for_each(in + i * ld, in + i * ld + m, [](T& z) { z = std::conj(z); });
+        static void conjugate(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
+            if(b && ldb)
+                for(int i = 0; i < n; ++i)
+                    std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const T& z) { return std::conj(z); });
+            else
+                for(int i = 0; i < n; ++i)
+                    std::for_each(a + i * lda, a + i * lda + m, [](T& z) { z = std::conj(z); });
         }
         template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static void conjugate(const int&, const int&, const int&, T* const) { }
-        /* Function: transpose
-         *  Transposes a dense matrix in-place. */
-        static void transpose(K* const, const std::size_t, const std::size_t);
+        static void conjugate(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
+            if(b && ldb)
+                lacpy("A", &m, &n, a, &lda, b, &ldb);
+        }
+        template<char O, class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value && (O == 'C' || O == 'R')>::type* = nullptr>
+        static void copy(const T& in, T& out) { out = std::conj(in); }
+        template<char O, class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value || O == 'T' || O == 'N'>::type* = nullptr>
+        static void copy(const T& in, T& out) { out = in; }
+        template<char O, class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value && (O == 'C' || O == 'R')>::type* = nullptr>
+        static void swap(T& in, T& out) {
+            in = std::conj(in);
+            out = std::conj(out);
+            std::swap(in, out);
+        }
+        template<char O, class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value || O == 'T' || O == 'N'>::type* = nullptr>
+        static void swap(T& in, T& out) { std::swap(in, out); }
+        /* Function: imatcopy
+         *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix in-place. */
+        template<char O>
+        static void imatcopy(const int, const int, K* const, const int, const int);
+        /* Function: omatcopy
+         *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix out-place. */
+        template<char O>
+        static void omatcopy(const int, const int, const K* const, const int, K* const, const int);
 };
 
 template<>
@@ -369,8 +393,17 @@ inline void Wrapper<T>::sctr(const int& n, const T* const x, const int* const in
     cblas_ ## C ## sctr(n, x, indx, y);                                                                      \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Wrapper<T>::transpose(T* const a, const std::size_t n, const std::size_t m) {                    \
-    mkl_ ## C ## imatcopy('C', 'T', m, n, d__1, a, m, n);                                                    \
+template<char O>                                                                                             \
+inline void Wrapper<T>::imatcopy(const int n, const int m, T* const ab, const int lda, const int ldb) {      \
+    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");                        \
+    mkl_ ## C ## imatcopy('C', O, m, n, d__1, ab, lda, ldb);                                                 \
+}                                                                                                            \
+template<>                                                                                                   \
+template<char O>                                                                                             \
+inline void Wrapper<T>::omatcopy(const int n, const int m, const T* const a, const int lda,                  \
+                                 T* const b, const int ldb) {                                                \
+    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");                        \
+    mkl_ ## C ## omatcopy('C', O, m, n, d__1, a, lda, b, ldb);                                               \
 }
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
@@ -411,7 +444,7 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
     if(trans == &transa) {
         if(sym) {
             if(beta == &d__0)
-                std::fill(y, y + *m, K());
+                std::fill_n(y, *m, K());
             else if(beta != &d__1)
                 scal(m, beta, y, &i__1);
             for(int i = 0; i < *m; ++i) {
@@ -436,7 +469,7 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
         }
         else {
             if(beta == &d__0)
-                std::fill(y, y + *m, K());
+                std::fill_n(y, *m, K());
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
             for(int i = 0; i < *m; ++i) {
                 K res = K();
@@ -448,7 +481,7 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
     }
     else {
         if(beta == &d__0)
-            std::fill(y, y + *k, K());
+            std::fill_n(y, *k, K());
         else if(beta != &d__1)
             scal(k, beta, y, &i__1);
         if(sym) {
@@ -484,12 +517,12 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
             int dimX = *k;
             int dimNY = dimY * *n;
             if(beta == &d__0)
-                std::fill(y, y + dimNY, K());
+                std::fill_n(y, dimNY, K());
             else if(beta != &d__1)
                 scal(&dimNY, beta, y, &i__1);
             res = new K[*n];
             for(int i = 0; i < dimY; ++i) {
-                std::fill(res, res + *n, K());
+                std::fill_n(res, *n, K());
                 for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     j = ja[l] - (N == 'F');
                     if(i != j)
@@ -510,7 +543,7 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
                 res = new K[*n];
 #pragma omp for schedule(static, HPDDM_GRANULARITY)
                 for(int i = 0; i < dimY; ++i) {
-                    std::fill(res, res + *n, K());
+                    std::fill_n(res, *n, K());
                     for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
                         axpy(n, a + l, x + ja[l] - (N == 'F'), k, res, &i__1);
                     axpby(*n, *alpha, res, 1, *beta, y + i, dimY);
@@ -526,13 +559,13 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
         int dimY = *k;
         int dimNY = dimY * *n;
         if(beta == &d__0)
-            std::fill(y, y + dimNY, K());
+            std::fill_n(y, dimNY, K());
         else if(beta != &d__1)
             scal(&dimNY, beta, y, &i__1);
         if(sym) {
             K* res = new K[*n];
             for(int i = 0; i < *m; ++i) {
-                std::fill(res, res + *n, K());
+                std::fill_n(res, *n, K());
                 for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     int j = ja[l] - (N == 'F');
                     if(i != j)
@@ -563,7 +596,7 @@ template<class K>
 template<char N>
 inline void Wrapper<K>::csrcsc(const int* const n, K* const a, int* const ja, int* const ia, K* const b, int* const jb, int* const ib) {
     int nnz = ia[*n];
-    std::fill(ib, ib + *n + 1, 0);
+    std::fill_n(ib, *n + 1, 0);
     for(int i = 0; i < nnz; ++i)
         ib[ja[i] + 1]++;
     std::partial_sum(ib, ib + *n + 1, ib);
@@ -602,31 +635,74 @@ inline void Wrapper<K>::axpby(const int& n, const K& alpha, const K* const u, co
 }
 #endif // __APPLE__
 template<class K>
-inline void Wrapper<K>::transpose(K* const a, const std::size_t n, const std::size_t m) {
-    if(n != m) {
-        if(n != 1 && m != 1) {
-            const int size = n * m - 1;
-            std::bitset<1024> b;
-            b[0] = b[size] = 1;
-            int i = 1;
-            while(i < size) {
-                int it = i;
-                K t = a[i];
-                do {
-                    int next = (i * n) % size;
-                    std::swap(a[next], t);
-                    b[i] = 1;
-                    i = next;
-                } while(i != it);
+template<char O>
+inline void Wrapper<K>::omatcopy(const int n, const int m, const K* const a, const int lda, K* const b, const int ldb) {
+    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
+    if(O != 'N')
+        for(int i = 0; i < n; ++i)
+            for(int j = 0; j < m; ++j) {
+                if(O == 'T' || O == 'C')
+                    copy<O>(a[i * lda + j], b[j * ldb + i]);
+                else
+                    copy<O>(a[i * lda + j], b[i * ldb + j]);
+            }
+    else
+        lacpy("A", &m, &n, a, &lda, b, &ldb);
+}
+template<class K>
+template<char O>
+inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const int lda, const int ldb) {
+    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
+    if(O == 'T' || O == 'C') {
+        if(n != 1 || m != 1) {
+            if(lda == m && ldb == n) {
+                if(n != m) {
+                    const int size = n * m - 1;
+                    std::bitset<1024> b;
+                    b[0] = b[size] = 1;
+                    int i = 1;
+                    while(i < size) {
+                        int it = i;
+                        K t = ab[i];
+                        do {
+                            int next = (i * n) % size;
+                            std::swap(ab[next], t);
+                            b[i] = 1;
+                            i = next;
+                        } while(i != it);
 
-                for(i = 1; i < size && b[i]; i++);
+                        for(i = 1; i < size && b[i]; ++i);
+                    }
+                    if(O == 'C')
+                        conjugate(m * n, 1, ab, m * n);
+                }
+                else {
+                    for(int i = 0; i < n - 1; ++i)
+                        for(int j = i + 1; j < n; ++j)
+                            swap<O>(ab[i * n + j], ab[j * n + i]);
+                }
+            }
+            else {
+                K* tmp = new K[n * m];
+                omatcopy<O>(n, m, ab, lda, tmp, n);
+                lacpy("A", &n, &m, tmp, &n, ab, &ldb);
+                delete [] tmp;
             }
         }
     }
+    else if(O == 'R') {
+        K* tmp = new K[n * m];
+        lacpy("A", &m, &n, ab, &lda, tmp, &m);
+        conjugate(m, n, tmp, m, ab, ldb);
+        delete [] tmp;
+    }
     else {
-        for(int i = 0; i < n - 1; ++i)
-            for(int j = i + 1; j < n; ++j)
-                std::swap(a[i * n + j], a[j * n + i]);
+        if(lda < ldb)
+            for(int i = n; i > 0; --i)
+                std::copy_backward(ab + (i - 1) * lda, ab + (i - 1) * lda + m, ab + (i - 1) * ldb + m);
+        else if(lda > ldb)
+            for(int i = 1; i < n; ++i)
+                std::copy(ab + i * ldb, ab + i * ldb + m, ab + i * lda);
     }
 }
 #endif // HPDDM_MKL

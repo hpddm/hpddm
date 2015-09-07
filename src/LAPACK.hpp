@@ -33,6 +33,9 @@ void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*,
 void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
                                 const T*, const int*, const T*, T*, const int*, T*, const int*, int*);       \
 void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, const int*, int*);                \
+void HPDDM_F77(C ## geqrt)(const int*, const int*, const int*, T*, const int*, T*, const int*, T*, int*);    \
+void HPDDM_F77(C ## gemqrt)(const char*, const char*, const int*, const int*, const int*, const int*,        \
+                            const T*, const int*, const T*, const int*, T*, const int*, T*, int*);           \
 void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
 void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
                            const int*, T*, const int*, int*);                                                \
@@ -197,15 +200,9 @@ class QR {
         std::vector<int>               _jpvt;
         int                            _rank;
 #endif
-        /* Function: geqrf
-         *  Computes the QR decomposition of a rectangular matrix. */
-        static void geqrf(const int*, const int*, K*, const int*, K*, K*, const int*, int*);
         /* Function: geqp3
-         *  Computes the QR decomposition of a rectangular matrix with column pivoting. */
+         *  Computes a QR decomposition of a rectangular matrix with column pivoting. */
         static void geqp3(const int*, const int*, K*, const int*, int*, K*, K*, const int*, typename Wrapper<K>::ul_type*, int*);
-        /* Function: mqr
-         *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <QR::geq>. */
-        static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
         int workspace() const {
@@ -238,6 +235,18 @@ class QR {
         ~QR() {
             delete [] _a;
         }
+        /* Function: geqrf
+         *  Computes a QR decomposition of a rectangular matrix. */
+        static void geqrf(const int*, const int*, K*, const int*, K*, K*, const int*, int*);
+        /* Function: geqrt
+         *  Computes a blocked QR decomposition of a rectangular matrix using the compact WY representation of Q. */
+        static void geqrt(const int*, const int*, const int*, K*, const int*, K*, const int*, K*, int*);
+        /* Function: mqr
+         *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <QR::geq>. */
+        static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
+        /* Function: gemqrt
+         *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <QR::geqrt>. */
+        static void gemqrt(const char*, const char*, const int*, const int*, const int*, const int*, const K*, const int*, const K*, const int*, K*, const int*, K*, int*);
         /* Function: getPointer
          *  Returns the pointer <QR::a>. */
         K* getPointer() const { return _a; }
@@ -315,6 +324,17 @@ template<>                                                                      
 inline void QR<T>::geqrf(const int* m, const int* n, T* a, const int* lda, T* tau, T* work,                  \
                          const int* lwork, int* info) {                                                      \
     HPDDM_F77(C ## geqrf)(m, n, a, lda, tau, work, lwork, info);                                             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void QR<T>::geqrt(const int* m, const int* n, const int* nb, T* a, const int* lda, T* t,              \
+                         const int* ldt, T* work, int* info) {                                               \
+    HPDDM_F77(C ## geqrt)(m, n, nb, a, lda, t, ldt, work, info);                                             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void QR<T>::gemqrt(const char* side, const char* trans, const int* m, const int* n, const int* k,     \
+                          const int* nb, const T* v, const int* ldv, const T* t, const int* ldt, T* c,       \
+                          const int* ldc, T* work, int* info) {                                              \
+    HPDDM_F77(C ## gemqrt)(side, trans, m, n, k, nb, v, ldv, t, ldt, c, ldc, work, info);                    \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx, int* k) {  \

@@ -63,7 +63,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         void A(K* const primal, K* const* const dual) const {
             static_assert(trans == 'T' || trans == 'N', "Unsupported value for argument 'trans'");
             if(trans == 'T') {
-                std::fill(primal, primal + Subdomain<K>::_dof, K());
+                std::fill_n(primal, Subdomain<K>::_dof, K());
                 for(unsigned short i = 0; i < super::_signed; ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         primal[Subdomain<K>::_map[i].second[j]] -= scale ? _m[i][j] * dual[i][j] : dual[i][j];
@@ -159,12 +159,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     }
                     else {
                         super::_co->template callSolver<excluded>(super::_uc);
-                        std::fill(_primal, _primal + Subdomain<K>::_dof, K());
+                        std::fill_n(_primal, Subdomain<K>::_dof, K());
                     }
                     A<'N', 0>(_primal, l);                                                               //       l = A R_b (G Q G^T) \ R f
                     precond(l);                                                                          //       l = Q A R_b (G Q G^T) \ R f
                     A<'T', 0>(_primal, l);                                                               // _primal = A^T Q A R_b (G Q G^T) \ R f
-                    std::fill(super::_structure, super::_structure + super::_bi->_m, K());
+                    std::fill_n(super::_structure, super::_bi->_m, K());
                     p->solve(super::_structure);                                                         // _primal = S \ A^T Q A R_b (G Q G^T) \ R f
                 }
                 else
@@ -174,7 +174,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 p->solve(f, x);                                                                          //       x = S \ f
                 if(!super::_co) {
                     A<'N', 0>(x + super::_bi->_m, r);                                                    //       r = A S \ f
-                    std::fill(*l, *l + super::_mult, K());                                               //       l = 0
+                    std::fill_n(*l, super::_mult, K());                                                  //       l = 0
                 }
                 else {
                     Wrapper<K>::axpby(Subdomain<K>::_dof, 1.0, x + super::_bi->_m, 1, -1.0, _primal, 1); // _primal = S \ (f - A^T Q A R_b (G Q G^T) \ R f)
@@ -257,7 +257,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    out            - Output vector (optional). */
         void apply(K* const* const in, K* const* const out = nullptr) const {
             A<'T', 0>(_primal, in);
-            std::fill(super::_structure, super::_structure + super::_bi->_m, K());
+            std::fill_n(super::_structure, super::_bi->_m, K());
             static_cast<Solver<K>*>(super::_pinv)->solve(super::_structure);
             A<'N', 0>(_primal, out ? out : in);
         }
@@ -347,7 +347,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     }
                     else {
                         super::_co->template callSolver<excluded>(super::_uc);
-                        std::fill(_primal, _primal + Subdomain<K>::_dof, K());
+                        std::fill_n(_primal, Subdomain<K>::_dof, K());
                     }
                     A<'N', 0>(_primal, _dual);
                     if(trans == 'N')
@@ -396,7 +396,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         void computeSolution(K* const* const l, K* const x) const {
             if(!excluded) {
                 A<'T', 0>(_primal, l);                                                                                                                                                                                                       //    _primal = A^T l
-                std::fill(super::_structure, super::_structure + super::_bi->_m, K());
+                std::fill_n(super::_structure, super::_bi->_m, K());
                 static_cast<Solver<K>*>(super::_pinv)->solve(super::_structure);                                                                                                                                                             // _structure = S \ A^T l
                 Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), super::_structure, &i__1, x, &i__1);                                                                                                                          //          x = x - S \ A^T l
                 if(super::_co) {

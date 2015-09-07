@@ -328,7 +328,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         template<char S, bool U>
         void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* infoNeighbor) {
             int m = U ? super::_local : *infoNeighbor;
-            std::fill(work, work + m * super::_n, 0.0);
+            std::fill_n(work, m * super::_n, K());
             for(unsigned short i = 0; i < m; ++i)
                 Wrapper<K>::sctr(super::_map[index].second.size(), in + i * super::_map[index].second.size(), super::_map[index].second.data(), work + i * super::_n);
             Wrapper<K>::diag(super::_n, m, _D, work, _work);

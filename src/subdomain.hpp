@@ -352,7 +352,7 @@ class Subdomain {
                         mapCol[ja[i]] = j++;
                 MatrixCSR<K>* AIJ = new MatrixCSR<K>(_dof, mapCol.size(), nnz, false);
                 v.emplace_back(AIJ);
-                std::fill(AIJ->_ia, AIJ->_ia + AIJ->_n + 1, 0);
+                std::fill_n(AIJ->_ia, AIJ->_n + 1, 0);
                 for(unsigned int i = 0; i < recvSize[2 * index]; ++i) {
 #if 0
                     if(std::abs(scaling[_map[index].second[mapRow[i]]]) > HPDDM_EPS)

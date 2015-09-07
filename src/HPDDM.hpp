@@ -290,9 +290,7 @@ using alias = T;
 #endif
 #include "SuiteSparse.hpp"
 #include "eigensolver.hpp"
-#if HPDDM_FETI || HPDDM_BDD
-# include "LAPACK.hpp"
-#endif
+#include "LAPACK.hpp"
 #if HPDDM_SCHWARZ
 # ifndef EIGENSOLVER
 #  if defined(INTEL_MKL_VERSION)
@@ -303,9 +301,6 @@ using alias = T;
 # endif
 #endif
 
-#include "preconditioner.hpp"
-#include "coarse_operator_impl.hpp"
-#include "operator.hpp"
 #include "option_impl.hpp"
 
 #if HPDDM_SCHWARZ

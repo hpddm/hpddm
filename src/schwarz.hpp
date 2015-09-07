@@ -26,6 +26,7 @@
 #define _SCHWARZ_
 
 #include <set>
+#include "preconditioner.hpp"
 
 namespace HPDDM {
 /* Class: Schwarz
@@ -115,7 +116,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 Wrapper<typename Wrapper<K>::ul_type>::gthr(Subdomain<K>::_map[i].second.size(), d, send, Subdomain<K>::_map[i].second.data());
                 MPI_Isend(send, Subdomain<K>::_map[i].second.size(), Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
             }
-            std::fill(d, d + Subdomain<K>::_dof, 1.0);
+            std::fill_n(d, Subdomain<K>::_dof, 1.0);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                 int index;
                 MPI_Waitany(Subdomain<K>::_map.size(), Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);

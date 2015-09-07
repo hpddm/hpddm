@@ -279,7 +279,7 @@ class Option {
                         success = false;
                     if(!empty.empty()) {
 #if !defined(HPDDM_NO_REGEX)
-                        std::regex words_regex(empty, std::regex_constants::icase);
+                        std::regex words_regex("^" + empty + "$", std::regex_constants::icase);
                         auto words_begin = std::sregex_iterator(val.cbegin(), val.cend(), words_regex);
                         if(std::distance(words_begin, std::sregex_iterator()) == 1)
                             map[str] = std::count(empty.cbegin(), empty.cbegin() + empty.find(val), '|');

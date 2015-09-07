@@ -117,7 +117,7 @@ class MklPardiso : public DMatrix {
                 _mtype = prds<K>::UNS;
             int phase, error;
             K ddum;
-            std::fill(_iparm, _iparm + 64, 0);
+            std::fill_n(_iparm, 64, 0);
             _iparm[0] = 1;
 #ifdef _OPENMP
             _iparm[1] = omp_get_num_threads() > 1 ? 3 : 2;
@@ -204,7 +204,7 @@ class MklPardisoSub {
             K ddum;
             if(!_w) {
                 _n = A->_n;
-                std::fill(_iparm, _iparm + 64, 0);
+                std::fill_n(_iparm, 64, 0);
                 _iparm[0] = 1;
 #ifdef _OPENMP
                 _iparm[1] = omp_get_num_threads() > 1 ? 3 : 2;
