@@ -31,6 +31,10 @@ namespace HPDDM {
  *  A class that implements various iterative methods. */
 class IterativeMethod {
     private:
+        template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        static K conj(K& x) { return x; }
+        template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        static K conj(K& x) { return std::conj(x); }
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
         template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
@@ -197,7 +201,7 @@ class IterativeMethod {
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
             const int n = excluded ? 0 : A.getDof();
-            const unsigned short m = opt["gmres_restart"];
+            const unsigned short m = std::min(static_cast<unsigned short>(opt["gmres_restart"]), it);
             K* const s = new K[mu * ((m + 1) * (m + 1) + m + 2 * n) + (std::is_same<K, typename Wrapper<K>::ul_type>::value ? (mu * m + 2 * mu) : ((mu * m) / 2 + mu + 1))];
             K* cs = s + mu * (m + 1);
             typename Wrapper<K>::ul_type* sn = reinterpret_cast<typename Wrapper<K>::ul_type*>(cs + mu * m);
@@ -207,7 +211,7 @@ class IterativeMethod {
             K* Ax = r + mu * n;
             A.template apply<excluded>(b, r, mu, Ax);
             for(unsigned short nu = 0; nu < mu; ++nu)
-                norm[nu] = Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1);
+                norm[nu] = std::real(Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1));
 
             const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
             if(!excluded) {
@@ -221,7 +225,7 @@ class IterativeMethod {
             if(variant == 'L')
                 A.template apply<excluded>(Ax, r, mu);
             for(unsigned short nu = 0; nu < mu; ++nu)
-                beta[nu] = Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1);
+                beta[nu] = std::real(Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1));
             MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
 
             if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
@@ -299,8 +303,8 @@ class IterativeMethod {
                         if(opt["gs"] == 1)
                             for(unsigned short k = 0; k < i + 1; ++k) {
                                 for(unsigned short nu = 0; nu < mu; ++nu)
-                                    H[i][k * mu + nu] = Wrapper<K>::dot(&n, r + nu * n, &i__1, v[k] + nu * n, &i__1);
-                                MPI_Allreduce(MPI_IN_PLACE, H[i] + mu * k, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                                    H[i][k * mu + nu] = Wrapper<K>::dot(&n, v[k] + nu * n, &i__1, r + nu * n, &i__1);
+                                MPI_Allreduce(MPI_IN_PLACE, H[i] + k * mu, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                                 std::transform(H[i] + k * mu, H[i] + (k + 1) * mu, H[i] + (i + 1) * mu, [](const K& h) { return -h; });
                                 for(unsigned short nu = 0; nu < mu; ++nu)
                                     Wrapper<K>::axpy(&n, H[i] + (i + 1) * mu + nu, v[k] + nu * n, &i__1, r + nu * n, &i__1);
@@ -318,7 +322,7 @@ class IterativeMethod {
                                     Wrapper<K>::axpby(n, -H[i][i * mu + nu], v[i] + nu * n, 1, 1.0, r + nu * n, 1);
                         }
                         for(unsigned short nu = 0; nu < mu; ++nu)
-                            beta[nu] = Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1);
+                            beta[nu] = std::real(Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1));
                         MPI_Allreduce(MPI_IN_PLACE, beta, mu, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                         for(unsigned short nu = 0; nu < mu; ++nu) {
                             H[i][(i + 1) * mu + nu] = std::sqrt(beta[nu]);
@@ -328,7 +332,7 @@ class IterativeMethod {
                     }
                     for(unsigned short k = 0; k < i; ++k) {
                         for(unsigned short nu = 0; nu < mu; ++nu) {
-                            K gamma = cs[k * mu + nu] * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
+                            K gamma = conj(cs[k * mu + nu]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
                             H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + cs[k * mu + nu] * H[i][(k + 1) * mu + nu];
                             H[i][k * mu + nu] = gamma;
                         }
@@ -338,13 +342,12 @@ class IterativeMethod {
                         typename Wrapper<K>::ul_type delta = Wrapper<K>::nrm2(&tmp, H[i] + i * mu + nu, &mu); // std::sqrt(H[i][i] * H[i][i] + H[i][i + 1] * H[i][i + 1]);
                         cs[i * mu + nu] = H[i][i * mu + nu] / delta;
                         sn[i * mu + nu] = std::real(H[i][(i + 1) * mu + nu]) / delta;
-                        H[i][i * mu + nu] = cs[i * mu + nu] * H[i][i * mu + nu] + sn[i * mu + nu] * H[i][(i + 1) * mu + nu];
+                        H[i][i * mu + nu] = conj(cs[i * mu + nu]) * H[i][i * mu + nu] + sn[i * mu + nu] * H[i][(i + 1) * mu + nu];
                         s[(i + 1) * mu + nu] = -sn[i * mu + nu] * s[i * mu + nu];
-                        s[i * mu + nu] *= cs[i * mu + nu];
-                    }
-                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        s[i * mu + nu] *= conj(cs[i * mu + nu]);
                         if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[(i + 1) * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[(i + 1) * mu + nu]) <= -tol)))
                             hasConverged[nu] = i + 1;
+                    }
                     if(opt.set("verbosity")) {
                         int tmp[2] { 0, 0 };
                         *beta = std::abs(s[(i + 1) * mu]);
@@ -382,7 +385,7 @@ class IterativeMethod {
                     if(variant == 'L')
                         A.template apply<excluded>(Ax, r, mu);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
-                        beta[nu] = Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1);
+                        beta[nu] = std::real(Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1));
                         if(hasConverged[nu] > 0)
                             hasConverged[nu] = -1;
                     }
@@ -448,7 +451,7 @@ class IterativeMethod {
             A.apply(r, p, 1, z);
 
             Wrapper<K>::diag(n, d, p, trash);
-            dir[0] = Wrapper<K>::dot(&n, trash, &i__1, p, &i__1);
+            dir[0] = std::real(Wrapper<K>::dot(&n, trash, &i__1, p, &i__1));
             MPI_Allreduce(MPI_IN_PLACE, dir, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
             typename Wrapper<K>::ul_type resInit = std::sqrt(dir[0]);
 
@@ -466,10 +469,10 @@ class IterativeMethod {
 
             unsigned short i = 1;
             while(i <= it) {
-                dir[0] = Wrapper<K>::dot(&n, r, &i__1, trash, &i__1);
+                dir[0] = std::real(Wrapper<K>::dot(&n, r, &i__1, trash, &i__1));
                 if(opt["variant"] == 2 && i > 1) {
                     for(unsigned short k = 0; k < i - 1; ++k)
-                        dir[1 + k] = -Wrapper<K>::dot(&n, trash, &i__1, p + (1 + it + k) * n, &i__1) / dir[1 + it + k];
+                        dir[1 + k] = -std::real(Wrapper<K>::dot(&n, trash, &i__1, p + (1 + it + k) * n, &i__1)) / dir[1 + it + k];
                     MPI_Allreduce(MPI_IN_PLACE, dir + 1, i - 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                     std::copy_n(z, n, p);
                     for(unsigned short k = 0; k < i - 1; ++k) {
@@ -481,7 +484,7 @@ class IterativeMethod {
                 if(opt["gs"] != 2 && i > 1) {
                     Wrapper<K>::diag(n, d, z, trash);
                     for(unsigned short k = 0; k < i - 1; ++k)
-                        dir[1 + k] = -Wrapper<K>::dot(&n, trash, &i__1, p + (1 + k) * n, &i__1) / dir[1 + it + k];
+                        dir[1 + k] = -std::real(Wrapper<K>::dot(&n, trash, &i__1, p + (1 + k) * n, &i__1)) / dir[1 + it + k];
                     MPI_Allreduce(MPI_IN_PLACE, dir + 1, i - 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short k = 0; k < i - 1; ++k) {
                         trash[0] = dir[1 + k];
@@ -490,7 +493,7 @@ class IterativeMethod {
                     A.GMV(p, z);
                 }
                 Wrapper<K>::diag(n, d, p, trash);
-                dir[1] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
+                dir[1] = std::real(Wrapper<K>::dot(&n, z, &i__1, trash, &i__1));
                 MPI_Allreduce(MPI_IN_PLACE, dir, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                 if(opt["gs"] != 2 || opt["variant"] == 2) {
                     dir[it + i] = dir[1];
@@ -505,8 +508,8 @@ class IterativeMethod {
 
                 A.apply(r, z, 1, trash);
                 Wrapper<K>::diag(n, d, z, trash);
-                dir[1] = Wrapper<K>::dot(&n, r, &i__1, trash, &i__1) / dir[0];
-                dir[0] = Wrapper<K>::dot(&n, z, &i__1, trash, &i__1);
+                dir[1] = std::real(Wrapper<K>::dot(&n, r, &i__1, trash, &i__1)) / dir[0];
+                dir[0] = std::real(Wrapper<K>::dot(&n, z, &i__1, trash, &i__1));
                 MPI_Allreduce(MPI_IN_PLACE, dir, 2, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                 if(opt["variant"] != 2)
                     Wrapper<K>::axpby(n, 1.0, z, 1, dir[1], p, 1);

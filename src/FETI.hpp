@@ -442,7 +442,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<bool excluded>
         void computeDot(typename Wrapper<K>::ul_type* const val, const K* const* const a, const K* const* const b, const MPI_Comm& comm) const {
             if(!excluded)
-                *val = Wrapper<K>::dot(&(super::_mult), *a, &i__1, *b, &i__1) / 2.0;
+                *val = std::real(Wrapper<K>::dot(&(super::_mult), *a, &i__1, *b, &i__1)) / 2.0;
             else
                 *val = 0.0;
             MPI_Allreduce(MPI_IN_PLACE, val, 1, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);

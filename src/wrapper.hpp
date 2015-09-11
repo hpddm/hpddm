@@ -78,7 +78,7 @@ class Wrapper {
         static ul_type nrm2(const int* const, const K* const, const int* const);
         /* Function: dot
          *  Computes a vector-vector dot product. */
-        static ul_type dot(const int* const, const K* const, const int* const, const K* const, const int* const);
+        static K dot(const int* const, const K* const, const int* const, const K* const, const int* const);
         /* Function: lacpy
          *  Copies all or part of a two-dimensional matrix. */
         static void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
@@ -252,13 +252,13 @@ inline void Wrapper<T>::gemm(const char* const transa, const char* const transb,
     HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
 }
 #if HPDDM_MKL || defined(__APPLE__)
-#define HPDDM_GENERATE_DOTC(C, T, U)                                                                         \
+#define HPDDM_GENERATE_DOTC(C, T)                                                                            \
 template<>                                                                                                   \
-inline U Wrapper<T>::dot(const int* const n, const T* const x, const int* const incx,                        \
+inline T Wrapper<T>::dot(const int* const n, const T* const x, const int* const incx,                        \
                          const T* const y, const int* const incy) {                                          \
     T res;                                                                                                   \
     C ## dotc(&res, n, x, incx, y, incy);                                                                    \
-    return std::real(res);                                                                                   \
+    return res;                                                                                              \
 }
 #define HPDDM_GENERATE_AXPBY(C, T, B, U)                                                                     \
 template<>                                                                                                   \
@@ -272,12 +272,11 @@ inline void Wrapper<T>::axpby(const int& n, const T& alpha, const T* const u, co
     HPDDM_PREFIX_AXPBY(C ## axpby)(n, &alpha, u, incx, &beta, v, incy);                                      \
 }
 #else
-#define HPDDM_GENERATE_DOTC(C, T, U)                                                                         \
+#define HPDDM_GENERATE_DOTC(C, T)                                                                            \
 template<>                                                                                                   \
-inline U Wrapper<T>::dot(const int* const n, const T* const x, const int* const incx,                        \
+inline T Wrapper<T>::dot(const int* const n, const T* const x, const int* const incx,                        \
                          const T* const y, const int* const incy) {                                          \
-    T res = HPDDM_F77(C ## dotc)(n, x, incx, y, incy);                                                       \
-    return std::real(res);                                                                                   \
+    return HPDDM_F77(C ## dotc)(n, x, incx, y, incy);                                                        \
 }
 #endif
 #define HPDDM_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                              \
@@ -294,7 +293,7 @@ inline U Wrapper<U>::dot(const int* const n, const U* const x, const int* const 
                          const U* const y, const int* const incy) {                                          \
     return HPDDM_F77(B ## dot)(n, x, incx, y, incy);                                                         \
 }                                                                                                            \
-HPDDM_GENERATE_DOTC(C, T, U)
+HPDDM_GENERATE_DOTC(C, T)
 HPDDM_GENERATE_BLAS(s, float)
 HPDDM_GENERATE_BLAS(d, double)
 HPDDM_GENERATE_BLAS(c, std::complex<float>)

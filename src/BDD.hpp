@@ -323,7 +323,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         void computeDot(typename Wrapper<K>::ul_type* const val, const K* const a, const K* const b, const MPI_Comm& comm) const {
             if(!excluded) {
                 Wrapper<K>::diag(Subdomain<K>::_dof, _m, a, super::_work);
-                *val = Wrapper<K>::dot(&(Subdomain<K>::_dof), super::_work, &i__1, b, &i__1);
+                *val = std::real(Wrapper<K>::dot(&(Subdomain<K>::_dof), super::_work, &i__1, b, &i__1));
             }
             else
                 *val = 0.0;

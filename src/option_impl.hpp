@@ -177,8 +177,6 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         }
     }
 
-    _opt["gmres_restart"] = std::min(_opt["gmres_restart"], _opt["max_it"]);
-
     if(display && _opt.find("help") != _opt.cend()) {
         size_t max = 0;
         int col = getenv("COLUMNS") ? sto<int>(std::getenv("COLUMNS")) : 200;

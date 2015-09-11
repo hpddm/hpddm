@@ -195,11 +195,16 @@ class Option {
         }
         template<class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type* = nullptr>
         int parse(int argc, T** argv, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { }) {
-            std::vector<std::string> args(argv + 1, argv + argc);
+            std::vector<std::string> args(argv, argv + argc);
             return parse(args, display, reg);
         }
-        int parse(std::string& arg, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { }) {
-            std::vector<std::string> args(1, arg);
+        template<class C>
+        int parse(C& arg, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { }) {
+            std::vector<std::string> args;
+            std::stringstream ss(arg);
+            std::string item;
+            while (std::getline(ss, item, ' '))
+                args.push_back(item);
             return parse(args, display, reg);
         }
         int parse(std::vector<std::string>&, bool display = true, std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> reg = { });

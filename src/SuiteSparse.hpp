@@ -24,17 +24,6 @@
 #ifndef _SUITESPARSE_
 #define _SUITESPARSE_
 
-namespace HPDDM { template<class K> class SuiteSparse; }
-
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
-#if !defined(COARSEOPERATOR) && !defined(DSUITESPARSE)
-#define DSUITESPARSE
-#endif
-#if !defined(SUBDOMAIN) && !defined(SUITESPARSESUB)
-#define SUITESPARSESUB
-#endif
-
-#if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
 #include <cholmod.h>
 #include <umfpack.h>
 

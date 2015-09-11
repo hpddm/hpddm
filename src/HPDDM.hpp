@@ -288,7 +288,17 @@ using alias = T;
 #if defined(DHYPRE)
 # include "Hypre.hpp"
 #endif
-#include "SuiteSparse.hpp"
+#if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
+# include "SuiteSparse.hpp"
+#endif
+#if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
+# undef HPDDM_SCHWARZ
+# undef HPDDM_FETI
+# undef HPDDM_BDD
+# define HPDDM_SCHWARZ        0
+# define HPDDM_FETI           0
+# define HPDDM_BDD            0
+#endif
 #include "eigensolver.hpp"
 #include "LAPACK.hpp"
 #if HPDDM_SCHWARZ

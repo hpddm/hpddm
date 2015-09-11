@@ -683,7 +683,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *
          * See also: <Schwarz::computeError>. */
         void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage) const {
-            storage[0] = Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1);
+            storage[0] = std::real(Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);
             Subdomain<K>::exchange(tmp + _bi->_m);
@@ -693,7 +693,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             Wrapper<K>::template csrmv<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
             Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
-            storage[1] = Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1);
+            storage[1] = std::real(Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1));
             std::fill_n(tmp, Subdomain<K>::_dof, K(1.0));
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
