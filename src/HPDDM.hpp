@@ -147,7 +147,7 @@ void HPDDM_F77(B ## syrk)(const char* const, const char* const, const int* const
                           const U* const, const U* const, const int* const, const U* const, U* const,        \
                           const int* const);                                                                 \
 void HPDDM_F77(C ## herk)(const char* const, const char* const, const int* const, const int* const,          \
-                          const T* const, const T* const, const int* const, const T* const, T* const,        \
+                          const U* const, const T* const, const int* const, const U* const, T* const,        \
                           const int* const);                                                                 \
 HPDDM_GENERATE_EXTERN_DOTC(C, T, U)
 #define HPDDM_GENERATE_EXTERN_MKL(C, T)                                                                      \

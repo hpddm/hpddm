@@ -98,8 +98,8 @@ class Wrapper {
                          const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
         /* Function: herk
          *  Computes a Hermitian rank-k update. */
-        static void herk(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
-                         const int* const, const K* const, K* const, const int* const);
+        static void herk(const char* const, const char* const, const int* const, const int* const, const ul_type* const, const K* const,
+                         const int* const, const ul_type* const, K* const, const int* const);
         /* Function: symm
          *  Computes a symmetric scalar-matrix-matrix product. */
         static void symm(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
@@ -332,8 +332,8 @@ inline void Wrapper<U>::herk(const char* const uplo, const char* const trans,   
 template<>                                                                                                   \
 inline void Wrapper<T>::herk(const char* const uplo, const char* const trans,                                \
                              const int* const n, const int* const k,                                         \
-                             const T* const alpha, const T* const a, const int* const lda,                   \
-                             const T* const beta, T* const c, const int* const ldc) {                        \
+                             const U* const alpha, const T* const a, const int* const lda,                   \
+                             const U* const beta, T* const c, const int* const ldc) {                        \
     HPDDM_F77(C ## herk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);                                    \
 }                                                                                                            \
 HPDDM_GENERATE_DOTC(C, T)
