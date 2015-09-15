@@ -46,16 +46,15 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements.
          *
          * Parameters:
-         *    rq             - MPI request to check completion of the MPI transfers.
          *    send           - Buffer for sending the local Schur complement.
          *    recv           - Buffer for receiving the local Schur complement of each neighboring subdomains.
          *    res            - Restriction of the global Schur complement. */
         template<char L>
-        void exchangeSchurComplement(MPI_Request* const& rq, K* const* const& send, K* const* const& recv, K* const& res) const {
+        void exchangeSchurComplement(K* const* const& send, K* const* const& recv, K* const& res) const {
             if(send && recv && res) {
                 if(L == 'S')
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
-                        MPI_Irecv(recv[i], (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, rq + i);
+                        MPI_Irecv(recv[i], (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                         for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                             for(unsigned int k = j; k < Subdomain<K>::_map[i].second.size(); ++k) {
                                 if(Subdomain<K>::_map[i].second[j] < Subdomain<K>::_map[i].second[k])
@@ -63,11 +62,11 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                                 else
                                     send[i][Subdomain<K>::_map[i].second.size() * j - (j * (j + 1)) / 2 + k] = _schur[Subdomain<K>::_map[i].second[k] * Subdomain<K>::_dof + Subdomain<K>::_map[i].second[j]];
                             }
-                        MPI_Isend(send[i], (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, rq + Subdomain<K>::_map.size() + i);
+                        MPI_Isend(send[i], (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
                     }
                 else
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
-                        MPI_Irecv(recv[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, rq + i);
+                        MPI_Irecv(recv[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                         for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                             for(unsigned int k = 0; k < Subdomain<K>::_map[i].second.size(); ++k) {
                                 if(Subdomain<K>::_map[i].second[j] < Subdomain<K>::_map[i].second[k])
@@ -75,13 +74,13 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                                 else
                                     send[i][j * Subdomain<K>::_map[i].second.size() + k] = _schur[Subdomain<K>::_map[i].second[k] * Subdomain<K>::_dof + Subdomain<K>::_map[i].second[j]];
                             }
-                        MPI_Isend(send[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, rq + Subdomain<K>::_map.size() + i);
+                        MPI_Isend(send[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
                     }
                 Wrapper<K>::lacpy("L", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof));
                 if(L == 'S')
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                         int index;
-                        MPI_Waitany(Subdomain<K>::_map.size(), rq, &index, MPI_STATUS_IGNORE);
+                        MPI_Waitany(Subdomain<K>::_map.size(), Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
                         for(unsigned int j = 0; j < Subdomain<K>::_map[index].second.size(); ++j) {
                             for(unsigned int k = 0; k < j; ++k)
                                 if(Subdomain<K>::_map[index].second[j] <= Subdomain<K>::_map[index].second[k])
@@ -94,7 +93,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 else
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                         int index;
-                        MPI_Waitany(Subdomain<K>::_map.size(), rq, &index, MPI_STATUS_IGNORE);
+                        MPI_Waitany(Subdomain<K>::_map.size(), Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
                         for(unsigned int j = 0; j < Subdomain<K>::_map[index].second.size(); ++j)
                             for(unsigned int k = 0; k < Subdomain<K>::_map[index].second.size(); ++k)
                                 if(Subdomain<K>::_map[index].second[j] <= Subdomain<K>::_map[index].second[k])
@@ -150,8 +149,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         template<char L>
         void solveGEVP(const typename Wrapper<K>::ul_type* const d, unsigned short& nu, const typename Wrapper<K>::ul_type& threshold) {
             if(_schur) {
-                MPI_Request* rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
-                K** send = new K*[2 * Subdomain<K>::_map.size()];
+                K** send = Subdomain<K>::_buff;
                 unsigned int size = std::accumulate(Subdomain<K>::_map.cbegin(), Subdomain<K>::_map.cend(), 0, [](unsigned int sum, const pairNeighbor& n) { return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size()); });
                 *send = new K[2 * size];
                 K** recv = send + Subdomain<K>::_map.size();
@@ -167,7 +165,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         recv[i] = recv[i - 1] + Subdomain<K>::_map[i - 1].second.size() * Subdomain<K>::_map[i - 1].second.size();
                     }
                 K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
-                exchangeSchurComplement<L>(rq, send, recv, res);
+                exchangeSchurComplement<L>(send, recv, res);
 
                 Lapack<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
                 K* A;
@@ -183,7 +181,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 evp.reduce(A, res);
                 int flag;
                 int lwork = evp.workspace();
-                MPI_Testall(Subdomain<K>::_map.size(), rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
+                MPI_Testall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
                 K* work;
                 const int storage = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
                 if(flag) {
@@ -218,11 +216,9 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 if(work != *recv && work != *send)
                     delete [] work;
                 if(!flag)
-                    MPI_Waitall(Subdomain<K>::_map.size(), rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
+                    MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
                 delete [] res;
-                delete [] rq;
                 delete [] *send;
-                delete [] send;
             }
             else
                 nu = 0;
@@ -686,12 +682,14 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             storage[0] = std::real(Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);
+            Subdomain<K>::setBuffer(1);
             Subdomain<K>::exchange(tmp + _bi->_m);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                    storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_rbuff[i][j]);
+                    storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
             Wrapper<K>::template csrmv<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
+            delete [] *Subdomain<K>::_buff;
             Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
             storage[1] = std::real(Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1));
             std::fill_n(tmp, Subdomain<K>::_dof, K(1.0));

@@ -285,44 +285,34 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     if(U != 1) {
         infoNeighbor = new unsigned short[info[0]];
         info[1] = (excluded == 2 ? 0 : _local); // number of eigenvalues
-        std::vector<MPI_Request> sendInfo;
-        sendInfo.reserve(info[0]);
-        MPI_Request rq;
+        MPI_Request* rq = v._p.getRq();
         if(excluded == 0) {
             if(T != 2)
                 for(unsigned short i = 0; i < info[0]; ++i) {
                     if(!(T == 1 && sparsity[i] < p) &&
-                       !(T == 0 && (sparsity[i] % (_sizeWorld / p) == 0) && sparsity[i] < p * (_sizeWorld / p))) {
-                        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
-                        sendInfo.emplace_back(rq);
-                    }
+                       !(T == 0 && (sparsity[i] % (_sizeWorld / p) == 0) && sparsity[i] < p * (_sizeWorld / p)))
+                        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), rq++);
                 }
             else
                 for(unsigned short i = 0; i < info[0]; ++i) {
-                    if(!std::binary_search(Solver<K>::_ldistribution, Solver<K>::_ldistribution + p, sparsity[i])) {
-                        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
-                        sendInfo.emplace_back(rq);
-                    }
+                    if(!std::binary_search(Solver<K>::_ldistribution, Solver<K>::_ldistribution + p, sparsity[i]))
+                        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), rq++);
                 }
         }
         else if(excluded < 2) {
-            for(unsigned short i = 0; i < info[0]; ++i) {
-                MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
-                sendInfo.emplace_back(rq);
-            }
+            for(unsigned short i = 0; i < info[0]; ++i)
+                MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), rq++);
         }
         if(rankSplit != 0) {
-            MPI_Request* recvInfo = new MPI_Request[info[0]];
             for(unsigned short i = 0; i < info[0]; ++i)
-                MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), recvInfo + i);
+                MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), rq + i);
             unsigned int tmp = (S != 'S' ? _local : 0);
             for(unsigned short i = 0; i < info[0]; ++i) {
                 int index;
-                MPI_Waitany(info[0], recvInfo, &index, MPI_STATUS_IGNORE);
+                MPI_Waitany(info[0], rq, &index, MPI_STATUS_IGNORE);
                 if(!(S == 'S' && sparsity[index] < rank))
                     tmp += infoNeighbor[index];
             }
-            delete [] recvInfo;
             if(S != 'S')
                 size = _local * tmp;
             else {
@@ -337,12 +327,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 else {
                     if(T == 0 || T == 2) {
                         for(unsigned short i = 0; i < info[0]; ++i) {
-                            unsigned short j = 0;
                             info[(U != 1 ? 3 : 1) + i] = sparsity[i + first] + 1;
-                            while(j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (_sizeWorld / p) * (j + 1) : Solver<K>::_ldistribution[j + 1])) {
+                            for(unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (_sizeWorld / p) * (j + 1) : Solver<K>::_ldistribution[j + 1]); ++j)
                                 ++info[(U != 1 ? 3 : 1) + i];
-                                ++j;
-                            }
                         }
                     }
                     else if(T == 1) {
@@ -352,7 +339,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 }
             }
         }
-        MPI_Waitall(sendInfo.size(), sendInfo.data(), MPI_STATUSES_IGNORE);
+        int nbRq = std::distance(v._p.getRq(), rq);
+        MPI_Waitall(nbRq, rq - nbRq, MPI_STATUSES_IGNORE);
     }
     else {
         infoNeighbor = nullptr;
@@ -473,20 +461,18 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     const vectorNeighbor& M = v._p.getMap();
 
-    std::vector<MPI_Request> rqSend;
-    MPI_Request*             rqRecv;
+    MPI_Request* rqSend = v._p.getRq();
+    MPI_Request* rqRecv;
 
-    K** sendNeighbor;
+    K** sendNeighbor = v._p.getBuffer();
     K** recvNeighbor;
     int coefficients = (U == 1 ? _local * (info[0] + (S != 'S')) : std::accumulate(infoNeighbor + first, infoNeighbor + sparsity.size(), (S == 'S' ? 0 : _local)));
     if(Operator::_pattern == 's') {
 #if HPDDM_ICOLLECTIVE
-        rqRecv = new MPI_Request[info[0]];
+        rqRecv = rqSend + (S != 'S' ? info[0] : first);
 #else
-        rqRecv = new MPI_Request[rankSplit == 0 ? _sizeSplit - 1 + info[0] : info[0]];
+        rqRecv = (rankSplit == 0 ? new MPI_Request[_sizeSplit - 1 + info[0]] : rqSend + (S != 'S' ? info[0] : first));
 #endif
-        rqSend.reserve(S != 'S' ? info[0] : first);
-        sendNeighbor = new K*[(S != 'S' ? info[0] : first) + (U == 1 || _local ? info[0] : 0)];
         unsigned int accumulate = 0;
         for(unsigned short i = 0; i < (S != 'S' ? info[0] : first); ++i)
             if(U == 1 || infoNeighbor[i])
@@ -514,13 +500,11 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             std::fill_n(rqRecv, info[0], MPI_REQUEST_NULL);
     }
     else {
-        rqSend.reserve(M.size());
 #if HPDDM_ICOLLECTIVE
-        rqRecv = new MPI_Request[M.size()];
+        rqRecv = rqSend + M.size();
 #else
-        rqRecv = new MPI_Request[rankSplit == 0 ? _sizeSplit - 1 + M.size() : M.size()];
+        rqRecv = (rankSplit == 0 ? new MPI_Request[_sizeSplit - 1 + M.size()] : (rqSend + M.size()));
 #endif
-        sendNeighbor = new K*[U == 1 || _local ? 2 * M.size() : M.size()];
         recvNeighbor = (U == 1 || _local) ? sendNeighbor + M.size() : nullptr;
     }
     K* work = nullptr;
@@ -535,7 +519,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 before += (U == 1 ? _local : infoNeighbor[j]);
             K* const pt = (rankSplit != 0 ? sendMaster + before : C + before);
             Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), pt, &coefficients);
-            Wrapper<K>::conjugate(_local, _local, pt, coefficients);
+            Wrapper<K>::conj(_local, _local, pt, coefficients);
             if(rankSplit == 0)
                 for(unsigned short j = 0; j < _local; ++j) {
 #ifndef HPDDM_CSR_CO
@@ -629,7 +613,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             delete [] infoNeighbor;
         if(U == 0)
             Solver<K>::_displs = &_rankWorld;
-        MPI_Waitall(rqSend.size(), rqSend.data(), MPI_STATUSES_IGNORE);
+        int nbRq = std::distance(v._p.getRq(), rqSend);
+        MPI_Waitall(nbRq, rqSend - nbRq, MPI_STATUSES_IGNORE);
         delete [] work;
     }
     else {
@@ -873,11 +858,10 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #else
         delete [] C;
 #endif
+        delete [] rqRecv;
     }
-    delete [] rqRecv;
     if(excluded < 2)
         delete [] *sendNeighbor;
-    delete [] sendNeighbor;
     if(U != 2) {
         switch(Solver<K>::_distribution) {
             case DMatrix::CENTRALIZED:

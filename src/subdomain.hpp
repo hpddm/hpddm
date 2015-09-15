@@ -35,12 +35,9 @@ namespace HPDDM {
 template<class K>
 class Subdomain {
     protected:
-        /* Variable: rbuff
-         *  Vector used as the receiving buffer for point-to-point communications with neighboring subdomains. */
-        std::vector<K*>          _rbuff;
-        /* Variable: sbuff
-         *  Vector used as the sending buffer for point-to-point communications with neighboring subdomains. */
-        std::vector<K*>          _sbuff;
+        /* Variable : buff
+         *  Array used as the receiving and receiving buffer for point-to-point communications with neighboring subdomains. */
+        K**                       _buff;
         /* Variable: rq
          *  Array of MPI requests to check completion of the MPI transfers with neighboring subdomains. */
         MPI_Request*                _rq;
@@ -56,12 +53,11 @@ class Subdomain {
          *  Local matrix. */
         MatrixCSR<K>*                _a;
     public:
-        Subdomain() : _rq(), _map(), _a() { }
+        Subdomain() : _buff(), _rq(), _map(), _a() { }
         ~Subdomain() {
             delete _a;
             delete [] _rq;
-            if(!_rbuff.empty())
-                delete [] _rbuff[0];
+            delete [] _buff;
         }
         /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
@@ -76,20 +72,38 @@ class Subdomain {
          * Parameter:
          *    in             - Input vector. */
         void exchange(K* const in, const unsigned short& mu = 1) const {
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                for(unsigned short i = 0; i < _map.size(); ++i) {
-                    MPI_Irecv(_rbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                    Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _sbuff[i], _map[i].second.data());
-                    MPI_Isend(_sbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + _map.size() + i);
-                }
+            if(!_map.empty() && std::distance(_buff[0], _buff[1]) >= mu * _map[0].second.size()) {
+                for(unsigned short i = 0; i < _map.size(); ++i)
+                    MPI_Irecv(_buff[i], mu * _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
+                for(unsigned short i = 0, size = _map.size(); i < size; ++i)
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _buff[size + i] + nu * _map[i].second.size(), _map[i].second.data());
+                for(unsigned short i = 0, size = _map.size(); i < size; ++i)
+                    MPI_Isend(_buff[size + i], mu * _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     int index;
                     MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
-                    for(unsigned int j = 0; j < _map[index].second.size(); ++j)
-                        in[_map[index].second[j] + nu * _dof] += _rbuff[index][j];
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        for(unsigned int j = 0; j < _map[index].second.size(); ++j)
+                            in[_map[index].second[j] + nu * _dof] += _buff[index][j + nu * _map[index].second.size()];
                 }
                 MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
             }
+            else
+                for(unsigned short nu = 0; nu < mu; ++nu) {
+                    for(unsigned short i = 0, size = _map.size(); i < size; ++i) {
+                        MPI_Irecv(_buff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
+                        Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _buff[size + i], _map[i].second.data());
+                        MPI_Isend(_buff[size + i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
+                    }
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        int index;
+                        MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
+                        for(unsigned int j = 0; j < _map[index].second.size(); ++j)
+                            in[_map[index].second[j] + nu * _dof] += _buff[index][j];
+                    }
+                    MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
+                }
         }
         /* Function: recvBuffer
          *
@@ -98,10 +112,10 @@ class Subdomain {
          * Parameter:
          *    in             - Input vector. */
         void recvBuffer(const K* const in) const {
-            for(unsigned short i = 0; i < _map.size(); ++i) {
-                MPI_Irecv(_rbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                Wrapper<K>::gthr(_map[i].second.size(), in, _sbuff[i], _map[i].second.data());
-                MPI_Isend(_sbuff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + _map.size() + i);
+            for(unsigned short i = 0, size = _map.size(); i < size; ++i) {
+                MPI_Irecv(_buff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
+                Wrapper<K>::gthr(_map[i].second.size(), in, _buff[size + i], _map[i].second.data());
+                MPI_Isend(_buff[size + i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
             }
             MPI_Waitall(2 * _map.size(), _rq, MPI_STATUSES_IGNORE);
         }
@@ -123,7 +137,6 @@ class Subdomain {
             _a = a;
             _dof = _a->_n;
             _map.reserve(o.size());
-            unsigned int size = 0;
             unsigned short j = 0;
             for(const auto& i : o) {
                 if(r[j].size() > 0) {
@@ -131,23 +144,39 @@ class Subdomain {
                     _map.back().second.reserve(r[j].size());
                     for(int k = 0; k < r[j].size(); ++k)
                         _map.back().second.emplace_back(r[j][k]);
-                    size += _map.back().second.size();
                 }
                 ++j;
             }
             _rq = new MPI_Request[2 * _map.size()];
-            _rbuff.reserve(_map.size());
-            _sbuff.reserve(_map.size());
-            if(size) {
-                K* rbuff = new K[2 * size];
-                K* sbuff = rbuff + size;
-                size = 0;
-                for(const auto& i : _map) {
-                    _rbuff.emplace_back(rbuff + size);
-                    _sbuff.emplace_back(sbuff + size);
-                    size += i.second.size();
-                }
+            _buff = new K*[2 * _map.size()];
+        }
+        bool setBuffer(const int& mu = 1, K* wk = nullptr, const int& space = 0) const {
+            unsigned int n = 0;
+            for(const auto& i : _map)
+                n += i.second.size();
+            if(n == 0)
+                return false;
+            bool alloc;
+            if(2 * mu * n <= space && wk) {
+                *_buff = wk;
+                alloc = false;
             }
+            else {
+                *_buff = new K[2 * mu * n];
+                alloc = true;
+            }
+            _buff[_map.size()] = *_buff + mu * n;
+            n = 0;
+            for(unsigned short i = 1, size = _map.size(); i < size; ++i) {
+                n += mu * _map[i - 1].second.size();
+                _buff[i] = *_buff + n;
+                _buff[size + i] = _buff[size] + n;
+            }
+            return alloc;
+        }
+        void clearBuffer(const bool free = true) const {
+            if(free)
+                delete [] *_buff;
         }
         /* Function: initialize(dummy)
          *  Dummy function for masters excluded from the domain decomposition. */
@@ -172,7 +201,7 @@ class Subdomain {
          *  Returns the value of <Subdomain::dof>. */
         int getDof() const { return _dof; }
         /* Function: getMatrix
-         *  Returns a constant pointer to <Subdomain::a>. */
+         *  Returns a pointer to <Subdomain::a>. */
         const MatrixCSR<K>* getMatrix() const { return _a; }
         /* Function: setMatrix
          *  Sets the pointer <Subdomain::a>. */
@@ -182,6 +211,12 @@ class Subdomain {
             _a = a;
             return ret;
         }
+        /* Function: getRq
+         *  Returns a pointer to <Subdomain::rq>. */
+        MPI_Request* getRq() const { return _rq; }
+        /* Function: getBuffer
+         *  Returns a pointer to <Subdomain::buff>. */
+        K** getBuffer() const { return _buff; }
         /* Function: interaction
          *
          *  Builds a vector of matrices to store interactions with neighboring subdomains.
@@ -251,7 +286,7 @@ class Subdomain {
             unsigned int accumulate = 0;
             while(maxRecv < _map.size()) {
                 unsigned int next = accumulate + recvSize[2 * maxRecv + 1];
-                if(next < std::distance(_rbuff[0], _sbuff.back()) + _map.back().second.size())
+                if(next < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size())
                     accumulate = next;
                 else
                     break;
@@ -261,7 +296,7 @@ class Subdomain {
             if(maxRecv == _map.size())
                 while(maxSend < _map.size()) {
                     unsigned int next = accumulate + sendSize[2 * maxSend + 1];
-                    if(next < std::distance(_rbuff[0], _sbuff.back()) + _map.back().second.size())
+                    if(next < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size())
                         accumulate = next;
                     else
                         break;
@@ -272,7 +307,7 @@ class Subdomain {
             accumulate = 0;
             for(unsigned int k = 0; k < _map.size(); ++k) {
                 if(k < maxRecv) {
-                    rbuff.emplace_back(_rbuff[0] + accumulate);
+                    rbuff.emplace_back(_buff[0] + accumulate);
                     accumulate += recvSize[2 * k + 1];
                 }
                 else if(k == maxRecv) {
@@ -403,6 +438,7 @@ class Subdomain {
          *    d             - Local partition of unity (optional). */
         template<char N, class It>
         void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const typename Wrapper<K>::ul_type* const d = nullptr) const {
+            setBuffer(1);
             unsigned int between = 0;
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);
@@ -410,9 +446,9 @@ class Subdomain {
             if(sizeWorld > 1) {
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
-                unsigned int size = std::ceil(2 * (std::distance(_sbuff.front(), _sbuff.back()) + _map.back().second.size() + 1) * sizeof(unsigned int) / static_cast<float>(sizeof(K)));
-                unsigned int* rbuff = (size < std::distance(_rbuff[0], _sbuff.back()) + _map.back().second.size() ? reinterpret_cast<unsigned int*>(_rbuff[0]) : new unsigned int[2 * (std::distance(_sbuff.front(), _sbuff.back()) + _map.back().second.size() + 1)]);
-                unsigned int* sbuff = rbuff + std::distance(_sbuff.front(), _sbuff.back()) + _map.back().second.size() + 1;
+                unsigned int size = std::ceil(2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) / static_cast<float>(sizeof(K)));
+                unsigned int* rbuff = (size < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size() ? reinterpret_cast<unsigned int*>(_buff[0]) : new unsigned int[2 * (std::distance(_buff[0], _buff[_map.size()]) + 1)]);
+                unsigned int* sbuff = rbuff + std::distance(_buff[0], _buff[_map.size()]) + 1;
                 size = 0;
                 MPI_Request* rq = new MPI_Request[2];
 
@@ -498,7 +534,7 @@ class Subdomain {
                 MPI_Waitall(_map.size(), _rq + between, MPI_STATUSES_IGNORE);
                 MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
                 delete [] rq;
-                if(rbuff != reinterpret_cast<unsigned int*>(_rbuff[0]))
+                if(rbuff != reinterpret_cast<unsigned int*>(_buff[0]))
                     delete [] rbuff;
                 global = end - (N == 'F');
                 MPI_Bcast(&global, 1, MPI_UNSIGNED, sizeWorld - 1, _communicator);
@@ -509,6 +545,7 @@ class Subdomain {
                 end = std::distance(first, last);
                 global = end - start;
             }
+            clearBuffer();
         }
         /* Function: distributedCSR
          *  Assembles a distributed matrix that can be used by a backend such as PETSc.

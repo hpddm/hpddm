@@ -109,19 +109,20 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Parameter:
          *    d              - Array of values. */
         void multiplicityScaling(typename Wrapper<K>::ul_type* const d) const {
-            for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
-                typename Wrapper<K>::ul_type* const recv = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_rbuff[i]);
-                typename Wrapper<K>::ul_type* const send = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_sbuff[i]);
+            Subdomain<K>::setBuffer(1);
+            for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                typename Wrapper<K>::ul_type* const recv = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_buff[i]);
+                typename Wrapper<K>::ul_type* const send = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_buff[size + i]);
                 MPI_Irecv(recv, Subdomain<K>::_map[i].second.size(), Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                 Wrapper<typename Wrapper<K>::ul_type>::gthr(Subdomain<K>::_map[i].second.size(), d, send, Subdomain<K>::_map[i].second.data());
-                MPI_Isend(send, Subdomain<K>::_map[i].second.size(), Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
+                MPI_Isend(send, Subdomain<K>::_map[i].second.size(), Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);
             }
             std::fill_n(d, Subdomain<K>::_dof, 1.0);
-            for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
+            for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
                 int index;
-                MPI_Waitany(Subdomain<K>::_map.size(), Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
-                typename Wrapper<K>::ul_type* const recv = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_rbuff[index]);
-                typename Wrapper<K>::ul_type* const send = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_sbuff[index]);
+                MPI_Waitany(size, Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
+                typename Wrapper<K>::ul_type* const recv = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_buff[index]);
+                typename Wrapper<K>::ul_type* const send = reinterpret_cast<typename Wrapper<K>::ul_type*>(Subdomain<K>::_buff[size + index]);
                 for(unsigned int j = 0; j < Subdomain<K>::_map[index].second.size(); ++j) {
                     if(std::abs(send[j]) < HPDDM_EPS)
                         d[Subdomain<K>::_map[index].second[j]] = 0.0;
@@ -130,6 +131,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 }
             }
             MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
+            delete [] *Subdomain<K>::_buff;
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Schwarz::d>. */
@@ -388,17 +390,15 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector. */
-        void GMV(const K* const in, K* const out, const unsigned short& mu = 1) const {
+        void GMV(const K* const in, K* const out, const int& mu = 1) const {
 #if 0
             K* tmp = new K[mu * Subdomain<K>::_dof];
             Wrapper<K>::diag(Subdomain<K>::_dof, mu, _d, in, tmp);
-            int dim = mu;
-            Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &dim, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
+            Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             delete [] tmp;
             Subdomain<K>::exchange(out, m);
 #else
-            int dim = mu;
-            Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &dim, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
+            Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             Wrapper<K>::diag(Subdomain<K>::_dof, mu, _d, out);
             Subdomain<K>::exchange(out, mu);
 #endif
@@ -416,7 +416,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage, const unsigned short& mu = 1) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
+            Subdomain<K>::setBuffer(mu);
             GMV(x, tmp, mu);
+            delete [] *Subdomain<K>::_buff;
             Wrapper<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
             std::fill_n(storage, 2 * mu, 0.0);
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {

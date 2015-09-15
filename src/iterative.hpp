@@ -31,10 +31,6 @@ namespace HPDDM {
  *  A class that implements various iterative methods. */
 class IterativeMethod {
     private:
-        template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
-        static K conj(K& x) { return x; }
-        template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
-        static K conj(K& x) { return std::conj(x); }
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
         template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
@@ -198,22 +194,32 @@ class IterativeMethod {
         template<bool excluded = false, class Operator = void, class K = double>
         static int GMRES(const Operator& A, K* const x, const K* const b, const int& mu, const MPI_Comm& comm) {
             const Option& opt = *Option::get();
+            const int n = excluded ? 0 : A.getDof();
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
-            const int n = excluded ? 0 : A.getDof();
             const unsigned short m = std::min(static_cast<unsigned short>(opt["gmres_restart"]), it);
-            K* const s = new K[mu * ((m + 1) * (m + 1) + m + 2 * n) + (std::is_same<K, typename Wrapper<K>::ul_type>::value ? (mu * m + 2 * mu) : ((mu * m) / 2 + mu + 1))];
-            K* cs = s + mu * (m + 1);
-            typename Wrapper<K>::ul_type* sn = reinterpret_cast<typename Wrapper<K>::ul_type*>(cs + mu * m);
+            const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+
+            K** const H = new K*[m * (2 + (variant == 'F'))];
+            K** const v = H + m;
+            K* const s = new K[mu * ((m + 1) * (m + 1) + (2 + m * (1 + (variant == 'F'))) * n) + mu * (std::is_same<K, typename Wrapper<K>::ul_type>::value ? (m + 2) : ((m + 1) / 2 + 1))];
+            K* r = s + mu * (m + 1);
+            K* Ax = r + mu * n;
+            *H = Ax + mu * n;
+            for(unsigned short i = 1; i < m; ++i)
+                H[i] = *H + i * mu * (m + 1);
+            *v = *H + mu * m * (m + 1);
+            for(unsigned short i = 1; i < m * (1 + (variant == 'F')); ++i)
+                v[i] = *v + i * mu * n;
+            typename Wrapper<K>::ul_type* sn = reinterpret_cast<typename Wrapper<K>::ul_type*>(*v + mu * m * (1 + (variant == 'F')) * n);
             typename Wrapper<K>::ul_type* norm = sn + mu * m;
             typename Wrapper<K>::ul_type* beta = norm + mu;
-            K* r = cs + mu * m + (std::is_same<K, typename Wrapper<K>::ul_type>::value ? (mu * m + 2 * mu) : ((mu * m) / 2 + mu + 1));
-            K* Ax = r + mu * n;
+            bool alloc = A.setBuffer(mu, v[m * (1 + (variant == 'F')) - 1], mu * n);
+
             A.template apply<excluded>(b, r, mu, Ax);
             for(unsigned short nu = 0; nu < mu; ++nu)
                 norm[nu] = std::real(Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1));
 
-            const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
             if(!excluded) {
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     for(unsigned int i = 0; i < n; ++i)
@@ -249,26 +255,6 @@ class IterativeMethod {
                 else if(beta[nu] < -tol)
                     hasConverged[nu] = 0;
             }
-            if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
-                delete [] hasConverged;
-                delete [] s;
-                return 0;
-            }
-
-            K** const v = new K*[m * (1 + (variant == 'F')) + std::max(static_cast<unsigned short>(2), m)];
-            K** const H = v + m * (1 + (variant == 'F'));
-            if(!excluded) {
-                *v = new K[m * (1 + (variant == 'F')) * mu * n]();
-                for(unsigned short i = 1; i < m * (1 + (variant == 'F')); ++i)
-                    v[i] = *v + i * mu * n;
-            }
-
-            *H = Ax + mu * n;
-            if(m < 2)
-                H[1] = *H + (m + 1) * mu;
-            else
-                for(unsigned short i = 1; i < m; ++i)
-                    H[i] = *H + i * (m + 1) * mu;
 
             unsigned short j = 1;
             while(j <= it) {
@@ -327,24 +313,24 @@ class IterativeMethod {
                         for(unsigned short nu = 0; nu < mu; ++nu) {
                             H[i][(i + 1) * mu + nu] = std::sqrt(beta[nu]);
                             if(i < m - 1)
-                                Wrapper<K>::axpby(n, K(1.0) / H[i][(i + 1) * mu + nu], r + nu * n, 1, 0.0, v[i + 1] + nu * n, 1);
+                                Wrapper<K>::axpby(n, K(1.0) / H[i][(i + 1) * mu + nu], r + nu * n, 1, K(), v[i + 1] + nu * n, 1);
                         }
                     }
                     for(unsigned short k = 0; k < i; ++k) {
                         for(unsigned short nu = 0; nu < mu; ++nu) {
-                            K gamma = conj(cs[k * mu + nu]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
-                            H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + cs[k * mu + nu] * H[i][(k + 1) * mu + nu];
+                            K gamma = Wrapper<K>::conj(H[k][(k + 1) * mu + nu]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
+                            H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(k + 1) * mu + nu] * H[i][(k + 1) * mu + nu];
                             H[i][k * mu + nu] = gamma;
                         }
                     }
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         const int tmp = 2;
                         typename Wrapper<K>::ul_type delta = Wrapper<K>::nrm2(&tmp, H[i] + i * mu + nu, &mu); // std::sqrt(H[i][i] * H[i][i] + H[i][i + 1] * H[i][i + 1]);
-                        cs[i * mu + nu] = H[i][i * mu + nu] / delta;
                         sn[i * mu + nu] = std::real(H[i][(i + 1) * mu + nu]) / delta;
-                        H[i][i * mu + nu] = conj(cs[i * mu + nu]) * H[i][i * mu + nu] + sn[i * mu + nu] * H[i][(i + 1) * mu + nu];
+                        H[i][(i + 1) * mu + nu] = H[i][i * mu + nu] / delta;
+                        H[i][i * mu + nu] = delta;
                         s[(i + 1) * mu + nu] = -sn[i * mu + nu] * s[i * mu + nu];
-                        s[i * mu + nu] *= conj(cs[i * mu + nu]);
+                        s[i * mu + nu] *= Wrapper<K>::conj(H[i][(i + 1) * mu + nu]);
                         if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[(i + 1) * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[(i + 1) * mu + nu]) <= -tol)))
                             hasConverged[nu] = i + 1;
                     }
@@ -405,11 +391,10 @@ class IterativeMethod {
                 else
                     std::cout << "GMRES does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
             }
-            if(!excluded)
-                delete [] *v;
-            delete [] v;
             delete [] hasConverged;
             delete [] s;
+            delete [] H;
+            A.clearBuffer(alloc);
             return std::min(j, it);
         }
         /* Function: CG
@@ -426,16 +411,17 @@ class IterativeMethod {
          *    b              - Right-hand side.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
-        static int CG(Operator& A, K* const x, const K* const b, const MPI_Comm& comm) {
+        static int CG(const Operator& A, K* const x, const K* const b, const MPI_Comm& comm) {
             const Option& opt = *Option::get();
             if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
                 return GMRES(A, x, b, 1, comm);
+            const int n = A.getDof();
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
-            const int n = A.getDof();
             typename Wrapper<K>::ul_type* dir;
             K* trash;
             allocate(dir, trash, n, opt["variant"] == 2 ? 2 : (opt["gs"] != 2 ? 1 : 0), it);
+            bool alloc = A.setBuffer(1);
             K* z = trash + n;
             K* r = z + n;
             K* p = r + n;
@@ -459,12 +445,6 @@ class IterativeMethod {
                 if(opt.set("verbosity"))
                     std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
                 tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
-            }
-            if(resInit <= tol) {
-                delete [] dir;
-                if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
-                    delete [] trash;
-                return 0;
             }
 
             unsigned short i = 1;
@@ -534,6 +514,7 @@ class IterativeMethod {
             delete [] dir;
             if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
                 delete [] trash;
+            A.clearBuffer(alloc);
             return std::min(i, it);
         }
         /* Function: PCG
@@ -550,17 +531,18 @@ class IterativeMethod {
          *    f              - Right-hand side.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
-        static int PCG(Operator& A, K* const x, const K* const f, const MPI_Comm& comm) {
+        static int PCG(const Operator& A, K* const x, const K* const f, const MPI_Comm& comm) {
             typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K**, K*>::type ptr_type;
             const Option& opt = *Option::get();
+            const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
-            const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
             const int offset = std::is_same<ptr_type, K*>::value ? A.getEliminated() : 0;
             ptr_type storage[std::is_same<ptr_type, K*>::value ? 1 : 2];
             // storage[0] = r
             // storage[1] = lambda
             A.allocateArray(storage);
+            A.setBuffer(1);
             auto m = A.getScaling();
             if(std::is_same<ptr_type, K*>::value)
                 A.template start<excluded>(x + offset, f, nullptr, storage[0]);
@@ -647,7 +629,7 @@ class IterativeMethod {
                 if(!excluded) {
                     A.allocateSingle(pCurr);
                     p.emplace_back(pCurr);
-                    diag(n, m, z[i - 1]);
+                    diag(n, m, z[i - 2]);
                 }
             }
             if(opt.set("verbosity")) {
@@ -666,6 +648,7 @@ class IterativeMethod {
             for(auto pCurr : p)
                 clean(pCurr);
             clean(storage[0]);
+            A.clearBuffer();
             return std::min(i, it);
         }
 };

@@ -37,7 +37,6 @@ void HPDDM_F77(p ## B ## orgqr)(const int*, const int*, const int*, U*, const in
 void HPDDM_F77(p ## C ## ungqr)(const int*, const int*, const int*, T*, const int*, const int*, const int*,  \
                                 const T*, T*, const int*, int*);
 
-#if !defined(INTEL_MKL_VERSION)
 extern "C" {
 void Cblacs_get(int, int, int*);
 void Cblacs_gridinit(int*, const char*, int, int);
@@ -46,7 +45,6 @@ void descinit_(int*, const int*, const int*, const int*, const int*, const int*,
 HPDDM_GENERATE_EXTERN_SCALAPACK_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_SCALAPACK_COMPLEX(z, std::complex<double>, d, double)
 }
-#endif // INTEL_MKL_VERSION
 
 namespace HPDDM {
 /* Class: ScaLapack

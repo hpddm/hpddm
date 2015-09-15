@@ -73,19 +73,19 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             }
             else {
                 for(unsigned short i = 0; i < super::_signed; ++i) {
-                    MPI_Irecv(Subdomain<K>::_rbuff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
+                    MPI_Irecv(Subdomain<K>::_buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         dual[i][j] = -(scale ? _m[i][j] * primal[Subdomain<K>::_map[i].second[j]] : primal[Subdomain<K>::_map[i].second[j]]);
                     MPI_Isend(dual[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
                 }
                 for(unsigned short i = super::_signed; i < Subdomain<K>::_map.size(); ++i) {
-                    MPI_Irecv(Subdomain<K>::_rbuff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
+                    MPI_Irecv(Subdomain<K>::_buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         dual[i][j] =  (scale ? _m[i][j] * primal[Subdomain<K>::_map[i].second[j]] : primal[Subdomain<K>::_map[i].second[j]]);
                     MPI_Isend(dual[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
                 }
                 MPI_Waitall(2 * Subdomain<K>::_map.size(), Subdomain<K>::_rq, MPI_STATUSES_IGNORE);
-                Wrapper<K>::axpy(&(super::_mult), &(Wrapper<K>::d__1), Subdomain<K>::_rbuff[0], &i__1, *dual, &i__1);
+                Wrapper<K>::axpy(&(super::_mult), &(Wrapper<K>::d__1), Subdomain<K>::_buff[0], &i__1, *dual, &i__1);
             }
         }
         template<class U, typename std::enable_if<std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
@@ -235,10 +235,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::stiffnessScaling(_primal);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, _primal);
+                Subdomain<K>::setBuffer(1);
                 Subdomain<K>::exchange(_primal);
                 for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        _m[i][j] = std::real(Subdomain<K>::_rbuff[i][j] / _primal[Subdomain<K>::_map[i].second[j]]);
+                        _m[i][j] = std::real(Subdomain<K>::_buff[i][j] / _primal[Subdomain<K>::_map[i].second[j]]);
+                delete [] *Subdomain<K>::_buff;
             }
             else {
                 scaling = 0;
@@ -461,12 +463,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    nu             - Number of eigenvectors requested.
          *    threshold      - Criterion for selecting the eigenpairs (optional). */
         template<char L = 'S'>
-        void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type&) {
+        void solveGEVP(unsigned short& nu, const typename Wrapper<K>::ul_type& threshold) {
             typename Wrapper<K>::ul_type* const pt = reinterpret_cast<typename Wrapper<K>::ul_type*>(_primal);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                     pt[Subdomain<K>::_map[i].second[j]] = _m[i][j];
-            super::template solveGEVP<L>(pt, nu, -1.0);
+            super::template solveGEVP<L>(pt, nu, threshold);
             nu = super::_deficiency;
             if(nu == 0 && super::_ev) {
                 delete [] *super::_ev;

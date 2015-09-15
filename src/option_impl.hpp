@@ -28,11 +28,11 @@ inline Option::Option(construct_key) {
     _app = nullptr;
     _opt = { { "tol",                           1.0e-8 },
              { "max_it",                        100 },
+             { "gs",                            0 },
+#if HPDDM_SCHWARZ
              { "krylov_method",                 0 },
              { "gmres_restart",                 50 },
-             { "gs",                            0 },
              { "variant",                       0 },
-#if HPDDM_SCHWARZ
              { "schwarz_method",                0 },
 #endif
 #if HPDDM_FETI || HPDDM_BDD
@@ -85,12 +85,12 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("help", "Display available options.", Arg::anything),
         std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm.", Arg::numeric),
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
-        std::forward_as_tuple("krylov_method=(gmres|cg)", "Generalized Minimal Residual Method or Conjugate Gradient.", Arg::argument),
         std::forward_as_tuple("verbosity(=<integer>)", "Use verbose output.", Arg::anything),
-        std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
         std::forward_as_tuple("gs=(classical|modified|none)", "Classical (faster) or modified (more robust) Gram-Schmidt process, or no orthogonalization at all.", Arg::argument),
-        std::forward_as_tuple("variant=(left|right|flexible)", "Left or right or flexible preconditioning.", Arg::argument),
 #if HPDDM_SCHWARZ
+        std::forward_as_tuple("krylov_method=(gmres|cg)", "Generalized Minimal Residual Method or Conjugate Gradient.", Arg::argument),
+        std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
+        std::forward_as_tuple("variant=(left|right|flexible)", "Left or right or flexible preconditioning.", Arg::argument),
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),
         std::forward_as_tuple("schwarz_coarse_correction=(deflated|additive|balanced)", "Switch to a multilevel preconditioner.", Arg::argument),
@@ -101,7 +101,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
 #endif
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Local number of GenEO vectors to compute.", Arg::integer),
-        std::forward_as_tuple("geneo_tol=<eps>", "Local threshold for selecting GenEO vectors.", Arg::numeric),
+        std::forward_as_tuple("geneo_threshold=<eps>", "Local threshold for selecting GenEO vectors.", Arg::numeric),
         std::forward_as_tuple("geneo_eigensolver_tol=<1.0e-6>", "Requested tolerance of eigenpairs computed by ARPACK or LAPACK.", Arg::numeric),
 #if defined(DMUMPS) || defined(MUMPSSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),

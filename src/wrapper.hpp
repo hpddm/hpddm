@@ -52,7 +52,7 @@ class Wrapper {
          *  Scalar underlying type, e.g. double (resp. float) for std::complex<double> (resp. std::complex<float>). */
         typedef underlying_type<K> ul_type;
         /* Variable: transc
-         *  Transposed real operators or conjugated transposed complex operators. */
+         *  Transposed real operators or Hermitian transposed complex operators. */
         static const char transc;
         /* Variable: I
          *  Numbering of a sparse <MatrixCSR>. */
@@ -83,23 +83,35 @@ class Wrapper {
          *  Copies all or part of a two-dimensional matrix. */
         static void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
 
-        /* Function: symv
-         *  Computes a symmetric scalar-matrix-vector product. */
-        static void symv(const char* const, const int* const, const K* const, const K* const, const int* const,
-                         const K* const, const int* const, const K* const, K* const, const int* const);
         /* Function: gemv
          *  Computes a scalar-matrix-vector product. */
         static void gemv(const char* const, const int* const, const int* const, const K* const, const K* const,
                          const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+        /* Function: symv
+         *  Computes a symmetric scalar-matrix-vector product. */
+        static void symv(const char* const, const int* const, const K* const, const K* const, const int* const,
+                         const K* const, const int* const, const K* const, K* const, const int* const);
 
-        /* Function: symm
-         *  Computes a symmetric scalar-matrix-matrix product. */
-        static void symm(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
-                         const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
         /* Function: gemm
          *  Computes a scalar-matrix-matrix product. */
         static void gemm(const char* const, const char* const, const int* const, const int* const, const int* const, const K* const, const K* const,
                          const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+        /* Function: herk
+         *  Computes a Hermitian rank-k update. */
+        static void herk(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
+                         const int* const, const K* const, K* const, const int* const);
+        /* Function: symm
+         *  Computes a symmetric scalar-matrix-matrix product. */
+        static void symm(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
+                         const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+        /* Function: trmm
+         *  Computes a triangular matrix-matrix product. */
+        static void trmm(const char*, const char*, const char*, const char*, const int*, const int*,
+                         const K*, const K*, const int*, K*, const int*);
+        /* Function: trsm
+         *  Solves a system of linear equations with a triangular matrix. */
+        static void trsm(const char*, const char*, const char*, const char*, const int*, const int*,
+                         const K*, const K*, const int*, K*, const int*);
 
         /* Function: csrmv(square)
          *  Computes a sparse square matrix-vector product. */
@@ -146,10 +158,14 @@ class Wrapper {
         /* Function: axpby
          *  Computes two scalar-vector products. */
         static void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
-        /* Function: conjugate
+        template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
+        static T conj(T& x) { return x; }
+        template<class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
+        static T conj(T& x) { return std::conj(x); }
+        /* Function: conj
          *  Conjugates all elements of a matrix. */
         template<class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static void conjugate(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
+        static void conj(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
             if(b && ldb)
                 for(int i = 0; i < n; ++i)
                     std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const T& z) { return std::conj(z); });
@@ -158,14 +174,10 @@ class Wrapper {
                     std::for_each(a + i * lda, a + i * lda + m, [](T& z) { z = std::conj(z); });
         }
         template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static void conjugate(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
+        static void conj(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
             if(b && ldb)
                 lacpy("A", &m, &n, a, &lda, b, &ldb);
         }
-        template<char O, class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value && (O == 'C' || O == 'R')>::type* = nullptr>
-        static void copy(const T& in, T& out) { out = std::conj(in); }
-        template<char O, class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value || O == 'T' || O == 'N'>::type* = nullptr>
-        static void copy(const T& in, T& out) { out = in; }
         template<char O, class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value && (O == 'C' || O == 'R')>::type* = nullptr>
         static void swap(T& in, T& out) {
             in = std::conj(in);
@@ -221,20 +233,28 @@ inline void Wrapper<T>::lacpy(const char* const uplo, const int* const m, const 
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
-inline void Wrapper<T>::symv(const char* const uplo, const int* const n,                                     \
-                             const T* const alpha, const T* const a, const int* const lda,                   \
-                             const T* const b, const int* const ldb, const T* const beta,                    \
-                             T* const c, const int* const ldc) {                                             \
-    HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);                                      \
-}                                                                                                            \
-template<>                                                                                                   \
 inline void Wrapper<T>::gemv(const char* const trans, const int* const m, const int* const n,                \
                              const T* const alpha, const T* const a, const int* const lda,                   \
                              const T* const b, const int* const ldb, const T* const beta,                    \
                              T* const c, const int* const ldc) {                                             \
     HPDDM_F77(C ## gemv)(trans, m, n, alpha, a, lda, b, ldb, beta, c, ldc);                                  \
 }                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::symv(const char* const uplo, const int* const n,                                     \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const b, const int* const ldb, const T* const beta,                    \
+                             T* const c, const int* const ldc) {                                             \
+    HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);                                      \
+}                                                                                                            \
                                                                                                              \
+template<>                                                                                                   \
+inline void Wrapper<T>::gemm(const char* const transa, const char* const transb, const int* const m,         \
+                             const int* const n, const int* const k,                                         \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const b, const int* const ldb, const T* const beta,                    \
+                             T* const c, const int* const ldc) {                                             \
+    HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
+}                                                                                                            \
 template<>                                                                                                   \
 inline void Wrapper<T>::symm(const char* const side, const char* const uplo,                                 \
                              const int* const m, const int* const n,                                         \
@@ -244,12 +264,20 @@ inline void Wrapper<T>::symm(const char* const side, const char* const uplo,    
     HPDDM_F77(C ## symm)(side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);                             \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Wrapper<T>::gemm(const char* const transa, const char* const transb, const int* const m,         \
-                             const int* const n, const int* const k,                                         \
+inline void Wrapper<T>::trmm(const char* const side, const char* const uplo,                                 \
+                             const char* const transa, const char* const diag,                               \
+                             const int* const m, const int* const n,                                         \
                              const T* const alpha, const T* const a, const int* const lda,                   \
-                             const T* const b, const int* const ldb, const T* const beta,                    \
-                             T* const c, const int* const ldc) {                                             \
-    HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
+                             T* const b, const int* const ldb) {                                             \
+    HPDDM_F77(C ## trmm)(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);                             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::trsm(const char* const side, const char* const uplo,                                 \
+                             const char* const transa, const char* const diag,                               \
+                             const int* const m, const int* const n,                                         \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             T* const b, const int* const ldb) {                                             \
+    HPDDM_F77(C ## trsm)(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);                             \
 }
 #if HPDDM_MKL || defined(__APPLE__)
 #define HPDDM_GENERATE_DOTC(C, T)                                                                            \
@@ -292,6 +320,21 @@ template<>                                                                      
 inline U Wrapper<U>::dot(const int* const n, const U* const x, const int* const incx,                        \
                          const U* const y, const int* const incy) {                                          \
     return HPDDM_F77(B ## dot)(n, x, incx, y, incy);                                                         \
+}                                                                                                            \
+                                                                                                             \
+template<>                                                                                                   \
+inline void Wrapper<U>::herk(const char* const uplo, const char* const trans,                                \
+                             const int* const n, const int* const k,                                         \
+                             const U* const alpha, const U* const a, const int* const lda,                   \
+                             const U* const beta, U* const c, const int* const ldc) {                        \
+    HPDDM_F77(B ## syrk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);                                    \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Wrapper<T>::herk(const char* const uplo, const char* const trans,                                \
+                             const int* const n, const int* const k,                                         \
+                             const T* const alpha, const T* const a, const int* const lda,                   \
+                             const T* const beta, T* const c, const int* const ldc) {                        \
+    HPDDM_F77(C ## herk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);                                    \
 }                                                                                                            \
 HPDDM_GENERATE_DOTC(C, T)
 HPDDM_GENERATE_BLAS(s, float)
@@ -640,10 +683,12 @@ inline void Wrapper<K>::omatcopy(const int n, const int m, const K* const a, con
     if(O != 'N')
         for(int i = 0; i < n; ++i)
             for(int j = 0; j < m; ++j) {
-                if(O == 'T' || O == 'C')
-                    copy<O>(a[i * lda + j], b[j * ldb + i]);
+                if(O == 'T')
+                    b[j * ldb + i] = a[i * lda + j];
+                else if(O == 'C')
+                    b[j * ldb + i] = conj(a[i * lda + j]);
                 else
-                    copy<O>(a[i * lda + j], b[i * ldb + j]);
+                    b[i * ldb + j] = conj(a[i * lda + j]);
             }
     else
         lacpy("A", &m, &n, a, &lda, b, &ldb);
@@ -669,11 +714,11 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
                             b[i] = 1;
                             i = next;
                         } while(i != it);
+                        if(O == 'C' && !std::is_same<K, ul_type>::value)
+                            ab[i] = conj(ab[i]);
 
                         for(i = 1; i < size && b[i]; ++i);
                     }
-                    if(O == 'C')
-                        conjugate(m * n, 1, ab, m * n);
                 }
                 else {
                     for(int i = 0; i < n - 1; ++i)
@@ -692,7 +737,7 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
     else if(O == 'R') {
         K* tmp = new K[n * m];
         lacpy("A", &m, &n, ab, &lda, tmp, &m);
-        conjugate(m, n, tmp, m, ab, ldb);
+        conj(m, n, tmp, m, ab, ldb);
         delete [] tmp;
     }
     else {
@@ -701,7 +746,7 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
                 std::copy_backward(ab + (i - 1) * lda, ab + (i - 1) * lda + m, ab + (i - 1) * ldb + m);
         else if(lda > ldb)
             for(int i = 1; i < n; ++i)
-                std::copy(ab + i * ldb, ab + i * ldb + m, ab + i * lda);
+                std::copy_n(ab + i * ldb, m, ab + i * lda);
     }
 }
 #endif // HPDDM_MKL

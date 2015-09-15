@@ -49,14 +49,15 @@ class OperatorBase : protected Members<P != 's'> {
             public:
                 static constexpr bool value = (sizeof(test<T>(0)) == sizeof(one));
         };
-        template<class Q = Preconditioner, typename std::enable_if<has_LDR<Q>::value>::type* = nullptr>
-        void offsetDeflation() {
+        template<class Q = Preconditioner> typename std::enable_if<has_LDR<typename std::remove_reference<Q>::type>::value, bool>::type
+        offsetDeflation() {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v -= offset; });
+            return true;
         }
-        template<class Q = Preconditioner, typename std::enable_if<!has_LDR<Q>::value>::type* = nullptr>
-        void offsetDeflation() { }
+        template<class Q = Preconditioner> typename std::enable_if<!has_LDR<typename std::remove_reference<Q>::type>::value, bool>::type
+        offsetDeflation() { return false; }
     protected:
         const Preconditioner&                 _p;
         K** const                     _deflation;
@@ -67,14 +68,14 @@ class OperatorBase : protected Members<P != 's'> {
         unsigned short                   _signed;
         unsigned short             _connectivity;
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short&& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _connectivity(c) {
+        OperatorBase(const Preconditioner& p, const unsigned short& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _connectivity(c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _sparsity.reserve(_map.size());
             for(const pairNeighbor& n : _map)
                 _sparsity.emplace_back(n.first);
         }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short&& c) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _signed(_p.getSigned()), _connectivity(c) {
+        OperatorBase(const Preconditioner& p, const unsigned short& c) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _signed(_p.getSigned()), _connectivity(c) {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
@@ -83,7 +84,7 @@ class OperatorBase : protected Members<P != 's'> {
                 unsigned short** recvSparsity = new unsigned short*[_map.size() + 1];
                 *recvSparsity = new unsigned short[(_connectivity + 1) * _map.size()];
                 unsigned short* sendSparsity = *recvSparsity + _connectivity * _map.size();
-                MPI_Request* rq = new MPI_Request[2 * _map.size()];
+                MPI_Request* rq = _p.getRq();
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     sendSparsity[i] = _map[i].first;
                     recvSparsity[i] = *recvSparsity + _connectivity * i;
@@ -103,7 +104,6 @@ class OperatorBase : protected Members<P != 's'> {
 
                 delete [] *recvSparsity;
                 delete [] recvSparsity;
-                delete [] rq;
 
                 _sparsity.reserve(_map.size());
                 if(P == 'c') {
@@ -401,16 +401,14 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             super::_signed = s;
         }
         template<char S, bool U, class T>
-        void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
+        void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
             Wrapper<K>::template csrmm<Wrapper<K>::I>(false, &(super::_n), &(super::_local), _C->_a, _C->_ia, _C->_ja, *super::_deflation, _work);
             delete _C;
-            MPI_Request rq;
             for(unsigned short i = 0; i < super::_signed; ++i) {
                 if(U || info[i]) {
                     for(unsigned short j = 0; j < super::_local; ++j)
                         Wrapper<K>::gthr(super::_map[i].second.size(), _work + j * super::_n, in[i] + j * super::_map[i].second.size(), super::_map[i].second.data());
-                    MPI_Isend(in[i], super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), &rq);
-                    rqSend.emplace_back(rq);
+                    MPI_Isend(in[i], super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rq++);
                 }
             }
             Wrapper<K>::diag(super::_n, super::_local, _D, _work, work);
@@ -531,7 +529,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
         FetiProjection(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)) { }
         template<char S, bool U, class T>
-        void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
+        void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;
             super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
@@ -542,11 +540,11 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                 offset[i] = offset[i - 1] + (U ? super::_local : infoNeighbor[i - 2]);
             const int nbMult = super::_p.getMult();
             K* mult = new K[offset[super::_map.size() + 1] * nbMult];
-            unsigned short* accumulator = new unsigned short[super::_map.size() + 1];
-            accumulator[0] = 0;
+            unsigned short* displs = new unsigned short[super::_map.size() + 1];
+            displs[0] = 0;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                MPI_Irecv(mult + offset[i + 1] * nbMult + accumulator[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + i);
-                accumulator[i + 1] = accumulator[i] + super::_map[i].second.size();
+                MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + i);
+                displs[i + 1] = displs[i] + super::_map[i].second.size();
             }
 
             K* tmp = new K[offset[super::_map.size() + 1] * super::_n]();
@@ -554,14 +552,14 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
             for(unsigned short i = 0; i < super::_signed; ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                        tmp[super::_map[i].second[j] + k * super::_n] -= m[i][j] * (mult[accumulator[i] * super::_local + j + k * super::_map[i].second.size()] = - super::_deflation[k][super::_map[i].second[j]]);
-                MPI_Isend(mult + accumulator[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
+                        tmp[super::_map[i].second[j] + k * super::_n] -= m[i][j] * (mult[displs[i] * super::_local + j + k * super::_map[i].second.size()] = - super::_deflation[k][super::_map[i].second[j]]);
+                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
             }
             for(unsigned short i = super::_signed; i < super::_map.size(); ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                        tmp[super::_map[i].second[j] + k * super::_n] += m[i][j] * (mult[accumulator[i] * super::_local + j + k * super::_map[i].second.size()] =   super::_deflation[k][super::_map[i].second[j]]);
-                MPI_Isend(mult + accumulator[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
+                        tmp[super::_map[i].second[j] + k * super::_n] += m[i][j] * (mult[displs[i] * super::_local + j + k * super::_map[i].second.size()] =   super::_deflation[k][super::_map[i].second[j]]);
+                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
             }
 
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
@@ -570,14 +568,14 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                 if(index < super::_signed)
                     for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[index]); ++k)
                         for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
-                            tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] = - m[index][j] * mult[offset[index + 1] * nbMult + accumulator[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
+                            tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] = - m[index][j] * mult[offset[index + 1] * nbMult + displs[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
                 else
                     for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[index]); ++k)
                         for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
-                            tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] =   m[index][j] * mult[offset[index + 1] * nbMult + accumulator[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
+                            tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] =   m[index][j] * mult[offset[index + 1] * nbMult + displs[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
             }
 
-            delete [] accumulator;
+            delete [] displs;
 
             if(offset[super::_map.size() + 1])
                 super::_p.applyLocalPreconditioner(tmp, offset[super::_map.size() + 1]);
@@ -606,7 +604,6 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
 
             work = new K[accumulate]();
 
-            MPI_Request rq;
             for(unsigned short i = 0; i < super::_signed; ++i) {
                 accumulate = super::_local;
                 for(unsigned short k = 0; k < super::_local; ++k)
@@ -629,10 +626,8 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                         }
                     accumulate += U ? super::_local : infoNeighbor[l];
                 }
-                if(U || infoNeighbor[i]) {
-                    MPI_Isend(in[i], super::_map[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), &rq);
-                    rqSend.emplace_back(rq);
-                }
+                if(U || infoNeighbor[i])
+                    MPI_Isend(in[i], super::_map[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rq++);
             }
             for(unsigned short i = super::_signed; i < super::_map.size(); ++i) {
                 if(S != 'S') {
@@ -665,10 +660,8 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                     if(S != 'S' || !(l < i))
                         accumulate += U ? super::_local : infoNeighbor[l];
                 }
-                if(U || infoNeighbor[i]) {
-                    MPI_Isend(in[i], super::_map[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), &rq);
-                    rqSend.emplace_back(rq);
-                }
+                if(U || infoNeighbor[i])
+                    MPI_Isend(in[i], super::_map[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rq++);
             }
             delete [] tmp;
             delete [] offset;
@@ -755,7 +748,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
         BddProjection(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)) { }
         template<char S, bool U, class T>
-        void applyToNeighbor(T& in, K*& work, std::vector<MPI_Request>& rqSend, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
+        void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;
             super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::_map.size()];
@@ -766,11 +759,11 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 offset[i] = offset[i - 1] + (U ? super::_local : infoNeighbor[i - 2]);
             const int nbMult = super::_p.getMult();
             K* mult = new K[offset[super::_map.size() + 1] * nbMult];
-            unsigned short* accumulator = new unsigned short[super::_map.size() + 1];
-            accumulator[0] = 0;
+            unsigned short* displs = new unsigned short[super::_map.size() + 1];
+            displs[0] = 0;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                MPI_Irecv(mult + offset[i + 1] * nbMult + accumulator[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + i);
-                accumulator[i + 1] = accumulator[i] + super::_map[i].second.size();
+                MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + i);
+                displs[i + 1] = displs[i] + super::_map[i].second.size();
             }
 
             K* tmp = new K[offset[super::_map.size() + 1] * super::_n]();
@@ -778,8 +771,8 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
-                        tmp[super::_map[i].second[j] + k * super::_n] = (mult[accumulator[i] * super::_local + j + k * super::_map[i].second.size()] = m[super::_map[i].second[j]] * super::_deflation[k][super::_map[i].second[j]]);
-                MPI_Isend(mult + accumulator[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
+                        tmp[super::_map[i].second[j] + k * super::_n] = (mult[displs[i] * super::_local + j + k * super::_map[i].second.size()] = m[super::_map[i].second[j]] * super::_deflation[k][super::_map[i].second[j]]);
+                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
             }
 
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
@@ -787,10 +780,10 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 MPI_Waitany(super::_map.size(), rqMult, &index, MPI_STATUS_IGNORE);
                 for(unsigned short k = 0; k < (U ? super::_local : infoNeighbor[index]); ++k)
                     for(unsigned int j = 0; j < super::_map[index].second.size(); ++j)
-                        tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] = mult[offset[index + 1] * nbMult + accumulator[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
+                        tmp[super::_map[index].second[j] + (offset[index + 1] + k) * super::_n] = mult[offset[index + 1] * nbMult + displs[index] * (U ? super::_local : infoNeighbor[index]) + j + k * super::_map[index].second.size()];
             }
 
-            delete [] accumulator;
+            delete [] displs;
 
             if(offset[super::_map.size() + 1])
                 super::_p.applyLocalSchurComplement(tmp, offset[super::_map.size() + 1]);
@@ -819,7 +812,6 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 
             work = new K[accumulate]();
 
-            MPI_Request rq;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 if(i < super::_signed || S != 'S') {
                     accumulate = super::_local;
@@ -848,10 +840,8 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                     if(S != 'S' || !(l < i) || i < super::_signed)
                         accumulate += U ? super::_local : infoNeighbor[l];
                 }
-                if(U || infoNeighbor[i]) {
-                    MPI_Isend(in[i], super::_map[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), &rq);
-                    rqSend.emplace_back(rq);
-                }
+                if(U || infoNeighbor[i])
+                    MPI_Isend(in[i], super::_map[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rq++);
             }
             delete [] tmp;
             delete [] offset;
