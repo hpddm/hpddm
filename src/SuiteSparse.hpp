@@ -164,7 +164,7 @@ class SuiteSparse : public DMatrix {
                 M->sorted = 1;
                 M->packed = 1;
                 M->stype = -1;
-                M->xtype = std::is_same<K, typename Wrapper<K>::ul_type>::value ? CHOLMOD_REAL : CHOLMOD_COMPLEX;
+                M->xtype = Wrapper<K>::is_complex ? CHOLMOD_COMPLEX : CHOLMOD_REAL;
                 M->p = I;
                 M->i = J;
                 M->x = C;
@@ -270,7 +270,7 @@ class SuiteSparseSub {
             }
         }
         void numfact(MatrixCSR<K>* const& A, bool detection = false) {
-            if(A->_sym && std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+            if(A->_sym && !Wrapper<K>::is_complex) {
                 if(!_c) {
                     _c = new cholmod_common;
                     cholmod_start(_c);
@@ -282,7 +282,7 @@ class SuiteSparseSub {
                 M->sorted = 1;
                 M->packed = 1;
                 M->stype = 1;
-                M->xtype = std::is_same<K, typename Wrapper<K>::ul_type>::value ? CHOLMOD_REAL : CHOLMOD_COMPLEX;
+                M->xtype = Wrapper<K>::is_complex ? CHOLMOD_COMPLEX : CHOLMOD_REAL;
                 M->p = A->_ia;
                 M->i = A->_ja;
                 M->x = A->_a;
@@ -433,6 +433,4 @@ class SuiteSparseSub {
 };
 #endif // SUITESPARSESUB
 } // HPDDM
-#endif // DSUISTESPARSE || SUITESPARSESUB
-#endif // HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #endif // _SUITESPARSE_

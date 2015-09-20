@@ -57,7 +57,7 @@ class Arpack : public Eigensolver<K> {
         unsigned short                        _it;
         /* Variable: which
          *  Eigenpairs to retrieve. */
-        static constexpr const char* const _which = std::is_same<K, typename Wrapper<K>::ul_type>::value ? "LM" : "LM";
+        static constexpr const char* const _which = Wrapper<K>::is_complex ? "LM" : "LM";
         /* Function: aupd
          *  Iterates the implicitly restarted Arnoldi method. */
         static void aupd(int*, const char*, const int*, const char*, const int*, const typename Wrapper<K>::ul_type*, K*, int*, K*, int*, int*, K*, K*, int*, typename Wrapper<K>::ul_type*, int*);
@@ -80,14 +80,14 @@ class Arpack : public Eigensolver<K> {
         template<template<class> class Solver>
         void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
             int iparam[11] { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
-            int ipntr[std::is_same<K, typename Wrapper<K>::ul_type>::value ? 11 : 14] { };
+            int ipntr[!Wrapper<K>::is_complex ? 11 : 14] { };
             if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
                 Eigensolver<K>::_nu = std::max(1, Eigensolver<K>::_n / 4);
             int ncv = 2 * Eigensolver<K>::_nu + 1;
             int lworkl = ncv * (ncv + 8);
             K* workd;
             K* workev;
-            if(std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+            if(!Wrapper<K>::is_complex) {
                 workd = new K[lworkl + (ncv + 4) * Eigensolver<K>::_n];
                 workev = nullptr;
             }
@@ -99,7 +99,7 @@ class Arpack : public Eigensolver<K> {
             K* workl = workd + 3 * Eigensolver<K>::_n;
             K* vp = workl + lworkl;
             typename Wrapper<K>::ul_type* rwork = nullptr;
-            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
+            if(Wrapper<K>::is_complex)
                 rwork = new typename Wrapper<K>::ul_type[Eigensolver<K>::_n];
             K* vresid = vp + ncv * Eigensolver<K>::_n;
             Solver<K>* const prec = s ? s : new Solver<K>;

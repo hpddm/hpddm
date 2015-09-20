@@ -88,13 +88,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 Wrapper<K>::axpy(&(super::_mult), &(Wrapper<K>::d__1), Subdomain<K>::_buff[0], &i__1, *dual, &i__1);
             }
         }
-        template<class U, typename std::enable_if<std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
+        template<class U, typename std::enable_if<!Wrapper<U>::is_complex>::type* = nullptr>
         void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
             dual = new U*[2 * Subdomain<K>::_map.size()];
             m    = dual + Subdomain<K>::_map.size();
         }
-        template<class U, typename std::enable_if<!std::is_same<U, typename Wrapper<U>::ul_type>::value>::type* = nullptr>
+        template<class U, typename std::enable_if<Wrapper<U>::is_complex>::type* = nullptr>
         void allocate(U**& dual, typename Wrapper<U>::ul_type**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
             dual = new U*[Subdomain<K>::_map.size()];
@@ -107,7 +107,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             super::_schur = nullptr;
             if(_m)
                 delete [] *_m;
-            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
+            if(Wrapper<K>::is_complex)
                 delete []  _m;
             delete [] _dual;
         }
@@ -135,12 +135,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
-         *    x              - Solution vector.
          *    f              - Right-hand side.
+         *    x              - Solution vector.
          *    b              - Condensed right-hand side.
          *    r              - First residual. */
         template<bool excluded>
-        void start(K* const x, const K* const f, K* const* const l, K* const* const r) const {
+        void start(const K* const f, K* const x, K* const* const l, K* const* const r) const {
             Solver<K>* p = static_cast<Solver<K>*>(super::_pinv);
             if(super::_co) {
                 if(!excluded) {
@@ -235,12 +235,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::stiffnessScaling(_primal);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, _primal);
-                Subdomain<K>::setBuffer(1);
+                bool alloc = Subdomain<K>::setBuffer(1, super::_work, super::_mult + super::_bi->_m);
                 Subdomain<K>::exchange(_primal);
                 for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[i][j] = std::real(Subdomain<K>::_buff[i][j] / _primal[Subdomain<K>::_map[i].second[j]]);
-                delete [] *Subdomain<K>::_buff;
+                Subdomain<K>::clearBuffer(alloc);
             }
             else {
                 scaling = 0;

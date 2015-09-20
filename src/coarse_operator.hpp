@@ -145,7 +145,7 @@ class CoarseOperator : public Solver<K> {
     public:
         CoarseOperator() : _gatherComm(MPI_COMM_NULL), _scatterComm(MPI_COMM_NULL), _rankWorld(), _sizeWorld(), _sizeSplit(), _local(), _sizeRHS(), _offset(false) {
             static_assert(S == 'S' || S == 'G', "Unknown symmetry");
-            static_assert(!(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value && S == 'S'), "Symmetric complex coarse operators are not supported");
+            static_assert(!Wrapper<K>::is_complex || S != 'S', "Symmetric complex coarse operators are not supported");
         }
         ~CoarseOperator() {
             if(_gatherComm != _scatterComm && _gatherComm != MPI_COMM_NULL)

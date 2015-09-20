@@ -42,6 +42,8 @@ void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, co
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*);
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
+HPDDM_GENERATE_EXTERN_LAPACK(B, U, U, sy, or)                                                                \
+HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, he, un)                                                                \
 void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
                            const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
 void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, const int*, U*, U*, const int*, int*);    \
@@ -53,10 +55,6 @@ void HPDDM_F77(C ## unmqr)(const char*, const char*, const int*, const int*, con
 
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
-HPDDM_GENERATE_EXTERN_LAPACK(s, float, float, sy, or)
-HPDDM_GENERATE_EXTERN_LAPACK(d, double, double, sy, or)
-HPDDM_GENERATE_EXTERN_LAPACK(c, std::complex<float>, float, he, un)
-HPDDM_GENERATE_EXTERN_LAPACK(z, std::complex<double>, double, he, un)
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, std::complex<double>, d, double)
 }
@@ -173,7 +171,7 @@ class Lapack : public Eigensolver<K> {
                 stein(&(Eigensolver<K>::_n), d, e, &(Eigensolver<K>::_nu), evr, iblock, isplit, *ev, &(Eigensolver<K>::_n), reinterpret_cast<typename Wrapper<K>::ul_type*>(work), iwork, ifailv, &info);
                 delete [] ifailv;
                 mtr("L", "L", &transa, &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), A, &(Eigensolver<K>::_n), tau, *ev, &(Eigensolver<K>::_n), work, &lwork, &info);
-                if(std::is_same<K, typename Wrapper<K>::ul_type>::value)
+                if(!Wrapper<K>::is_complex)
                     lwork += 3 * Eigensolver<K>::_n - 1;
                 else
                     lwork += 4 * Eigensolver<K>::_n - 1;
@@ -253,7 +251,7 @@ class QR {
         void decompose() {
             int info;
 #if HPDDM_QR == 1
-            typename Wrapper<K>::ul_type* rwork = (std::is_same<K, typename Wrapper<K>::ul_type>::value ? nullptr : new typename Wrapper<K>::ul_type[2 * _n]);
+            typename Wrapper<K>::ul_type* rwork = Wrapper<K>::is_complex ? new typename Wrapper<K>::ul_type[2 * _n] : nullptr;
             geqp3(&_n, &_n, _a, &_n, _jpvt.data(), _tau, _work, &_lwork, rwork, &info);
             delete [] rwork;
             while(std::abs(_a[(_rank - 1) * (_n + 1)]) < HPDDM_EPS * std::abs(_a[0]) && _rank-- > 0);
@@ -356,6 +354,8 @@ inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, co
     HPDDM_F77(C ## potrs)(uplo, n, nrhs, a, lda, b, ldb, info);                                              \
 }
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
+HPDDM_GENERATE_LAPACK(B, U, B, U, sy, or)                                                                    \
+HPDDM_GENERATE_LAPACK(C, T, B, U, he, un)                                                                    \
 template<>                                                                                                   \
 inline void QR<U>::geqp3(const int* m, const int* n, U* a, const int* lda, int* jpvt, U* tau, U* work,       \
                          const int* lwork, U* rwork, int* info) {                                            \
@@ -378,10 +378,6 @@ inline void QR<T>::mqr(const char* side, const char* trans, const int* m, const 
                        const int* lwork, int* info) {                                                        \
     HPDDM_F77(C ## unmqr)(side, trans, m, n, k, a, lda, tau, c, ldc, work, lwork, info);                     \
 }
-HPDDM_GENERATE_LAPACK(s, float, s, float, sy, or)
-HPDDM_GENERATE_LAPACK(d, double, d, double, sy, or)
-HPDDM_GENERATE_LAPACK(c, std::complex<float>, s, float, he, un)
-HPDDM_GENERATE_LAPACK(z, std::complex<double>, d, double, he, un)
 HPDDM_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_LAPACK_COMPLEX(z, std::complex<double>, d, double)
 } // HPDDM

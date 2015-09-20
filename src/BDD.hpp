@@ -80,18 +80,18 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::stiffnessScaling(super::_work);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, super::_work);
-                Subdomain<K>::setBuffer(1);
+                bool alloc = Subdomain<K>::setBuffer(1, super::_structure, Subdomain<K>::_a->_n);
                 Subdomain<K>::recvBuffer(super::_work);
                 for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[Subdomain<K>::_map[i].second[j]] *= std::real(Subdomain<K>::_buff[size + i][j]) / std::real(Subdomain<K>::_buff[size + i][j] + _m[Subdomain<K>::_map[i].second[j]] * Subdomain<K>::_buff[i][j]);
-                delete [] *Subdomain<K>::_buff;
+                Subdomain<K>::clearBuffer(alloc);
             }
             else {
                 scaling = 0;
                 for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                     for(pairNeighbor::second_type::const_reference p : neighbor.second)
-                        _m[p] /= (1.0 + _m[p]);
+                        _m[p] /= 1.0 + _m[p];
             }
         }
         /* Function: start
@@ -102,12 +102,12 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
-         *    x              - Solution vector.
          *    f              - Right-hand side.
+         *    x              - Solution vector.
          *    b              - Condensed right-hand side.
          *    r              - First residual. */
         template<bool excluded>
-        void start(K* const x, const K* const f, K* const b, K* r) const {
+        void start(const K* const f, K* const x, K* const b, K* r) const {
             if(super::_co) {
                 if(!excluded) {
                     super::condensateEffort(f, b);

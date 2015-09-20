@@ -183,7 +183,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 int lwork = evp.workspace();
                 MPI_Testall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
                 K* work;
-                const int storage = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
+                const int storage = !Wrapper<K>::is_complex ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
                 if(flag) {
                     if((lwork + storage) <= size || (A != *recv && (lwork + storage) <= 2 * size))
                         work = *send;
@@ -682,20 +682,20 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             storage[0] = std::real(Wrapper<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);
-            Subdomain<K>::setBuffer(1);
+            bool alloc = Subdomain<K>::setBuffer(1);
             Subdomain<K>::exchange(tmp + _bi->_m);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                     storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
             Wrapper<K>::template csrmv<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
-            delete [] *Subdomain<K>::_buff;
+            Subdomain<K>::clearBuffer(alloc);
             Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
             storage[1] = std::real(Wrapper<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1));
             std::fill_n(tmp, Subdomain<K>::_dof, K(1.0));
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
-                        tmp[val] /= (K(1.0) + tmp[val]);
+                        tmp[val] /= K(1.0) + tmp[val];
             for(unsigned short i = 0; i < Subdomain<K>::_dof; ++i)
                 storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
             delete [] tmp;

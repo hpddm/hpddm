@@ -34,7 +34,7 @@ struct underlying_type_spec<std::complex<T>> {
     typedef T type;
 };
 
-template <class T>
+template<class T>
 using underlying_type = typename underlying_type_spec<T>::type;
 /* Class: Wrapper
  *
@@ -43,182 +43,159 @@ using underlying_type = typename underlying_type_spec<T>::type;
  * Template Parameter:
  *    K              - Scalar type. */
 template<class K>
-class Wrapper {
-    public:
-        /* Function: mpi_type
-         *  Returns the MPI datatype of the template parameter of <Wrapper>. */
-        static MPI_Datatype mpi_type();
-        /* Typedef: ul_type
-         *  Scalar underlying type, e.g. double (resp. float) for std::complex<double> (resp. std::complex<float>). */
-        typedef underlying_type<K> ul_type;
-        /* Variable: transc
-         *  Transposed real operators or Hermitian transposed complex operators. */
-        static const char transc;
-        /* Variable: I
-         *  Numbering of a sparse <MatrixCSR>. */
-        static const char I;
-        /* Variable: d__0
-         *  Zero. */
-        static const K d__0;
-        /* Variable: d__1
-         *  One. */
-        static const K d__1;
-        /* Variable: d__2
-         *  Minus one. */
-        static const K d__2;
+struct Wrapper {
+    /* Function: mpi_type
+     *  Returns the MPI datatype of the template parameter of <Wrapper>. */
+    static constexpr MPI_Datatype mpi_type();
+    /* Typedef: ul_type
+     *  Scalar underlying type, e.g. double (resp. float) for std::complex<double> (resp. std::complex<float>). */
+    typedef underlying_type<K> ul_type;
+    static constexpr bool is_complex = !std::is_same<K, ul_type>::value;
+    /* Variable: transc
+     *  Transposed real operators or Hermitian transposed complex operators. */
+    static constexpr char transc = is_complex ? 'C' : 'T';
+    /* Variable: I
+     *  Numbering of a sparse <MatrixCSR>. */
+    static const char I;
+    /* Variable: d__0
+     *  Zero. */
+    static constexpr K d__0 = K(0.0);
+    /* Variable: d__1
+     *  One. */
+    static constexpr K d__1 = K(1.0);
+    /* Variable: d__2
+     *  Minus one. */
+    static constexpr K d__2 = K(-1.0);
 
-        /* Function: axpy
-         *  Computes a scalar-vector product and adds the result to a vector. */
-        static void axpy(const int* const, const K* const, const K* const, const int* const, K* const, const int* const);
-        /* Function: scal
-         *  Computes a scalar-vector product. */
-        static void scal(const int* const, const K* const, K* const, const int* const);
-        /* Function: nrm2
-         *  Computes the Euclidean norm of a vector. */
-        static ul_type nrm2(const int* const, const K* const, const int* const);
-        /* Function: dot
-         *  Computes a vector-vector dot product. */
-        static K dot(const int* const, const K* const, const int* const, const K* const, const int* const);
-        /* Function: lacpy
-         *  Copies all or part of a two-dimensional matrix. */
-        static void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
+    /* Function: axpy
+     *  Computes a scalar-vector product and adds the result to a vector. */
+    static void axpy(const int* const, const K* const, const K* const, const int* const, K* const, const int* const);
+    /* Function: scal
+     *  Computes a scalar-vector product. */
+    static void scal(const int* const, const K* const, K* const, const int* const);
+    /* Function: nrm2
+     *  Computes the Euclidean norm of a vector. */
+    static ul_type nrm2(const int* const, const K* const, const int* const);
+    /* Function: dot
+     *  Computes a vector-vector dot product. */
+    static K dot(const int* const, const K* const, const int* const, const K* const, const int* const);
+    /* Function: lacpy
+     *  Copies all or part of a two-dimensional matrix. */
+    static void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
 
-        /* Function: gemv
-         *  Computes a scalar-matrix-vector product. */
-        static void gemv(const char* const, const int* const, const int* const, const K* const, const K* const,
-                         const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
-        /* Function: symv
-         *  Computes a symmetric scalar-matrix-vector product. */
-        static void symv(const char* const, const int* const, const K* const, const K* const, const int* const,
-                         const K* const, const int* const, const K* const, K* const, const int* const);
+    /* Function: gemv
+     *  Computes a scalar-matrix-vector product. */
+    static void gemv(const char* const, const int* const, const int* const, const K* const, const K* const,
+                     const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+    /* Function: symv
+     *  Computes a symmetric scalar-matrix-vector product. */
+    static void symv(const char* const, const int* const, const K* const, const K* const, const int* const,
+                     const K* const, const int* const, const K* const, K* const, const int* const);
 
-        /* Function: gemm
-         *  Computes a scalar-matrix-matrix product. */
-        static void gemm(const char* const, const char* const, const int* const, const int* const, const int* const, const K* const, const K* const,
-                         const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
-        /* Function: herk
-         *  Computes a Hermitian rank-k update. */
-        static void herk(const char* const, const char* const, const int* const, const int* const, const ul_type* const, const K* const,
-                         const int* const, const ul_type* const, K* const, const int* const);
-        /* Function: symm
-         *  Computes a symmetric scalar-matrix-matrix product. */
-        static void symm(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
-                         const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
-        /* Function: trmm
-         *  Computes a triangular matrix-matrix product. */
-        static void trmm(const char*, const char*, const char*, const char*, const int*, const int*,
-                         const K*, const K*, const int*, K*, const int*);
-        /* Function: trsm
-         *  Solves a system of linear equations with a triangular matrix. */
-        static void trsm(const char*, const char*, const char*, const char*, const int*, const int*,
-                         const K*, const K*, const int*, K*, const int*);
+    /* Function: gemm
+     *  Computes a scalar-matrix-matrix product. */
+    static void gemm(const char* const, const char* const, const int* const, const int* const, const int* const, const K* const, const K* const,
+                     const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+    /* Function: herk
+     *  Computes a Hermitian rank-k update. */
+    static void herk(const char* const, const char* const, const int* const, const int* const, const ul_type* const, const K* const,
+                     const int* const, const ul_type* const, K* const, const int* const);
+    /* Function: symm
+     *  Computes a symmetric scalar-matrix-matrix product. */
+    static void symm(const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
+                     const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+    /* Function: trmm
+     *  Computes a triangular matrix-matrix product. */
+    static void trmm(const char*, const char*, const char*, const char*, const int*, const int*,
+                     const K*, const K*, const int*, K*, const int*);
+    /* Function: trsm
+     *  Solves a system of linear equations with a triangular matrix. */
+    static void trsm(const char*, const char*, const char*, const char*, const int*, const int*,
+                     const K*, const K*, const int*, K*, const int*);
 
-        /* Function: csrmv(square)
-         *  Computes a sparse square matrix-vector product. */
-        template<char>
-        static void csrmv(bool, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
-        /* Function: csrmv
-         *  Computes a scalar-sparse matrix-vector product. */
-        template<char>
-        static void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
-                          const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
-        /* Function: csrmm(square)
-         *  Computes a sparse square matrix-matrix product. */
-        template<char>
-        static void csrmm(bool, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
-        /* Function: csrmm
-         *  Computes a scalar-sparse matrix-matrix product. */
-        template<char>
-        static void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
-                          const K* const, const int* const, const int* const, const K* const, const int* const,
-                          const K* const, K* const, const int* const);
+    /* Function: csrmv(square)
+     *  Computes a sparse square matrix-vector product. */
+    template<char>
+    static void csrmv(bool, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
+    /* Function: csrmv
+     *  Computes a scalar-sparse matrix-vector product. */
+    template<char>
+    static void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
+                      const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
+    /* Function: csrmm(square)
+     *  Computes a sparse square matrix-matrix product. */
+    template<char>
+    static void csrmm(bool, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
+    /* Function: csrmm
+     *  Computes a scalar-sparse matrix-matrix product. */
+    template<char>
+    static void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
+                      const K* const, const int* const, const int* const, const K* const, const int* const,
+                      const K* const, K* const, const int* const);
 
-        /* Function: csrcsc
-         *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
-        template<char>
-        static void csrcsc(const int* const, K* const, int* const, int* const, K* const, int* const, int* const);
-        /* Function: gthr
-         *  Gathers the elements of a full-storage sparse vector into compressed form. */
-        static void gthr(const int&, const K* const, K* const, const int* const);
-        /* Function: sctr
-         *  Scatters the elements of a compressed sparse vector into full-storage form. */
-        static void sctr(const int&, const K* const, const int* const, K* const);
-        /* Function: diag(in-place)
-         *  Computes a vector-vector element-wise multiplication. */
-        static void diag(const int&, const ul_type* const, K* const);
-        /* Function: diag
-         *  Computes a vector-vector element-wise multiplication. */
-        static void diag(const int&, const ul_type* const, const K* const, K* const);
-        /* Function: diag(in-place)
-         *  Computes a vector-matrix element-wise multiplication. */
-        static void diag(const int&, const int&, const ul_type* const, K* const);
-        /* Function: diag
-         *  Computes a vector-matrix element-wise multiplication. */
-        static void diag(const int&, const int&, const ul_type* const, const K* const, K* const);
-        /* Function: axpby
-         *  Computes two scalar-vector products. */
-        static void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
-        template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static T conj(T& x) { return x; }
-        template<class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static T conj(T& x) { return std::conj(x); }
-        /* Function: conj
-         *  Conjugates all elements of a matrix. */
-        template<class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static void conj(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
-            if(b && ldb)
-                for(int i = 0; i < n; ++i)
-                    std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const T& z) { return std::conj(z); });
-            else
-                for(int i = 0; i < n; ++i)
-                    std::for_each(a + i * lda, a + i * lda + m, [](T& z) { z = std::conj(z); });
-        }
-        template<class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value>::type* = nullptr>
-        static void conj(const int& m, const int& n, T* const a, const int& lda, T* const b = nullptr, const int& ldb = 0) {
-            if(b && ldb)
-                lacpy("A", &m, &n, a, &lda, b, &ldb);
-        }
-        template<char O, class T, typename std::enable_if<!std::is_same<T, typename Wrapper<T>::ul_type>::value && (O == 'C' || O == 'R')>::type* = nullptr>
-        static void swap(T& in, T& out) {
-            in = std::conj(in);
-            out = std::conj(out);
-            std::swap(in, out);
-        }
-        template<char O, class T, typename std::enable_if<std::is_same<T, typename Wrapper<T>::ul_type>::value || O == 'T' || O == 'N'>::type* = nullptr>
-        static void swap(T& in, T& out) { std::swap(in, out); }
-        /* Function: imatcopy
-         *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix in-place. */
-        template<char O>
-        static void imatcopy(const int, const int, K* const, const int, const int);
-        /* Function: omatcopy
-         *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix out-place. */
-        template<char O>
-        static void omatcopy(const int, const int, const K* const, const int, K* const, const int);
+    /* Function: csrcsc
+     *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
+    template<char>
+    static void csrcsc(const int* const, K* const, int* const, int* const, K* const, int* const, int* const);
+    /* Function: gthr
+     *  Gathers the elements of a full-storage sparse vector into compressed form. */
+    static void gthr(const int&, const K* const, K* const, const int* const);
+    /* Function: sctr
+     *  Scatters the elements of a compressed sparse vector into full-storage form. */
+    static void sctr(const int&, const K* const, const int* const, K* const);
+    /* Function: diag(in-place)
+     *  Computes a vector-vector element-wise multiplication. */
+    static void diag(const int&, const ul_type* const, K* const);
+    /* Function: diag
+     *  Computes a vector-vector element-wise multiplication. */
+    static void diag(const int&, const ul_type* const, const K* const, K* const);
+    /* Function: diag(in-place)
+     *  Computes a vector-matrix element-wise multiplication. */
+    static void diag(const int&, const int&, const ul_type* const, K* const);
+    /* Function: diag
+     *  Computes a vector-matrix element-wise multiplication. */
+    static void diag(const int&, const int&, const ul_type* const, const K* const, K* const);
+    /* Function: axpby
+     *  Computes two scalar-vector products. */
+    static void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
+    /* Function: conj
+     *  Conjugates a real or complex number. */
+    template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
+    static T conj(T& x) { return x; }
+    template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
+    static T conj(T& x) { return std::conj(x); }
+    /* Function: imatcopy
+     *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix in-place. */
+    template<char O>
+    static void imatcopy(const int, const int, K* const, const int, const int);
+    /* Function: omatcopy
+     *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix out-place. */
+    template<char O>
+    static void omatcopy(const int, const int, const K* const, const int, K* const, const int);
 };
 
 template<>
-inline MPI_Datatype Wrapper<float>::mpi_type() { return MPI_FLOAT; }
+constexpr MPI_Datatype Wrapper<float>::mpi_type() { return MPI_FLOAT; }
 template<>
-inline MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
+constexpr MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
 template<>
-inline MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
+constexpr MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
 template<>
-inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
+constexpr MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
 
 template<class K>
-const char Wrapper<K>::transc = std::is_same<K, ul_type>::value ? 'T' : 'C';
+constexpr char Wrapper<K>::transc;
 
 template<class K>
-const K Wrapper<K>::d__0 = K(0.0);
+constexpr K Wrapper<K>::d__0;
 template<class K>
-const K Wrapper<K>::d__1 = K(1.0);
+constexpr K Wrapper<K>::d__1;
 template<class K>
-const K Wrapper<K>::d__2 = K(-1.0);
+constexpr K Wrapper<K>::d__2;
 
 #define HPDDM_GENERATE_BLAS(C, T)                                                                            \
 template<>                                                                                                   \
-inline void Wrapper<T>::axpy(const int* const n, const T* const a,                                           \
-                             const T* const x, const int* const incx,                                        \
+inline void Wrapper<T>::axpy(const int* const n, const T* const a, const T* const x, const int* const incx,  \
                              T* const y, const int* const incy) {                                            \
     HPDDM_F77(C ## axpy)(n, a, x, incx, y, incy);                                                            \
 }                                                                                                            \
@@ -308,6 +285,8 @@ inline T Wrapper<T>::dot(const int* const n, const T* const x, const int* const 
 }
 #endif
 #define HPDDM_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                              \
+HPDDM_GENERATE_BLAS(B, U)                                                                                    \
+HPDDM_GENERATE_BLAS(C, T)                                                                                    \
 template<>                                                                                                   \
 inline U Wrapper<U>::nrm2(const int* const n, const U* const x, const int* const incx) {                     \
     return HPDDM_F77(B ## nrm2)(n, x, incx);                                                                 \
@@ -337,10 +316,6 @@ inline void Wrapper<T>::herk(const char* const uplo, const char* const trans,   
     HPDDM_F77(C ## herk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);                                    \
 }                                                                                                            \
 HPDDM_GENERATE_DOTC(C, T)
-HPDDM_GENERATE_BLAS(s, float)
-HPDDM_GENERATE_BLAS(d, double)
-HPDDM_GENERATE_BLAS(c, std::complex<float>)
-HPDDM_GENERATE_BLAS(z, std::complex<double>)
 HPDDM_GENERATE_BLAS_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_BLAS_COMPLEX(z, std::complex<double>, d, double)
 
@@ -680,18 +655,20 @@ template<class K>
 template<char O>
 inline void Wrapper<K>::omatcopy(const int n, const int m, const K* const a, const int lda, K* const b, const int ldb) {
     static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
-    if(O != 'N')
+    if(O == 'T' || O == 'C')
         for(int i = 0; i < n; ++i)
             for(int j = 0; j < m; ++j) {
                 if(O == 'T')
                     b[j * ldb + i] = a[i * lda + j];
-                else if(O == 'C')
-                    b[j * ldb + i] = conj(a[i * lda + j]);
                 else
-                    b[i * ldb + j] = conj(a[i * lda + j]);
+                    b[j * ldb + i] = conj(a[i * lda + j]);
             }
+    if(O == 'R' && is_complex)
+        for(int i = 0; i < n; ++i)
+            std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const K& z) { return conj(z); });
     else
-        lacpy("A", &m, &n, a, &lda, b, &ldb);
+        for(int i = 0; i < n; ++i)
+            std::copy_n(a + i * lda, m, b + i * ldb);
 }
 template<class K>
 template<char O>
@@ -714,7 +691,7 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
                             b[i] = 1;
                             i = next;
                         } while(i != it);
-                        if(O == 'C' && !std::is_same<K, ul_type>::value)
+                        if(O == 'C' && is_complex)
                             ab[i] = conj(ab[i]);
 
                         for(i = 1; i < size && b[i]; ++i);
@@ -722,8 +699,15 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
                 }
                 else {
                     for(int i = 0; i < n - 1; ++i)
-                        for(int j = i + 1; j < n; ++j)
-                            swap<O>(ab[i * n + j], ab[j * n + i]);
+                        for(int j = i + 1; j < n; ++j) {
+                            if(O == 'C' && is_complex) {
+                                ab[i * n + j] = conj(ab[i * n + j]);
+                                ab[j * n + i] = conj(ab[j * n + i]);
+                                std::swap(ab[i * n + j], ab[j * n + i]);
+                            }
+                            else
+                                std::swap(ab[i * n + j], ab[j * n + i]);
+                        }
                 }
             }
             else {
@@ -734,11 +718,21 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
             }
         }
     }
-    else if(O == 'R') {
-        K* tmp = new K[n * m];
-        lacpy("A", &m, &n, ab, &lda, tmp, &m);
-        conj(m, n, tmp, m, ab, ldb);
-        delete [] tmp;
+    else if(O == 'R' && is_complex) {
+        if(lda == ldb) {
+            for(int i = 0; i < n; ++i)
+                std::for_each(ab + i * lda, ab + i * lda + m, [](K& z) { z = conj(z); });
+        }
+        else if (lda < ldb) {
+            for(int i = n; i-- > 0; )
+                for(int j = m; j-- > 0; )
+                    ab[i * ldb + j] = conj(ab[i * lda + j]);
+        }
+        else {
+            for(int i = 0; i < n; ++i)
+                for(int j = 0; j < m; ++j)
+                    ab[i * ldb + j] = conj(ab[i * lda + j]);
+        }
     }
     else {
         if(lda < ldb)

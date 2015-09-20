@@ -60,7 +60,7 @@ class ScaLapack {
         static void workspace(const int* m, const int* n, const int* ia, const int* ja, const int* desca, int* lwork, int* lrwork, int* info) {
             *lwork = -1;
             K wkopt;
-            if(std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+            if(!Wrapper<K>::is_complex) {
                 if(pivoting)
                     geqpf(m, n, nullptr, ia, ja, desca, nullptr, nullptr, &wkopt, lwork, nullptr, nullptr, info);
                 else

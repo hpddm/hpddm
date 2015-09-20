@@ -198,10 +198,6 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 std::copy_n(super::_uc + super::getLocal(), fuse, out + Subdomain<K>::_dof);
         }
 #endif // HPDDM_ICOLLECTIVE
-        template<bool excluded>
-        void deflation(K* const out, const unsigned short& fuse = 0) const {
-            deflation<excluded>(nullptr, out, fuse);
-        }
         /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator by calling <Preconditioner::buildTwo>.
@@ -216,6 +212,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
             return super::template buildTwo<excluded, MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm);
+        }
+        template<bool excluded = false>
+        void start(const K* const b, K* const x, const unsigned short& mu = 1) const {
+            if(Option::get()->val("schwarz_coarse_correction", -1) == 2)
+                deflation<excluded>(b, x);
         }
         /* Function: apply
          *
@@ -283,6 +284,16 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     }
 #endif // HPDDM_ICOLLECTIVE
                 }
+                else if(correction == 2) {
+                    if(_type == Prcndtnr::OS)
+                        Wrapper<K>::diag(Subdomain<K>::_dof, _d, work);
+                    super::_s.solve(work, out);
+                    Wrapper<K>::diag(Subdomain<K>::_dof, _d, out);
+                    Subdomain<K>::exchange(out);
+                    GMV(out, work, mu);
+                    deflation<excluded>(nullptr, work, fuse);
+                    Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__2), work, &i__1, out, &i__1);
+                }
                 else {
                     deflation<excluded>(in, out, fuse);                                                        // out = Z E \ Z^T in
                     if(!excluded) {
@@ -294,13 +305,6 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                         super::_s.solve(work);
                         Wrapper<K>::diag(Subdomain<K>::_dof, _d, work);
                         Subdomain<K>::exchange(work);                                                          //  in = D A \ (I - A Z E \ Z^T) in
-                        if(correction == 2) {
-                            K* tmp = new K[Subdomain<K>::_dof];
-                            GMV(work, tmp, mu);
-                            deflation<excluded>(nullptr, tmp, fuse);
-                            Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__2), tmp, &i__1, work, &i__1);
-                            delete [] tmp;
-                        }
                         Wrapper<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
                     }
                 }
@@ -416,9 +420,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         void computeError(const K* const x, const K* const f, typename Wrapper<K>::ul_type* const storage, const unsigned short& mu = 1) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
-            Subdomain<K>::setBuffer(mu);
+            bool alloc = Subdomain<K>::setBuffer(mu);
             GMV(x, tmp, mu);
-            delete [] *Subdomain<K>::_buff;
+            Subdomain<K>::clearBuffer(alloc);
             Wrapper<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
             std::fill_n(storage, 2 * mu, 0.0);
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {

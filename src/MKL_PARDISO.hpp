@@ -34,9 +34,9 @@
 namespace HPDDM {
 template<class K>
 struct prds {
-    static constexpr int SPD = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 2 : 4;
-    static constexpr int SYM = std::is_same<K, typename Wrapper<K>::ul_type>::value ? -2 : -4;
-    static constexpr int UNS = std::is_same<K, typename Wrapper<K>::ul_type>::value ? 1 : 3;
+    static constexpr int SPD = !Wrapper<K>::is_complex ? 2 : 4;
+    static constexpr int SYM = !Wrapper<K>::is_complex ? -2 : 6;
+    static constexpr int UNS = !Wrapper<K>::is_complex ? 1 : 3;
 };
 
 #ifdef DMKL_PARDISO
@@ -241,7 +241,7 @@ class MklPardisoSub {
                 phase = 22;
             }
             if(A->_sym) {
-                _mtype = detection ? prds<K>::SYM : prds<K>::SPD;
+                _mtype = detection || Wrapper<K>::is_complex ? prds<K>::SYM : prds<K>::SPD;
                 Wrapper<K>::template csrcsc<'C'>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
             }
             else {

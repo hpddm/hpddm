@@ -38,7 +38,7 @@
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_GMV           - For overlapping Schwarz methods, this can be used to reduce the volume of communication for computing global matrix-vector products. */
-#define HPDDM_VERSION         000100
+#define HPDDM_VERSION         000101
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -135,11 +135,13 @@ void    HPDDM_F77(C ## trmm)(const char*, const char*, const char*, const char*,
 void    HPDDM_F77(C ## trsm)(const char*, const char*, const char*, const char*, const int*, const int*,     \
                              const T*, const T*, const int*, T*, const int*);
 #if !defined(__APPLE__) && !HPDDM_MKL
-# define HPDDM_GENERATE_EXTERN_DOTC(C, T, U) U  _Complex HPDDM_F77(C ## dotc)(const int*, const T*, const int*, const T*, const int*);
+# define HPDDM_GENERATE_EXTERN_DOTC(C, T, U) U _Complex HPDDM_F77(C ## dotc)(const int*, const T*, const int*, const T*, const int*);
 #else
 # define HPDDM_GENERATE_EXTERN_DOTC(C, T, U) void C ## dotc(T*, const int*, const T*, const int*, const T*, const int*);
 #endif
 #define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                       \
+HPDDM_GENERATE_EXTERN_BLAS(B, U)                                                                             \
+HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                             \
 U    HPDDM_F77(B ## nrm2)(const int*, const U*, const int*);                                                 \
 U    HPDDM_F77(B ## C ## nrm2)(const int*, const T*, const int*);                                            \
 U    HPDDM_F77(B ## dot)(const int*, const U*, const int*, const U*, const int*);                            \
@@ -156,10 +158,6 @@ void cblas_ ## C ## sctr(const int, const T*, const int*, T*);
 
 #if !defined(INTEL_MKL_VERSION)
 extern "C" {
-HPDDM_GENERATE_EXTERN_BLAS(s, float)
-HPDDM_GENERATE_EXTERN_BLAS(d, double)
-HPDDM_GENERATE_EXTERN_BLAS(c, std::complex<float>)
-HPDDM_GENERATE_EXTERN_BLAS(z, std::complex<double>)
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, std::complex<double>, d, double)
 # if defined(__APPLE__) || HPDDM_MKL
@@ -252,10 +250,8 @@ using alias = T;
 #endif
 #include "option.hpp"
 #include "enum.hpp"
-#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
-# ifdef __INTEL_COMPILER
-
-# elif defined(__clang__)
+#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201 && !defined(__INTEL_COMPILER)
+# if defined(__clang__)
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wc++11-compat-deprecated-writable-strings"
 # elif defined(__GNUC__)
@@ -264,10 +260,8 @@ using alias = T;
 # endif
 #endif
 #include "wrapper.hpp"
-#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
-# ifdef __INTEL_COMPILER
-
-# elif defined(__clang__)
+#if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201 && !defined(__INTEL_COMPILER)
+# if defined(__clang__)
 #  pragma clang diagnostic pop
 # elif defined(__GNUC__)
 #  pragma GCC diagnostic pop

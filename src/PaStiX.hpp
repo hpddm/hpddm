@@ -167,7 +167,7 @@ class Pastix : public DMatrix {
             else {
                 _iparm[IPARM_SYM]             = API_SYM_NO;
                 _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
-                if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
+                if(Wrapper<K>::is_complex)
                     _iparm[IPARM_TRANSPOSE_SOLVE] = API_YES;
             }
             _iparm[IPARM_RHSD_CHECK]          = API_NO;
@@ -288,7 +288,7 @@ class PastixSub {
                     _values = new K[A->_nnz];
                     _colptr = new int[_ncol + 1];
                     _rows = new int[A->_nnz];
-                    _iparm[IPARM_SYM]             = std::is_same<K, typename Wrapper<K>::ul_type>::value ? API_SYM_YES : API_SYM_HER;
+                    _iparm[IPARM_SYM]             = API_SYM_YES;
                 }
                 else  {
                     _iparm[IPARM_SYM]             = API_SYM_NO;
@@ -296,7 +296,7 @@ class PastixSub {
                 }
             }
             if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = detection ? API_FACT_LDLT : API_FACT_LLT;
+                _iparm[IPARM_FACTORIZATION]       = detection || Wrapper<K>::is_complex ? API_FACT_LDLT : API_FACT_LLT;
                 Wrapper<K>::template csrcsc<'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
             }
             else {

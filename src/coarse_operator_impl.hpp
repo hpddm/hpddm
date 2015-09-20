@@ -519,7 +519,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 before += (U == 1 ? _local : infoNeighbor[j]);
             K* const pt = (rankSplit != 0 ? sendMaster + before : C + before);
             Wrapper<K>::gemm(&(Wrapper<K>::transc), &transa, &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), pt, &coefficients);
-            Wrapper<K>::conj(_local, _local, pt, coefficients);
+            Wrapper<K>::template imatcopy<'R'>(_local, _local, pt, coefficients, coefficients);
             if(rankSplit == 0)
                 for(unsigned short j = 0; j < _local; ++j) {
 #ifndef HPDDM_CSR_CO

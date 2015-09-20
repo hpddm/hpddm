@@ -104,7 +104,7 @@ class Eigensolver {
             K* a, *work;
             typename Wrapper<K>::ul_type* rwork;
             typename Wrapper<K>::ul_type* s;
-            if(std::is_same<K, typename Wrapper<K>::ul_type>::value) {
+            if(!Wrapper<K>::is_complex) {
                 a = new K[_n * _nu + lwork + _nu];
                 work = a + _n * _nu;
                 s = reinterpret_cast<typename Wrapper<K>::ul_type*>(work) + lwork;
@@ -124,7 +124,7 @@ class Eigensolver {
             int info;
             gesdd("N", &_n, &_nu, a, &_n, s, nullptr, &_n, nullptr, &_nu, work, &lwork, rwork, iwork, &info);
             delete [] iwork;
-            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
+            if(Wrapper<K>::is_complex)
                 delete [] s;
             delete [] a;
         }

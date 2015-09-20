@@ -33,7 +33,7 @@ class IterativeMethod {
     private:
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
-        template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        template<class K, typename std::enable_if<!Wrapper<K>::is_complex>::type* = nullptr>
         static void allocate(K*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1) {
             if(extra == 0) {
                 dir = new K[2 + std::max(1, 4 * n)];
@@ -44,9 +44,8 @@ class IterativeMethod {
                 p = dir + 1 + 2 * it;
             }
         }
-        template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
+        template<class K, typename std::enable_if<Wrapper<K>::is_complex>::type* = nullptr>
         static void allocate(typename Wrapper<K>::ul_type*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1) {
-            static_assert(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value, "Wrong types");
             if(extra == 0) {
                 dir = new typename Wrapper<K>::ul_type[2];
                 p = new K[std::max(1, 4 * n)];
@@ -58,15 +57,10 @@ class IterativeMethod {
         }
         /* Function: depenalize
          *  Divides a scalar by <HPDDM_PEN>. */
-        template<class K, typename std::enable_if<std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
-        static void depenalize(const K& b, K& x) {
-            x = b / HPDDM_PEN;
-        }
-        template<class K, typename std::enable_if<!std::is_same<K, typename Wrapper<K>::ul_type>::value>::type* = nullptr>
-        static void depenalize(const K& b, K& x) {
-            static_assert(std::is_same<K, std::complex<typename Wrapper<K>::ul_type>>::value, "Wrong types");
-            x = b / std::complex<typename Wrapper<K>::ul_type>(HPDDM_PEN, HPDDM_PEN);
-        }
+        template<class K, typename std::enable_if<!Wrapper<K>::is_complex>::type* = nullptr>
+        static void depenalize(const K& b, K& x) { x = b / HPDDM_PEN; }
+        template<class K, typename std::enable_if<Wrapper<K>::is_complex>::type* = nullptr>
+        static void depenalize(const K& b, K& x) { x = b / std::complex<typename Wrapper<K>::ul_type>(HPDDM_PEN, HPDDM_PEN); }
         /* Function: update
          *
          *  Updates a solution vector after convergence of <Iterative method::GMRES>.
@@ -202,13 +196,13 @@ class IterativeMethod {
 
             K** const H = new K*[m * (2 + (variant == 'F'))];
             K** const v = H + m;
-            K* const s = new K[mu * ((m + 1) * (m + 1) + (2 + m * (1 + (variant == 'F'))) * n) + mu * (std::is_same<K, typename Wrapper<K>::ul_type>::value ? (m + 2) : ((m + 1) / 2 + 1))];
+            K* const s = new K[mu * ((m + 1) * (m + 1) + (2 + m * (1 + (variant == 'F'))) * n) + mu * (!Wrapper<K>::is_complex ? (m + 2) : ((m + 1) / 2 + 1))];
             K* r = s + mu * (m + 1);
             K* Ax = r + mu * n;
             *H = Ax + mu * n;
             for(unsigned short i = 1; i < m; ++i)
                 H[i] = *H + i * mu * (m + 1);
-            *v = *H + mu * m * (m + 1);
+            *v = *H + m * mu * (m + 1);
             for(unsigned short i = 1; i < m * (1 + (variant == 'F')); ++i)
                 v[i] = *v + i * mu * n;
             typename Wrapper<K>::ul_type* sn = reinterpret_cast<typename Wrapper<K>::ul_type*>(*v + mu * m * (1 + (variant == 'F')) * n);
@@ -216,6 +210,7 @@ class IterativeMethod {
             typename Wrapper<K>::ul_type* beta = norm + mu;
             bool alloc = A.setBuffer(mu, v[m * (1 + (variant == 'F')) - 1], mu * n);
 
+            A.template start<excluded>(b, x, mu);
             A.template apply<excluded>(b, r, mu, Ax);
             for(unsigned short nu = 0; nu < mu; ++nu)
                 norm[nu] = std::real(Wrapper<K>::dot(&n, r + nu * n, &i__1, r + nu * n, &i__1));
@@ -427,6 +422,7 @@ class IterativeMethod {
             K* p = r + n;
             const typename Wrapper<K>::ul_type* const d = A.getScaling();
 
+            A.template start<excluded>(b, x);
             for(unsigned int i = 0; i < n; ++i)
                 if(std::abs(b[i]) > HPDDM_PEN * HPDDM_EPS)
                     depenalize(b[i], x[i]);
@@ -512,7 +508,7 @@ class IterativeMethod {
                     std::cout << "CG does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
             }
             delete [] dir;
-            if(!std::is_same<K, typename Wrapper<K>::ul_type>::value)
+            if(Wrapper<K>::is_complex)
                 delete [] trash;
             A.clearBuffer(alloc);
             return std::min(i, it);
@@ -542,12 +538,12 @@ class IterativeMethod {
             // storage[0] = r
             // storage[1] = lambda
             A.allocateArray(storage);
-            A.setBuffer(1);
+            bool alloc = A.setBuffer(1);
             auto m = A.getScaling();
             if(std::is_same<ptr_type, K*>::value)
-                A.template start<excluded>(x + offset, f, nullptr, storage[0]);
+                A.template start<excluded>(f, x + offset, nullptr, storage[0]);
             else
-                A.template start<excluded>(x, f, storage[1], storage[0]);
+                A.template start<excluded>(f, x, storage[1], storage[0]);
 
             if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
                 if(opt.set("verbosity"))
@@ -648,7 +644,7 @@ class IterativeMethod {
             for(auto pCurr : p)
                 clean(pCurr);
             clean(storage[0]);
-            A.clearBuffer();
+            A.clearBuffer(alloc);
             return std::min(i, it);
         }
 };
