@@ -46,7 +46,7 @@ template<class K>
 struct Wrapper {
     /* Function: mpi_type
      *  Returns the MPI datatype of the template parameter of <Wrapper>. */
-    static constexpr MPI_Datatype mpi_type();
+    static MPI_Datatype mpi_type();
     /* Typedef: ul_type
      *  Scalar underlying type, e.g. double (resp. float) for std::complex<double> (resp. std::complex<float>). */
     typedef underlying_type<K> ul_type;
@@ -175,13 +175,13 @@ struct Wrapper {
 };
 
 template<>
-constexpr MPI_Datatype Wrapper<float>::mpi_type() { return MPI_FLOAT; }
+inline MPI_Datatype Wrapper<float>::mpi_type() { return MPI_FLOAT; }
 template<>
-constexpr MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
+inline MPI_Datatype Wrapper<double>::mpi_type() { return MPI_DOUBLE; }
 template<>
-constexpr MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
+inline MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
 template<>
-constexpr MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
+inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
 
 template<class K>
 constexpr char Wrapper<K>::transc;
