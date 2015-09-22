@@ -37,6 +37,8 @@ void HPDDM_F77(C ## geqrt)(const int*, const int*, const int*, T*, const int*, T
 void HPDDM_F77(C ## gemqrt)(const char*, const char*, const int*, const int*, const int*, const int*,        \
                             const T*, const int*, const T*, const int*, T*, const int*, T*, int*);           \
 void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
+U    HPDDM_F77(C ## lange)(const char*, const int*, const int*, const T*, const int*, U*);                   \
+U    HPDDM_F77(C ## lan ## SYM)(const char*, const char*, const int*, const T*, const int*, U*);             \
 void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
                            const int*, T*, const int*, int*);                                                \
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
@@ -46,6 +48,8 @@ HPDDM_GENERATE_EXTERN_LAPACK(B, U, U, sy, or)                                   
 HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, he, un)                                                                \
 void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
                            const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
+void HPDDM_F77(B ## pocon)(const char*, const int*, const U*, const int*, U*, U*, U*, int*, int*);           \
+void HPDDM_F77(C ## pocon)(const char*, const int*, const T*, const int*, U*, U*, T*, U*, int*);             \
 void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, const int*, U*, U*, const int*, int*);    \
 void HPDDM_F77(C ## geqp3)(const int*, const int*, T*, const int*, const int*, T*, T*, const int*, U*, int*);\
 void HPDDM_F77(B ## ormqr)(const char*, const char*, const int*, const int*, const int*, const U*,           \
@@ -95,12 +99,21 @@ class Lapack : public Eigensolver<K> {
         /* Function: lapmt
          *  Performs a forward or backward permutation of the columns of a matrix. */
         static void lapmt(const int*, const int*, const int*, K*, const int*, int*);
+        /* Function: lange
+         *  Computes the norm of a general rectangular matrix. */
+        static typename Wrapper<K>::ul_type lange(const char*, const int*, const int*, const K*, const int*, typename Wrapper<K>::ul_type*);
+        /* Function: lan
+         *  Computes the norm of a symmetric or Hermitian matrix. */
+        static typename Wrapper<K>::ul_type lan(const char*, const char*, const int*, const K*, const int*, typename Wrapper<K>::ul_type*);
         /* Function: trtrs
          *  Solves a system of linear equations with a triangular matrix. */
         static void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
         /* Function: potrf
          *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
         static void potrf(const char*, const int*, K*, const int*, int*);
+        /* Function: pocon
+         *  Estimates the reciprocal of the condition number of a symmetric or Hermitian positive definite matrix. */
+        static void pocon(const char*, const int*, const K*, const int*, typename Wrapper<K>::ul_type*, typename Wrapper<K>::ul_type*, K*, typename std::conditional<Wrapper<K>::is_complex, typename Wrapper<K>::ul_type*, int*>::type, int*);
         /* Function: potrs
          *  Solves a system of linear equations with a Cholesky-factored matrix. */
         static void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
@@ -335,9 +348,18 @@ inline void QR<T>::gemqrt(const char* side, const char* trans, const int* m, con
     HPDDM_F77(C ## gemqrt)(side, trans, m, n, k, nb, v, ldv, t, ldt, c, ldc, work, info);                    \
 }                                                                                                            \
 template<>                                                                                                   \
-inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx,            \
-                             int* k) {                                                                       \
+inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx, int* k) {  \
     HPDDM_F77(C ## lapmt)(forwrd, m, n, x, ldx, k);                                                          \
+}                                                                                                            \
+template<>                                                                                                   \
+inline U Lapack<T>::lange(const char* norm, const int* m, const int* n, const T* a, const int* lda,          \
+                          U* work) {                                                                         \
+    return HPDDM_F77(C ## lange)(norm, m, n, a, lda, work);                                                  \
+}                                                                                                            \
+template<>                                                                                                   \
+inline U Lapack<T>::lan(const char* norm, const char* uplo, const int* m, const T* a, const int* lda,        \
+                        U* work) {                                                                           \
+    return HPDDM_F77(C ## lan ## SYM)(norm, uplo, m, a, lda, work);                                          \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n,            \
@@ -356,6 +378,16 @@ inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, co
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
 HPDDM_GENERATE_LAPACK(B, U, B, U, sy, or)                                                                    \
 HPDDM_GENERATE_LAPACK(C, T, B, U, he, un)                                                                    \
+template<>                                                                                                   \
+inline void Lapack<U>::pocon(const char* uplo, const int* n, const U* a, const int* lda, U* anorm, U* rcond, \
+                             U* work, int* iwork, int* info) {                                               \
+    HPDDM_F77(B ## pocon)(uplo, n, a, lda, anorm, rcond, work, iwork, info);                                 \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::pocon(const char* uplo, const int* n, const T* a, const int* lda, U* anorm, U* rcond, \
+                             T* work, U* rwork, int* info) {                                                 \
+    HPDDM_F77(C ## pocon)(uplo, n, a, lda, anorm, rcond, work, rwork, info);                                 \
+}                                                                                                            \
 template<>                                                                                                   \
 inline void QR<U>::geqp3(const int* m, const int* n, U* a, const int* lda, int* jpvt, U* tau, U* work,       \
                          const int* lwork, U* rwork, int* info) {                                            \
