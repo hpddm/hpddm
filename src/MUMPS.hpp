@@ -127,10 +127,10 @@ class Mumps : public DMatrix {
             _id->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
             _id->nrhs = 1;
             _id->icntl[4] = 0;
-            for(unsigned short i = 6; i < 40; ++i) {
-                double val = opt.val("master_mumps_icntl_" + to_string(i + 1));
-                if(val != std::numeric_limits<double>::lowest())
-                    _id->icntl[i] = static_cast<int>(val);
+            for(unsigned short i = 5; i < 40; ++i) {
+                int val = opt.val<int>("master_mumps_icntl_" + to_string(i + 1));
+                if(val != std::numeric_limits<int>::lowest())
+                    _id->icntl[i] = val;
             }
             _id->job = 4;
             if(opt.val("verbosity") < 2)
@@ -222,10 +222,10 @@ class MumpsSub {
                 std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
                 Option& opt = *Option::get();
-                for(unsigned short i = 6; i < 40; ++i) {
-                    double val = opt.val("mumps_icntl_" + to_string(i + 1));
-                    if(val != std::numeric_limits<double>::lowest())
-                        _id->icntl[i] = static_cast<int>(val);
+                for(unsigned short i = 5; i < 40; ++i) {
+                    int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
+                    if(val != std::numeric_limits<int>::lowest())
+                        _id->icntl[i] = val;
                 }
                 _id->lrhs = A->_n;
                 _I = new int[A->_nnz];

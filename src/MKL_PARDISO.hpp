@@ -124,12 +124,9 @@ class MklPardiso : public DMatrix {
 #else
             _iparm[1] = 2;
 #endif
-            _iparm[2] = 1;
             _iparm[5] = 1;
             _iparm[9] = 13;
             _iparm[10] = 1;
-            _iparm[17] = -1;
-            _iparm[18] = -1;
             _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
             _iparm[39] = 2;
@@ -206,16 +203,13 @@ class MklPardisoSub {
                 _n = A->_n;
                 std::fill_n(_iparm, 64, 0);
                 _iparm[0] = 1;
-#ifdef _OPENMP
-                _iparm[1] = omp_get_num_threads() > 1 ? 3 : 2;
-#else
-                _iparm[1] = 2;
-#endif
-                _iparm[2] = 1;
-                _iparm[9] = 13;
-                _iparm[10] = 1;
-                _iparm[17] = -1;
-                _iparm[18] = -1;
+                Option& opt = *Option::get();
+                for(unsigned short i : { 1, 7, 9, 10, 12, 20, 23 }) {
+                    int val = opt.val<int>("mkl_pardiso_iparm_" + to_string(i + 1));
+                    if(val != std::numeric_limits<int>::lowest())
+                        _iparm[i] = val;
+
+                }
                 _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
                 _iparm[34] = 1;
                 phase = 12;

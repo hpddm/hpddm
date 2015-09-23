@@ -195,7 +195,7 @@ class Subdomain {
         bool exclusion(const MPI_Comm& comm) const {
             int result;
             MPI_Comm_compare(_communicator, comm, &result);
-            return result != MPI_CONGRUENT;
+            return result != MPI_CONGRUENT && result != MPI_IDENT;
         }
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */

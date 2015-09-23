@@ -50,6 +50,10 @@ inline Option::Option(construct_key) {
              { "mumps_icntl_18",                0 },
              { "mumps_icntl_20",                0 },
              { "mumps_icntl_14",                80 },
+#elif defined(MKL_PARDISOSUB)
+             { "mkl_pardiso_iparm_2",           2 },
+             { "mkl_pardiso_iparm_10",          13 },
+             { "mkl_pardiso_iparm_21",          1 },
 #endif
 #ifdef DMUMPS
              { "master_mumps_icntl_28",         0 },
@@ -103,6 +107,10 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("geneo_nu=<20>", "Local number of GenEO vectors to compute.", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Local threshold for selecting GenEO vectors.", Arg::numeric),
         std::forward_as_tuple("geneo_eigensolver_tol=<1.0e-6>", "Requested tolerance of eigenpairs computed by ARPACK or LAPACK.", Arg::numeric),
+#ifdef MKL_PARDISOSUB
+        std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
+        std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[14])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers.", Arg::integer),
+#endif
 #if defined(DMUMPS) || defined(MUMPSSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
 #endif
@@ -110,7 +118,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("mumps_icntl_([6-9]|[1-3][0-9]|40)=<val>", "Integer control parameters of MUMPS for the subdomain solvers.", Arg::integer),
 #endif
 #ifdef DMUMPS
-        std::forward_as_tuple("master_mumps_icntl_([6-9]|[1-3][0-9]|40)=<val>", "Integer control parameters of MUMPS for the coarse operator solvers.", Arg::integer),
+        std::forward_as_tuple("master_mumps_icntl_([6-9]|[1-3][0-9]|40)=<val>", "Integer control parameters of MUMPS for the coarse operator solver.", Arg::integer),
 #elif defined(DHYPRE)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Hypre-specific options:"; return true; }),
         std::forward_as_tuple("master_hypre_solver=(fgmres|pcg|amg)", "Solver used by Hypre to solve coarse systems.", Arg::argument),
