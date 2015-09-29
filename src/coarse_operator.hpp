@@ -24,14 +24,14 @@
 #ifndef _COARSE_OPERATOR_
 #define _COARSE_OPERATOR_
 
-#if defined(DMKL_PARDISO) || defined(DPASTIX) || defined(DSUITESPARSE) || defined(DHYPRE)
-#define HPDDM_CSR_CO
+#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE)
+# define HPDDM_CSR_CO
 #endif
 #if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DHYPRE)
-#define HPDDM_LOC2GLOB
-#if defined(DMKL_PARDISO) || defined(DHYPRE)
-#define HPDDM_CONTIGUOUS
+# define HPDDM_LOC2GLOB
 #endif
+#if defined(DMKL_PARDISO) || defined(DHYPRE)
+# define HPDDM_CONTIGUOUS
 #endif
 
 namespace HPDDM {

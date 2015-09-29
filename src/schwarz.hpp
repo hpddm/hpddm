@@ -92,7 +92,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     opt["schwarz_method"] = 0;
                 }
             }
-            super::_s.numfact(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a, _type == Prcndtnr::OS ? true : false);
+            unsigned short reuse = opt.val<unsigned short>("reuse_preconditioner", 0);
+            if(reuse <= 1)
+                super::_s.numfact(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a, _type == Prcndtnr::OS ? true : false);
+            if(reuse >= 1)
+                opt["reuse_preconditioner"] += 1;
         }
         void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a);
@@ -100,6 +104,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 using type = alias<Solver<K>>;
                 super::_s.~type();
                 super::_s.numfact(a);
+                Option& opt = *Option::get();
+                if(opt.val<unsigned short>("reuse_preconditioner", 0) >= 1)
+                    opt["reuse_preconditioner"] = 1;
             }
         }
         /* Function: multiplicityScaling

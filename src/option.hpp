@@ -46,7 +46,8 @@ class Option {
         Option(construct_key);
         Option(const Option&) = delete;
         ~Option() {
-            if(_opt.find("verbosity") != _opt.cend()) {
+            std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
+            if(show != _opt.cend() && show->second > 0) {
                 std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> output = [](const std::unordered_map<std::string, double>& map, const std::string& header) {
                     std::vector<std::string> output;
                     output.reserve(map.size() + 3);
@@ -240,39 +241,43 @@ class Option {
                 }
             });
             if(it != option.end()) {
+                bool boolean = (std::get<0>(*it).size() > 6 && std::get<0>(*it).substr(std::get<0>(*it).size() - 6) == "=(0|1)");
                 std::string empty;
                 bool optional = std::get<0>(*it).find("(=") != std::string::npos;
                 if(!std::get<2>(*it)(str, empty, false) || optional) {
                     bool success = true;
                     if(sep) {
                         if(arg.empty()) {
-                            if(!optional)
+                            if(!optional && !boolean)
                                 std::cout << "'" << str << "'" << " requires an argument" << std::endl;
                             else
-                                map[str];
+                                map[str] = 1;
                             success = false;
                         }
                         else if(optional) {
                             if(Arg::numeric(str, arg, false))
                                 map[str] = sto<double>(arg);
                             else
-                                map[str];
+                                map[str] = 1;
                             success = false;
                         }
-                        else if(std::get<2>(*it)(str, arg, true)) {
+                        else if(std::get<2>(*it)(str, arg, !boolean)) {
                             val = arg;
                             std::string::size_type reg = std::get<0>(*it).find_first_of("=");
                             if(reg != std::string::npos && std::get<0>(*it).at(reg + 1) != '<')
                                 empty = std::get<0>(*it).substr(reg + 1);
                         }
-                        else
+                        else {
+                            if(boolean)
+                                map[str] = 1;
                             success = false;
+                        }
                     }
                     else if(optional) {
                         if(Arg::numeric(str, val, false))
                             map[str] = sto<double>(val);
                         else
-                            map[str];
+                            map[str] = 1;
                         success = false;
                     }
                     else if(std::get<2>(*it)(str, val, true)) {
@@ -298,14 +303,14 @@ class Option {
                     }
                     else if(success) {
                         auto target = std::get<2>(*it).template target<bool (*)(const std::string&, const std::string&, bool)>();
-                        if(!target || (*target != Arg::argument))
+                        if(!target || *target != Arg::argument)
                             map[str] = sto<double>(val);
                         else
                             map[str + "_" + val] = -static_cast<int>(str.size()) - 10000000;
                     }
                 }
                 else
-                    map[str];
+                    map[str] = 1;
             }
         }
 };

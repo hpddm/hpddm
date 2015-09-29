@@ -73,8 +73,8 @@ int main(int argc, char **argv) {
         std::forward_as_tuple("Nx=<100>", "Number of grid points in the x-direction.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("Ny=<100>", "Number of grid points in the y-direction.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("overlap=<1>", "Number of grid points in the overlap.", HPDDM::Option::Arg::integer),
-        std::forward_as_tuple("symmetric_csr", "Assemble symmetric matrices.", HPDDM::Option::Arg::anything),
-        std::forward_as_tuple("nonuniform", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::anything)
+        std::forward_as_tuple("symmetric_csr=(0|1)", "Assemble symmetric matrices.", HPDDM::Option::Arg::argument),
+        std::forward_as_tuple("nonuniform=(0|1)", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::argument)
     });
     const int Nx = opt.app()["Nx"];
     const int Ny = opt.app()["Ny"];

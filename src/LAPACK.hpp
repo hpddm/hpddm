@@ -42,7 +42,8 @@ U    HPDDM_F77(C ## lan ## SYM)(const char*, const char*, const int*, const T*, 
 void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
                            const int*, T*, const int*, int*);                                                \
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
-void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*);
+void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*); \
+void HPDDM_F77(C ## pstrf)(const char*, const int*, T*, const int*, int*, int*, const U*, U*, int*);
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
 HPDDM_GENERATE_EXTERN_LAPACK(B, U, U, sy, or)                                                                \
 HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, he, un)                                                                \
@@ -117,6 +118,9 @@ class Lapack : public Eigensolver<K> {
         /* Function: potrs
          *  Solves a system of linear equations with a Cholesky-factored matrix. */
         static void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
+        /* Function: pstrf
+         *  Computes the Cholesky factorization of a symmetric or Hermitian positive semidefinite matrix with pivoting. */
+        static void pstrf(const char*, const int*, K*, const int*, int*, int*, const typename Wrapper<K>::ul_type*, typename Wrapper<K>::ul_type*, int*);
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
         int workspace() const {
@@ -374,6 +378,11 @@ template<>                                                                      
 inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, const T* a, const int* lda,    \
                              T* b, const int* ldb, int* info) {                                              \
     HPDDM_F77(C ## potrs)(uplo, n, nrhs, a, lda, b, ldb, info);                                              \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::pstrf(const char* uplo, const int* n, T* a, const int* lda, int* piv, int* rank,      \
+                             const U* tol, U* work, int* info) {                                             \
+    HPDDM_F77(C ## pstrf)(uplo, n, a, lda, piv, rank, tol, work, info);                                      \
 }
 #define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                            \
 HPDDM_GENERATE_LAPACK(B, U, B, U, sy, or)                                                                    \

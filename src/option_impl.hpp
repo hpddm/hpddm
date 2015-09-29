@@ -90,6 +90,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
         std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm.", Arg::numeric),
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
         std::forward_as_tuple("verbosity(=<integer>)", "Use verbose output.", Arg::anything),
+        std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not construct a new preconditioner when solving subsequent systems with the same sparsity pattern.", Arg::argument),
         std::forward_as_tuple("gs=(classical|modified|none)", "Classical (faster) or modified (more robust) Gram-Schmidt process, or no orthogonalization at all.", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("krylov_method=(gmres|cg)", "Generalized Minimal Residual Method or Conjugate Gradient.", Arg::argument),
@@ -144,9 +145,9 @@ inline int Option::parse(std::vector<std::string>& args, bool display, std::init
             std::string("2)"), "Distribution of the master processes.", Arg::integer),
 #endif
         std::forward_as_tuple("master_filename=<output_file>", "Save the coarse operator to disk.", Arg::argument),
-        std::forward_as_tuple("master_exclude", "Exclude the master processes from the domain decomposition.", Arg::anything)
-#if defined(DMUMPS) || defined(DPASTIX)
-      , std::forward_as_tuple("master_not_spd", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::anything)
+        std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition.", Arg::argument)
+#if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)
+      , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::argument)
 #endif
     };
 

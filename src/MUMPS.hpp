@@ -116,7 +116,7 @@ class Mumps : public DMatrix {
             _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
             Option& opt = *Option::get();
             if(S == 'S')
-                _id->sym = opt.set("master_not_spd") ? 2 : 1;
+                _id->sym = opt.val<unsigned short>("master_not_spd", 0) ? 2 : 1;
             else
                 _id->sym = 0;
             MUMPS_STRUC_C<K>::mumps_c(_id);
@@ -133,7 +133,7 @@ class Mumps : public DMatrix {
                     _id->icntl[i] = val;
             }
             _id->job = 4;
-            if(opt.val("verbosity") < 2)
+            if(opt.val<int>("verbosity") < 2)
                 _id->icntl[2] = 0;
             MUMPS_STRUC_C<K>::mumps_c(_id);
             if(DMatrix::_rank == 0 && _id->infog[0] != 0)

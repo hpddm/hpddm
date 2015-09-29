@@ -152,7 +152,7 @@ class Pastix : public DMatrix {
 
             pstx<K>::initParam(_iparm, _dparm);
             Option& opt = *Option::get();
-            double val = opt.val("verbosity");
+            int val = opt.val<int>("verbosity");
             if(val < 2)
                 _iparm[IPARM_VERBOSE]         = API_VERBOSE_NOT;
             else
@@ -162,7 +162,7 @@ class Pastix : public DMatrix {
             _iparm[IPARM_END_TASK]            = API_TASK_INIT;
             if(S == 'S') {
                 _iparm[IPARM_SYM]             = API_SYM_YES;
-                _iparm[IPARM_FACTORIZATION]   = opt.set("master_not_spd") ? API_FACT_LDLT : API_FACT_LLT;
+                _iparm[IPARM_FACTORIZATION]   = opt.val<unsigned short>("master_not_spd", 0) ? API_FACT_LDLT : API_FACT_LLT;
             }
             else {
                 _iparm[IPARM_SYM]             = API_SYM_NO;

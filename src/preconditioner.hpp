@@ -149,7 +149,7 @@ class Preconditioner : public Subdomain<K> {
                 else
                     ret = _co->template construction<0, excluded>(std::move(Operator(*B, allUniform[0])), comm);
                 construction = MPI_Wtime() - construction;
-                if(_co->getRank() == 0 && opt.set("verbosity")) {
+                if(_co->getRank() == 0 && opt.val<int>("verbosity") > 0) {
                     std::stringstream ss;
                     ss << std::setprecision(2) << construction;
                     std::string line = " --- coarse operator transferred and factorized by " + to_string(static_cast<int>(opt["master_p"])) + " process" + (static_cast<int>(opt["master_p"]) == 1 ? "" : "es") + " (in " + ss.str() + "s)";

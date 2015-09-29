@@ -1,4 +1,4 @@
-/*
+ /*
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <pierre.jolivet@inf.ethz.ch>
@@ -77,14 +77,14 @@ class IterativeMethod {
          *    s              - Coefficients in the Krylov subspace.
          *    v              - Basis of the Krylov subspace. */
         template<class Operator, class K>
-        static void update(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, const K* const* const v, const short* const hasConverged, const int& mu = 1, bool block = false) {
+        static void update(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, const K* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
             int tmp = std::distance(h[0], h[1]);
-            if(mu == 1 || block) {
+            if(mu == 1 || deflated != -1) {
                 int dim = std::abs(*hasConverged);
                 int info;
-                if(block)
-                    tmp /= mu;
-                Lapack<K>::trtrs("U", "N", "N", &dim, &mu, *h, &tmp, s, &tmp, &info);
+                if(deflated != -1)
+                    tmp /= deflated;
+                Lapack<K>::trtrs("U", "N", "N", &dim, deflated != -1 ? &deflated : &mu, *h, &tmp, s, &tmp, &info);
             }
             else
                 for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -93,41 +93,37 @@ class IterativeMethod {
                         Wrapper<K>::axpy(&i, &alpha, h[i] + nu, &mu, s + nu, &mu);
                     }
                 }
-            if(!block) {
+            K* const correction = (variant == 'R' ? const_cast<K*>(v[tmp / (deflated == -1 ? mu : deflated) - 1]) : work);
+            if(deflated == -1) {
                 tmp = mu * n;
                 if(variant == 'L') {
                     for(unsigned short nu = 0; nu < mu; ++nu)
-                        if(hasConverged[nu] != -1) {
+                        if(hasConverged[nu] != 0) {
                             int dim = std::abs(hasConverged[nu]);
-                            Wrapper<K>::gemv(&transa, &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &tmp, s + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
+                            Wrapper<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &tmp, s + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
                         }
                 }
                 else {
-                    K* work = new K[(1 + (variant == 'R')) * mu * n];
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         int dim = std::abs(hasConverged[nu]);
-                        Wrapper<K>::gemv(&transa, &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &tmp, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
+                        Wrapper<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &tmp, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
                     }
                     if(variant == 'R')
-                        A.apply(work, work + mu * n, mu);
+                        A.apply(work, correction, mu);
                     for(unsigned short nu = 0; nu < mu; ++nu)
-                        if(hasConverged[nu] != -1)
-                            Wrapper<K>::axpy(&n, &(Wrapper<K>::d__1), work + ((variant == 'R') * mu + nu) * n, &i__1, x + nu * n, &i__1);
-                    delete [] work;
+                        if(hasConverged[nu] != 0)
+                            Wrapper<K>::axpy(&n, &(Wrapper<K>::d__1), correction + nu * n, &i__1, x + nu * n, &i__1);
                 }
             }
-            else {
+            else if(deflated == mu) {
                 int dim = *hasConverged;
                 if(variant == 'L')
-                    Wrapper<K>::gemm(&transa, &transa, &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__1), x, &n);
+                    Wrapper<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__1), x, &n);
                 else {
-                    K* work = new K[(1 + (variant == 'R')) * mu * n];
-                    Wrapper<K>::gemm(&transa, &transa, &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__0), work, &n);
+                    Wrapper<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__0), work, &n);
                     if(variant == 'R')
-                        A.apply(work, work + mu * n, mu);
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        Wrapper<K>::axpy(&n, &(Wrapper<K>::d__1), work + ((variant == 'R') * mu + nu) * n, &i__1, x + nu * n, &i__1);
-                    delete [] work;
+                        A.apply(work, correction, mu);
+                    Wrapper<K>::axpy(&(tmp = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                 }
             }
         }
@@ -191,26 +187,27 @@ class IterativeMethod {
             const int n = excluded ? 0 : A.getDof();
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
+            const char verbosity = opt.val<char>("verbosity");
             if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
-                if(opt.set("verbosity"))
+                if(verbosity > 0)
                     std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
                 tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
             }
-            const unsigned short m = std::min(static_cast<unsigned short>(opt["gmres_restart"]), it);
+            const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
             const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
 
             K** const H = new K*[m * (2 + (variant == 'F')) + 1];
             K** const v = H + m;
-            K* const s = new K[mu * ((m + 1) * (m + 1) + (2 + m * (1 + (variant == 'F'))) * n + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
-            K* Ax = s + mu * (m + 1);
+            K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + m * (1 + (variant == 'F'))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
+            K* const Ax = s + mu * (m + 1);
             *H = Ax + mu * n;
             for(unsigned short i = 1; i < m; ++i)
                 H[i] = *H + i * mu * (m + 1);
             *v = *H + m * mu * (m + 1);
             for(unsigned short i = 1; i < m * (1 + (variant == 'F')) + 1; ++i)
                 v[i] = *v + i * mu * n;
-            typename Wrapper<K>::ul_type* norm = reinterpret_cast<typename Wrapper<K>::ul_type*>(*v + (m * (1 + (variant == 'F')) + 1) * mu * n);
-            typename Wrapper<K>::ul_type* sn = norm + mu;
+            typename Wrapper<K>::ul_type* const norm = reinterpret_cast<typename Wrapper<K>::ul_type*>(*v + (m * (1 + (variant == 'F')) + 1) * mu * n);
+            typename Wrapper<K>::ul_type* const sn = norm + mu;
             bool alloc = A.setBuffer(mu);
             short* const hasConverged = new short[mu];
             std::fill_n(hasConverged, mu, -m);
@@ -255,7 +252,7 @@ class IterativeMethod {
                     MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<typename Wrapper<K>::ul_type>::mpi_type(), MPI_SUM, comm);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     if(hasConverged[nu] > 0)
-                        hasConverged[nu] = -1;
+                        hasConverged[nu] = 0;
                     s[nu] = std::sqrt(sn[nu]);
                     std::for_each(*v + nu * n, *v + (nu + 1) * n, [&](K& y) { y /= s[nu]; });
                 }
@@ -299,7 +296,7 @@ class IterativeMethod {
                             MPI_Allreduce(MPI_IN_PLACE, H[i], (i + 1) * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                             if(opt["gs"] == 0)
                                 for(unsigned short nu = 0; nu < mu; ++nu)
-                                    Wrapper<K>::gemv(&transa, &n, tmp, &(Wrapper<K>::d__2), *v + nu * n, tmp + 1, H[i] + nu, &mu, &(Wrapper<K>::d__1), v[i + 1] + nu * n, &i__1);
+                                    Wrapper<K>::gemv("N", &n, tmp, &(Wrapper<K>::d__2), *v + nu * n, tmp + 1, H[i] + nu, &mu, &(Wrapper<K>::d__1), v[i + 1] + nu * n, &i__1);
                             else
                                 for(unsigned short nu = 0; nu < mu; ++nu)
                                     Wrapper<K>::axpby(n, -H[i][i * mu + nu], v[i] + nu * n, 1, 1.0, v[i + 1] + nu * n, 1);
@@ -331,7 +328,7 @@ class IterativeMethod {
                         if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[(i + 1) * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[(i + 1) * mu + nu]) <= -tol)))
                             hasConverged[nu] = i + 1;
                     }
-                    if(opt.set("verbosity")) {
+                    if(verbosity > 0) {
                         int tmp[2] { 0, 0 };
                         typename Wrapper<K>::ul_type beta = std::abs(s[(i + 1) * mu]);
                         for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -361,16 +358,17 @@ class IterativeMethod {
                 }
                 if(j != it + 1 && i == m) {
                     if(!excluded)
-                        update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu);
-                    if(opt.set("verbosity"))
+                        update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+                    std::fill_n(s + mu, mu * m, K());
+                    if(verbosity > 0)
                         std::cout << "GMRES restart(" << m << ")" << std::endl;
                 }
                 else
                     break;
             }
             if(!excluded)
-                update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu);
-            if(opt.set("verbosity")) {
+                update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+            if(verbosity > 0) {
                 if(j != it + 1)
                     std::cout << "GMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
                 else
@@ -403,8 +401,9 @@ class IterativeMethod {
             const int n = A.getDof();
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
+            const char verbosity = opt.val<char>("verbosity");
             if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
-                if(opt.set("verbosity"))
+                if(verbosity > 0)
                     std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
                 tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
             }
@@ -479,7 +478,7 @@ class IterativeMethod {
                 if(opt["variant"] != 2)
                     Wrapper<K>::axpby(n, 1.0, z, 1, dir[1], p, 1);
                 dir[0] = std::sqrt(dir[0]);
-                if(opt.set("verbosity")) {
+                if(verbosity > 0) {
                     if(tol > 0)
                         std::cout << "CG: " << std::setw(3) << i << " " << std::scientific << dir[0] << " " << resInit << " " << dir[0] / resInit << " < " << tol << std::endl;
                     else
@@ -490,7 +489,7 @@ class IterativeMethod {
                 else
                     ++i;
             }
-            if(opt.set("verbosity")) {
+            if(verbosity > 0) {
                 if(i != it + 1)
                     std::cout << "CG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
                 else
@@ -522,8 +521,9 @@ class IterativeMethod {
             const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
             const unsigned short it = opt["max_it"];
             typename Wrapper<K>::ul_type tol = opt["tol"];
+            const char verbosity = opt.val<char>("verbosity");
             if(std::abs(tol) < std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon()) {
-                if(opt.set("verbosity"))
+                if(verbosity > 0)
                     std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(typename Wrapper<K>::ul_type).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon() << std::endl;
                 tol = 2 * std::numeric_limits<typename Wrapper<K>::ul_type>::epsilon();
             }
@@ -605,7 +605,7 @@ class IterativeMethod {
                 }
                 A.template computeDot<excluded>(&resRel, zCurr, zCurr, comm);
                 resRel = std::sqrt(resRel);
-                if(opt.set("verbosity"))
+                if(verbosity > 0)
                     std::cout << "CG: " << std::setw(3) << i << " " << std::scientific << resRel << " " << resInit << " " << resRel / resInit << " < " << tol << std::endl;
                 if(resRel / resInit <= tol)
                     break;
@@ -617,7 +617,7 @@ class IterativeMethod {
                     diag(n, m, z[i - 2]);
                 }
             }
-            if(opt.set("verbosity")) {
+            if(verbosity > 0) {
                 if(i != it + 1)
                     std::cout << "CG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
                 else

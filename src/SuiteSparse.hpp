@@ -171,7 +171,7 @@ class SuiteSparse : public DMatrix {
                 M->dtype = std::is_same<double, typename Wrapper<K>::ul_type>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
                 M->itype = CHOLMOD_INT;
                 _L = cholmod_analyze(M, _c);
-                if(Option::get()->val("verbosity") > 1)
+                if(Option::get()->val<int>("verbosity") > 1)
                     cholmod_print_common(NULL, _c);
                 cholmod_factorize(M, _L, _c);
                 _b = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
@@ -202,7 +202,7 @@ class SuiteSparse : public DMatrix {
                 void* symbolic;
                 stsprs<K>::umfpack_symbolic(ncol, ncol, I, J, C, &symbolic, _control, info);
                 stsprs<K>::umfpack_numeric(I, J, C, symbolic, &_numeric, _control, info);
-                if(Option::get()->val("verbosity") > 1)
+                if(Option::get()->val<int>("verbosity") > 1)
                     stsprs<K>::umfpack_report_info(_control, info);
                 stsprs<K>::umfpack_free_symbolic(&symbolic);
                 delete [] info;
