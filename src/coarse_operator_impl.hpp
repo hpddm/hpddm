@@ -236,7 +236,7 @@ inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, cons
 template<template<class> class Solver, char S, class K>
 template<unsigned short U, unsigned short excluded, class Operator>
 inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construction(Operator&& v, const MPI_Comm& comm) {
-    static_assert(Solver<K>::_numbering == 'F' || Solver<K>::_numbering == 'C', "Unknown numbering");
+    static_assert(Solver<K>::_numbering == 'C' || Solver<K>::_numbering == 'F', "Unknown numbering");
     static_assert(Operator::_pattern == 's' || Operator::_pattern == 'c', "Unknown pattern");
     constructionCommunicator<static_cast<bool>(excluded)>(comm);
     if(excluded > 0 && Solver<K>::_communicator != MPI_COMM_NULL) {

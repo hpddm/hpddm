@@ -104,37 +104,37 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
     protected:
         /* Variable: bb
          *  Local matrix assembled on boundary degrees of freedom. */
-        MatrixCSR<K, Wrapper<K>::I>* _bb;
+        MatrixCSR<K>*          _bb;
         /* Variable: ii
          *  Local matrix assembled on interior degrees of freedom. */
-        MatrixCSR<K>*                _ii;
+        MatrixCSR<K>*          _ii;
         /* Variable: bi
          *  Local matrix assembled on boundary and interior degrees of freedom. */
-        MatrixCSR<K, Wrapper<K>::I>* _bi;
+        MatrixCSR<K>*          _bi;
         /* Variable: schur
          *  Explicit local Schur complement. */
-        K*                        _schur;
+        K*                  _schur;
         /* Variable: work
          *  Workspace array. */
-        K*                         _work;
+        K*                   _work;
         /* Variable: structure
          *  Workspace array of size lower than or equal to <Subdomain::dof>. */
-        K*                    _structure;
+        K*              _structure;
         /* Variable: pinv
          *  Solver used in <Schur::callNumfact> and <Bdd::callNumfact> for factorizing <Subdomain::a> or <Schur::schur>. */
-        void*                      _pinv;
+        void*                _pinv;
         /* Variable: rankWorld
          *  Rank of the current subdomain in <Subdomain::communicator>. */
-        int                   _rankWorld;
+        int             _rankWorld;
         /* Variable: mult
          *  Number of local Lagrange multipliers. */
-        int                        _mult;
+        int                  _mult;
         /* Variable: signed
          *  Number of neighboring subdomains in <Subdomain::communicator> with ranks lower than <rankWorld>. */
-        unsigned short           _signed;
+        unsigned short     _signed;
         /* Variable: deficiency
          *  Dimension of the kernel of <Subdomain::a>. */
-        unsigned short       _deficiency;
+        unsigned short _deficiency;
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -389,7 +389,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     tmpBoundary.reserve(Subdomain<K>::_a->_nnz * interface.size() / Subdomain<K>::_dof);
                     for(j = 0; j < interface.size(); ++j)
                         tmpInteraction[j].reserve(std::max(Subdomain<K>::_a->_ia[interface[j] + 1] - Subdomain<K>::_a->_ia[interface[j]] - 1, 0));
-                    _bb = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), interface.size(), true);
+                    _bb = new MatrixCSR<K>(interface.size(), interface.size(), true);
                     int* ii = new int[Subdomain<K>::_dof + 1];
                     ii[0] = 0;
                     _bb->_ia[0] = (Wrapper<K>::I == 'F');
@@ -448,7 +448,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         Subdomain<K>::_a->_ja[j] = tmpInterior[j].first;
                         Subdomain<K>::_a->_a[j] = tmpInterior[j].second;
                     }
-                    _bi = new MatrixCSR<K, Wrapper<K>::I>(interface.size(), Subdomain<K>::_dof - interface.size(), std::accumulate(tmpInteraction.cbegin(), tmpInteraction.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); }), false);
+                    _bi = new MatrixCSR<K>(interface.size(), Subdomain<K>::_dof - interface.size(), std::accumulate(tmpInteraction.cbegin(), tmpInteraction.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); }), false);
                     _bi->_ia[0] = (Wrapper<K>::I == 'F');
                     for(unsigned int i = 0, j = 0; i < tmpInteraction.size(); ++i) {
                         std::sort(tmpInteraction[i].begin(), tmpInteraction[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
@@ -687,7 +687,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                     storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
-            Wrapper<K>::template csrmv<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
+            Wrapper<K>::csrmv(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
             Subdomain<K>::clearBuffer(alloc);
             Wrapper<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
@@ -718,7 +718,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             }
             return dof;
         }
-        template<char N = 'C'>
+        template<char N = HPDDM_NUMBERING>
         void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global);
         }

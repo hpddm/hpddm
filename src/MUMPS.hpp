@@ -202,7 +202,10 @@ class MumpsSub {
             }
             delete [] _I;
         }
+        static constexpr char _numbering = 'F';
+        template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+            static_assert(N == 'C' || N == 'F', "Unknown numbering");
             if(!_id) {
                 _id = new typename MUMPS_STRUC_C<K>::trait();
                 _id->job = -1;
@@ -213,7 +216,8 @@ class MumpsSub {
             }
             _id->icntl[23] = detection;
             _id->cntl[2] = -1.0e-6;
-            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
+            if(N == 'C')
+                std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
             _id->jcn = A->_ja;
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
@@ -231,7 +235,7 @@ class MumpsSub {
                 _I = new int[A->_nnz];
                 _id->nz = A->_nnz;
                 for(int i = 0; i < A->_n; ++i)
-                    std::fill(_I + A->_ia[i], _I + A->_ia[i + 1], i + 1);
+                    std::fill(_I + A->_ia[i] - (N == 'F'), _I + A->_ia[i + 1] - (N == 'F'), i + 1);
                 _id->irn = _I;
                 if(schur != nullptr) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
@@ -252,7 +256,8 @@ class MumpsSub {
             delete [] listvar;
             if(_id->infog[0] != 0)
                 std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
-            std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
+            if(N == 'C')
+                std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
         }
         unsigned short deficiency() const { return _id->infog[27]; }
         void solve(K* const x, const unsigned short& n = 1) const {

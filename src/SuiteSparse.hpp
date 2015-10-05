@@ -269,8 +269,11 @@ class SuiteSparseSub {
                 stsprs<K>::umfpack_free_numeric(&_numeric);
             }
         }
+        static constexpr char _numbering = 'C';
+        template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false) {
-            if(A->_sym && !Wrapper<K>::is_complex) {
+            static_assert(N == 'C', "Unsupported numbering");
+            if(!Wrapper<K>::is_complex && A->_sym) {
                 if(!_c) {
                     _c = new cholmod_common;
                     cholmod_start(_c);

@@ -29,12 +29,10 @@ namespace HPDDM {
  *
  *  A class for storing sparse matrices in Compressed Sparse Row format.
  *
- * Template Parameters:
- *    K              - Scalar type.
- *    N              - 0- or 1-based indexing. */
-template<class K, char N = 'C'>
+ * Template Parameter:
+ *    K              - Scalar type. */
+template<class K>
 class MatrixCSR {
-    static_assert(N == 'F' || N == 'C', "Unknown numbering");
     private:
         /* Variable: free
          *  Sentinel value for knowing if the pointers <MatrixCSR::a>, <MatrixCSR::ia>, <MatrixCSR::ja> have to be freed. */
@@ -118,23 +116,35 @@ class MatrixCSR {
                 return false;
         }
         /* Function: dump
-         *  Outputs the matrix to an output stream. */
+         *
+         *  Outputs the matrix to an output stream.
+         *
+         * Template Parameter:
+         *    N              - 0- or 1-based indexing. */
+        template<char N>
         std::ostream& dump(std::ostream& f) const {
+            static_assert(N == 'C' || N == 'F', "Unknown numbering");
             f << "# First line: n m (is symmetric) nnz indexing" << std::endl;
             f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}" << std::endl;
             f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << std::endl;
             unsigned int k = _ia[0] - (N == 'F');
             int old = f.precision();
             for(unsigned int i = 0; i < _n; ++i) {
-                unsigned int ke = _ia[i + 1] - (N == 'F');
-                while(k < ke)
-                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setprecision(20) << _a[k++] << std::endl;
+                for(unsigned int ke = _ia[i + 1] - (N == 'F'); k < ke; ++k)
+                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setprecision(20) << _a[k] << std::endl;
             }
             f.precision(old);
             return f;
         }
 };
 template<class K>
-inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) { return m.dump(f); }
+inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) {
+    if(m._ia[m._n] == m._nnz)
+        return m.template dump<'C'>(f);
+    else if(m._ia[m._n] == m._nnz + 1)
+        return m.template dump<'F'>(f);
+    else
+        return f << "Malformed CSR matrix" << std::endl;
+}
 } // HPDDM
 #endif // _MATRIX_

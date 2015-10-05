@@ -271,7 +271,10 @@ class PastixSub {
                 delete [] _dparm;
             }
         }
+        static constexpr char _numbering = 'F';
+        template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+            static_assert(N == 'C' || N == 'F', "Unknown numbering");
             if(!_iparm) {
                 _iparm = new pastix_int_t[IPARM_SIZE];
                 _dparm = new double[DPARM_SIZE];
@@ -296,15 +299,17 @@ class PastixSub {
                 }
             }
             if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = detection || Wrapper<K>::is_complex ? API_FACT_LDLT : API_FACT_LLT;
-                Wrapper<K>::template csrcsc<'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
+                _iparm[IPARM_FACTORIZATION]       = Wrapper<K>::is_complex || detection ? API_FACT_LDLT : API_FACT_LLT;
+                Wrapper<K>::template csrcsc<N, 'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
             }
             else {
                 _values = A->_a;
                 _colptr = A->_ia;
                 _rows = A->_ja;
-                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { ++i; });
-                std::for_each(_rows, _rows + A->_nnz, [](int& i) { ++i; });
+                if(N == 'C') {
+                    std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { ++i; });
+                    std::for_each(_rows, _rows + A->_nnz, [](int& i) { ++i; });
+                }
             }
             pastix_int_t* perm = new pastix_int_t[2 * _ncol];
             pastix_int_t* iperm = perm + _ncol;
@@ -331,7 +336,7 @@ class PastixSub {
                          perm, iperm, NULL, 1, _iparm, _dparm);
             delete [] listvar;
             delete [] perm;
-            if(_iparm[IPARM_SYM] == API_SYM_NO) {
+            if(N == 'C' && _iparm[IPARM_SYM] == API_SYM_NO) {
                 std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { --i; });
                 std::for_each(_rows, _rows + A->_nnz, [](int& i) { --i; });
             }

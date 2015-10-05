@@ -32,6 +32,7 @@
  *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
  *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra backend.
+ *    HPDDM_NUMBERING     - 0- or 1-based indexing of user-supplied matrices.
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
  *    HPDDM_BDD           - BDD methods enabled.
@@ -42,6 +43,12 @@
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
+#ifndef HPDDM_NUMBERING
+# pragma message("The numbering of user-supplied matrices has not been set, assuming 0-based indexing")
+# define HPDDM_NUMBERING      'C'
+#else
+static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numbering");
+#endif
 #ifndef HPDDM_MKL
 # ifdef INTEL_MKL_VERSION
 #  define HPDDM_MKL           1

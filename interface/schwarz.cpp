@@ -22,6 +22,15 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if HPDDM_MKL
+#include <complex>
+#define MKL_Complex16         std::complex<double>
+#define MKL_Complex8          std::complex<float>
+#define MKL_INT               int
+#endif
+#ifndef HPDDM_NUMBERING
+#define HPDDM_NUMBERING       'C'
+#endif
 #include <HPDDM.hpp>
 #include <list>
 
@@ -49,9 +58,9 @@ typedef double K;
 #endif
 
 #ifdef GENERAL_CO
-const char symmetryCoarseOperator = 'G';
+const char symCoarse = 'G';
 #else
-const char symmetryCoarseOperator = 'S';
+const char symCoarse = 'S';
 #endif
 
 const HPDDM::Wrapper<K>::ul_type pi = 3.141592653589793238463;
@@ -79,7 +88,7 @@ int main(int argc, char **argv) {
     const int Nx = opt.app()["Nx"];
     const int Ny = opt.app()["Ny"];
     const int overlap = opt.app()["overlap"];
-    const bool sym = opt.app().find("symmetric_csr") != opt.app().cend();
+    const bool sym = opt.app().find("symmetric_csr") != opt.app().cend() && (opt.app()["symmetric_csr"] == 1);
     if(rankWorld != 0)
         opt.remove("verbosity");
     int xGrid = int(sqrt(sizeWorld));
@@ -250,26 +259,27 @@ int main(int argc, char **argv) {
     int* ia;
     int* ja;
     K* a;
+    constexpr char N = HPDDM_NUMBERING;
     if(sym) {
         /*# Matrix #*/
         ia = new int[ndof + 1];
         ja = new int[nnz];
         a = new K[nnz];
-        ia[0] = 0;
-        ia[ndof] = nnz;
+        ia[0] = (N == 'F');
+        ia[ndof] = nnz + (N == 'F');
         for(int j = jStart, k = 0, nnz = 0; j < jEnd; ++j) {
             for(int i = iStart; i < iEnd; ++i) {
                 if(j > jStart) { // this d.o.f. is not on the bottom side of the subd.
                     a[nnz] = -1 / (dy * dy);
-                    ja[nnz++] = k - (Ny / yGrid);
+                    ja[nnz++] = k - (Ny / yGrid) + (N == 'F');
                 }
                 if(i > iStart) { // this d.o.f. is not on the left side of the subd.
                     a[nnz] = -1 / (dx * dx);
-                    ja[nnz++] = k - 1;
+                    ja[nnz++] = k - (N == 'C');
                 }
                 a[nnz]  = 2 / (dx * dx) + 2 / (dy * dy);
-                ja[nnz++] = k;
-                ia[++k] = nnz;
+                ja[nnz++] = k + (N == 'F');
+                ia[++k] = nnz + (N == 'F');
             }
         }
         /*# MatrixEnd #*/
@@ -278,33 +288,33 @@ int main(int argc, char **argv) {
         ia = new int[ndof + 1];
         ja = new int[nnz];
         a = new K[nnz];
-        ia[0] = 0;
-        ia[ndof] = nnz;
+        ia[0] = (N == 'F');
+        ia[ndof] = nnz + (N == 'F');
         for(int j = jStart, k = 0, nnz = 0; j < jEnd; ++j) {
             for(int i = iStart; i < iEnd; ++i) {
                 if(j > jStart) {
                     a[nnz] = -1 / (dy * dy);
-                    ja[nnz++] = k - (Ny / yGrid);
+                    ja[nnz++] = k - (Ny / yGrid) + (N == 'F');
                 }
                 if(i > iStart) {
                     a[nnz] = -1 / (dx * dx);
-                    ja[nnz++] = k - 1;
+                    ja[nnz++] = k - (N == 'C');
                 }
                 a[nnz]  = 2 / (dx * dx) + 2 / (dy * dy);
-                ja[nnz++] = k;
+                ja[nnz++] = k + (N == 'F');
                 if(i < iEnd - 1) {
                     a[nnz] = -1 / (dx * dx);
-                    ja[nnz++] = k + 1;
+                    ja[nnz++] = k + 1 + (N == 'F');
                 }
                 if(j < jEnd - 1) {
                     a[nnz] = -1 / (dy * dy);
-                    ja[nnz++] = k + (Ny / yGrid);
+                    ja[nnz++] = k + (Ny / yGrid) + (N == 'F');
                 }
-                ia[++k] = nnz;
+                ia[++k] = nnz + (N == 'F');
             }
         }
     }
-    HPDDM::MatrixCSR<K>* N = nullptr;
+    HPDDM::MatrixCSR<K>* MatNeumann = nullptr;
     int* in = nullptr;
     int* jn = nullptr;
     K* neumann = nullptr;
@@ -313,31 +323,31 @@ int main(int argc, char **argv) {
             int nnzNeumann = 2 * nnz - ndof;
             in = new int[ndof + 1];
             jn = new int[nnzNeumann];
-            in[0] = 0;
-            in[ndof] = nnzNeumann;
+            in[0] = (N == 'F');
+            in[ndof] = nnzNeumann + (N == 'F');
             neumann = new K[nnzNeumann];
-            N = new HPDDM::MatrixCSR<K>(ndof, ndof, nnzNeumann, neumann, in, jn, 0);
+            MatNeumann = new HPDDM::MatrixCSR<K>(ndof, ndof, nnzNeumann, neumann, in, jn, 0);
             for(int j = jStart, k = 0, nnzNeumann = 0; j < jEnd; ++j) {
                 for(int i = iStart; i < iEnd; ++i) {
                     if(j > jStart) {
                         neumann[nnzNeumann] = -1 / (dy * dy) + (i == iStart ? -1 / (dx * dx) : 0);
-                        jn[nnzNeumann++] = k - (Ny / yGrid);
+                        jn[nnzNeumann++] = k - (Ny / yGrid) + (N == 'F');
                     }
                     if(i > iStart) {
                         neumann[nnzNeumann] = -1 / (dx * dx) + (j == jStart ? -1 / (dy * dy) : 0);
-                        jn[nnzNeumann++] = k - 1;
+                        jn[nnzNeumann++] = k - (N == 'C');
                     }
                     neumann[nnzNeumann]  = 2 / (dx * dx) + 2 / (dy * dy);
-                    jn[nnzNeumann++] = k;
+                    jn[nnzNeumann++] = k + (N == 'F');
                     if(i < iEnd - 1) {
                         neumann[nnzNeumann] = -1 / (dx * dx) + (j == jEnd - 1 ? -1 / (dy * dy) : 0);
-                        jn[nnzNeumann++] = k + 1;
+                        jn[nnzNeumann++] = k + 1 + (N == 'F');
                     }
                     if(j < jEnd - 1) {
                         neumann[nnzNeumann] = -1 / (dy * dy) + (i == iEnd - 1 ? -1 / (dx * dx) : 0);
-                        jn[nnzNeumann++] = k + (Ny / yGrid);
+                        jn[nnzNeumann++] = k + (Ny / yGrid) + (N == 'F');
                     }
-                    in[++k] = nnzNeumann;
+                    in[++k] = nnzNeumann + (N == 'F');
                 }
             }
         }
@@ -345,7 +355,7 @@ int main(int argc, char **argv) {
             in = ia;
             jn = ja;
             neumann = new K[nnz];
-            N = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, neumann, in, jn, 0);
+            MatNeumann = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, neumann, in, jn, 0);
             std::copy(a, a + nnz, neumann);
             for(int j = jStart, k = 0, nnz = 0; j < jEnd; ++j)
                 for(int i = iStart; i < iEnd; ++i) {
@@ -374,9 +384,10 @@ int main(int argc, char **argv) {
         }
     }
     HPDDM::MatrixCSR<K>* Mat = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, a, ia, ja, sym, true);
+    int status = 0;
     if(sizeWorld > 1) {
         /*# Creation #*/
-        HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symmetryCoarseOperator, K> A;
+        HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> A;
         /*# CreationEnd #*/
         /*# Initialization #*/
         A.Subdomain::initialize(Mat, o, mapping);
@@ -398,7 +409,7 @@ int main(int argc, char **argv) {
                 if(opt.app().find("nonuniform") != opt.app().cend())
                     nu += std::max(static_cast<int>(-opt["geneo_nu"] + 1), (-1)^rankWorld * rankWorld);
                 HPDDM::Wrapper<K>::ul_type threshold = std::max(0.0, opt.val("geneo_threshold"));
-                A.solveGEVP<HPDDM::Arpack>(N, nu, threshold);
+                A.solveGEVP<HPDDM::Arpack>(MatNeumann, nu, threshold);
                 opt["geneo_nu"] = nu;
             }
             else {
@@ -415,16 +426,19 @@ int main(int argc, char **argv) {
         }
         else
             A.callNumfact();
+        int it;
         /*# Solution #*/
         if(opt["krylov_method"] == 1)
-            HPDDM::IterativeMethod::CG(A, sol, f, A.getCommunicator());
+            it = HPDDM::IterativeMethod::CG(A, sol, f, A.getCommunicator());
         else
-            HPDDM::IterativeMethod::GMRES(A, sol, f, 1, A.getCommunicator());
+            it = HPDDM::IterativeMethod::GMRES(A, sol, f, 1, A.getCommunicator());
         /*# SolutionEnd #*/
         HPDDM::Wrapper<K>::ul_type storage[2];
         A.computeError(sol, f, storage);
         if(rankWorld == 0)
             std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
+        if(it > 45)
+            status = 1;
     }
     else {
         SUBDOMAIN<K> S;
@@ -432,17 +446,19 @@ int main(int argc, char **argv) {
         S.solve(f, sol);
         HPDDM::Wrapper<K>::ul_type nrmb = HPDDM::Wrapper<K>::nrm2(&ndof, f, &(HPDDM::i__1));
         K* tmp = new K[ndof];
-        HPDDM::Wrapper<K>::csrmv<'C'>(sym, &ndof, a, ia, ja, sol, tmp);
+        HPDDM::Wrapper<K>::csrmv(sym, &ndof, a, ia, ja, sol, tmp);
         HPDDM::Wrapper<K>::axpy(&ndof, &(HPDDM::Wrapper<K>::d__2), f, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
         HPDDM::Wrapper<K>::ul_type nrmAx = HPDDM::Wrapper<K>::nrm2(&ndof, tmp, &(HPDDM::i__1));
         std::cout << std::scientific << " --- error = " << nrmAx << " / " << nrmb << std::endl;
+        if(nrmAx / nrmb > (std::is_same<double, typename HPDDM::Wrapper<K>::ul_type>::value ? 1.0e-8 : 1.0e-2))
+            status = 1;
         delete [] tmp;
         delete Mat;
     }
     delete [] d;
 
     if(opt.set("schwarz_coarse_correction") && opt["geneo_nu"] > 0) {
-        delete N;
+        delete MatNeumann;
         delete [] neumann;
         if(sym) {
             delete [] in;
@@ -452,5 +468,5 @@ int main(int argc, char **argv) {
     delete [] sol;
     delete [] f;
     MPI_Finalize();
-    return 0;
+    return status;
 }

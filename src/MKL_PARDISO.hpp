@@ -195,7 +195,10 @@ class MklPardisoSub {
             if(_mtype == prds<K>::SYM)
                 delete [] _C;
         }
+        static constexpr char _numbering = 'F';
+        template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+            static_assert(N == 'C' || N == 'F', "Unknown numbering");
             int* perm = nullptr;
             int phase, error;
             K ddum;
@@ -211,7 +214,7 @@ class MklPardisoSub {
 
                 }
                 _iparm[27] = std::is_same<double, typename Wrapper<K>::ul_type>::value ? 0 : 1;
-                _iparm[34] = 1;
+                _iparm[34] = (N == 'C');
                 phase = 12;
                 if(A->_sym) {
                     _I = new int[_n + 1];
@@ -235,8 +238,8 @@ class MklPardisoSub {
                 phase = 22;
             }
             if(A->_sym) {
-                _mtype = detection || Wrapper<K>::is_complex ? prds<K>::SYM : prds<K>::SPD;
-                Wrapper<K>::template csrcsc<'C'>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
+                _mtype = Wrapper<K>::is_complex || detection ? prds<K>::SYM : prds<K>::SPD;
+                Wrapper<K>::template csrcsc<N, N>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
             }
             else {
                 _I = A->_ia;

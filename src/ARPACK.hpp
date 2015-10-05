@@ -108,9 +108,8 @@ class Arpack : public Eigensolver<K> {
 #else
             prec->numfact(A, true);
 #endif
-            int info;
+            int info = 0;
             do {
-                info = 0;
                 const int* const n = &(Eigensolver<K>::_n), *const nu = &(Eigensolver<K>::_nu);
                 const typename Wrapper<K>::ul_type* const tol = &(Eigensolver<K>::_tol);
                 auto loop = [&]() {
@@ -119,13 +118,13 @@ class Arpack : public Eigensolver<K> {
                         aupd(&ido, "G", n, _which, nu, tol, vresid, &ncv,
                              vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
                         if(ido == -1) {
-                            Wrapper<K>::template csrmv<'C'>(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
+                            Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                             prec->solve(workd + ipntr[1] - 1);
                         }
                         else if(ido == 1)
                             prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
                         else
-                            Wrapper<K>::template csrmv<'C'>(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
+                            Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                     }
                 };
                 loop();
@@ -135,7 +134,7 @@ class Arpack : public Eigensolver<K> {
                     iparam[2] = _it, iparam[6] = 3;
                     ncv = 2 * Eigensolver<K>::_nu + 1;
                 }
-            } while(info == -9999 && Eigensolver<K>::_nu > 1);
+            } while(info == -9999 && Eigensolver<K>::_nu > 1 && (info = 0));
             if(s == nullptr)
                 delete prec;
             Eigensolver<K>::_nu = iparam[4];

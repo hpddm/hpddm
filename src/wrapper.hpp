@@ -56,7 +56,11 @@ struct Wrapper {
     static constexpr char transc = is_complex ? 'C' : 'T';
     /* Variable: I
      *  Numbering of a sparse <MatrixCSR>. */
-    static const char I;
+#if HPDDM_MKL
+    static constexpr char I = 'F';
+#else
+    static constexpr char I = HPDDM_NUMBERING;
+#endif
     /* Variable: d__0
      *  Zero. */
     static constexpr K d__0 = K(0.0);
@@ -115,28 +119,28 @@ struct Wrapper {
 
     /* Function: csrmv(square)
      *  Computes a sparse square matrix-vector product. */
-    template<char>
+    template<char N = HPDDM_NUMBERING>
     static void csrmv(bool, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
     /* Function: csrmv
      *  Computes a scalar-sparse matrix-vector product. */
-    template<char>
+    template<char N = HPDDM_NUMBERING>
     static void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
                       const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
     /* Function: csrmm(square)
      *  Computes a sparse square matrix-matrix product. */
-    template<char>
+    template<char N = HPDDM_NUMBERING>
     static void csrmm(bool, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
     /* Function: csrmm
      *  Computes a scalar-sparse matrix-matrix product. */
-    template<char>
+    template<char N = HPDDM_NUMBERING>
     static void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
                       const K* const, const int* const, const int* const, const K* const, const int* const,
                       const K* const, K* const, const int* const);
 
     /* Function: csrcsc
      *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
-    template<char>
-    static void csrcsc(const int* const, K* const, int* const, int* const, K* const, int* const, int* const);
+    template<char, char>
+    static void csrcsc(const int* const, const K* const, const int* const, const int* const, K* const, int* const, int* const);
     /* Function: gthr
      *  Gathers the elements of a full-storage sparse vector into compressed form. */
     static void gthr(const int&, const K* const, K* const, const int* const);
@@ -329,9 +333,6 @@ inline void Wrapper<K>::diag(const int& m, const int& n, const ul_type* const d,
 }
 
 #if HPDDM_MKL
-template<class K>
-const char Wrapper<K>::I = 'F';
-
 template<char N>
 struct matdescr {
     static const char a[];
@@ -348,13 +349,22 @@ template<>                                                                      
 template<char N>                                                                                             \
 inline void Wrapper<T>::csrmv(bool sym, const int* const n, const T* const a, const int* const ia,           \
                               const int* const ja, const T* const x, T* const y) {                           \
-    static_assert(N == 'C', "Unsupported matrix indexing");                                                  \
-    if(sym)                                                                                                  \
-        mkl_cspblas_ ## C ## csrsymv("L", HPDDM_CONST(int, n), HPDDM_CONST(T, a), HPDDM_CONST(int, ia),      \
-                                     HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);                            \
-    else                                                                                                     \
-        mkl_cspblas_ ## C ## csrgemv(HPDDM_CONST(char, &transa), HPDDM_CONST(int, n), HPDDM_CONST(T, a),     \
-                                     HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);      \
+    if(N == 'C') {                                                                                           \
+        if(sym)                                                                                              \
+            mkl_cspblas_ ## C ## csrsymv("L", HPDDM_CONST(int, n), HPDDM_CONST(T, a), HPDDM_CONST(int, ia),  \
+                                         HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);                        \
+        else                                                                                                 \
+            mkl_cspblas_ ## C ## csrgemv(HPDDM_CONST(char, &transa), HPDDM_CONST(int, n), HPDDM_CONST(T, a), \
+                                         HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);  \
+    }                                                                                                        \
+    else {                                                                                                   \
+        if(sym)                                                                                              \
+            mkl_ ## C ## csrsymv("L", HPDDM_CONST(int, n), HPDDM_CONST(T, a), HPDDM_CONST(int, ia),          \
+                                 HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);                                \
+        else                                                                                                 \
+            mkl_ ## C ## csrgemv(HPDDM_CONST(char, &transa), HPDDM_CONST(int, n), HPDDM_CONST(T, a),         \
+                                 HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);          \
+    }                                                                                                        \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
@@ -394,12 +404,13 @@ inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
-template<char N>                                                                                             \
-inline void Wrapper<T>::csrcsc(const int* const n, T* const a, int* const ja, int* const ia,                 \
-                               T* const b, int* const jb, int* const ib) {                                   \
-    int job[6] { 0, 0, N == 'F', 0, 0, 1 };                                                                  \
+template<char N, char M>                                                                                     \
+inline void Wrapper<T>::csrcsc(const int* const n, const T* const a, const int* const ja,                    \
+                               const int* const ia, T* const b, int* const jb, int* const ib) {              \
+    int job[6] { 0, N == 'F', M == 'F', 0, 0, 1 };                                                           \
     int error;                                                                                               \
-    mkl_ ## C ## csrcsc(job, HPDDM_CONST(int, n), a, ja, ia, b, jb, ib, &error);                             \
+    mkl_ ## C ## csrcsc(job, HPDDM_CONST(int, n), const_cast<T*>(a), const_cast<int*>(ja),                   \
+                        const_cast<int*>(ia), b, jb, ib, &error);                                            \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Wrapper<T>::gthr(const int& n, const T* const y, T* const x, const int* const indx) {            \
@@ -446,9 +457,6 @@ HPDDM_GENERATE_MKL_VML(d, double)
 HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)
 HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
 #else
-template<class K>
-const char Wrapper<K>::I = 'C';
-
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrmv(bool sym, const int* const n, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
@@ -610,22 +618,22 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
 }
 
 template<class K>
-template<char N>
-inline void Wrapper<K>::csrcsc(const int* const n, K* const a, int* const ja, int* const ia, K* const b, int* const jb, int* const ib) {
-    int nnz = ia[*n];
+template<char N, char M>
+inline void Wrapper<K>::csrcsc(const int* const n, const K* const a, const int* const ja, const int* const ia, K* const b, int* const jb, int* const ib) {
+    unsigned int nnz = ia[*n] - (N == 'F');
     std::fill_n(ib, *n + 1, 0);
-    for(int i = 0; i < nnz; ++i)
-        ib[ja[i] + 1]++;
+    for(unsigned int i = 0; i < nnz; ++i)
+        ib[ja[i] + (N == 'C')]++;
     std::partial_sum(ib, ib + *n + 1, ib);
-    for(int i = 0; i < *n; ++i)
-        for(int j = ia[i]; j < ia[i + 1]; ++j) {
-            int k = ib[ja[j]]++;
-            jb[k] = i + (N == 'F');
+    for(unsigned int i = 0; i < *n; ++i)
+        for(unsigned int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) {
+            unsigned int k = ib[ja[j] - (N == 'F')]++;
+            jb[k] = i + (M == 'F');
             b[k] = a[j];
         }
-    for(int i = *n; i > 0; --i)
-        ib[i] = ib[i - 1] + (N == 'F');
-    ib[0] = (N == 'F');
+    for(unsigned int i = *n; i > 0; --i)
+        ib[i] = ib[i - 1] + (M == 'F');
+    ib[0] = (M == 'F');
 }
 template<class K>
 inline void Wrapper<K>::gthr(const int& n, const K* const y, K* const x, const int* const indx) {

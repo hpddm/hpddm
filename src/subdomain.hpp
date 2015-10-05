@@ -231,8 +231,8 @@ class Subdomain {
          *    scaling        - Local partition of unity.
          *    pt             - Pointer to a <MatrixCSR>. */
         template<char N, bool sorted = true, bool scale = false>
-        void interaction(std::vector<const MatrixCSR<K>*>& v, const typename Wrapper<K>::ul_type* const scaling = nullptr, const MatrixCSR<K, N>* const pt = nullptr) const {
-            const MatrixCSR<K, N>& ref = pt ? *pt : *_a;
+        void interaction(std::vector<const MatrixCSR<K>*>& v, const typename Wrapper<K>::ul_type* const scaling = nullptr, const MatrixCSR<K>* const pt = nullptr) const {
+            const MatrixCSR<K>& ref = pt ? *pt : *_a;
             if(ref._n != _dof || ref._m != _dof)
                 std::cerr << "Problem with the input matrix" << std::endl;
             std::vector<std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>> send(_map.size());
@@ -354,7 +354,7 @@ class Subdomain {
                     unsigned int prev = 0;
                     for(unsigned int i = 0; i < send[k].size(); ++i) {
                         if(i > 0 && std::get<0>(send[k][i]) != std::get<0>(send[k][i - 1])) {
-                            *ia++ = static_cast<unsigned short>(i - prev);
+                            *ia++ = i - prev;
                             prev = i;
                             *mapRow++ = std::get<0>(send[k][i]);
                         }
@@ -471,7 +471,7 @@ class Subdomain {
                 unsigned int begining;
                 std::fill(first, last, std::numeric_limits<unsigned int>::max());
                 if(rankWorld == 0) {
-                    begining = static_cast<unsigned int>(N == 'F');
+                    begining = (N == 'F');
                     start = begining;
                     for(unsigned int i = 0; i < std::distance(first, last); ++i)
                         if(!d || d[i] > 0.1)
@@ -540,7 +540,7 @@ class Subdomain {
                 MPI_Bcast(&global, 1, MPI_UNSIGNED, sizeWorld - 1, _communicator);
             }
             else {
-                std::iota(first, last, static_cast<unsigned int>(N == 'F'));
+                std::iota(first, last, N == 'F');
                 start = (N == 'F');
                 end = std::distance(first, last);
                 global = end - start;

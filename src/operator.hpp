@@ -322,7 +322,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
     private:
         typedef OperatorBase<'s', Preconditioner, K> super;
         const MatrixCSR<K>* const                       _A;
-        MatrixCSR<K, Wrapper<K>::I>*                    _C;
+        MatrixCSR<K>*                                   _C;
         const typename Wrapper<K>::ul_type* const       _D;
         K*                                           _work;
         template<char S, bool U>
@@ -345,56 +345,56 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                 nnz = 0;
                 for(unsigned int i = 0; i < _A->_n; ++i) {
                     const typename Wrapper<K>::ul_type scal = _D[i];
-                    unsigned int j = _A->_ia[i];
-                    while(j < _A->_ia[i + 1] - 1) {
-                        if(_D[_A->_ja[j]] > HPDDM_EPS) {
-                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j]]);
+                    unsigned int j = _A->_ia[i] - (HPDDM_NUMBERING == 'F');
+                    while(j < _A->_ia[i + 1] - (HPDDM_NUMBERING == 'F' ? 2 : 1)) {
+                        if(_D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
+                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')]);
                             ++nnz;
                         }
                         if(scal > HPDDM_EPS) {
-                            v[_A->_ja[j]].emplace_back(i, _A->_a[j] * scal);
+                            v[_A->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i + (HPDDM_NUMBERING == 'F'), _A->_a[j] * scal);
                             ++nnz;
                         }
                         ++j;
                     }
-                    if(i != _A->_ja[j]) {
-                        if(_D[_A->_ja[j]] > HPDDM_EPS) {
-                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j]]);
+                    if(i != _A->_ja[j] - (HPDDM_NUMBERING == 'F')) {
+                        if(_D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
+                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')]);
                             ++nnz;
                         }
                     }
                     if(scal > HPDDM_EPS) {
-                        v[_A->_ja[j]].emplace_back(i, _A->_a[j] * scal);
+                        v[_A->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i + (HPDDM_NUMBERING == 'F'), _A->_a[j] * scal);
                         ++nnz;
                     }
                 }
-                _C = new MatrixCSR<K, Wrapper<K>::I>(_A->_n, _A->_n, nnz, false);
+                _C = new MatrixCSR<K>(_A->_n, _A->_n, nnz, false);
                 _C->_ia[0] = (Wrapper<K>::I == 'F');
                 nnz = 0;
-                unsigned int i;
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
-                for(i = 0; i < _A->_n; ++i)
+                for(unsigned int i = 0; i < _A->_n; ++i)
                     std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
-                for(i = 0; i < _A->_n; ++i) {
+                for(unsigned int i = 0; i < _A->_n; ++i) {
                     for(const std::pair<unsigned int, K>& p : v[i]) {
-                        _C->_ja[nnz] = p.first + (Wrapper<K>::I == 'F');
+                        _C->_ja[nnz] = p.first + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
                         _C->_a[nnz++] = p.second;
                     }
                     _C->_ia[i + 1] = nnz + (Wrapper<K>::I == 'F');
                 }
             }
             else {
-                _C = new MatrixCSR<K, Wrapper<K>::I>(_A->_n, _A->_n, _A->_nnz, false);
+                _C = new MatrixCSR<K>(_A->_n, _A->_n, _A->_nnz, false);
                 _C->_ia[0] = (Wrapper<K>::I == 'F');
                 unsigned int nnz = 0;
                 for(unsigned int i = 0; i < _A->_n; ++i) {
-                    for(unsigned int j = _A->_ia[i]; j < _A->_ia[i + 1]; ++j)
-                        if(_D[_A->_ja[j]] > HPDDM_EPS) {
-                            _C->_ja[nnz] = _A->_ja[j] + (Wrapper<K>::I == 'F');
-                            _C->_a[nnz++] = _A->_a[j] * _D[_A->_ja[j]];
+                    for(unsigned int j = _A->_ia[i] - (HPDDM_NUMBERING == 'F'); j < _A->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+                        if(_D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
+                            _C->_ja[nnz] = _A->_ja[j] + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
+                            _C->_a[nnz++] = _A->_a[j] * _D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')];
                         }
                     _C->_ia[i + 1] = nnz + (Wrapper<K>::I == 'F');
                 }
+                _C->_nnz = nnz;
             }
             work = new K[2 * k];
             _work = work + k;
@@ -543,7 +543,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
             unsigned short* displs = new unsigned short[super::_map.size() + 1];
             displs[0] = 0;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + i);
+                MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.getCommunicator(), rqMult + i);
                 displs[i + 1] = displs[i] + super::_map[i].second.size();
             }
 
@@ -553,13 +553,13 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
                         tmp[super::_map[i].second[j] + k * super::_n] -= m[i][j] * (mult[displs[i] * super::_local + j + k * super::_map[i].second.size()] = - super::_deflation[k][super::_map[i].second[j]]);
-                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
+                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.getCommunicator(), rqMult + super::_map.size() + i);
             }
             for(unsigned short i = super::_signed; i < super::_map.size(); ++i) {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
                         tmp[super::_map[i].second[j] + k * super::_n] += m[i][j] * (mult[displs[i] * super::_local + j + k * super::_map[i].second.size()] =   super::_deflation[k][super::_map[i].second[j]]);
-                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
+                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.getCommunicator(), rqMult + super::_map.size() + i);
             }
 
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
@@ -762,7 +762,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             unsigned short* displs = new unsigned short[super::_map.size() + 1];
             displs[0] = 0;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + i);
+                MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::_local : infoNeighbor[i]), super::_map[i].second.size() * (U ? super::_local : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.getCommunicator(), rqMult + i);
                 displs[i + 1] = displs[i] + super::_map[i].second.size();
             }
 
@@ -772,7 +772,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 for(unsigned short k = 0; k < super::_local; ++k)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j)
                         tmp[super::_map[i].second[j] + k * super::_n] = (mult[displs[i] * super::_local + j + k * super::_map[i].second.size()] = m[super::_map[i].second[j]] * super::_deflation[k][super::_map[i].second[j]]);
-                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.Subdomain<K>::getCommunicator(), rqMult + super::_map.size() + i);
+                MPI_Isend(mult + displs[i] * super::_local, super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 11, super::_p.getCommunicator(), rqMult + super::_map.size() + i);
             }
 
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
