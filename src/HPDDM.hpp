@@ -87,6 +87,8 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #include <unordered_map>
 #include <bitset>
 #include <complex>
+#include <limits>
+#include <algorithm>
 static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double), "Incorrect sizes");
 #ifdef _OPENMP
 # include <omp.h>

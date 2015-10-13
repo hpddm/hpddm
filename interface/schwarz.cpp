@@ -357,7 +357,7 @@ int main(int argc, char **argv) {
             neumann = new K[nnz];
             MatNeumann = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, neumann, in, jn, 0);
             std::copy(a, a + nnz, neumann);
-            for(int j = jStart, k = 0, nnz = 0; j < jEnd; ++j)
+            for(int j = jStart, nnz = 0; j < jEnd; ++j)
                 for(int i = iStart; i < iEnd; ++i) {
                     if(j > jStart) {
                         if(i == iStart)
@@ -437,7 +437,7 @@ int main(int argc, char **argv) {
         A.computeError(sol, f, storage);
         if(rankWorld == 0)
             std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
-        if(it > 45)
+        if(it > 45 && storage[1] / storage[0] > 1.0e-2)
             status = 1;
     }
     else {

@@ -141,8 +141,8 @@ class Option {
             static bool numeric(const std::string& opt, const std::string& s, bool verbose) {
                 char* endptr = nullptr;
                 if(!s.empty()) {
-                    strtod(s.c_str(), &endptr);
-                    if(endptr != s.c_str() && *endptr == 0)
+                    double val = strtod(s.c_str(), &endptr);
+                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(val))
                         return true;
                 }
                 if(verbose)
