@@ -1,0 +1,21 @@
+SOLVER ?= SUITESPARSE
+SUBSOLVER ?= SUITESPARSE
+MPICXX ?= g++.exe
+MPICC ?= gcc.exe
+MPIRUN ?= mpiexec.exe
+
+override CXXFLAGS += -std=c++11 -O3 -D__NO_INLINE__
+override CFLAGS += -std=c99 -O3 -D__NO_INLINE__
+
+HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'
+
+INCS = -I/c/Program\ Files/Microsoft\ MPI/Inc
+LIBS = /c/Program\ Files/Microsoft\ MPI/Lib/i386/msmpi.lib
+
+LIST_COMPILATION = cpp c
+
+SUITESPARSE_INCS = -I${HOME}/SuiteSparse/include
+
+BLAS_LIBS = -L${HOME}/OpenBLAS-0.2.14 -lopenblas
+ARPACK_LIBS = -L${HOME}/ARPACK/lib -larpack -lgfortran
+SUITESPARSE_LIBS = -L${HOME}/SuiteSparse/lib -lcholmod -lumfpack -lamd -lcolamd -lsuitesparseconfig

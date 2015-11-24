@@ -1,0 +1,23 @@
+SOLVER ?= MUMPS
+SUBSOLVER ?= MUMPS
+MPICXX ?= mpic++
+MPICC ?= mpicc
+MPIRUN ?= mpirun
+
+override CXXFLAGS += -std=c++11 -O3 -fPIC
+override CFLAGS += -std=c99 -O3
+
+HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'
+
+INCS = 
+LIBS = 
+
+MUMPS_INCS = -I/usr/include
+PYTHON_INCS = -I/usr/include/python2.7/
+
+BLAS_LIBS = -L/usr/lib -lblas -llapack
+ARPACK_LIBS = -L/usr/lib -larpack
+SCALAPACK_LIBS = -L/usr/lib -lscalapack-openmpi
+MUMPS_LIBS = -L/usr/lib -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lmpi_f77
+HYPRE_LIBS = -L/usr/lib -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls
+PYTHON_LIBS = /usr/lib/x86_64-linux-gnu/libpython2.7.so

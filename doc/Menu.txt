@@ -60,13 +60,14 @@ File: SuiteSparse  (SuiteSparse.hpp)
 File: Wrapper  (wrapper.hpp)
 File: Hypre  (Hypre.hpp)
 File: Option  (option.hpp)
+File: Blas  (BLAS.hpp)
+File: ScaLapack  (ScaLAPACK.hpp)
 
 Group: Index  {
 
    Index: Everything
    Class Index: Classes
    Constant Index: Constants
-   File Index: Files
    Function Index: Functions
    Type Index: Types
    Variable Index: Variables

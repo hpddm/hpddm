@@ -26,6 +26,7 @@
 *.exe
 *.out
 *.app
+*.pyc
 
 # Documentation
 *.html
@@ -40,6 +41,7 @@
 .#*
 .DS_Store
 .fuse*
+Makefile.inc
 
 # Log
 *.aux
@@ -53,3 +55,7 @@
 *.snm
 *.vrb
 *.toc
+
+*.dSYM
+lib/
+bin/

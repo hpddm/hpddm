@@ -14,11 +14,16 @@ compiler:
 sudo: false
 
 env:
-  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
-  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
-  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
-  - SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
-  - SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+  - HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
+  - HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
+  - HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
+  - HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
+  - HPDDM_NUMBERING=C SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+  - HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
+  - HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
+  - HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
+  - HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
+  - HPDDM_NUMBERING=F SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
 
 addons:
   apt:
@@ -29,38 +34,26 @@ addons:
     - libmumps-dev
     - libarpack2-dev
     - libhypre-dev
-
-before_install:
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew tap homebrew/science; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install gcc arpack cmake scalapack veclibfort; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install open-mpi --c++11; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install mumps; fi
+    - python-pip
+    - python2.7-dev
 
 install:
+  - pip install --user numpy mpi4py
+  - cp Make.inc/Makefile.Linux Makefile.inc
   - export OMPI_CXX=$CXX
-  - export CXX_FLAGS="-O3"
-  - if [ "$FORCE_SINGLE" == "ON" ]; then export CXX_FLAGS="${CXX_FLAGS} -DFORCE_SINGLE"; fi
-  - if [ "$FORCE_COMPLEX" == "ON" ]; then export CXX_FLAGS="${CXX_FLAGS} -DFORCE_COMPLEX"; fi
-  - if [ "$CO" == "GENERAL_CO" ]; then export CXX_FLAGS="${CXX_FLAGS} -DGENERAL_CO"; fi
-  - cd interface
-  - if [ "$CXX" == "g++" ]; then export OMPI_CXX="g++-4.9"; export CXX_FLAGS="-Wno-literal-suffix ${CXX_FLAGS}"; fi
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -DD${SOLVER} -D${SUBSOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77 -DHPDDM_NUMBERING=\'C\' -o schwarz_c && mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/include -DD${SOLVER} -D${SUBSOLVER}SUB -L/usr/lib -lblas -llapack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls -lscalapack-openmpi -larpack -lmpi_f77 -DHPDDM_NUMBERING=\'F\' -o schwarz_f; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mpicxx -std=c++11 schwarz.cpp -Wpedantic -Werror ${CXX_FLAGS} -I../src -I/usr/local/include -DMUMPSSUB -DDMUMPS -L/usr/local/lib -larpack -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lscalapack -framework vecLib; fi
+  - export OMPI_CC=$CC
+  - if [ "$FORCE_SINGLE" == "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
+  - if [ "$FORCE_COMPLEX" == "ON" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
+  - if [ "$CO" == "GENERAL_CO" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DGENERAL_CO"; fi
+  - if [ "$HPDDM_NUMBERING" == "C" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'C\'"; fi
+  - if [ "$HPDDM_NUMBERING" == "F" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'F\'"; fi
+  - export CCFLAGS="-Wpedantic -Werror"
+  - export CXXFLAGS="-Wpedantic -Werror"
+  - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; export CCFLAGS="-Wno-literal-suffix ${CCFLAGS}"; export CXXFLAGS="-Wno-literal-suffix ${CXXFLAGS}"; fi
+  - make all -j2
 
 script:
-  - mpirun -np 1 ./schwarz_c -hpddm_verbosity
-  - mpirun -np 1 ./schwarz_c -symmetric_csr -hpddm_verbosity
-  - mpirun -np 2 ./schwarz_c -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr
-  - mpirun -np 4 ./schwarz_c -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80
-  - mpirun -np 4 ./schwarz_c -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr
-  - mpirun -np 8 ./schwarz_c -hpddm_tol=1.0e-4 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40 -hpddm_variant=right -symmetric_csr
-  - mpirun -np 1 ./schwarz_f -hpddm_verbosity
-  - mpirun -np 1 ./schwarz_f -symmetric_csr -hpddm_verbosity
-  - mpirun -np 2 ./schwarz_f -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr
-  - mpirun -np 4 ./schwarz_f -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80
-  - mpirun -np 4 ./schwarz_f -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr
-  - mpirun -np 8 ./schwarz_f -hpddm_tol=1.0e-4 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40 -hpddm_variant=right -symmetric_csr=1
+  - make test
 
 notifications:
   email:
