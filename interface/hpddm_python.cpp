@@ -24,8 +24,8 @@
 #ifndef HPDDM_NUMBERING
 #define HPDDM_NUMBERING       'C'
 #endif
-#include <HPDDM.hpp>
 #include <Python.h>
+#include <HPDDM.hpp>
 
 #ifdef FORCE_SINGLE
 #ifdef FORCE_COMPLEX
