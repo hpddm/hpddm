@@ -36,12 +36,12 @@ addons:
     - libhypre-dev
     - python-pip
     - python2.7-dev
+    - libpython2.7
 
 install:
+  - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; else export OMPI_CC=$CC; export OMPI_CXX=$CXX; fi
   - pip install --user numpy mpi4py
   - cp Make.inc/Makefile.Linux Makefile.inc
-  - export OMPI_CXX=$CXX
-  - export OMPI_CC=$CC
   - if [ "$FORCE_SINGLE" == "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
   - if [ "$CO" == "GENERAL_CO" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DGENERAL_CO"; fi
@@ -49,7 +49,7 @@ install:
   - if [ "$HPDDM_NUMBERING" == "F" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'F\'"; fi
   - export CCFLAGS="-Wpedantic -Werror"
   - export CXXFLAGS="-Wpedantic -Werror"
-  - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; export CCFLAGS="-Wno-literal-suffix ${CCFLAGS}"; export CXXFLAGS="-Wno-literal-suffix ${CXXFLAGS}"; fi
+  - if [ "$CXX" == "g++" ]; then export CCFLAGS="-Wno-literal-suffix ${CCFLAGS}"; export CXXFLAGS="-Wno-literal-suffix ${CXXFLAGS}"; fi
   - make all -j2
 
 script:

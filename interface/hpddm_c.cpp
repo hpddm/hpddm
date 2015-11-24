@@ -142,7 +142,7 @@ void HpddmSchwarzMultiplicityScaling(HpddmSchwarz* A, underlying_type* d) {
 void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->callNumfact();
 }
-void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann, unsigned short* nu, K threshold) {
+void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann, unsigned short* nu, underlying_type threshold) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->template solveGEVP<HPDDM::Arpack>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type>*>(neumann), *nu, threshold);
 }
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {

@@ -20,4 +20,4 @@ ARPACK_LIBS = -L/usr/lib -larpack
 SCALAPACK_LIBS = -L/usr/lib -lscalapack-openmpi
 MUMPS_LIBS = -L/usr/lib -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lmpi_f77
 HYPRE_LIBS = -L/usr/lib -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls
-PYTHON_LIBS = /usr/lib/x86_64-linux-gnu/libpython2.7.so
+PYTHON_LIBS = -L/usr/lib -lpython2.7

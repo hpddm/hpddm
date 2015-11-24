@@ -103,7 +103,7 @@ void HpddmSchwarzInitialize(HpddmSchwarz*, underlying_type*);
 HpddmPreconditioner* HpddmSchwarzPreconditioner(HpddmSchwarz*);
 void HpddmSchwarzMultiplicityScaling(HpddmSchwarz*, underlying_type*);
 void HpddmSchwarzCallNumfact(HpddmSchwarz*);
-void HpddmSchwarzSolveGEVP(HpddmSchwarz*, HpddmMatrixCSR*, unsigned short*, K);
+void HpddmSchwarzSolveGEVP(HpddmSchwarz*, HpddmMatrixCSR*, unsigned short*, underlying_type);
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz*, MPI_Comm);
 void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, underlying_type*);
 void HpddmSchwarzDestroy(HpddmSchwarz*);
