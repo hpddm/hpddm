@@ -109,6 +109,8 @@ int main(int argc, char **argv) {
         axpy(&ndof, &minus, f, &one, tmp, &one);
         underlying_type nrmAx = nrm2(&ndof, tmp, &one);
         printf(" --- error = %e / %e\n", nrmAx, nrmb);
+        if(nrmAx / nrmb > (sizeof(underlying_type) == sizeof(double) ? 1.0e-8 : 1.0e-2))
+            status = 1;
         free(tmp);
         HpddmSubdomainDestroy(S);
         HpddmMatrixCSRDestroy(Mat);

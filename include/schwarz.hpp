@@ -52,7 +52,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * OS           - Optimized symmetric preconditioner, e.g. Optimized Schwarz method.
          * OG           - Optimized nonsymmetric preconditioner, e.g. Optimized Restricted Additive Schwarz method. */
         enum class Prcndtnr : char {
-            NO, SY, GE, OS, OG, AD, BA
+            NO, SY, GE, OS, OG
         };
     private:
         /* Variable: d
@@ -101,7 +101,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 opt["reuse_preconditioner"] += 1;
         }
         void setMatrix(MatrixCSR<K>* const& a) {
-            bool fact = super::setMatrix(a);
+            bool fact = super::setMatrix(a) && _type != Prcndtnr::OS && _type != Prcndtnr::OG;
             if(fact) {
                 using type = alias<Solver<K>>;
                 super::_s.~type();
@@ -169,10 +169,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), out, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1); // _uc = _ev^T D in
                 super::_co->template callSolver<excluded>(super::_uc, fuse);                                                                                                                                     // _uc = E \ _ev^T D in
                 Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &i__1, &(Wrapper<K>::d__0), out, &i__1);                   // out = _ev E \ _ev^T D in
-                if(_type != Prcndtnr::AD) {
-                    Wrapper<K>::diag(Subdomain<K>::_dof, _d, out);
-                    Subdomain<K>::exchange(out);
-                }
+                Wrapper<K>::diag(Subdomain<K>::_dof, _d, out);
+                Subdomain<K>::exchange(out);
             }
             if(fuse > 0)
                 std::copy_n(super::_uc + super::getLocal(), fuse, out + Subdomain<K>::_dof);
@@ -376,7 +374,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         template<template<class> class Eps>
         void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const underlying_type<K>& threshold, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
             Eps<K> evp(threshold, Subdomain<K>::_dof, nu);
+#ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
+#else
+            constexpr bool free = false;
+#endif
             MatrixCSR<K>* rhs = nullptr;
             if(B)
                 rhs = B;

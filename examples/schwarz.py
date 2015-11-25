@@ -62,13 +62,13 @@ if sizeWorld > 1:
         if nu.value > 0:
             if hpddm.optionApp(opt, "nonuniform"):
                 nu.value += max(int(-hpddm.optionVal(opt, "geneo_nu") + 1), (-1)**rankWorld * rankWorld)
-            threshold = max(0, hpddm.optionVal(opt, "geneo_threshold"))
+            threshold = hpddm.underlying(max(0, hpddm.optionVal(opt, "geneo_threshold")))
             hpddm.schwarzSolveGEVP(A, MatNeumann, ctypes.byref(nu), threshold)
             addr = hpddm.optionAddr(opt, "geneo_nu")
             addr.contents.value = nu.value
         else:
             nu = 1
-            deflation = numpy.ones((nu, dof))
+            deflation = numpy.ones((nu, dof), dtype = hpddm.scalar)
             hpddm.setVectors(hpddm.schwarzPreconditioner(A), nu, deflation)
         hpddm.initializeCoarseOperator(hpddm.schwarzPreconditioner(A), nu)
         hpddm.schwarzBuildCoarseOperator(A, hpddm.MPI_Comm.from_address(MPI._addressof(MPI.COMM_WORLD)))
@@ -78,7 +78,7 @@ if sizeWorld > 1:
         it = hpddm.CG(A, sol, f, comm)
     else:
         it = hpddm.GMRES(A, sol, f, 1, comm)
-    storage = numpy.empty(2)
+    storage = numpy.empty(2, dtype = hpddm.underlying)
     hpddm.schwarzComputeError(A, sol, f, storage)
     if rankWorld == 0:
         print " --- error = {:e} / {:e}".format(storage[1], storage[0])
@@ -95,7 +95,7 @@ else:
     tmp -= f
     nrmAx = numpy.linalg.norm(tmp)
     print " --- error = {:e} / {:e}".format(nrmAx, nrmb)
-    if nrmAx / nrmb > 1.0e-8:
+    if nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
         status = 1
     hpddm.subdomainDestroy(ctypes.byref(S))
     hpddm.matrixCSRDestroy(ctypes.byref(Mat))

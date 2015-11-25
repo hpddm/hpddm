@@ -52,8 +52,8 @@ def generate(rankWorld, sizeWorld):
     nnz = ndof * 3 - (iEnd - iStart) - (jEnd - jStart)
     if not(sym):
         nnz = 2 * nnz - ndof
-    f = numpy.empty(ndof)
-    sol = numpy.zeros(ndof)
+    sol = numpy.zeros(ndof, dtype = hpddm.scalar)
+    f = numpy.empty_like(sol)
     xdim = [ 0.0, 10.0 ]
     ydim = [ 0.0, 10.0 ]
     Nf = 3
@@ -73,7 +73,7 @@ def generate(rankWorld, sizeWorld):
                     frs -= asc[n] * math.cos(0.5 * math.pi * xdist / rsc[n]) * math.cos(0.5 * math.pi * ydist / rsc[n])
                 f[k] = frs
             k += 1
-    d = numpy.ones(ndof)
+    d = numpy.ones(ndof, dtype = hpddm.underlying)
     o = []
     connectivity = []
     if jStart != 0:
@@ -191,7 +191,7 @@ def generate(rankWorld, sizeWorld):
 
     ia = numpy.empty(ndof + 1, dtype = ctypes.c_int)
     ja = numpy.empty(nnz, dtype = ctypes.c_int)
-    a = numpy.empty(nnz)
+    a = numpy.empty(nnz, dtype = hpddm.scalar)
     ia[0] = (hpddm.numbering.value == 'F')
     ia[ndof] = nnz + (hpddm.numbering.value == 'F')
     if sym:
@@ -243,7 +243,7 @@ def generate(rankWorld, sizeWorld):
             nnzNeumann = 2 * nnz - ndof
             iNeumann = numpy.empty_like(ia)
             jNeumann = numpy.empty(nnzNeumann, dtype = ctypes.c_int)
-            aNeumann = numpy.empty(nnzNeumann)
+            aNeumann = numpy.empty(nnzNeumann, dtype = hpddm.scalar)
             iNeumann[0] = (hpddm.numbering.value == 'F')
             iNeumann[ndof] = nnzNeumann + (hpddm.numbering.value == 'F')
             k = 0

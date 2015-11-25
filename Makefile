@@ -148,6 +148,15 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} -np 1 $(subst test_,,$@) -hpddm_verbosity
 	${MPIRUN} -np 1 $(subst test_,,$@) -symmetric_csr -hpddm_verbosity
 	${MPIRUN} -np 2 $(subst test_,,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr
-	${MPIRUN} -np 4 $(subst test_,,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80
-	${MPIRUN} -np 4 $(subst test_,,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr
-	${MPIRUN} -np 8 $(subst test_,,$@) -hpddm_tol=1.0e-4 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40 -hpddm_variant=right -symmetric_csr
+	${MPIRUN} -np 4 $(subst test_,,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_local_matrix_1=${TRASH_DIR}/output
+	@if [ -f lib/libhpddm_python.${EXTENSION_LIB} ]; then \
+		examples/solver.py ${TRASH_DIR}/output_1_4.txt; \
+	fi
+	${MPIRUN} -np 4 $(subst test_,,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr --hpddm_dump_local_matrix_2 ${TRASH_DIR}/output
+	@if [ -f lib/libhpddm_python.${EXTENSION_LIB} ]; then \
+		examples/solver.py ${TRASH_DIR}/output_2_4.txt; \
+	fi
+	${MPIRUN} -np 8 $(subst test_,,$@) -hpddm_tol=1.0e-4 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40 -hpddm_variant=right -symmetric_csr -hpddm_dump_local_matrix_2 ${TRASH_DIR}/output
+	@if [ -f lib/libhpddm_python.${EXTENSION_LIB} ]; then \
+		examples/solver.py ${TRASH_DIR}/output_2_8.txt; \
+	fi

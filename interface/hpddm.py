@@ -43,13 +43,15 @@ else:
     MPI_Comm = ctypes.c_void_p
 
 if ctypes.c_ushort.in_dll(lib, 'scalar').value == 0:
-    scalar = ctypes.c_float
+    scalar = underlying = ctypes.c_float
 elif ctypes.c_ushort.in_dll(lib, 'scalar').value == 1:
-    scalar = ctypes.c_double
+    scalar = underlying = ctypes.c_double
 elif ctypes.c_ushort.in_dll(lib, 'scalar').value == 2:
     scalar = numpy.complex64
+    underlying = ctypes.c_float
 else:
     scalar = numpy.complex128
+    underlying = ctypes.c_double
 
 class Option(ctypes.Structure):
     pass
@@ -125,25 +127,25 @@ schwarzCreate.restype = ctypes.POINTER(Schwarz)
 schwarzCreate.argtypes = [ ctypes.POINTER(MatrixCSR), ctypes.py_object, ctypes.py_object ]
 schwarzInitialize = lib.schwarzInitialize
 schwarzInitialize.restype = None
-schwarzInitialize.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(ctypes.c_double, flags = "C_CONTIGUOUS") ]
+schwarzInitialize.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, flags = "C_CONTIGUOUS") ]
 schwarzPreconditioner = lib.schwarzPreconditioner
 schwarzPreconditioner.restype = ctypes.POINTER(Preconditioner)
 schwarzPreconditioner.argtypes = [ ctypes.POINTER(Schwarz) ]
 schwarzMultiplicityScaling = lib.schwarzMultiplicityScaling
 schwarzMultiplicityScaling.restype = None
-schwarzMultiplicityScaling.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(ctypes.c_double, flags = "C_CONTIGUOUS") ]
+schwarzMultiplicityScaling.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, flags = "C_CONTIGUOUS") ]
 schwarzCallNumfact = lib.schwarzCallNumfact
 schwarzCallNumfact.restype = None
 schwarzCallNumfact.argtypes = [ ctypes.POINTER(Schwarz) ]
 schwarzSolveGEVP = lib.schwarzSolveGEVP
 schwarzSolveGEVP.restype = None
-schwarzSolveGEVP.argtypes = [ ctypes.POINTER(Schwarz), ctypes.POINTER(MatrixCSR), ctypes.POINTER(ctypes.c_ushort), ctypes.c_double ]
+schwarzSolveGEVP.argtypes = [ ctypes.POINTER(Schwarz), ctypes.POINTER(MatrixCSR), ctypes.POINTER(ctypes.c_ushort), underlying ]
 schwarzBuildCoarseOperator = lib.schwarzBuildCoarseOperator
 schwarzBuildCoarseOperator.restype = None
 schwarzBuildCoarseOperator.argtypes = [ ctypes.POINTER(Schwarz), MPI_Comm ]
 schwarzComputeError = lib.schwarzComputeError
 schwarzComputeError.restype = None
-schwarzComputeError.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = "C_CONTIGUOUS"), numpy.ctypeslib.ndpointer(scalar, flags = "C_CONTIGUOUS"), numpy.ctypeslib.ndpointer(ctypes.c_double, flags = "C_CONTIGUOUS") ]
+schwarzComputeError.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = "C_CONTIGUOUS"), numpy.ctypeslib.ndpointer(scalar, flags = "C_CONTIGUOUS"), numpy.ctypeslib.ndpointer(underlying, flags = "C_CONTIGUOUS") ]
 schwarzDestroy = lib.schwarzDestroy
 schwarzDestroy.restype = None
 schwarzDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Schwarz)) ]

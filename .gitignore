@@ -41,6 +41,7 @@
 .#*
 .DS_Store
 .fuse*
+.trash
 Makefile.inc
 
 # Log
