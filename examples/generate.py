@@ -31,23 +31,28 @@ import numpy
 import hpddm
 import math
 
+try:
+    xrange
+except NameError:
+    xrange = range
+
 def generate(rankWorld, sizeWorld):
     opt = hpddm.optionGet()
-    Nx = int(hpddm.optionApp(opt, 'Nx'))
-    Ny = int(hpddm.optionApp(opt, 'Ny'))
-    overlap = int(hpddm.optionApp(opt, 'overlap'))
-    sym = bool(hpddm.optionApp(opt, 'symmetric_csr'))
+    Nx = int(hpddm.optionApp(opt, b'Nx'))
+    Ny = int(hpddm.optionApp(opt, b'Ny'))
+    overlap = int(hpddm.optionApp(opt, b'overlap'))
+    sym = bool(hpddm.optionApp(opt, b'symmetric_csr'))
     xGrid = int(math.sqrt(sizeWorld))
     while sizeWorld % xGrid != 0:
         --xGrid
-    yGrid = sizeWorld / xGrid
+    yGrid = int(sizeWorld / xGrid)
 
-    y = rankWorld / xGrid
+    y = int(rankWorld / xGrid)
     x = rankWorld - xGrid * y
-    iStart = max(x * Nx / xGrid - overlap, 0)
-    iEnd   = min((x + 1) * Nx / xGrid + overlap, Nx)
-    jStart = max(y * Ny / yGrid - overlap, 0)
-    jEnd   = min((y + 1) * Ny / yGrid + overlap, Ny)
+    iStart = max(x * int(Nx / xGrid) - overlap, 0)
+    iEnd   = min((x + 1) * int(Nx / xGrid) + overlap, Nx)
+    jStart = max(y * int(Ny / yGrid) - overlap, 0)
+    jEnd   = min((y + 1) * int(Ny / yGrid) + overlap, Ny)
     ndof = (iEnd - iStart) * (jEnd - jStart)
     nnz = ndof * 3 - (iEnd - iStart) - (jEnd - jStart)
     if not(sym):
@@ -192,8 +197,8 @@ def generate(rankWorld, sizeWorld):
     ia = numpy.empty(ndof + 1, dtype = ctypes.c_int)
     ja = numpy.empty(nnz, dtype = ctypes.c_int)
     a = numpy.empty(nnz, dtype = hpddm.scalar)
-    ia[0] = (hpddm.numbering.value == 'F')
-    ia[ndof] = nnz + (hpddm.numbering.value == 'F')
+    ia[0] = (hpddm.numbering.value == b'F')
+    ia[ndof] = nnz + (hpddm.numbering.value == b'F')
     if sym:
         k = 0
         nnz = 0
@@ -201,17 +206,17 @@ def generate(rankWorld, sizeWorld):
             for i in xrange(iStart, iEnd):
                 if j > jStart:
                     a[nnz] = -1 / (dy * dy)
-                    ja[nnz] = k - (Ny / yGrid) + (hpddm.numbering.value == 'F')
+                    ja[nnz] = k - int(Ny / yGrid) + (hpddm.numbering.value == b'F')
                     nnz += 1
                 if i > iStart:
                     a[nnz] = -1 / (dx * dx)
-                    ja[nnz] = k - (hpddm.numbering.value == 'C')
+                    ja[nnz] = k - (hpddm.numbering.value == b'C')
                     nnz += 1
                 a[nnz] = 2 / (dx * dx) + 2 / (dy * dy)
-                ja[nnz] = k + (hpddm.numbering.value == 'F')
+                ja[nnz] = k + (hpddm.numbering.value == b'F')
                 nnz += 1
                 k += 1
-                ia[k] = nnz + (hpddm.numbering.value == 'F')
+                ia[k] = nnz + (hpddm.numbering.value == b'F')
     else:
         k = 0
         nnz = 0
@@ -219,58 +224,58 @@ def generate(rankWorld, sizeWorld):
             for i in xrange(iStart, iEnd):
                 if j > jStart:
                     a[nnz] = -1 / (dy * dy)
-                    ja[nnz] = k - (Ny / yGrid) + (hpddm.numbering.value == 'F')
+                    ja[nnz] = k - int(Ny / yGrid) + (hpddm.numbering.value == b'F')
                     nnz += 1
                 if i > iStart:
                     a[nnz] = -1 / (dx * dx)
-                    ja[nnz] = k - (hpddm.numbering.value == 'C')
+                    ja[nnz] = k - (hpddm.numbering.value == b'C')
                     nnz += 1
                 a[nnz] = 2 / (dx * dx) + 2 / (dy * dy)
-                ja[nnz] = k + (hpddm.numbering.value == 'F')
+                ja[nnz] = k + (hpddm.numbering.value == b'F')
                 nnz += 1
                 if i < iEnd - 1:
                     a[nnz] = -1 / (dx * dx)
-                    ja[nnz] = k + 1 + (hpddm.numbering.value == 'F')
+                    ja[nnz] = k + 1 + (hpddm.numbering.value == b'F')
                     nnz += 1
                 if j < jEnd - 1:
                     a[nnz] = -1 / (dy * dy)
-                    ja[nnz] = k + (Ny / yGrid) + (hpddm.numbering.value == 'F')
+                    ja[nnz] = k + int(Ny / yGrid) + (hpddm.numbering.value == b'F')
                     nnz += 1
                 k += 1
-                ia[k] = nnz + (hpddm.numbering.value == 'F')
-    if sizeWorld > 1 and hpddm.optionSet(opt, "schwarz_coarse_correction") and hpddm.optionVal(opt, "geneo_nu") > 0:
+                ia[k] = nnz + (hpddm.numbering.value == b'F')
+    if sizeWorld > 1 and hpddm.optionSet(opt, b'schwarz_coarse_correction') and hpddm.optionVal(opt, b'geneo_nu') > 0:
         if sym:
             nnzNeumann = 2 * nnz - ndof
             iNeumann = numpy.empty_like(ia)
             jNeumann = numpy.empty(nnzNeumann, dtype = ctypes.c_int)
             aNeumann = numpy.empty(nnzNeumann, dtype = hpddm.scalar)
-            iNeumann[0] = (hpddm.numbering.value == 'F')
-            iNeumann[ndof] = nnzNeumann + (hpddm.numbering.value == 'F')
+            iNeumann[0] = (hpddm.numbering.value == b'F')
+            iNeumann[ndof] = nnzNeumann + (hpddm.numbering.value == b'F')
             k = 0
             nnzNeumann = 0
             for j in xrange(jStart, jEnd):
                 for i in xrange(iStart, iEnd):
                     if j > jStart:
                         aNeumann[nnzNeumann] = -1 / (dy * dy) + (-1 / (dx * dx) if i == iStart else 0)
-                        jNeumann[nnzNeumann] = k - (Ny / yGrid) + (hpddm.numbering.value == 'F')
+                        jNeumann[nnzNeumann] = k - int(Ny / yGrid) + (hpddm.numbering.value == b'F')
                         nnzNeumann += 1
                     if i > iStart:
                         aNeumann[nnzNeumann] = -1 / (dx * dx) + (-1 / (dy * dy) if j == jStart else 0)
-                        jNeumann[nnzNeumann] = k - (hpddm.numbering.value == 'C')
+                        jNeumann[nnzNeumann] = k - (hpddm.numbering.value == b'C')
                         nnzNeumann += 1
                     aNeumann[nnzNeumann] = 2 / (dx * dx) + 2 / (dy * dy)
-                    jNeumann[nnzNeumann] = k + (hpddm.numbering.value == 'F')
+                    jNeumann[nnzNeumann] = k + (hpddm.numbering.value == b'F')
                     nnzNeumann += 1
                     if i < iEnd - 1:
                         aNeumann[nnzNeumann] = -1 / (dx * dx) + (-1 / (dy * dy) if j == jEnd - 1 else 0)
-                        jNeumann[nnzNeumann] = k + 1 + (hpddm.numbering.value == 'F')
+                        jNeumann[nnzNeumann] = k + 1 + (hpddm.numbering.value == b'F')
                         nnzNeumann += 1
                     if j < jEnd - 1:
                         aNeumann[nnzNeumann] = -1 / (dy * dy) + (-1 / (dx * dx) if i == iEnd - 1 else 0)
-                        jNeumann[nnzNeumann] = k + (Ny / yGrid) + (hpddm.numbering.value == 'F')
+                        jNeumann[nnzNeumann] = k + int(Ny / yGrid) + (hpddm.numbering.value == b'F')
                         nnzNeumann += 1
                     k += 1
-                    iNeumann[k] = nnzNeumann + (hpddm.numbering.value == 'F')
+                    iNeumann[k] = nnzNeumann + (hpddm.numbering.value == b'F')
             MatNeumann = hpddm.matrixCSRCreate(ndof, ndof, nnzNeumann, aNeumann, iNeumann, jNeumann, False)
         else:
             aNeumann = numpy.empty_like(a)
@@ -302,7 +307,7 @@ def generate(rankWorld, sizeWorld):
     if sizeWorld > 1:
         for k in xrange(sizeWorld):
             if k == rankWorld:
-                print str(rankWorld) + ":"
-                print str(x) + "x" + str(y) + " -- [" + str(iStart) + " ; " + str(iEnd) + "] x [" + str(jStart) + " ; " + str(jEnd) + "] -- " + str(ndof) + ", " + str(nnz)
+                print(str(rankWorld) + ':')
+                print(str(x) + 'x' + str(y) + ' -- [' + str(iStart) + ' ; ' + str(iEnd) + '] x [' + str(jStart) + ' ; ' + str(jEnd) + '] -- ' + str(ndof) + ', ' + str(nnz))
             MPI.COMM_WORLD.Barrier()
     return o, connectivity, ndof, Mat, MatNeumann, d, f, sol

@@ -35,36 +35,36 @@ from generate import *
 rankWorld = MPI.COMM_WORLD.Get_rank()
 sizeWorld = MPI.COMM_WORLD.Get_size()
 opt = hpddm.optionGet()
-args = ctypes.create_string_buffer(" ".join(sys.argv[1:]))
+args = ctypes.create_string_buffer(' '.join(sys.argv[1:]).encode('ascii', 'ignore'))
 hpddm.optionParse(opt, args, rankWorld == 0)
 def appArgs():
     val = (ctypes.c_char_p * 3)()
-    (val[0], val[1], val[2]) = [ "Nx=<100>", "Ny=<100>", "overlap=<1>" ]
+    (val[0], val[1], val[2]) = [ b'Nx=<100>', b'Ny=<100>', b'overlap=<1>' ]
     desc = (ctypes.c_char_p * 3)()
-    (desc[0], desc[1], desc[2]) = [ "Number of grid points in the x-direction.", "Number of grid points in the y-direction.", "Number of grid points in the overlap." ]
+    (desc[0], desc[1], desc[2]) = [ b'Number of grid points in the x-direction.', b'Number of grid points in the y-direction.', b'Number of grid points in the overlap.' ]
     hpddm.optionParseInts(opt, args, 3, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
-    (val[0], val[1]) = [ "symmetric_csr=(0|1)", "nonuniform=(0|1)" ]
-    (desc[0], desc[1]) = [ "Assemble symmetric matrices.", "Use a different number of eigenpairs to compute on each subdomain." ]
+    (val[0], val[1]) = [ b'symmetric_csr=(0|1)', b'nonuniform=(0|1)' ]
+    (desc[0], desc[1]) = [ b'Assemble symmetric matrices.', b'Use a different number of eigenpairs to compute on each subdomain.' ]
     hpddm.optionParseArgs(opt, args, 2, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
     val = None
     desc = None
 appArgs()
 if rankWorld != 0:
-    hpddm.optionRemove(opt, 'verbosity')
+    hpddm.optionRemove(opt, b'verbosity')
 o, connectivity, dof, Mat, MatNeumann, d, f, sol = generate(rankWorld, sizeWorld)
 status = 0
 if sizeWorld > 1:
     A = hpddm.schwarzCreate(Mat, o, connectivity)
     hpddm.schwarzMultiplicityScaling(A, d)
     hpddm.schwarzInitialize(A, d)
-    if hpddm.optionSet(opt, "schwarz_coarse_correction"):
-        nu = ctypes.c_ushort(int(hpddm.optionVal(opt, "geneo_nu")))
+    if hpddm.optionSet(opt, b'schwarz_coarse_correction'):
+        nu = ctypes.c_ushort(int(hpddm.optionVal(opt, b'geneo_nu')))
         if nu.value > 0:
-            if hpddm.optionApp(opt, "nonuniform"):
-                nu.value += max(int(-hpddm.optionVal(opt, "geneo_nu") + 1), (-1)**rankWorld * rankWorld)
-            threshold = hpddm.underlying(max(0, hpddm.optionVal(opt, "geneo_threshold")))
+            if hpddm.optionApp(opt, b'nonuniform'):
+                nu.value += max(int(-hpddm.optionVal(opt, b'geneo_nu') + 1), (-1)**rankWorld * rankWorld)
+            threshold = hpddm.underlying(max(0, hpddm.optionVal(opt, b'geneo_threshold')))
             hpddm.schwarzSolveGEVP(A, MatNeumann, ctypes.byref(nu), threshold)
-            addr = hpddm.optionAddr(opt, "geneo_nu")
+            addr = hpddm.optionAddr(opt, b'geneo_nu')
             addr.contents.value = nu.value
         else:
             nu = 1
@@ -74,14 +74,14 @@ if sizeWorld > 1:
         hpddm.schwarzBuildCoarseOperator(A, hpddm.MPI_Comm.from_address(MPI._addressof(MPI.COMM_WORLD)))
     hpddm.schwarzCallNumfact(A)
     comm = hpddm.getCommunicator(hpddm.schwarzPreconditioner(A))
-    if hpddm.optionVal(opt, "krylov_method") == 1:
+    if hpddm.optionVal(opt, b'krylov_method') == 1:
         it = hpddm.CG(A, sol, f, comm)
     else:
         it = hpddm.GMRES(A, sol, f, 1, comm)
     storage = numpy.empty(2, dtype = hpddm.underlying)
     hpddm.schwarzComputeError(A, sol, f, storage)
     if rankWorld == 0:
-        print " --- error = {:e} / {:e}".format(storage[1], storage[0])
+        print(' --- error = {:e} / {:e}'.format(storage[1], storage[0]))
     if it > 45 or storage[1] / storage[0] > 1.0e-2:
         status = 1
     hpddm.schwarzDestroy(ctypes.byref(A))
@@ -94,7 +94,7 @@ else:
     hpddm.csrmv(Mat, sol, tmp)
     tmp -= f
     nrmAx = numpy.linalg.norm(tmp)
-    print " --- error = {:e} / {:e}".format(nrmAx, nrmb)
+    print(' --- error = {:e} / {:e}'.format(nrmAx, nrmb))
     if nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
         status = 1
     hpddm.subdomainDestroy(ctypes.byref(S))

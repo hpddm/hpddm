@@ -39,7 +39,7 @@ def parse_pair(s):
     else:
         return complex(*map(float, match.groups()))
 
-with open(sys.argv[1], "r") as input:
+with open(sys.argv[1], 'r') as input:
     k = 0
     for line in input:
         if not line.startswith('# '):
@@ -58,12 +58,12 @@ with open(sys.argv[1], "r") as input:
                         ia = numpy.zeros(n + 1, dtype = ctypes.c_int)
                         ja = numpy.empty(nnz, dtype = ctypes.c_int)
                         a = numpy.empty(nnz, dtype = hpddm.scalar)
-                        ia[0] = (hpddm.numbering.value == 'F')
+                        ia[0] = (hpddm.numbering.value == b'F')
                 else:
                     if y == 0:
                         ia[int(w)] += 1
                     elif y == 1:
-                        ja[k - 1] = int(w) - (hpddm.numbering.value == 'C')
+                        ja[k - 1] = int(w) - (hpddm.numbering.value == b'C')
                     else:
                         if hpddm.scalar == hpddm.underlying:
                             a[k - 1] = w
@@ -86,7 +86,7 @@ tmp = numpy.empty_like(f)
 hpddm.csrmv(Mat, sol, tmp)
 tmp -= f
 nrmAx = numpy.linalg.norm(tmp)
-print " --- error = {:e} / {:e}".format(nrmAx, nrmb)
+print(' --- error = {:e} / {:e}'.format(nrmAx, nrmb))
 if nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
     status = 1
 hpddm.subdomainDestroy(ctypes.byref(S))

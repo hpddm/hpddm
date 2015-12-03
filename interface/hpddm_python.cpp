@@ -168,7 +168,7 @@ void* schwarzCreate(void* Mat, PyObject* neighbors, PyObject* connectivity) {
     std::vector<int> o;
     o.reserve(PyList_Size(neighbors));
     for(int i = 0; i < PyList_Size(neighbors); ++i)
-        o.emplace_back(PyInt_AsLong(PyList_GET_ITEM(neighbors, i)));
+        o.emplace_back(PyLong_AsLong(PyList_GET_ITEM(neighbors, i)));
     std::vector<std::vector<int>> r;
     r.reserve(o.size());
     for(int i = 0; i < PyList_Size(connectivity); ++i) {
@@ -176,7 +176,7 @@ void* schwarzCreate(void* Mat, PyObject* neighbors, PyObject* connectivity) {
         PyObject* neighbor = PyList_GET_ITEM(connectivity, i);
         r.back().reserve(PyList_Size(neighbor));
         for(int j = 0; j < PyList_Size(neighbor); ++j)
-            r.back().emplace_back(PyInt_AsLong(PyList_GET_ITEM(neighbor, j)));
+            r.back().emplace_back(PyLong_AsLong(PyList_GET_ITEM(neighbor, j)));
     }
     A->Subdomain::initialize(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat), o, r);
     return A;
