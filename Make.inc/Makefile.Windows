@@ -2,7 +2,7 @@ SOLVER ?= SUITESPARSE
 SUBSOLVER ?= SUITESPARSE
 MPICXX ?= g++.exe
 MPICC ?= gcc.exe
-MPIRUN ?= mpiexec.exe
+MPIRUN ?= mpiexec.exe -np
 
 override CXXFLAGS += -std=c++11 -O3 -D__NO_INLINE__
 override CFLAGS += -std=c99 -O3 -D__NO_INLINE__

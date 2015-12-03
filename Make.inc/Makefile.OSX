@@ -1,10 +1,8 @@
 SOLVER ?= MUMPS
 SUBSOLVER ?= MUMPS
-CXX = clang++
-CC = clang
-MPICC = mpicc
 MPICXX = mpic++
-MPIRUN = mpirun
+MPICC = mpicc
+MPIRUN = mpirun -np
 
 override CXXFLAGS += -std=c++11
 override CFLAGS += -std=c99

@@ -991,14 +991,14 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const int& fu
     if(_scatterComm != MPI_COMM_NULL) {
         if(Solver<K>::_distribution == DMatrix::DISTRIBUTED_SOL) {
             if(Solver<K>::_displs) {
-                if(_rankWorld == 0)                   MPI_Gatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, Solver<K>::_gatherCounts, Solver<K>::_displs, Wrapper<K>::mpi_type(), 0, _gatherComm);
-                else if(_gatherComm != MPI_COMM_NULL) MPI_Gatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+                if(_rankWorld == 0)                   MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), rhs, Solver<K>::_gatherCounts, Solver<K>::_displs, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                else if(_gatherComm != MPI_COMM_NULL) MPI_Gatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
                 if(Solver<K>::_communicator != MPI_COMM_NULL) {
                     Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs);
-                    MPI_Scatterv(rhs, Solver<K>::_gatherSplitCounts, Solver<K>::_displsSplit, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+                    MPI_Scatterv(rhs, Solver<K>::_gatherSplitCounts, Solver<K>::_displsSplit, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _scatterComm);
                 }
                 else
-                    MPI_Scatterv(NULL, 0, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
             }
             else {
                 if(_rankWorld == 0)                   MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
@@ -1013,12 +1013,12 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const int& fu
         }
         else if(Solver<K>::_distribution == DMatrix::CENTRALIZED) {
             if(Solver<K>::_displs) {
-                if(_rankWorld == 0)                   MPI_Gatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, Solver<K>::_gatherCounts, Solver<K>::_displs, Wrapper<K>::mpi_type(), 0, _gatherComm);
-                else if(_gatherComm != MPI_COMM_NULL) MPI_Gatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+                if(_rankWorld == 0)                   MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), rhs, Solver<K>::_gatherCounts, Solver<K>::_displs, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                else if(_gatherComm != MPI_COMM_NULL) MPI_Gatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
                 if(Solver<K>::_communicator != MPI_COMM_NULL)
                     Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs);
-                if(_rankWorld == 0)                   MPI_Scatterv(rhs, Solver<K>::_gatherCounts, Solver<K>::_displs, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
-                else if(_gatherComm != MPI_COMM_NULL) MPI_Scatterv(NULL, 0, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                if(_rankWorld == 0)                   MPI_Scatterv(rhs, Solver<K>::_gatherCounts, Solver<K>::_displs, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                else if(_gatherComm != MPI_COMM_NULL) MPI_Scatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, _local, Wrapper<K>::mpi_type(), 0, _gatherComm);
             }
             else {
                 if(_rankWorld == 0)                   MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
@@ -1032,13 +1032,13 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const int& fu
         else if(Solver<K>::_distribution == DMatrix::DISTRIBUTED_SOL_AND_RHS) {
             if(Solver<K>::_displs) {
                 if(Solver<K>::_communicator != MPI_COMM_NULL) {
-                    MPI_Gatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, Solver<K>::_gatherSplitCounts, Solver<K>::_displsSplit, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), rhs, Solver<K>::_gatherSplitCounts, Solver<K>::_displsSplit, Wrapper<K>::mpi_type(), 0, _gatherComm);
                     Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs);
-                    MPI_Scatterv(rhs, Solver<K>::_gatherSplitCounts, Solver<K>::_displsSplit, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+                    MPI_Scatterv(rhs, Solver<K>::_gatherSplitCounts, Solver<K>::_displsSplit, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _scatterComm);
                 }
                 else {
-                    MPI_Gatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
-                    MPI_Scatterv(NULL, 0, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Gatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    MPI_Scatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
                 }
             }
             else {

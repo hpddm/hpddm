@@ -1,0 +1,23 @@
+SOLVER ?= MUMPS
+SUBSOLVER ?= MUMPS
+MPICXX ?= powerpc64-bgq-linux-g++
+MPICC ?= powerpc64-bgq-linux-gcc
+MPIRUN ?= runjob --ranks-per-node 8 --np
+
+override CXXFLAGS += -std=c++11 -O0 -fPIC
+override CFLAGS += -std=c99 -O0
+
+HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'F\'
+
+INCS = -I/bgsys/drivers/V1R2M2/ppc64/comm/sys/include
+LIBS = -Wl,--start-group -L/bgsys/drivers/V1R2M2/ppc64/comm/lib -lmpich-xl.ndebug
+
+LIST_COMPILATION = cpp c
+
+MUMPS_INCS = -I${HOME}/include
+
+BLAS_LIBS = -L/bgsys/ibm_essl/prod/opt/ibmmath/essl/5.1/lib64 -L/opt/ibmcmp/xlf/bg/14.1/lib64 -lxlfmath -lxlopt -lxl -lxlf90_r -lesslbg -lnss_files -lnss_dns -ldl -lmpl-xl -Wl,--end-group
+ARPACK_LIBS = ${HOME}/lib/libarpack.a
+SCALAPACK_LIBS = -L/bgsys/drivers/V1R2M2/ppc64/spi/lib/ -lpami-gcc.ndebug -lSPI -lSPI_cnk -lrt -lpthread -L/bglocal/cn/pub/ScaLAPACK/1.8.0/lib -lscalapack -L/bglocal/cn/pub/BLACS/1.1/lib -lblacsF77init -lblacsCinit -lblacs -lblacsCinit -lblacsF77init -lblacs -L/bglocal/cn/pub/LAPACK/3.4.2/lib -llapacke -llapack
+MUMPS_LIBS = -L${HOME}/lib -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lptscotcherrexit -lptscotch -lptesmumps -lscotcherr -lptesmumps -lscotch
+HYPRE_LIBS = -L${HOME}/lib -lHYPRE
