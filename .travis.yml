@@ -37,11 +37,10 @@ addons:
     - python-pip
     - python2.7-dev
     - libpython2.7
-    - python-numpy
 
 install:
   - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; else export OMPI_CC=$CC; export OMPI_CXX=$CXX; fi
-  - pip install --user mpi4py
+  - pip install --user numpy mpi4py
   - cp Make.inc/Makefile.Linux Makefile.inc
   - if [ "$FORCE_SINGLE" == "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
