@@ -38,6 +38,10 @@ addons:
     - python2.7-dev
     - libpython2.7
 
+cache:
+  directories:
+    - $HOME/.cache/pip
+
 install:
   - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; else export OMPI_CC=$CC; export OMPI_CXX=$CXX; fi
   - pip install --user numpy mpi4py

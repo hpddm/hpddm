@@ -310,8 +310,14 @@ class Option {
                         auto target = std::get<2>(*it).template target<bool (*)(const std::string&, const std::string&, bool)>();
                         if(!target || *target != Arg::argument)
                             map[str] = sto<double>(val);
-                        else
+                        else {
+                            for(const auto& x : map)
+                                if(x.first.find(str) == 0) {
+                                    map.erase(x.first);
+                                    break;
+                                }
                             map[str + "_" + val] = -static_cast<int>(str.size()) - 10000000;
+                        }
                     }
                 }
                 else

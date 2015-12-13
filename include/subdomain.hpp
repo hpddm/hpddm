@@ -69,6 +69,7 @@ class Subdomain {
                 output << *_a;
             }
             delete _a;
+            vectorNeighbor().swap(_map);
             delete [] _rq;
             delete [] _buff;
         }
