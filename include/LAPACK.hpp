@@ -251,7 +251,7 @@ class Lapack : public Eigensolver<K> {
                 rwork = s + Eigensolver<K>::_nu;
             }
             if(d)
-                Wrapper<K>::diag(&(Eigensolver<K>::_n), Eigensolver<K>::_nu, d, ev, a);
+                Wrapper<K>::diag(Eigensolver<K>::_n, d, ev, a, Eigensolver<K>::_nu);
             else
                 std::copy_n(ev, &(Eigensolver<K>::_n) * Eigensolver<K>::_nu, a);
             int* iwork = new int[8 * Eigensolver<K>::_n];

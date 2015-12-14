@@ -36,9 +36,9 @@ int main(int argc, char **argv) {
     const HpddmOption* const opt = HpddmOptionGet();
     HpddmOptionParse(opt, argc, argv, rankWorld == 0);
     {
-        char* val[3] = { "Nx=<100>", "Ny=<100>", "overlap=<1>" };
-        char* desc[3] = { "Number of grid points in the x-direction.", "Number of grid points in the y-direction.", "Number of grid points in the overlap." };
-        HpddmOptionParseInts(opt, argc, argv, 3, val, desc);
+        char* val[4] = { "Nx=<100>", "Ny=<100>", "overlap=<1>", "generate_random_rhs=<0>" };
+        char* desc[4] = { "Number of grid points in the x-direction.", "Number of grid points in the y-direction.", "Number of grid points in the overlap.", "Number of generated random right-hand sides." };
+        HpddmOptionParseInts(opt, argc, argv, 4, val, desc);
         val[0] = "symmetric_csr=(0|1)"; desc[0] = "Assemble symmetric matrices.";
         val[1] = "nonuniform=(0|1)"; desc[1] = "Use a different number of eigenpairs to compute on each subdomain.";
         HpddmOptionParseArgs(opt, argc, argv, 2, val, desc);
@@ -54,11 +54,16 @@ int main(int argc, char **argv) {
     underlying_type* d;
     int ndof;
     generate(rankWorld, sizeWorld, &neighbors, o, sizes, connectivity, &ndof, &Mat, &MatNeumann, &d, &f, &sol);
+    unsigned short mu = HpddmOptionApp(opt, "generate_random_rhs");
     int status = 0;
     if(sizeWorld > 1) {
         HpddmSchwarz* A = HpddmSchwarzCreate(Mat, neighbors, o, sizes, connectivity);
         HpddmSchwarzMultiplicityScaling(A, d);
         HpddmSchwarzInitialize(A, d);
+        if(mu != 0)
+            HpddmSchwarzScaledExchange(A, f, mu);
+        else
+            mu = 1;
         if(HpddmOptionSet(opt, "schwarz_coarse_correction")) {
             unsigned short nu = HpddmOptionVal(opt, "geneo_nu");
             if(nu > 0) {
@@ -87,31 +92,62 @@ int main(int argc, char **argv) {
         if(HpddmOptionVal(opt, "krylov_method") == 1)
             it = HpddmCG(A, sol, f, comm);
         else
-            it = HpddmGMRES(A, sol, f, 1, comm);
+            it = HpddmGMRES(A, sol, f, mu, comm);
         /*# SolutionEnd #*/
-        underlying_type storage[2];
-        HpddmSchwarzComputeError(A, sol, f, storage);
+        underlying_type* storage = malloc(sizeof(underlying_type) * 2 * mu);
+        HpddmSchwarzComputeError(A, sol, f, storage, mu);
         if(rankWorld == 0)
-            printf(" --- error = %e / %e\n", storage[1], storage[0]);
-        if(it > 45 || storage[1] / storage[0] > 1.0e-2)
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                if(nu == 0)
+                    printf(" --- error = ");
+                else
+                    printf("             ");
+                printf("%e / %e", storage[1 + 2 * nu], storage[2 * nu]);
+                if(mu > 1)
+                    printf(" (rhs #%d)", nu + 1);
+                printf("\n");
+            }
+        if(it > 45)
             status = 1;
+        else {
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                 if(storage[1 + 2 * nu] / storage[2 * nu] > 1.0e-2)
+                     status = 1;
+        }
+        free(storage);
         HpddmSchwarzDestroy(A);
     }
     else {
         HpddmSubdomain* S = NULL;
         HpddmSubdomainNumfact(&S, Mat);
-        HpddmSubdomainSolve(S, f, sol);
+        mu = MAX(1, mu);
+        HpddmSubdomainSolve(S, f, sol, mu);
         int one = 1;
-        underlying_type nrmb = nrm2(&ndof, f, &one);
-        K* tmp = malloc(sizeof(K) * ndof);
-        HpddmCsrmv(Mat, sol, tmp);
+        underlying_type* nrmb = malloc(sizeof(underlying_type) * 2 * mu);
+        for(unsigned short nu = 0; nu < mu; ++nu)
+            nrmb[nu] = nrm2(&ndof, f + nu * ndof, &one);
+        K* tmp = malloc(sizeof(K) * mu * ndof);
+        HpddmCsrmm(Mat, sol, tmp, mu);
         K minus = -1;
+        ndof *= mu;
         axpy(&ndof, &minus, f, &one, tmp, &one);
-        underlying_type nrmAx = nrm2(&ndof, tmp, &one);
-        printf(" --- error = %e / %e\n", nrmAx, nrmb);
-        if(nrmAx / nrmb > (sizeof(underlying_type) == sizeof(double) ? 1.0e-8 : 1.0e-2))
-            status = 1;
+        ndof /= mu;
+        underlying_type* nrmAx = nrmb + mu;
+        for(unsigned short nu = 0; nu < mu; ++nu) {
+            nrmAx[nu] = nrm2(&ndof, tmp + nu * ndof, &one);
+            if(nu == 0)
+                printf(" --- error = ");
+            else
+                printf("             ");
+            printf("%e / %e", nrmAx[nu], nrmb[nu]);
+            if(mu > 1)
+                printf(" (rhs #%d)", nu + 1);
+            printf("\n");
+            if(nrmAx[nu] / nrmb[nu] > (sizeof(underlying_type) == sizeof(double) ? 1.0e-8 : 1.0e-2))
+                status = 1;
+        }
         free(tmp);
+        free(nrmb);
         HpddmSubdomainDestroy(S);
         HpddmMatrixCSRDestroy(Mat);
     }

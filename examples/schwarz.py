@@ -24,6 +24,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from __future__ import print_function
 from mpi4py import MPI
 import sys
 sys.path.append('interface')
@@ -38,11 +39,11 @@ opt = hpddm.optionGet()
 args = ctypes.create_string_buffer(' '.join(sys.argv[1:]).encode('ascii', 'ignore'))
 hpddm.optionParse(opt, args, rankWorld == 0)
 def appArgs():
-    val = (ctypes.c_char_p * 3)()
-    (val[0], val[1], val[2]) = [ b'Nx=<100>', b'Ny=<100>', b'overlap=<1>' ]
-    desc = (ctypes.c_char_p * 3)()
-    (desc[0], desc[1], desc[2]) = [ b'Number of grid points in the x-direction.', b'Number of grid points in the y-direction.', b'Number of grid points in the overlap.' ]
-    hpddm.optionParseInts(opt, args, 3, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
+    val = (ctypes.c_char_p * 4)()
+    (val[0], val[1], val[2], val[3]) = [ b'Nx=<100>', b'Ny=<100>', b'overlap=<1>', b'generate_random_rhs=<0>' ]
+    desc = (ctypes.c_char_p * 4)()
+    (desc[0], desc[1], desc[2], desc[3]) = [ b'Number of grid points in the x-direction.', b'Number of grid points in the y-direction.', b'Number of grid points in the overlap.', b'Number of generated random right-hand sides.' ]
+    hpddm.optionParseInts(opt, args, 4, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
     (val[0], val[1]) = [ b'symmetric_csr=(0|1)', b'nonuniform=(0|1)' ]
     (desc[0], desc[1]) = [ b'Assemble symmetric matrices.', b'Use a different number of eigenpairs to compute on each subdomain.' ]
     hpddm.optionParseArgs(opt, args, 2, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
@@ -51,12 +52,16 @@ def appArgs():
 appArgs()
 if rankWorld != 0:
     hpddm.optionRemove(opt, b'verbosity')
-o, connectivity, dof, Mat, MatNeumann, d, f, sol = generate(rankWorld, sizeWorld)
+o, connectivity, dof, Mat, MatNeumann, d, f, sol, mu = generate(rankWorld, sizeWorld)
 status = 0
 if sizeWorld > 1:
     A = hpddm.schwarzCreate(Mat, o, connectivity)
     hpddm.schwarzMultiplicityScaling(A, d)
     hpddm.schwarzInitialize(A, d)
+    if mu != 0:
+        hpddm.schwarzScaledExchange(A, f)
+    else:
+        mu = 1
     if hpddm.optionSet(opt, b'schwarz_coarse_correction'):
         nu = ctypes.c_ushort(int(hpddm.optionVal(opt, b'geneo_nu')))
         if nu.value > 0:
@@ -68,7 +73,7 @@ if sizeWorld > 1:
             addr.contents.value = nu.value
         else:
             nu = 1
-            deflation = numpy.ones((nu, dof), dtype = hpddm.scalar)
+            deflation = numpy.ones((dof, nu), order = 'F', dtype = hpddm.scalar)
             hpddm.setVectors(hpddm.schwarzPreconditioner(A), nu, deflation)
         hpddm.initializeCoarseOperator(hpddm.schwarzPreconditioner(A), nu)
         hpddm.schwarzBuildCoarseOperator(A, hpddm.MPI_Comm.from_address(MPI._addressof(MPI.COMM_WORLD)))
@@ -77,26 +82,50 @@ if sizeWorld > 1:
     if hpddm.optionVal(opt, b'krylov_method') == 1:
         it = hpddm.CG(A, sol, f, comm)
     else:
-        it = hpddm.GMRES(A, sol, f, 1, comm)
-    storage = numpy.empty(2, dtype = hpddm.underlying)
+        it = hpddm.GMRES(A, sol, f, comm)
+    storage = numpy.empty(2 * mu, order = 'F', dtype = hpddm.underlying)
     hpddm.schwarzComputeError(A, sol, f, storage)
     if rankWorld == 0:
-        print(' --- error = {:e} / {:e}'.format(storage[1], storage[0]))
-    if it > 45 or storage[1] / storage[0] > 1.0e-2:
+        for nu in xrange(mu):
+            if nu == 0:
+                print(' --- error = ', end = '')
+            else:
+                print('             ', end = '')
+            print('{:e} / {:e}'.format(storage[1 + 2 * nu], storage[2 * nu]), end = '')
+            if mu > 1:
+                print(' (rhs #{:d})'.format(nu + 1), end = '')
+            print('')
+    if it > 45:
         status = 1
+    else:
+        for nu in xrange(mu):
+            if storage[1 + 2 * nu] / storage[2 * nu] > 1.0e-2:
+                status = 1
     hpddm.schwarzDestroy(ctypes.byref(A))
 else:
     S = ctypes.POINTER(hpddm.Subdomain)()
     hpddm.subdomainNumfact(ctypes.byref(S), Mat)
     hpddm.subdomainSolve(S, f, sol)
-    nrmb = numpy.linalg.norm(f)
+    nrmb = numpy.linalg.norm(f, axis = 0)
     tmp = numpy.empty_like(f)
     hpddm.csrmv(Mat, sol, tmp)
     tmp -= f
-    nrmAx = numpy.linalg.norm(tmp)
-    print(' --- error = {:e} / {:e}'.format(nrmAx, nrmb))
-    if nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
-        status = 1
+    nrmAx = numpy.linalg.norm(tmp, axis = 0)
+    if mu == 0:
+        nrmb = [ nrmb ]
+        nrmAx = [ nrmAx ]
+        mu = 1
+    for nu in xrange(mu):
+        if nu == 0:
+            print(' --- error = ', end = '')
+        else:
+            print('             ', end = '')
+        print('{:e} / {:e}'.format(nrmAx[nu], nrmb[nu]), end = '')
+        if mu > 1:
+            print(' (rhs #{:d})'.format(nu + 1), end = '')
+        print('')
+        if nrmAx[nu] / nrmb[nu] > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
+            status = 1
     hpddm.subdomainDestroy(ctypes.byref(S))
     hpddm.matrixCSRDestroy(ctypes.byref(Mat))
 hpddm.matrixCSRDestroy(ctypes.byref(MatNeumann))

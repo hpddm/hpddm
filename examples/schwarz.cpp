@@ -38,6 +38,7 @@ int main(int argc, char **argv) {
         std::forward_as_tuple("Nx=<100>", "Number of grid points in the x-direction.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("Ny=<100>", "Number of grid points in the y-direction.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("overlap=<1>", "Number of grid points in the overlap.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("generate_random_rhs=<0>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("symmetric_csr=(0|1)", "Assemble symmetric matrices.", HPDDM::Option::Arg::argument),
         std::forward_as_tuple("nonuniform=(0|1)", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::argument)
     });
@@ -51,6 +52,7 @@ int main(int argc, char **argv) {
     HPDDM::underlying_type<K>* d;
     int ndof;
     generate(rankWorld, sizeWorld, o, mapping, ndof, Mat, MatNeumann, d, f, sol);
+    int mu = opt.app()["generate_random_rhs"];
     int status = 0;
     if(sizeWorld > 1) {
         /*# Creation #*/
@@ -61,6 +63,10 @@ int main(int argc, char **argv) {
         decltype(mapping)().swap(mapping);
         A.multiplicityScaling(d);
         A.initialize(d);
+        if(mu != 0)
+            A.scaledExchange<true>(f, mu);
+        else
+            mu = 1;
         /*# InitializationEnd #*/
         if(opt.set("schwarz_coarse_correction")) {
             /*# Factorization #*/
@@ -89,28 +95,59 @@ int main(int argc, char **argv) {
         if(opt["krylov_method"] == 1)
             it = HPDDM::IterativeMethod::CG(A, sol, f, A.getCommunicator());
         else
-            it = HPDDM::IterativeMethod::GMRES(A, sol, f, 1, A.getCommunicator());
+            it = HPDDM::IterativeMethod::GMRES(A, sol, f, mu, A.getCommunicator());
         /*# SolutionEnd #*/
-        HPDDM::underlying_type<K> storage[2];
-        A.computeError(sol, f, storage);
+        HPDDM::underlying_type<K>* storage = new HPDDM::underlying_type<K>[2 * mu];
+        A.computeError(sol, f, storage, mu);
         if(rankWorld == 0)
-            std::cout << std::scientific << " --- error = " << storage[1] << " / " << storage[0] << std::endl;
-        if(it > 45 || storage[1] / storage[0] > 1.0e-2)
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                if(nu == 0)
+                    std::cout << " --- error = ";
+                else
+                    std::cout << "             ";
+                std::cout << std::scientific << storage[1 + 2 * nu] << " / " << storage[2 * nu];
+                if(mu > 1)
+                    std::cout << " (rhs #" << nu + 1 << ")";
+                std::cout << std::endl;
+            }
+        if(it > 45)
             status = 1;
+        else {
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                 if(storage[1 + 2 * nu] / storage[2 * nu] > 1.0e-2)
+                     status = 1;
+        }
+        delete [] storage;
     }
     else {
         SUBDOMAIN<K> S;
         S.numfact(Mat);
-        S.solve(f, sol);
-        HPDDM::underlying_type<K> nrmb = HPDDM::Blas<K>::nrm2(&ndof, f, &(HPDDM::i__1));
-        K* tmp = new K[ndof];
-        HPDDM::Wrapper<K>::csrmv(Mat->_sym, &ndof, Mat->_a, Mat->_ia, Mat->_ja, sol, tmp);
+        mu = std::max(1, mu);
+        S.solve(f, sol, mu);
+        HPDDM::underlying_type<K>* nrmb = new HPDDM::underlying_type<K>[2 * mu];
+        for(unsigned short nu = 0; nu < mu; ++nu)
+            nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + nu * ndof, &(HPDDM::i__1));
+        K* tmp = new K[mu * ndof];
+        HPDDM::Wrapper<K>::csrmm(Mat->_sym, &ndof, &mu, Mat->_a, Mat->_ia, Mat->_ja, sol, tmp);
+        ndof *= mu;
         HPDDM::Blas<K>::axpy(&ndof, &(HPDDM::Wrapper<K>::d__2), f, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
-        HPDDM::underlying_type<K> nrmAx = HPDDM::Blas<K>::nrm2(&ndof, tmp, &(HPDDM::i__1));
-        std::cout << std::scientific << " --- error = " << nrmAx << " / " << nrmb << std::endl;
-        if(nrmAx / nrmb > (std::is_same<double, HPDDM::underlying_type<K>>::value ? 1.0e-8 : 1.0e-2))
-            status = 1;
+        ndof /= mu;
+        HPDDM::underlying_type<K>* nrmAx = nrmb + mu;
+        for(unsigned short nu = 0; nu < mu; ++nu) {
+            nrmAx[nu] = HPDDM::Blas<K>::nrm2(&ndof, tmp + nu * ndof, &(HPDDM::i__1));
+            if(nu == 0)
+                std::cout << " --- error = ";
+            else
+                std::cout << "             ";
+            std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];
+            if(mu > 1)
+                std::cout << " (rhs #" << nu + 1 << ")";
+            std::cout << std::endl;
+            if(nrmAx[nu] / nrmb[nu] > (std::is_same<double, HPDDM::underlying_type<K>>::value ? 1.0e-8 : 1.0e-2))
+                status = 1;
+        }
         delete [] tmp;
+        delete [] nrmb;
         delete Mat;
     }
     delete [] d;

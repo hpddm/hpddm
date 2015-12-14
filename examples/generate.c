@@ -22,6 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <time.h>
 #include "schwarz.h"
 
 #ifndef M_PI
@@ -36,6 +37,7 @@ void generate(int rankWorld, int sizeWorld, int* neighbors, int* o, int* sizes, 
     const int Nx = HpddmOptionApp(opt, "Nx");
     const int Ny = HpddmOptionApp(opt, "Ny");
     const int overlap = HpddmOptionApp(opt, "overlap");
+    const unsigned short mu = HpddmOptionApp(opt, "generate_random_rhs");
     const bool sym = HpddmOptionApp(opt, "symmetric_csr");
     int xGrid = (int)sqrt(sizeWorld);
     while(sizeWorld % xGrid != 0)
@@ -53,27 +55,40 @@ void generate(int rankWorld, int sizeWorld, int* neighbors, int* o, int* sizes, 
     /*# InitEnd #*/
     if(!sym)
         nnz = 2 * nnz - *ndof;
-    *f = malloc(sizeof(K) * *ndof);
-    *sol = calloc(*ndof, sizeof(K));
+    *f = malloc(sizeof(K) * MAX(1, mu) * *ndof);
+    *sol = calloc(MAX(1, mu) * *ndof, sizeof(K));
     underlying_type xdim[2] = { 0.0, 10.0 };
     underlying_type ydim[2] = { 0.0, 10.0 };
-    int Nf = 3;
-    underlying_type xsc[3] = { 6.5, 2.0, 7.0 };
-    underlying_type ysc[3] = { 8.0, 7.0, 3.0 };
-    underlying_type rsc[3] = { 0.3, 0.3, 0.4 };
-    underlying_type asc[3] = { 0.3, 0.2, -0.1 };
     underlying_type dx = (xdim[1] - xdim[0]) / (underlying_type)(Nx);
     underlying_type dy = (ydim[1] - ydim[0]) / (underlying_type)(Ny);
-    for(int j = jStart, k = 0; j < jEnd; ++j) {
-        for(int i = iStart; i < iEnd; ++i, ++k) {
-            underlying_type frs = 1.0;
-            for(int n = 0; n < Nf; ++n) {
-                underlying_type xdist = (xx(i) - xsc[n]), ydist = (yy(j) - ysc[n]);
-                if(sqrt(xdist * xdist + ydist * ydist) <= rsc[n])
-                    frs -= asc[n] * cos(0.5 * M_PI * xdist / rsc[n]) * cos(0.5 * M_PI * ydist / rsc[n]);
-                (*f)[k] = frs;
+    if(mu == 0) {
+        int Nf = 3;
+        underlying_type xsc[3] = { 6.5, 2.0, 7.0 };
+        underlying_type ysc[3] = { 8.0, 7.0, 3.0 };
+        underlying_type rsc[3] = { 0.3, 0.3, 0.4 };
+        underlying_type asc[3] = { 0.3, 0.2, -0.1 };
+        for(int j = jStart, k = 0; j < jEnd; ++j) {
+            for(int i = iStart; i < iEnd; ++i, ++k) {
+                underlying_type frs = 1.0;
+                for(int n = 0; n < Nf; ++n) {
+                    underlying_type xdist = (xx(i) - xsc[n]), ydist = (yy(j) - ysc[n]);
+                    if(sqrt(xdist * xdist + ydist * ydist) <= rsc[n])
+                        frs -= asc[n] * cos(0.5 * M_PI * xdist / rsc[n]) * cos(0.5 * M_PI * ydist / rsc[n]);
+                    (*f)[k] = frs;
+                }
             }
         }
+    }
+    else {
+        int rank, size, length;
+        char name[MPI_MAX_PROCESSOR_NAME];
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+        MPI_Get_processor_name(name, &length);
+        srand((unsigned)time(NULL)+ rank * size + length);
+        underlying_type* pt = (underlying_type*)*f;
+        for(int i = 0; i < mu * (sizeof(K) / sizeof(underlying_type)) * *ndof; ++i)
+            pt[i] = (rand() % 10000) / 10000.0;
     }
     /*# Structures #*/
     *d = malloc(sizeof(underlying_type) * *ndof);

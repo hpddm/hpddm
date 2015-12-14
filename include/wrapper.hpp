@@ -107,17 +107,11 @@ struct Wrapper {
      *  Scatters the elements of a compressed sparse vector into full-storage form. */
     static void sctr(const int&, const K* const, const int* const, K* const);
     /* Function: diag(in-place)
-     *  Computes a vector-vector element-wise multiplication. */
-    static void diag(const int&, const underlying_type<K>* const, K* const);
-    /* Function: diag
-     *  Computes a vector-vector element-wise multiplication. */
-    static void diag(const int&, const underlying_type<K>* const, const K* const, K* const);
-    /* Function: diag(in-place)
      *  Computes a vector-matrix element-wise multiplication. */
-    static void diag(const int&, const int&, const underlying_type<K>* const, K* const);
+    static void diag(const int&, const underlying_type<K>* const, K* const, const int& n = 1);
     /* Function: diag
      *  Computes a vector-matrix element-wise multiplication. */
-    static void diag(const int&, const int&, const underlying_type<K>* const, const K* const, K* const);
+    static void diag(const int&, const underlying_type<K>* const, const K* const, K* const, const int& n = 1);
     /* Function: conj
      *  Conjugates a real or complex number. */
     template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
@@ -154,12 +148,8 @@ template<class K>
 constexpr K Wrapper<K>::d__2;
 
 template<class K>
-inline void Wrapper<K>::diag(const int& n, const underlying_type<K>* const d, K* const in) {
-    diag(n, d, nullptr, in);
-}
-template<class K>
-inline void Wrapper<K>::diag(const int& m, const int& n, const underlying_type<K>* const d, K* const in) {
-    diag(m, n, d, nullptr, in);
+inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, K* const in, const int& n) {
+    diag(m, d, nullptr, in, n);
 }
 
 #if HPDDM_MKL
@@ -265,18 +255,14 @@ inline void Wrapper<T>::omatcopy(const int n, const int m, const T* const a, con
 }
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
-inline void Wrapper<T>::diag(const int& m, const int& n, const T* const d,                                   \
-                             const T* const in, T* const out) {                                              \
+inline void Wrapper<T>::diag(const int& m, const T* const d,                                                 \
+                             const T* const in, T* const out, const int& n) {                                \
     if(in)                                                                                                   \
         for(int i = 0; i < n; ++i)                                                                           \
             v ## C ## Mul(m, d, in + i * m, out + i * m);                                                    \
     else                                                                                                     \
         for(int i = 0; i < n; ++i)                                                                           \
             v ## C ## Mul(m, d, out + i * m, out + i * m);                                                   \
-}                                                                                                            \
-template<>                                                                                                   \
-inline void Wrapper<T>::diag(const int& n, const T* const d, const T* const in, T* const out) {              \
-    diag(n, i__1, d, in, out);                                                                               \
 }
 HPDDM_GENERATE_MKL(s, float)
 HPDDM_GENERATE_MKL(d, double)
@@ -568,11 +554,7 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
 #endif // HPDDM_MKL
 
 template<class K>
-inline void Wrapper<K>::diag(const int& n, const underlying_type<K>* const d, const K* const in, K* const out) {
-    diag(n, i__1, d, in, out);
-}
-template<class K>
-inline void Wrapper<K>::diag(const int& m, const int& n, const underlying_type<K>* const d, const K* const in, K* const out) {
+inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, const K* const in, K* const out, const int& n) {
     if(in)
         for(int i = 0; i < n; ++i)
             for(int j = 0; j < m; ++j)

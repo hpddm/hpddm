@@ -124,9 +124,9 @@ void matrixCSRDestroy(void** Mat) {
         *Mat = NULL;
     }
 }
-void csrmv(void* Mat, HPDDM::pod_type<K>* x, HPDDM::pod_type<K>* prod) {
+void csrmm(void* Mat, HPDDM::pod_type<K>* x, HPDDM::pod_type<K>* prod, int m) {
     HPDDM::MatrixCSR<K>* A = reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat);
-    HPDDM::Wrapper<K>::csrmv(A->_sym, &(A->_n), A->_a, A->_ia, A->_ja, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
+    HPDDM::Wrapper<K>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
 }
 
 void subdomainNumfact(void** S, void* Mat) {
@@ -136,8 +136,8 @@ void subdomainNumfact(void** S, void* Mat) {
         reinterpret_cast<SUBDOMAIN<K>*>(*S)->numfact(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat));
     }
 }
-void subdomainSolve(void* S, HPDDM::pod_type<K>* b, HPDDM::pod_type<K>* x) {
-    reinterpret_cast<SUBDOMAIN<K>*>(S)->solve(reinterpret_cast<K*>(b), reinterpret_cast<K*>(x));
+void subdomainSolve(void* S, HPDDM::pod_type<K>* b, HPDDM::pod_type<K>* x, unsigned short n) {
+    reinterpret_cast<SUBDOMAIN<K>*>(S)->solve(reinterpret_cast<K*>(b), reinterpret_cast<K*>(x), n);
 }
 void subdomainDestroy(void** S) {
     if(*S != NULL) {
@@ -190,6 +190,9 @@ void* schwarzPreconditioner(void* A) {
 void schwarzMultiplicityScaling(void* A, HPDDM::underlying_type<K>* d) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->multiplicityScaling(d);
 }
+void schwarzScaledExchange(void* A, HPDDM::pod_type<K>* x, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->scaledExchange<true>(reinterpret_cast<K*>(x), mu);
+}
 void schwarzCallNumfact(void* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->callNumfact();
 }
@@ -199,8 +202,8 @@ void schwarzSolveGEVP(void* A, void* neumann, unsigned short* nu, HPDDM::underly
 void schwarzBuildCoarseOperator(void* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->buildTwo(comm);
 }
-void schwarzComputeError(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, HPDDM::underlying_type<K>* storage) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->computeError(reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), storage);
+void schwarzComputeError(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, HPDDM::underlying_type<K>* storage, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->computeError(reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), storage, mu);
 }
 void schwarzDestroy(void** schwarz) {
     if(*schwarz != NULL) {
@@ -212,7 +215,7 @@ void schwarzDestroy(void** schwarz) {
 int CG(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, MPI_Comm* comm) {
     return HPDDM::IterativeMethod::CG(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), *comm);
 }
-int GMRES(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, int nu, MPI_Comm* comm) {
-    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), nu, *comm);
+int GMRES(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, int mu, MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), mu, *comm);
 }
 }

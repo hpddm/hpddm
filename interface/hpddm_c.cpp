@@ -96,9 +96,9 @@ HpddmMatrixCSR* HpddmMatrixCSRCreate(int n, int m, int nnz, K* const a, int* con
 void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
     delete reinterpret_cast<HPDDM::MatrixCSR<cpp_type>*>(a);
 }
-void HpddmCsrmv(HpddmMatrixCSR* a, const K* const x, K* prod) {
+void HpddmCsrmm(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
     HPDDM::MatrixCSR<cpp_type>* A = reinterpret_cast<HPDDM::MatrixCSR<cpp_type>*>(a);
-    HPDDM::Wrapper<cpp_type>::csrmv(A->_sym, &(A->_n), A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type*>(x), reinterpret_cast<cpp_type*>(prod));
+    HPDDM::Wrapper<cpp_type>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type*>(x), reinterpret_cast<cpp_type*>(prod));
 }
 
 void HpddmSubdomainNumfact(HpddmSubdomain** S, HpddmMatrixCSR* Mat) {
@@ -108,8 +108,8 @@ void HpddmSubdomainNumfact(HpddmSubdomain** S, HpddmMatrixCSR* Mat) {
         reinterpret_cast<SUBDOMAIN<cpp_type>*>(*S)->numfact(reinterpret_cast<HPDDM::MatrixCSR<cpp_type>*>(Mat));
     }
 }
-void HpddmSubdomainSolve(HpddmSubdomain* S, const K* const b, K* x) {
-    reinterpret_cast<SUBDOMAIN<cpp_type>*>(S)->solve(reinterpret_cast<const cpp_type*>(b), reinterpret_cast<cpp_type*>(x));
+void HpddmSubdomainSolve(HpddmSubdomain* S, const K* const b, K* x, unsigned short n) {
+    reinterpret_cast<SUBDOMAIN<cpp_type>*>(S)->solve(reinterpret_cast<const cpp_type*>(b), reinterpret_cast<cpp_type*>(x), n);
 }
 void HpddmSubdomainDestroy(HpddmSubdomain* S) {
     delete reinterpret_cast<SUBDOMAIN<cpp_type>*>(S);
@@ -139,6 +139,9 @@ HpddmPreconditioner* HpddmSchwarzPreconditioner(HpddmSchwarz* A) {
 void HpddmSchwarzMultiplicityScaling(HpddmSchwarz* A, underlying_type* d) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->multiplicityScaling(d);
 }
+void HpddmSchwarzScaledExchange(HpddmSchwarz* A, K* const x, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->scaledExchange<true>(reinterpret_cast<cpp_type*>(x), mu);
+}
 void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->callNumfact();
 }
@@ -148,8 +151,8 @@ void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann, unsigned sh
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->buildTwo(comm);
 }
-void HpddmSchwarzComputeError(HpddmSchwarz* A, const K* const sol, const K* const f, underlying_type* storage) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->computeError(reinterpret_cast<const cpp_type*>(sol), reinterpret_cast<const cpp_type*>(f), storage);
+void HpddmSchwarzComputeError(HpddmSchwarz* A, const K* const sol, const K* const f, underlying_type* storage, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->computeError(reinterpret_cast<const cpp_type*>(sol), reinterpret_cast<const cpp_type*>(f), storage, mu);
 }
 void HpddmSchwarzDestroy(HpddmSchwarz* A) {
     delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A);

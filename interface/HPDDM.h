@@ -82,12 +82,12 @@ struct HpddmMatrixCSR;
 typedef struct HpddmMatrixCSR HpddmMatrixCSR;
 HpddmMatrixCSR* HpddmMatrixCSRCreate(int, int, int, K*, int*, int*, bool, bool);
 void HpddmMatrixCSRDestroy(HpddmMatrixCSR*);
-void HpddmCsrmv(HpddmMatrixCSR*, const K* const, K*);
+void HpddmCsrmm(HpddmMatrixCSR*, const K* const, K*, int);
 
 struct HpddmSubdomain;
 typedef struct HpddmSubdomain HpddmSubdomain;
 void HpddmSubdomainNumfact(HpddmSubdomain**, HpddmMatrixCSR*);
-void HpddmSubdomainSolve(HpddmSubdomain*, const K* const, K*);
+void HpddmSubdomainSolve(HpddmSubdomain*, const K* const, K*, unsigned short);
 void HpddmSubdomainDestroy(HpddmSubdomain* S);
 
 struct HpddmPreconditioner;
@@ -102,10 +102,11 @@ HpddmSchwarz* HpddmSchwarzCreate(HpddmMatrixCSR*, int, int*, int*, int**);
 void HpddmSchwarzInitialize(HpddmSchwarz*, underlying_type*);
 HpddmPreconditioner* HpddmSchwarzPreconditioner(HpddmSchwarz*);
 void HpddmSchwarzMultiplicityScaling(HpddmSchwarz*, underlying_type*);
+void HpddmSchwarzScaledExchange(HpddmSchwarz*, K* const, unsigned short);
 void HpddmSchwarzCallNumfact(HpddmSchwarz*);
 void HpddmSchwarzSolveGEVP(HpddmSchwarz*, HpddmMatrixCSR*, unsigned short*, underlying_type);
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz*, MPI_Comm);
-void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, underlying_type*);
+void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, underlying_type*, unsigned short);
 void HpddmSchwarzDestroy(HpddmSchwarz*);
 
 int HpddmCG(HpddmSchwarz*, K* const, const K* const, const MPI_Comm*);

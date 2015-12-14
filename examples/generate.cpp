@@ -23,16 +23,27 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <random>
 #include "schwarz.hpp"
 
 #define xx(i) (xdim[0] + dx * (i + 0.5))
 #define yy(j) (ydim[0] + dy * (j + 0.5))
+
+template<class K, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex>::type* = nullptr>
+void assign(std::mt19937& gen, std::uniform_real_distribution<K>& dis, K& x) {
+    x = dis(gen);
+}
+template<class K, typename std::enable_if<HPDDM::Wrapper<K>::is_complex>::type* = nullptr>
+void assign(std::mt19937& gen, std::uniform_real_distribution<HPDDM::underlying_type<K>>& dis, K& x) {
+    x = (dis(gen), dis(gen));
+}
 
 void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::vector<int>>& mapping, int& ndof, HPDDM::MatrixCSR<K>*& Mat, HPDDM::MatrixCSR<K>*& MatNeumann, HPDDM::underlying_type<K>*& d, K*& f, K*& sol) {
     HPDDM::Option& opt = *HPDDM::Option::get();
     const int Nx = opt.app()["Nx"];
     const int Ny = opt.app()["Ny"];
     const int overlap = opt.app()["overlap"];
+    const int mu = opt.app()["generate_random_rhs"];
     const bool sym = opt.app().find("symmetric_csr") != opt.app().cend() && (opt.app()["symmetric_csr"] == 1);
     int xGrid = int(sqrt(sizeWorld));
     while(sizeWorld % xGrid != 0)
@@ -50,27 +61,35 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
     /*# InitEnd #*/
     if(!sym)
         nnz = 2 * nnz - ndof;
-    f = new K[ndof];
-    sol = new K[ndof]();
+    f = new K[std::max(1, mu) * ndof];
+    sol = new K[std::max(1, mu) * ndof]();
     HPDDM::underlying_type<K> xdim[2] = { 0.0, 10.0 };
     HPDDM::underlying_type<K> ydim[2] = { 0.0, 10.0 };
-    int Nf = 3;
-    HPDDM::underlying_type<K> xsc[3] = { 6.5, 2.0, 7.0 };
-    HPDDM::underlying_type<K> ysc[3] = { 8.0, 7.0, 3.0 };
-    HPDDM::underlying_type<K> rsc[3] = { 0.3, 0.3, 0.4 };
-    HPDDM::underlying_type<K> asc[3] = { 0.3, 0.2, -0.1 };
     HPDDM::underlying_type<K> dx = (xdim[1] - xdim[0]) / static_cast<HPDDM::underlying_type<K>>(Nx);
     HPDDM::underlying_type<K> dy = (ydim[1] - ydim[0]) / static_cast<HPDDM::underlying_type<K>>(Ny);
-    for(int j = jStart, k = 0; j < jEnd; ++j) {
-        for(int i = iStart; i < iEnd; ++i, ++k) {
-            HPDDM::underlying_type<K> frs = 1.0;
-            for(int n = 0; n < Nf; ++n) {
-                HPDDM::underlying_type<K> xdist = (xx(i) - xsc[n]), ydist = (yy(j) - ysc[n]);
-                if(sqrt(xdist * xdist + ydist * ydist) <= rsc[n])
-                    frs -= asc[n] * cos(0.5 * pi * xdist / rsc[n]) * cos(0.5 * pi * ydist / rsc[n]);
-                f[k] = frs;
+    if(mu == 0) {
+        int Nf = 3;
+        HPDDM::underlying_type<K> xsc[3] = { 6.5, 2.0, 7.0 };
+        HPDDM::underlying_type<K> ysc[3] = { 8.0, 7.0, 3.0 };
+        HPDDM::underlying_type<K> rsc[3] = { 0.3, 0.3, 0.4 };
+        HPDDM::underlying_type<K> asc[3] = { 0.3, 0.2, -0.1 };
+        for(int j = jStart, k = 0; j < jEnd; ++j) {
+            for(int i = iStart; i < iEnd; ++i, ++k) {
+                HPDDM::underlying_type<K> frs = 1.0;
+                for(int n = 0; n < Nf; ++n) {
+                    HPDDM::underlying_type<K> xdist = (xx(i) - xsc[n]), ydist = (yy(j) - ysc[n]);
+                    if(sqrt(xdist * xdist + ydist * ydist) <= rsc[n])
+                        frs -= asc[n] * cos(0.5 * pi * xdist / rsc[n]) * cos(0.5 * pi * ydist / rsc[n]);
+                    f[k] = frs;
+                }
             }
         }
+    }
+    else {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<HPDDM::underlying_type<K>> dis(0.0, 1.0);
+        std::for_each(f, f + mu * ndof, [&](K& x) { assign(gen, dis, x); });
     }
     /*# Structures #*/
     d = new HPDDM::underlying_type<K>[ndof];

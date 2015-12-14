@@ -41,6 +41,7 @@ def generate(rankWorld, sizeWorld):
     Nx = int(hpddm.optionApp(opt, b'Nx'))
     Ny = int(hpddm.optionApp(opt, b'Ny'))
     overlap = int(hpddm.optionApp(opt, b'overlap'))
+    mu = int(hpddm.optionApp(opt, b'generate_random_rhs'))
     sym = bool(hpddm.optionApp(opt, b'symmetric_csr'))
     xGrid = int(math.sqrt(sizeWorld))
     while sizeWorld % xGrid != 0:
@@ -57,27 +58,32 @@ def generate(rankWorld, sizeWorld):
     nnz = ndof * 3 - (iEnd - iStart) - (jEnd - jStart)
     if not(sym):
         nnz = 2 * nnz - ndof
-    sol = numpy.zeros(ndof, dtype = hpddm.scalar)
+    sol = numpy.zeros(ndof if mu == 0 else (ndof, mu), order = 'F', dtype = hpddm.scalar)
     f = numpy.empty_like(sol)
     xdim = [ 0.0, 10.0 ]
     ydim = [ 0.0, 10.0 ]
-    Nf = 3
-    xsc = [ 6.5, 2.0, 7.0 ]
-    ysc = [ 8.0, 7.0, 3.0 ]
-    rsc = [ 0.3, 0.3, 0.4 ]
-    asc = [ 0.3, 0.2, -0.1 ]
     dx = (xdim[1] - xdim[0]) / float(Nx)
     dy = (ydim[1] - ydim[0]) / float(Ny)
-    k = 0
-    for j in xrange(jStart, jEnd):
-        for i in xrange(iStart, iEnd):
-            frs = 1.0
-            for n in xrange(Nf):
-                (xdist, ydist) = [ xdim[0] + dx * (i + 0.5) - xsc[n], ydim[0] + dy * (j + 0.5) - ysc[n] ]
-                if math.sqrt(xdist * xdist + ydist * ydist) <= rsc[n]:
-                    frs -= asc[n] * math.cos(0.5 * math.pi * xdist / rsc[n]) * math.cos(0.5 * math.pi * ydist / rsc[n])
-                f[k] = frs
-            k += 1
+    if mu == 0:
+        Nf = 3
+        xsc = [ 6.5, 2.0, 7.0 ]
+        ysc = [ 8.0, 7.0, 3.0 ]
+        rsc = [ 0.3, 0.3, 0.4 ]
+        asc = [ 0.3, 0.2, -0.1 ]
+        k = 0
+        for j in xrange(jStart, jEnd):
+            for i in xrange(iStart, iEnd):
+                frs = 1.0
+                for n in xrange(Nf):
+                    (xdist, ydist) = [ xdim[0] + dx * (i + 0.5) - xsc[n], ydim[0] + dy * (j + 0.5) - ysc[n] ]
+                    if math.sqrt(xdist * xdist + ydist * ydist) <= rsc[n]:
+                        frs -= asc[n] * math.cos(0.5 * math.pi * xdist / rsc[n]) * math.cos(0.5 * math.pi * ydist / rsc[n])
+                    f[k] = frs
+                k += 1
+    else:
+        f[:] = numpy.random.random_sample((ndof, mu))
+        if hpddm.scalar == numpy.complex64 or hpddm.scalar == numpy.complex128:
+            f[:] += numpy.random.random_sample((ndof, mu)) * 1j
     d = numpy.ones(ndof, dtype = hpddm.underlying)
     o = []
     connectivity = []
@@ -310,4 +316,4 @@ def generate(rankWorld, sizeWorld):
                 print(str(rankWorld) + ':')
                 print(str(x) + 'x' + str(y) + ' -- [' + str(iStart) + ' ; ' + str(iEnd) + '] x [' + str(jStart) + ' ; ' + str(jEnd) + '] -- ' + str(ndof) + ', ' + str(nnz))
             MPI.COMM_WORLD.Barrier()
-    return o, connectivity, ndof, Mat, MatNeumann, d, f, sol
+    return o, connectivity, ndof, Mat, MatNeumann, d, f, sol, mu
