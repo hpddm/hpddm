@@ -188,4 +188,4 @@ def GMRES(A, sol, f, comm):
         mu = sol.shape[1]
     except IndexError:
         mu = 1
-    _GMRES(A, sol, f, mu, comm)
+    return _GMRES(A, sol, f, mu, comm)
