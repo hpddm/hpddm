@@ -144,7 +144,7 @@ lib/libhpddm_python.${EXTENSION_LIB}: interface/hpddm_python.cpp
 
 test: all $(addprefix test_, $(LIST_COMPILATION))
 
-test_cpp: bin/schwarz_cpp test_bin/schwarz_cpp
+test_cpp: bin/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_op
 test_c: bin/schwarz_c test_bin/schwarz_c
 test_python: lib/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
@@ -167,3 +167,9 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	@if [ -f lib/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_2_8.txt; \
 	fi
+
+test_bin/schwarz_cpp_custom_op: bin/schwarz_cpp
+	${MPIRUN} 1 bin/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10
+	${MPIRUN} 1 bin/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10
+	${MPIRUN} 1 bin/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10 -hpddm_krylov_method bgmres
+	${MPIRUN} 1 bin/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10 ---hpddm_krylov_method bgmres

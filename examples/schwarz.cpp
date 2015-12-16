@@ -23,6 +23,28 @@
 
 #include "schwarz.hpp"
 
+struct CustomOperator {
+    bool setBuffer(const int&, K* = nullptr, const int& = 0) const { return false; }
+    template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
+    void clearBuffer(const bool) const { }
+
+    const HPDDM::MatrixCSR<K>& _A;
+    CustomOperator(HPDDM::MatrixCSR<K>* A) : _A(*A) { }
+    int getDof() const { return _A._n; }
+    template<bool = true>
+    void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
+        for(int i = 0; i < _A._n; ++i) {
+            int mid = (_A._sym ? (_A._ia[i + 1] - _A._ia[0]) : std::distance(_A._ja, std::upper_bound(_A._ja + _A._ia[i] - _A._ia[0], _A._ja + _A._ia[i + 1] - _A._ia[0], i + _A._ia[0]))) - 1;
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                out[nu * _A._n + i] = in[nu * _A._n + i] / _A._a[mid];
+            }
+        }
+    }
+    void GMV(const K* const in, K* const out, const int& mu = 1) const {
+        HPDDM::Wrapper<K>::csrmm(_A._sym, &(_A._n), &mu, _A._a, _A._ia, _A._ja, in, out);
+    }
+};
+
 int main(int argc, char **argv) {
 #if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
     MPI_Init(&argc, &argv);
@@ -92,10 +114,11 @@ int main(int argc, char **argv) {
         A.callNumfact();
         int it;
         /*# Solution #*/
-        if(opt["krylov_method"] == 1)
-            it = HPDDM::IterativeMethod::CG(A, sol, f, A.getCommunicator());
-        else
-            it = HPDDM::IterativeMethod::GMRES(A, sol, f, mu, A.getCommunicator());
+        switch(static_cast<int>(opt["krylov_method"])) {
+            case 2:  it = HPDDM::IterativeMethod::CG(A, f, sol, A.getCommunicator()); break;
+            case 1:  it = HPDDM::IterativeMethod::BGMRES(A, f, sol, mu, A.getCommunicator()); break;
+            default: it = HPDDM::IterativeMethod::GMRES(A, f, sol, mu, A.getCommunicator());
+        }
         /*# SolutionEnd #*/
         HPDDM::underlying_type<K>* storage = new HPDDM::underlying_type<K>[2 * mu];
         A.computeError(sol, f, storage, mu);
@@ -120,10 +143,20 @@ int main(int argc, char **argv) {
         delete [] storage;
     }
     else {
-        SUBDOMAIN<K> S;
-        S.numfact(Mat);
         mu = std::max(1, mu);
-        S.solve(f, sol, mu);
+        int it = 0;
+        if(opt["schwarz_method"] != 5) {
+            SUBDOMAIN<K> S;
+            S.numfact(Mat);
+            S.solve(f, sol, mu);
+        }
+        else {
+            CustomOperator A(Mat);
+            switch(static_cast<int>(opt["krylov_method"])) {
+                case 1:  it = HPDDM::IterativeMethod::BGMRES(A, f, sol, mu, MPI_COMM_SELF); break;
+                default: it = HPDDM::IterativeMethod::GMRES(A, f, sol, mu, MPI_COMM_SELF);
+            }
+        }
         HPDDM::underlying_type<K>* nrmb = new HPDDM::underlying_type<K>[2 * mu];
         for(unsigned short nu = 0; nu < mu; ++nu)
             nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + nu * ndof, &(HPDDM::i__1));
@@ -146,6 +179,8 @@ int main(int argc, char **argv) {
             if(nrmAx[nu] / nrmb[nu] > (std::is_same<double, HPDDM::underlying_type<K>>::value ? 1.0e-8 : 1.0e-2))
                 status = 1;
         }
+        if(it > 75)
+            status = 1;
         delete [] tmp;
         delete [] nrmb;
         delete Mat;

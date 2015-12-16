@@ -158,11 +158,14 @@ void HpddmSchwarzDestroy(HpddmSchwarz* A) {
     delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A);
 }
 
-int HpddmCG(HpddmSchwarz* A, K* const sol, const K* const f, const MPI_Comm* comm) {
-    return HPDDM::IterativeMethod::CG(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)), reinterpret_cast<cpp_type*>(sol), reinterpret_cast<const cpp_type*>(f), *comm);
+int HpddmCG(HpddmSchwarz* A, const K* const f, K* const sol, const MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::CG(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)), reinterpret_cast<const cpp_type*>(f), reinterpret_cast<cpp_type*>(sol), *comm);
 }
-int HpddmGMRES(HpddmSchwarz* A, K* const sol, const K* const f, int nu, const MPI_Comm* comm) {
-    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)), reinterpret_cast<cpp_type*>(sol), reinterpret_cast<const cpp_type*>(f), nu, *comm);
+int HpddmGMRES(HpddmSchwarz* A, const K* const f, K* const sol, int nu, const MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)), reinterpret_cast<const cpp_type*>(f), reinterpret_cast<cpp_type*>(sol), nu, *comm);
+}
+int HpddmBGMRES(HpddmSchwarz* A, const K* const f, K* const sol, int nu, const MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::BGMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)), reinterpret_cast<const cpp_type*>(f), reinterpret_cast<cpp_type*>(sol), nu, *comm);
 }
 
 underlying_type nrm2(const int* n, const K* x, const int* inc) {

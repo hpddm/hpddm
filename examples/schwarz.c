@@ -89,10 +89,11 @@ int main(int argc, char **argv) {
         int it;
         const MPI_Comm* comm = HpddmGetCommunicator(HpddmSchwarzPreconditioner(A));
         /*# Solution #*/
-        if(HpddmOptionVal(opt, "krylov_method") == 1)
-            it = HpddmCG(A, sol, f, comm);
-        else
-            it = HpddmGMRES(A, sol, f, mu, comm);
+        switch((int)HpddmOptionVal(opt, "krylov_method")) {
+            case 2:  it = HpddmCG(A, f, sol, comm); break;
+            case 1:  it = HpddmBGMRES(A, f, sol, mu, comm); break;
+            default: it = HpddmGMRES(A, f, sol, mu, comm);
+        }
         /*# SolutionEnd #*/
         underlying_type* storage = malloc(sizeof(underlying_type) * 2 * mu);
         HpddmSchwarzComputeError(A, sol, f, storage, mu);

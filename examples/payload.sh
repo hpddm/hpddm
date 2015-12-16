@@ -31,42 +31,63 @@ function ProgressBar {
 
     _fill=$(printf "%${_done}s")
     _empty=$(printf "%${_left}s")
-    printf "\r[ ${_fill// /#}${_empty// /-} ] ${_progress}%%"
+    printf "\r[ ${_fill// /#}${_empty// /-} ] ${_progress}%% ${3}"
 }
 
+TMPFILE=$(mktemp /tmp/hpddm-payload.XXXXXX)
 START=$SECONDS
 make clean > /dev/null
 I=0
-ProgressBar $I 60
 for CXX in g++ clang++
 do
     if [ "$CXX" == "g++" ]; then
-        CC=gcc
+        export OMPI_CC=gcc
+        export MPICH_CC=gcc
+        export OMPI_CXX=g++
+        export MPICH_CXX=g++
     else
-        CC=clang
+        export OMPI_CC=clang
+        export MPICH_CC=clang
+        export OMPI_CXX=clang++
+        export MPICH_CXX=clang++
     fi
     for N in C F
     do
-        for OTHER in " " "-DFORCE_SINGLE" "-DFORCE_COMPLEX" "-DFORCE_SINGLE -DFORCE_COMPLEX" "-DGENERAL_CO"
+        for OTHER in "" "-DFORCE_COMPLEX" "-DGENERAL_CO" "-DFORCE_SINGLE" "-DFORCE_SINGLE -DFORCE_COMPLEX"
         do
-            make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" MPICXX="mpic++ -cxx=$CXX" MPICC="mpicc -cc=$CC" >> /dev/null 2>&1
+            ProgressBar $I 60 "make -j4 HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" CXX=$CXX"
+            make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" 1> /dev/null 2>$TMPFILE
             if [ $? -ne 0 ]; then
-                echo -e "\n[ \033[91;1mFAIL\033[0m ] make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" MPICXX="mpic++ -cxx=$CXX" MPICC="mpicc -cc=$CC""
+                echo -e "\n[ \033[91;1mFAIL\033[0m ]"
+                cat $TMPFILE
+                unlink $TMPFILE
                 exit 1
             fi
             I=$((I + 1))
-            ProgressBar $I 60
-            make test > /dev/null
-            if [ $? -ne 0 ]; then
-                echo -e "\n[ \033[91;1mFAIL\033[0m ] make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" MPICXX="mpic++ -cxx=$CXX" MPICC="mpicc -cc=$CC""
-                exit 1
+            if  [[ (! "$CXX" == "g++" || ! "$OSTYPE" == darwin*) ]];
+            then
+                ProgressBar $I 60 "make test HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" CXX=$CXX"
+                if [[ ("$OTHER" == "" || "$OTHER" == "-DFORCE_COMPLEX" || "$OTHER" == "-DGENERAL_CO" || ! "$OSTYPE" == darwin*) ]];
+                then
+                    make test 1> $TMPFILE 2>&1
+                elif [[ "$OSTYPE" == darwin* ]];
+                then
+                    make test_cpp test_c 1> $TMPFILE 2>&1
+                fi
+                if [ $? -ne 0 ]; then
+                    echo -e "\n[ \033[91;1mFAIL\033[0m ]"
+                    cat $TMPFILE
+                    unlink $TMPFILE
+                    exit 1
+                fi
             fi
             I=$((I + 1))
-            ProgressBar $I 60
+            ProgressBar $I 60 "                                                                                         "
             make clean > /dev/null
             I=$((I + 1))
-            ProgressBar $I 60
+            ProgressBar $I 60 "                                                                                         "
         done
     done
 done
 echo -e "\n[ \033[92;1mOK\033[0m ] ($((SECONDS - START)) seconds)"
+unlink $TMPFILE

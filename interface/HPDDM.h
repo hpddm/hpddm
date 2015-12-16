@@ -109,8 +109,9 @@ void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz*, MPI_Comm);
 void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, underlying_type*, unsigned short);
 void HpddmSchwarzDestroy(HpddmSchwarz*);
 
-int HpddmCG(HpddmSchwarz*, K* const, const K* const, const MPI_Comm*);
-int HpddmGMRES(HpddmSchwarz*, K* const, const K* const, int, const MPI_Comm*);
+int HpddmCG(HpddmSchwarz*, const K* const, K* const, const MPI_Comm*);
+int HpddmGMRES(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
+int HpddmBGMRES(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
 
 underlying_type nrm2(const int*, const K* const, const int*);
 void axpy(const int*, const K* const, const K* const, const int*, K* const, const int*);

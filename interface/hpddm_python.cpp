@@ -212,10 +212,13 @@ void schwarzDestroy(void** schwarz) {
     }
 }
 
-int CG(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, MPI_Comm* comm) {
-    return HPDDM::IterativeMethod::CG(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), *comm);
+int CG(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::CG(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), *comm);
 }
-int GMRES(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, int mu, MPI_Comm* comm) {
-    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), mu, *comm);
+int GMRES(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, *comm);
+}
+int BGMRES(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_Comm* comm) {
+    return HPDDM::IterativeMethod::BGMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, *comm);
 }
 }

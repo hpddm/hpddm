@@ -186,12 +186,12 @@ class IterativeMethod {
          *
          * Parameters:
          *    A              - Global operator.
-         *    x              - Solution vector(s).
          *    b              - Right-hand side(s).
+         *    x              - Solution vector(s).
          *    mu             - Number of right-hand sides.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator = void, class K = double>
-        static int GMRES(const Operator& A, K* const x, const K* const b, const int& mu, const MPI_Comm& comm) {
+        static int GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
             const Option& opt = *Option::get();
             const int n = excluded ? 0 : A.getDof();
             const unsigned short it = opt["max_it"];
@@ -389,6 +389,232 @@ class IterativeMethod {
             delete [] H;
             return std::min(j, it);
         }
+        template<bool excluded = false, class Operator = void, class K = double>
+        static int BGMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+            const Option& opt = *Option::get();
+            const int n = excluded ? 0 : A.getDof();
+            const unsigned short it = opt["max_it"];
+            underlying_type<K> tol = opt["tol"];
+            const char verbosity = opt.val<char>("verbosity");
+            if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
+                if(verbosity > 0)
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
+                tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
+            }
+            const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
+            const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+
+            K** const H = new K*[m * (2 + (variant == 'F')) + 1];
+            K** const v = H + m;
+            int ldh = mu * (m + 1);
+            int info;
+            int N = 2 * mu;
+            int lwork = mu * std::max(n, opt["gs"] != 1 ? ldh : mu);
+            *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 'F')) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+            *v = *H + m * mu * ldh;
+            K* const s = *v + mu * n * (m * (1 + (variant == 'F')) + 1);
+            K* const tau = s + mu * ldh;
+            K* const Ax = tau + m * N;
+            underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
+            underlying_type<K>* const beta = norm - mu;
+            bool alloc = A.setBuffer(mu);
+
+            A.template start<excluded>(b, x, mu);
+            A.template apply<excluded>(b, *v, mu, Ax);
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+
+            if(!excluded)
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    for(unsigned int i = 0; i < n; ++i)
+                        if(std::abs(b[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
+                            depenalize(b[nu * n + i], x[nu * n + i]);
+
+            unsigned short j = 1;
+            short dim = mu * m;
+            int* const piv = new int[mu];
+            underlying_type<K>* workpiv = norm - 2 * mu;
+            int deflated = -1;
+            while(j <= it) {
+                if(!excluded)
+                    A.GMV(x, variant == 'L' ? Ax : *v, mu);
+                Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
+                if(variant == 'L')
+                    A.template apply<excluded>(Ax, *v, mu);
+                if(j == 1) {
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        beta[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+                    MPI_Allreduce(MPI_IN_PLACE, beta, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        norm[nu] = std::sqrt(norm[nu]);
+                        if(norm[nu] < HPDDM_EPS)
+                            norm[nu] = 1.0;
+                        beta[nu] = std::sqrt(beta[nu]);
+                        if(tol > 0.0 && beta[nu] / norm[nu] < tol && norm[nu] > 1.0 / HPDDM_EPS)
+                            norm[nu] = 1.0;
+                    }
+                }
+                Blas<K>::herk("U", "C", &mu, &n, &(Wrapper<underlying_type<K>>::d__1), *v, &n, &(Wrapper<underlying_type<K>>::d__0), Ax, &mu);
+                for(unsigned short row = 1; row < mu; ++row)
+                    std::copy_n(Ax + row * mu, row + 1, Ax + (row * (row + 1)) / 2);
+                MPI_Allreduce(MPI_IN_PLACE, Ax, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                for(unsigned short row = mu; row-- > 0; )
+                    std::copy_n(Ax + (row * (row + 1)) / 2, row + 1, s + row * mu);
+                if(!opt.set("initial_deflation_tol")) {
+                    Lapack<K>::potrf("U", &mu, s, &mu, &info);
+                    if(verbosity > 3) {
+                        std::cout << "BGMRES diag(R), QR = block residual: ";
+                        std::cout << s[0];
+                        if(mu > 1) {
+                            if(mu > 2)
+                                std::cout << "\t...";
+                            std::cout << "\t" << s[(mu - 1) * (mu + 1)];
+                        }
+                        std::cout << std::endl;
+                    }
+                    N = (info > 0 ? info - 1 : mu);
+                }
+                else {
+                    Lapack<K>::pstrf("U", &mu, s, &mu, piv, &N, &(Wrapper<underlying_type<K>>::d__0), workpiv, &info);
+                    if(verbosity > 3) {
+                        std::cout << "BGMRES diag(R), QR = block residual, with pivoting: ";
+                        std::cout << s[0] << " (" << piv[0] << ")";
+                        if(mu > 1) {
+                            if(mu > 2)
+                                std::cout << "\t...";
+                            std::cout << "\t" << s[(mu - 1) * (mu + 1)] << " (" << piv[mu - 1] << ")";
+                        }
+                        std::cout << std::endl;
+                    }
+                    if(info == 0) {
+                        N = mu;
+                        while(N > 1 && std::abs(s[(N - 1) * (mu + 1)] / s[0]) <= opt.val("initial_deflation_tol"))
+                            --N;
+                    }
+                    Lapack<K>::lapmt(&i__1, &n, &mu, *v, &n, piv);
+                    Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
+                }
+                if(N != mu) {
+                    int nrhs = mu - N;
+                    Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
+                }
+                if(N != deflated) {
+                    deflated = N;
+                    dim = deflated * (j - 1 + m > it ? it - j + 1 : m);
+                    ldh = deflated * (m + 1);
+                    for(unsigned short i = 1; i < m; ++i)
+                        H[i] = *H + i * deflated * ldh;
+                    for(unsigned short i = 1; i < m * (1 + (variant == 'F')) + 1; ++i)
+                        v[i] = *v + i * deflated * n;
+                }
+                N *= 2;
+                std::fill_n(tau, m * N, K());
+                Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
+                Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, *v, &n);
+                for(unsigned short row = 0; row < deflated; ++row)
+                    std::fill(s + row * (ldh + 1) + 1, s + (row + 1) * ldh, K());
+                std::fill(*H, *v, K());
+                int i = 0;
+                while(i < m && j <= it) {
+                    if(variant == 'L') {
+                        if(!excluded)
+                            A.GMV(v[i], Ax, deflated);
+                        A.template apply<excluded>(Ax, v[i + 1], deflated);
+                    }
+                    else {
+                        A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, deflated, v[i + 1]);
+                        if(!excluded)
+                            A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], deflated);
+                    }
+                    if(opt["gs"] == 1) {
+                        for(unsigned short k = 0; k < i + 1; ++k) {
+                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &n, &(Wrapper<K>::d__1), v[k], &n, v[i + 1], &n, &(Wrapper<K>::d__0), Ax, &deflated);
+                            MPI_Allreduce(MPI_IN_PLACE, Ax, deflated * deflated, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                            Blas<K>::gemm("N", "N", &n, &deflated, &deflated, &(Wrapper<K>::d__2), v[k], &n, Ax, &deflated, &(Wrapper<K>::d__1), v[i + 1], &n);
+                            Wrapper<K>::template omatcopy<'N'>(deflated, deflated, Ax, deflated, H[i] + deflated * k, ldh);
+                        }
+                    }
+                    else {
+                        int tmp = deflated * (i + 1);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &tmp, &deflated, &n, &(Wrapper<K>::d__1), *v, &n, v[i + 1], &n, &(Wrapper<K>::d__0), Ax, &tmp);
+                        MPI_Allreduce(MPI_IN_PLACE, Ax, deflated * tmp, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        Blas<K>::gemm("N", "N", &n, &deflated, &tmp, &(Wrapper<K>::d__2), *v, &n, Ax, &tmp, &(Wrapper<K>::d__1), v[i + 1], &n);
+                        Wrapper<K>::template omatcopy<'N'>(deflated, tmp, Ax, tmp, H[i], ldh);
+                    }
+                    Blas<K>::herk("U", "C", &deflated, &n, &(Wrapper<underlying_type<K>>::d__1), v[i + 1], &n, &(Wrapper<underlying_type<K>>::d__0), Ax, &deflated);
+                    for(unsigned short row = 1; row < deflated; ++row)
+                        std::copy_n(Ax + row * deflated, row + 1, Ax + (row * (row + 1)) / 2);
+                    MPI_Allreduce(MPI_IN_PLACE, Ax, (deflated * (deflated + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    for(unsigned short row = deflated; row-- > 0; )
+                        std::copy_n(Ax + (row * (row + 1)) / 2, row + 1, H[i] + (i + 1) * deflated + row * ldh);
+                    Lapack<K>::potrf("U", &deflated, H[i] + (i + 1) * deflated, &ldh, &info);
+                    if(i < m - 1)
+                        Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), H[i] + (i + 1) * deflated, &ldh, v[i + 1], &n);
+                    for(unsigned short leading = 0; leading < i; ++leading)
+                        Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &deflated, &N, H[leading] + leading * deflated, &ldh, tau + leading * N, H[i] + leading * deflated, &ldh, Ax, &lwork, &info);
+                    Lapack<K>::geqrf(&N, &deflated, H[i] + i * deflated, &ldh, tau + i * N, Ax, &lwork, &info);
+                    Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &deflated, &N, H[i] + i * deflated, &ldh, tau + i * N, s + i * deflated, &ldh, Ax, &lwork, &info);
+
+                    unsigned short converged = 0;
+                    for(unsigned short nu = 0; nu < deflated; ++nu) {
+                        beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * (i + 1) + nu * ldh, &i__1);
+                        if(((tol > 0 && beta[nu] / norm[nu] <= tol) || (tol < 0 && beta[nu] <= -tol)))
+                            ++converged;
+                    }
+                    if(verbosity > 0) {
+                        underlying_type<K>* max = std::max_element(beta, beta + deflated);
+                        if(tol > 0)
+                            std::cout << "BGMRES: " << std::setw(3) << j << " " << std::scientific << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
+                        else
+                            std::cout << "BGMRES: " << std::setw(3) << j << " " << std::scientific << *max << " < " << -tol;
+                        std::cout << " (rhs #" << std::distance(beta, max) + 1;
+                        if(converged > 0)
+                            std::cout << ", " << converged << " converged rhs";
+                        if(deflated != mu)
+                            std::cout << ", " << mu - deflated << " deflated rhs";
+                        std::cout << ")" << std::endl;
+                    }
+                    if(converged == deflated) {
+                        dim = deflated * (i + 1);
+                        break;
+                    }
+                    else
+                        ++i, ++j;
+                }
+                if(j != it + 1 && i == m) {
+                    if(opt.set("initial_deflation_tol"))
+                        Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
+                    if(!excluded)
+                        update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+                    if(opt.set("initial_deflation_tol")) {
+                        Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
+                        Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
+                    }
+                    if(verbosity > 0)
+                        std::cout << "BGMRES restart(" << m << ")" << std::endl;
+                }
+                else
+                    break;
+            }
+            if(opt.set("initial_deflation_tol"))
+                Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
+            if(!excluded)
+                update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+            if(opt.set("initial_deflation_tol"))
+                Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
+            delete [] piv;
+
+            if(verbosity > 0) {
+                if(j != it + 1)
+                    std::cout << "BGMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
+                else
+                    std::cout << "BGMRES does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
+            }
+            A.clearBuffer(alloc);
+            delete [] *H;
+            delete [] H;
+            return std::min(j, it);
+        }
         /* Function: CG
          *
          *  Implements the CG method.
@@ -399,14 +625,14 @@ class IterativeMethod {
          *
          * Parameters:
          *    A              - Global operator.
-         *    x              - Solution vector.
          *    b              - Right-hand side.
+         *    x              - Solution vector.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
-        static int CG(const Operator& A, K* const x, const K* const b, const MPI_Comm& comm) {
+        static int CG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm) {
             const Option& opt = *Option::get();
             if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
-                return GMRES(A, x, b, 1, comm);
+                return GMRES(A, b, x, 1, comm);
             const int n = A.getDof();
             const unsigned short it = opt["max_it"];
             underlying_type<K> tol = opt["tol"];
@@ -520,11 +746,11 @@ class IterativeMethod {
          *
          * Parameters:
          *    A              - Global operator.
-         *    x              - Solution vector.
          *    f              - Right-hand side.
+         *    x              - Solution vector.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
-        static int PCG(const Operator& A, K* const x, const K* const f, const MPI_Comm& comm) {
+        static int PCG(const Operator& A, const K* const f, K* const x, const MPI_Comm& comm) {
             typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K**, K*>::type ptr_type;
             const Option& opt = *Option::get();
             const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();

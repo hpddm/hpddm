@@ -183,9 +183,18 @@ CG.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags
 _GMRES = lib.GMRES
 _GMRES.restype = ctypes.c_int
 _GMRES.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
-def GMRES(A, sol, f, comm):
+def GMRES(A, f, sol, comm):
     try:
-        mu = sol.shape[1]
+        mu = f.shape[1]
     except IndexError:
         mu = 1
-    return _GMRES(A, sol, f, mu, comm)
+    return _GMRES(A, f, sol, mu, comm)
+_BGMRES = lib.BGMRES
+_BGMRES.restype = ctypes.c_int
+_BGMRES.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
+def BGMRES(A, f, sol, comm):
+    try:
+        mu = f.shape[1]
+    except IndexError:
+        mu = 1
+    return _BGMRES(A, f, sol, mu, comm)

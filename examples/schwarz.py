@@ -79,10 +79,12 @@ if sizeWorld > 1:
         hpddm.schwarzBuildCoarseOperator(A, hpddm.MPI_Comm.from_address(MPI._addressof(MPI.COMM_WORLD)))
     hpddm.schwarzCallNumfact(A)
     comm = hpddm.getCommunicator(hpddm.schwarzPreconditioner(A))
-    if hpddm.optionVal(opt, b'krylov_method') == 1:
-        it = hpddm.CG(A, sol, f, comm)
+    if hpddm.optionVal(opt, b'krylov_method') == 2:
+        it = hpddm.CG(A, f, sol, comm)
+    elif hpddm.optionVal(opt, b'krylov_method') == 1:
+        it = hpddm.BGMRES(A, f, sol, comm)
     else:
-        it = hpddm.GMRES(A, sol, f, comm)
+        it = hpddm.GMRES(A, f, sol, comm)
     storage = numpy.empty(2 * mu, order = 'F', dtype = hpddm.underlying)
     hpddm.schwarzComputeError(A, sol, f, storage)
     if rankWorld == 0:
