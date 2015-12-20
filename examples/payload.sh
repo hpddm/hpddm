@@ -35,59 +35,80 @@ function ProgressBar {
 }
 
 TMPFILE=$(mktemp /tmp/hpddm-payload.XXXXXX)
-START=$SECONDS
 make clean > /dev/null
-I=0
-for CXX in g++ clang++
+for CXX in g++ clang++ # icpc
 do
+    I=0
+    START=$SECONDS
     if [ "$CXX" == "g++" ]; then
         export OMPI_CC=gcc
         export MPICH_CC=gcc
         export OMPI_CXX=g++
         export MPICH_CXX=g++
+    elif [ "$CXX" == "icpc" ]; then
+        export OMPI_CC=icc
+        export MPICH_CC=icc
+        export OMPI_CXX=icpc
+        export MPICH_CXX=icpc
+        sed -i\ '' 's/ nullptr>/ (void*)0>/g; s/static constexpr const char/const char/g' include/*.hpp
     else
         export OMPI_CC=clang
         export MPICH_CC=clang
         export OMPI_CXX=clang++
         export MPICH_CXX=clang++
     fi
-    for N in C F
+    for SUBSOLVER in "MUMPS"
     do
-        for OTHER in "" "-DFORCE_COMPLEX" "-DGENERAL_CO" "-DFORCE_SINGLE" "-DFORCE_SINGLE -DFORCE_COMPLEX"
+        for N in C F
         do
-            ProgressBar $I 60 "make -j4 HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" CXX=$CXX"
-            make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" 1> /dev/null 2>$TMPFILE
-            if [ $? -ne 0 ]; then
-                echo -e "\n[ \033[91;1mFAIL\033[0m ]"
-                cat $TMPFILE
-                unlink $TMPFILE
-                exit 1
-            fi
-            I=$((I + 1))
-            if  [[ (! "$CXX" == "g++" || ! "$OSTYPE" == darwin*) ]];
-            then
-                ProgressBar $I 60 "make test HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" CXX=$CXX"
-                if [[ ("$OTHER" == "" || "$OTHER" == "-DFORCE_COMPLEX" || "$OTHER" == "-DGENERAL_CO" || ! "$OSTYPE" == darwin*) ]];
+            for OTHER in "" "-DFORCE_COMPLEX" "-DGENERAL_CO" "-DFORCE_SINGLE" "-DFORCE_SINGLE -DFORCE_COMPLEX"
+            do
+                if [[ "$OTHER" == "-DGENERAL_CO" ]];
                 then
-                    make test 1> $TMPFILE 2>&1
-                elif [[ "$OSTYPE" == darwin* ]];
-                then
-                    make test_cpp test_c 1> $TMPFILE 2>&1
+                    SOLVER_LIST="MUMPS HYPRE"
+                else
+                    SOLVER_LIST="MUMPS"
                 fi
-                if [ $? -ne 0 ]; then
-                    echo -e "\n[ \033[91;1mFAIL\033[0m ]"
-                    cat $TMPFILE
-                    unlink $TMPFILE
-                    exit 1
-                fi
-            fi
-            I=$((I + 1))
-            ProgressBar $I 60 "                                                                                         "
-            make clean > /dev/null
-            I=$((I + 1))
-            ProgressBar $I 60 "                                                                                         "
+                for SOLVER in $SOLVER_LIST
+                do
+                    ProgressBar $I 36 "HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER}"
+                    make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> /dev/null 2>$TMPFILE
+                    if [ $? -ne 0 ]; then
+                        echo -e "\n[ \033[91;1mFAIL\033[0m ]"
+                        cat $TMPFILE
+                        unlink $TMPFILE
+                        exit 1
+                    fi
+                    I=$((I + 1))
+                    if  [[ (! "$CXX" == "g++" || ! "$OSTYPE" == darwin*) ]];
+                    then
+                        ProgressBar $I 36 "test                                                                                                 "
+                        if [[ ! "$SUBSOLVER" == "PASTIX" ]];
+                        then
+                            if [[ ("$OTHER" == "" || "$OTHER" == "-DFORCE_COMPLEX" || "$OTHER" == "-DGENERAL_CO" || ! "$OSTYPE" == darwin*) ]];
+                            then
+                                make test 1> $TMPFILE 2>&1
+                            elif [[ "$OSTYPE" == darwin* ]];
+                            then
+                                make test_cpp test_c 1> $TMPFILE 2>&1
+                            fi
+                            if [ $? -ne 0 ]; then
+                                echo -e "\n[ \033[91;1mFAIL\033[0m ] HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER}"
+                                cat $TMPFILE
+                                unlink $TMPFILE
+                                exit 1
+                            fi
+                        fi
+                    fi
+                    I=$((I + 1))
+                    ProgressBar $I 36 "                                                                                                     "
+                    make clean > /dev/null
+                    I=$((I + 1))
+                    ProgressBar $I 36 "                                                                                                     "
+                done
+            done
         done
     done
+    echo -e "\n[ \033[92;1mOK\033[0m ] ($CXX, $((SECONDS - START)) seconds)"
 done
-echo -e "\n[ \033[92;1mOK\033[0m ] ($((SECONDS - START)) seconds)"
 unlink $TMPFILE

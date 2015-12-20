@@ -75,6 +75,17 @@ class MatrixCSR {
                 _ia = _ja = nullptr;
             }
         }
+        /* Function: destroy
+         *  Destroys the pointer <MatrixCSR::a>, <MatrixCSR::ia>, and <MatrixCSR::ja> using a custom deallocator if <MatrixCSR::free> is true. */
+        void destroy(void (*dtor)(void*)) {
+            if(_free) {
+                dtor(_a);
+                dtor(_ia);
+                dtor(_ja);
+                _a = nullptr;
+                _ia = _ja = nullptr;
+            }
+        }
         /* Function: sameSparsity
          *
          *  Checks whether the input matrix can be modified to have the same sparsity pattern as the calling object.

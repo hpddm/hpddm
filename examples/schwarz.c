@@ -43,8 +43,6 @@ int main(int argc, char **argv) {
         val[1] = "nonuniform=(0|1)"; desc[1] = "Use a different number of eigenpairs to compute on each subdomain.";
         HpddmOptionParseArgs(opt, argc, argv, 2, val, desc);
     }
-    if(rankWorld != 0)
-        HpddmOptionRemove(opt, "verbosity");
     int sizes[8];
     int* connectivity[8];
     int o[8];
@@ -58,6 +56,8 @@ int main(int argc, char **argv) {
     int status = 0;
     if(sizeWorld > 1) {
         HpddmSchwarz* A = HpddmSchwarzCreate(Mat, neighbors, o, sizes, connectivity);
+        for(int i = 0; i < neighbors; ++i)
+            free(connectivity[i]);
         HpddmSchwarzMultiplicityScaling(A, d);
         HpddmSchwarzInitialize(A, d);
         if(mu != 0)
@@ -86,6 +86,8 @@ int main(int argc, char **argv) {
             /*# FactorizationEnd #*/
         }
         HpddmSchwarzCallNumfact(A);
+        if(rankWorld != 0)
+            HpddmOptionRemove(opt, "verbosity");
         int it;
         const MPI_Comm* comm = HpddmGetCommunicator(HpddmSchwarzPreconditioner(A));
         /*# Solution #*/
@@ -116,6 +118,8 @@ int main(int argc, char **argv) {
                      status = 1;
         }
         free(storage);
+        if(HpddmOptionVal(opt, "geneo_nu") == 0)
+            HpddmDestroyVectors(HpddmSchwarzPreconditioner(A));
         HpddmSchwarzDestroy(A);
     }
     else {

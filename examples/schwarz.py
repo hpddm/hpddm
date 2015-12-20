@@ -50,8 +50,6 @@ def appArgs():
     val = None
     desc = None
 appArgs()
-if rankWorld != 0:
-    hpddm.optionRemove(opt, b'verbosity')
 o, connectivity, dof, Mat, MatNeumann, d, f, sol, mu = generate(rankWorld, sizeWorld)
 status = 0
 if sizeWorld > 1:
@@ -78,6 +76,8 @@ if sizeWorld > 1:
         hpddm.initializeCoarseOperator(hpddm.schwarzPreconditioner(A), nu)
         hpddm.schwarzBuildCoarseOperator(A, hpddm.MPI_Comm.from_address(MPI._addressof(MPI.COMM_WORLD)))
     hpddm.schwarzCallNumfact(A)
+    if rankWorld != 0:
+        hpddm.optionRemove(opt, b'verbosity')
     comm = hpddm.getCommunicator(hpddm.schwarzPreconditioner(A))
     if hpddm.optionVal(opt, b'krylov_method') == 2:
         it = hpddm.CG(A, f, sol, comm)

@@ -64,8 +64,6 @@ int main(int argc, char **argv) {
         std::forward_as_tuple("symmetric_csr=(0|1)", "Assemble symmetric matrices.", HPDDM::Option::Arg::argument),
         std::forward_as_tuple("nonuniform=(0|1)", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::argument)
     });
-    if(rankWorld != 0)
-        opt.remove("verbosity");
     std::vector<std::vector<int>> mapping;
     mapping.reserve(8);
     std::list<int> o; // at most eight neighbors in 2D
@@ -112,6 +110,8 @@ int main(int argc, char **argv) {
             /*# FactorizationEnd #*/
         }
         A.callNumfact();
+        if(rankWorld != 0)
+            opt.remove("verbosity");
         int it;
         /*# Solution #*/
         switch(static_cast<int>(opt["krylov_method"])) {

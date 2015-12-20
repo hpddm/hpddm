@@ -205,7 +205,7 @@ class IterativeMethod {
             const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
             const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
 
-            K** const H = new K*[m * (2 + (variant == 'F')) + 1];
+            K** const H = new K*[static_cast<int>(m) * (2 + (variant == 'F')) + 1];
             K** const v = H + m;
             K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + m * (1 + (variant == 'F'))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
             K* const Ax = s + mu * (m + 1);
@@ -387,6 +387,7 @@ class IterativeMethod {
             A.clearBuffer(alloc);
             delete [] s;
             delete [] H;
+            std::cout.unsetf(std::ios_base::scientific);
             return std::min(j, it);
         }
         template<bool excluded = false, class Operator = void, class K = double>
@@ -404,7 +405,7 @@ class IterativeMethod {
             const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
             const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
 
-            K** const H = new K*[m * (2 + (variant == 'F')) + 1];
+            K** const H = new K*[static_cast<int>(m) * (2 + (variant == 'F')) + 1];
             K** const v = H + m;
             int ldh = mu * (m + 1);
             int info;
@@ -613,6 +614,7 @@ class IterativeMethod {
             A.clearBuffer(alloc);
             delete [] *H;
             delete [] H;
+            std::cout.unsetf(std::ios_base::scientific);
             return std::min(j, it);
         }
         /* Function: CG
@@ -734,6 +736,7 @@ class IterativeMethod {
             if(Wrapper<K>::is_complex)
                 delete [] trash;
             A.clearBuffer(alloc);
+            std::cout.unsetf(std::ios_base::scientific);
             return std::min(i, it);
         }
         /* Function: PCG
@@ -869,6 +872,7 @@ class IterativeMethod {
                 clean(pCurr);
             clean(storage[0]);
             A.clearBuffer(alloc);
+            std::cout.unsetf(std::ios_base::scientific);
             return std::min(i, it);
         }
 };

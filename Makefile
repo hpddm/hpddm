@@ -93,7 +93,7 @@ else
     endif
 endif
 
-ifneq (, $(shell which mpixlc))
+ifneq (, $(shell which mpixlc 2> /dev/null))
     SEP = : 
 endif
 
@@ -159,6 +159,9 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	@if [ -f lib/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_1_4.txt; \
 	fi
+	${MPIRUN} 4 $(subst test_,${SEP},$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -distributed_sol
+	${MPIRUN} 4 $(subst test_,${SEP},$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2
+	${MPIRUN} 4 $(subst test_,${SEP},$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_initial_deflation_tol=1e-4
 	${MPIRUN} 4 $(subst test_,${SEP},$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr --hpddm_dump_local_matrix_2 ${TRASH_DIR}/output
 	@if [ -f lib/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_2_4.txt; \

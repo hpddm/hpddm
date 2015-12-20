@@ -66,7 +66,7 @@ typedef double underlying_type;
 
 struct HpddmOption;
 typedef struct HpddmOption HpddmOption;
-const HpddmOption* const HpddmOptionGet();
+const HpddmOption* HpddmOptionGet();
 int HpddmOptionParse(const HpddmOption* const, int, char**, bool);
 int HpddmOptionParseInt(const HpddmOption* const, int, char**, char*, char*);
 int HpddmOptionParseInts(const HpddmOption* const, int, char**, int, char*[], char*[]);
@@ -75,7 +75,7 @@ int HpddmOptionParseArgs(const HpddmOption* const, int, char**, int, char*[], ch
 bool HpddmOptionSet(const HpddmOption* const, char*);
 void HpddmOptionRemove(const HpddmOption* const, char*);
 double HpddmOptionVal(const HpddmOption* const, char*);
-double* const HpddmOptionAddr(const HpddmOption* const, char*);
+double* HpddmOptionAddr(const HpddmOption* const, char*);
 double HpddmOptionApp(const HpddmOption* const, char*);
 
 struct HpddmMatrixCSR;
@@ -94,6 +94,7 @@ struct HpddmPreconditioner;
 typedef struct HpddmPreconditioner HpddmPreconditioner;
 void HpddmInitializeCoarseOperator(HpddmPreconditioner*, unsigned short);
 void HpddmSetVectors(HpddmPreconditioner*, K**);
+void HpddmDestroyVectors(HpddmPreconditioner*);
 const MPI_Comm* HpddmGetCommunicator(HpddmPreconditioner*);
 
 struct HpddmSchwarz;

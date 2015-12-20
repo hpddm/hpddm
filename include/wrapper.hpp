@@ -108,16 +108,40 @@ struct Wrapper {
     static void sctr(const int&, const K* const, const int* const, K* const);
     /* Function: diag(in-place)
      *  Computes a vector-matrix element-wise multiplication. */
-    static void diag(const int&, const underlying_type<K>* const, K* const, const int& n = 1);
+    static void diag(const int&, const underlying_type<K>* const, K* const, const int& = 1);
     /* Function: diag
      *  Computes a vector-matrix element-wise multiplication. */
-    static void diag(const int&, const underlying_type<K>* const, const K* const, K* const, const int& n = 1);
+    static void diag(const int&, const underlying_type<K>* const, const K* const, K* const, const int& = 1);
     /* Function: conj
      *  Conjugates a real or complex number. */
     template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
     static T conj(T& x) { return x; }
     template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
     static T conj(T& x) { return std::conj(x); }
+    template<char O>
+    static void cycle(const int n, const int m, K* const ab, const int k) {
+        if((O == 'T' || O == 'C') && n != 1 && m != 1) {
+            const int size = n * m - 1;
+            std::vector<char> b((size >> 3) + 1);
+            b[0] |= 1;
+            b[size >> 3] |= 1 << (size & 7);
+            int i = 1;
+            while(i < size) {
+                int it = i;
+                std::vector<K> t(ab + i * k, ab + (i + 1) * k);
+                do {
+                    int next = (i * n) % size;
+                    std::swap_ranges(ab + next * k, ab + (next + 1) * k, t.begin());
+                    b[i >> 3] |= 1 << (i & 7);
+                    i = next;
+                } while(i != it);
+                if(O == 'C' && is_complex)
+                    ab[i] = conj(ab[i]);
+
+                for(i = 1; i < size && (b[i >> 3] & (1 << (i & 7))) != 0; ++i);
+            }
+        }
+    }
     /* Function: imatcopy
      *  Transforms (copy, transpose, conjugate transpose, conjugate) a dense matrix in-place. */
     template<char O>
@@ -483,47 +507,27 @@ template<char O>
 inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const int lda, const int ldb) {
     static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
     if(O == 'T' || O == 'C') {
-        if(n != 1 || m != 1) {
-            if(lda == m && ldb == n) {
-                if(n != m) {
-                    const int size = n * m - 1;
-                    std::bitset<1024> b;
-                    b[0] = b[size] = 1;
-                    int i = 1;
-                    while(i < size) {
-                        int it = i;
-                        K t = ab[i];
-                        do {
-                            int next = (i * n) % size;
-                            std::swap(ab[next], t);
-                            b[i] = 1;
-                            i = next;
-                        } while(i != it);
-                        if(O == 'C' && is_complex)
-                            ab[i] = conj(ab[i]);
-
-                        for(i = 1; i < size && b[i]; ++i);
-                    }
-                }
-                else {
-                    for(int i = 0; i < n - 1; ++i)
-                        for(int j = i + 1; j < n; ++j) {
-                            if(O == 'C' && is_complex) {
-                                ab[i * n + j] = conj(ab[i * n + j]);
-                                ab[j * n + i] = conj(ab[j * n + i]);
-                                std::swap(ab[i * n + j], ab[j * n + i]);
-                            }
-                            else
-                                std::swap(ab[i * n + j], ab[j * n + i]);
-                        }
-                }
-            }
+        if(lda == m && ldb == n) {
+            if(n != m)
+                cycle<O>(n, m, ab, 1);
             else {
-                K* tmp = new K[n * m];
-                omatcopy<O>(n, m, ab, lda, tmp, n);
-                Blas<K>::lacpy("A", &n, &m, tmp, &n, ab, &ldb);
-                delete [] tmp;
+                for(int i = 0; i < n - 1; ++i)
+                    for(int j = i + 1; j < n; ++j) {
+                        if(O == 'C' && is_complex) {
+                            ab[i * n + j] = conj(ab[i * n + j]);
+                            ab[j * n + i] = conj(ab[j * n + i]);
+                            std::swap(ab[i * n + j], ab[j * n + i]);
+                        }
+                        else
+                            std::swap(ab[i * n + j], ab[j * n + i]);
+                    }
             }
+        }
+        else {
+            K* tmp = new K[n * m];
+            omatcopy<O>(n, m, ab, lda, tmp, n);
+            Blas<K>::lacpy("A", &n, &m, tmp, &n, ab, &ldb);
+            delete [] tmp;
         }
     }
     else if(O == 'R' && is_complex) {

@@ -35,7 +35,7 @@ const char symCoarse = 'S';
 
 typedef typename std::conditional<std::is_same<K, underlying_type>::value, K, std::complex<underlying_type>>::type cpp_type;
 
-const HpddmOption* const HpddmOptionGet() {
+const HpddmOption* HpddmOptionGet() {
     return (const HpddmOption* const)&*HPDDM::Option::get();
 }
 int HpddmOptionParse(const HpddmOption* const option, int argc, char** argv, bool display) {
@@ -78,7 +78,7 @@ double HpddmOptionVal(const HpddmOption* const option, char* str) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
     return opt.val(str);
 }
-double* const HpddmOptionAddr(const HpddmOption* const option, char* str) {
+double* HpddmOptionAddr(const HpddmOption* const option, char* str) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
     return &(opt[str]);
 }
@@ -94,6 +94,7 @@ HpddmMatrixCSR* HpddmMatrixCSRCreate(int n, int m, int nnz, K* const a, int* con
     return reinterpret_cast<HpddmMatrixCSR*>(new HPDDM::MatrixCSR<cpp_type>(n, m, nnz, reinterpret_cast<cpp_type*>(a), ia, ja, sym, takeOwnership));
 }
 void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
+    reinterpret_cast<HPDDM::MatrixCSR<cpp_type>*>(a)->destroy(std::free);
     delete reinterpret_cast<HPDDM::MatrixCSR<cpp_type>*>(a);
 }
 void HpddmCsrmm(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
@@ -120,6 +121,9 @@ void HpddmInitializeCoarseOperator(HpddmPreconditioner* A, unsigned short nu) {
 }
 void HpddmSetVectors(HpddmPreconditioner* A, K** v) {
     reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type>, cpp_type>*>(A)->setVectors(reinterpret_cast<cpp_type**>(v));
+}
+void HpddmDestroyVectors(HpddmPreconditioner* A) {
+    reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type>, cpp_type>*>(A)->destroyVectors(std::free);
 }
 const MPI_Comm* HpddmGetCommunicator(HpddmPreconditioner* A) {
     return &(reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type>, cpp_type>*>(A)->getCommunicator());
@@ -155,6 +159,7 @@ void HpddmSchwarzComputeError(HpddmSchwarz* A, const K* const sol, const K* cons
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->computeError(reinterpret_cast<const cpp_type*>(sol), reinterpret_cast<const cpp_type*>(f), storage, mu);
 }
 void HpddmSchwarzDestroy(HpddmSchwarz* A) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A)->destroyMatrix(std::free);
     delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type>*>(A);
 }
 

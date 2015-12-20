@@ -68,7 +68,7 @@ class Preconditioner : public Subdomain<K> {
         K**                _ev;
         /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
-        K*                 _uc;
+        mutable K*         _uc;
         /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.
@@ -124,13 +124,23 @@ class Preconditioner : public Subdomain<K> {
                     std::cout << line << std::endl;
                     std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[1] == nu && allUniform[2] == static_cast<unsigned short>(~nu) ? nu : (N == 3 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]) ? -_co->getLocal() : 0)) + " -- topology = " + to_string(static_cast<int>(opt["master_topology"])) + " -- distribution = " + to_string(static_cast<int>(opt["master_distribution"])) + ")" << std::endl;
                 }
-                _uc = new K[_co->getSizeRHS()];
             }
             else {
                 delete _co;
                 _co = nullptr;
             }
             return ret;
+        }
+        /* Function: start
+         *
+         *  Allocates the array <Preconditioner::uc> depending on the number of right-hand sides to be solved by an <Iterative method>.
+         *
+         * Parameter:
+         *    mu             - Number of right-hand sides. */
+        void start(const unsigned short& mu = 1) const {
+            if(_uc)
+                delete [] _uc;
+            _uc = new K[mu * _co->getSizeRHS()];
         }
     public:
         Preconditioner() : _co(), _ev(), _uc() { }
@@ -171,6 +181,14 @@ class Preconditioner : public Subdomain<K> {
         /* Function: setVectors
          *  Sets the pointer <Preconditioner::ev>. */
         void setVectors(K** const& ev) { _ev = ev; }
+        /* Function: destroyVectors
+         *  Destroys the pointer <Preconditioner::ev> using a custom deallocator. */
+        void destroyVectors(void (*dtor)(void*)) {
+            if(_ev && *_ev)
+                dtor(*_ev);
+            dtor(_ev);
+            _ev = nullptr;
+        }
         /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
         unsigned short getLocal() const { return _co ? _co->getLocal() : 0; }
