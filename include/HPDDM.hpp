@@ -291,7 +291,8 @@ template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 # endif
 
-# include "iterative.hpp"
+# include "GMRES.hpp"
+# include "CG.hpp"
 #else
 # include "BLAS.hpp"
 # include "LAPACK.hpp"

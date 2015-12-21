@@ -57,7 +57,9 @@ install:
   - make all -j2
 
 script:
-  - make test
+  - make test_cpp
+  - make test_c
+  - make test_python
 
 notifications:
   email:
