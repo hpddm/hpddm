@@ -212,7 +212,7 @@ def generate(rankWorld, sizeWorld):
             for i in xrange(iStart, iEnd):
                 if j > jStart:
                     a[nnz] = -1 / (dy * dy)
-                    ja[nnz] = k - int(Ny / yGrid) + (hpddm.numbering.value == b'F')
+                    ja[nnz] = k - int(Nx / xGrid) + (hpddm.numbering.value == b'F')
                     nnz += 1
                 if i > iStart:
                     a[nnz] = -1 / (dx * dx)
@@ -230,7 +230,7 @@ def generate(rankWorld, sizeWorld):
             for i in xrange(iStart, iEnd):
                 if j > jStart:
                     a[nnz] = -1 / (dy * dy)
-                    ja[nnz] = k - int(Ny / yGrid) + (hpddm.numbering.value == b'F')
+                    ja[nnz] = k - int(Nx / xGrid) + (hpddm.numbering.value == b'F')
                     nnz += 1
                 if i > iStart:
                     a[nnz] = -1 / (dx * dx)
@@ -245,7 +245,7 @@ def generate(rankWorld, sizeWorld):
                     nnz += 1
                 if j < jEnd - 1:
                     a[nnz] = -1 / (dy * dy)
-                    ja[nnz] = k + int(Ny / yGrid) + (hpddm.numbering.value == b'F')
+                    ja[nnz] = k + int(Nx / xGrid) + (hpddm.numbering.value == b'F')
                     nnz += 1
                 k += 1
                 ia[k] = nnz + (hpddm.numbering.value == b'F')
@@ -263,7 +263,7 @@ def generate(rankWorld, sizeWorld):
                 for i in xrange(iStart, iEnd):
                     if j > jStart:
                         aNeumann[nnzNeumann] = -1 / (dy * dy) + (-1 / (dx * dx) if i == iStart else 0)
-                        jNeumann[nnzNeumann] = k - int(Ny / yGrid) + (hpddm.numbering.value == b'F')
+                        jNeumann[nnzNeumann] = k - int(Nx / xGrid) + (hpddm.numbering.value == b'F')
                         nnzNeumann += 1
                     if i > iStart:
                         aNeumann[nnzNeumann] = -1 / (dx * dx) + (-1 / (dy * dy) if j == jStart else 0)
@@ -278,7 +278,7 @@ def generate(rankWorld, sizeWorld):
                         nnzNeumann += 1
                     if j < jEnd - 1:
                         aNeumann[nnzNeumann] = -1 / (dy * dy) + (-1 / (dx * dx) if i == iEnd - 1 else 0)
-                        jNeumann[nnzNeumann] = k + int(Ny / yGrid) + (hpddm.numbering.value == b'F')
+                        jNeumann[nnzNeumann] = k + int(Nx / xGrid) + (hpddm.numbering.value == b'F')
                         nnzNeumann += 1
                     k += 1
                     iNeumann[k] = nnzNeumann + (hpddm.numbering.value == b'F')

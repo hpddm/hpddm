@@ -87,10 +87,10 @@ do
                         then
                             if [[ ("$OTHER" == "" || "$OTHER" == "-DFORCE_COMPLEX" || "$OTHER" == "-DGENERAL_CO" || ! "$OSTYPE" == darwin*) ]];
                             then
-                                make test 1> $TMPFILE 2>&1
+                                make test HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
                             elif [[ "$OSTYPE" == darwin* ]];
                             then
-                                make test_cpp test_c 1> $TMPFILE 2>&1
+                                make test_cpp test_c HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
                             fi
                             if [ $? -ne 0 ]; then
                                 echo -e "\n[ \033[91;1mFAIL\033[0m ] HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER}"

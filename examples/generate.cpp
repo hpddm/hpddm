@@ -24,6 +24,7 @@
  */
 
 #include <random>
+#define HPDDM_MINIMAL
 #include "schwarz.hpp"
 
 #define xx(i) (xdim[0] + dx * (i + 0.5))
@@ -228,7 +229,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
             for(int i = iStart; i < iEnd; ++i) {
                 if(j > jStart) { // this d.o.f. is not on the bottom side of the subd.
                     a[nnz] = -1 / (dy * dy);
-                    ja[nnz++] = k - (Ny / yGrid) + (N == 'F');
+                    ja[nnz++] = k - (Nx / xGrid) + (N == 'F');
                 }
                 if(i > iStart) { // this d.o.f. is not on the left side of the subd.
                     a[nnz] = -1 / (dx * dx);
@@ -246,7 +247,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
             for(int i = iStart; i < iEnd; ++i) {
                 if(j > jStart) {
                     a[nnz] = -1 / (dy * dy);
-                    ja[nnz++] = k - (Ny / yGrid) + (N == 'F');
+                    ja[nnz++] = k - (Nx / xGrid) + (N == 'F');
                 }
                 if(i > iStart) {
                     a[nnz] = -1 / (dx * dx);
@@ -260,7 +261,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
                 }
                 if(j < jEnd - 1) {
                     a[nnz] = -1 / (dy * dy);
-                    ja[nnz++] = k + (Ny / yGrid) + (N == 'F');
+                    ja[nnz++] = k + (Nx / xGrid) + (N == 'F');
                 }
                 ia[++k] = nnz + (N == 'F');
             }
@@ -279,7 +280,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
                 for(int i = iStart; i < iEnd; ++i) {
                     if(j > jStart) {
                         neumann[nnzNeumann] = -1 / (dy * dy) + (i == iStart ? -1 / (dx * dx) : 0);
-                        jn[nnzNeumann++] = k - (Ny / yGrid) + (N == 'F');
+                        jn[nnzNeumann++] = k - (Nx / xGrid) + (N == 'F');
                     }
                     if(i > iStart) {
                         neumann[nnzNeumann] = -1 / (dx * dx) + (j == jStart ? -1 / (dy * dy) : 0);
@@ -293,7 +294,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
                     }
                     if(j < jEnd - 1) {
                         neumann[nnzNeumann] = -1 / (dy * dy) + (i == iEnd - 1 ? -1 / (dx * dx) : 0);
-                        jn[nnzNeumann++] = k + (Ny / yGrid) + (N == 'F');
+                        jn[nnzNeumann++] = k + (Nx / xGrid) + (N == 'F');
                     }
                     in[++k] = nnzNeumann + (N == 'F');
                 }
