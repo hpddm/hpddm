@@ -70,6 +70,13 @@ void HPDDM_F77(C ## herk)(const char* const, const char* const, const int* const
                           const int* const);                                                                 \
 HPDDM_GENERATE_EXTERN_DOTC(C, T, U)
 
+#if HPDDM_MKL
+# define HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                  \
+void HPDDM_F77(C ## gemm3m)(const char*, const char*, const int*, const int*, const int*,                    \
+                            const T*, const T*, const int*, const T*, const int*,                            \
+                            const T*, T*, const int*);
+#endif
+
 #ifndef INTEL_MKL_VERSION
 # ifdef __cplusplus
 extern "C" {
@@ -78,6 +85,9 @@ HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, std::complex<double>, d, double)
 #  if defined(__APPLE__) || HPDDM_MKL
 #   if !HPDDM_MKL
 #    define HPDDM_PREFIX_AXPBY(func) catlas_ ## func
+#   else
+HPDDM_GENERATE_EXTERN_GEMM3M(c, std::complex<float>)
+HPDDM_GENERATE_EXTERN_GEMM3M(z, std::complex<double>)
 #   endif
 #   ifndef CBLAS_H
 #    define HPDDM_GENERATE_EXTERN_AXPBY(C, T, B, U)                                                          \
@@ -162,6 +172,26 @@ struct Blas {
                      const K*, const K*, const int*, K*, const int*);
 };
 
+# define HPDDM_GENERATE_GEMM(C, T)                                                                           \
+template<>                                                                                                   \
+inline void Blas<T>::gemm(const char* const transa, const char* const transb, const int* const m,            \
+                          const int* const n, const int* const k, const T* const alpha, const T* const a,    \
+                          const int* const lda, const T* const b, const int* const ldb, const T* const beta, \
+                          T* const c, const int* const ldc) {                                                \
+    HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
+}
+# if !HPDDM_MKL
+#  define HPDDM_GENERATE_GEMM_COMPLEX(C, T) HPDDM_GENERATE_GEMM(C, T)
+# else
+#  define HPDDM_GENERATE_GEMM_COMPLEX(C, T)                                                                  \
+template<>                                                                                                   \
+inline void Blas<T>::gemm(const char* const transa, const char* const transb, const int* const m,            \
+                          const int* const n, const int* const k, const T* const alpha, const T* const a,    \
+                          const int* const lda, const T* const b, const int* const ldb, const T* const beta, \
+                          T* const c, const int* const ldc) {                                                \
+    HPDDM_F77(C ## gemm3m)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                    \
+}
+# endif
 # define HPDDM_GENERATE_BLAS(C, T)                                                                           \
 template<>                                                                                                   \
 inline void Blas<T>::axpy(const int* const n, const T* const a, const T* const x, const int* const incx,     \
@@ -191,13 +221,6 @@ inline void Blas<T>::symv(const char* const uplo, const int* const n, const T* c
     HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);                                      \
 }                                                                                                            \
                                                                                                              \
-template<>                                                                                                   \
-inline void Blas<T>::gemm(const char* const transa, const char* const transb, const int* const m,            \
-                          const int* const n, const int* const k, const T* const alpha, const T* const a,    \
-                          const int* const lda, const T* const b, const int* const ldb, const T* const beta, \
-                          T* const c, const int* const ldc) {                                                \
-    HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
-}                                                                                                            \
 template<>                                                                                                   \
 inline void Blas<T>::symm(const char* const side, const char* const uplo, const int* const m,                \
                           const int* const n, const T* const alpha, const T* const a, const int* const lda,  \
@@ -249,6 +272,8 @@ inline T Blas<T>::dot(const int* const n, const T* const x, const int* const inc
 # endif
 # define HPDDM_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                             \
 HPDDM_GENERATE_BLAS(B, U)                                                                                    \
+HPDDM_GENERATE_GEMM(B, U)                                                                                    \
+HPDDM_GENERATE_GEMM_COMPLEX(C, T)                                                                            \
 HPDDM_GENERATE_BLAS(C, T)                                                                                    \
 template<>                                                                                                   \
 inline U Blas<U>::nrm2(const int* const n, const U* const x, const int* const incx) {                        \

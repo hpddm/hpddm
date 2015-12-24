@@ -69,7 +69,7 @@ class OperatorBase : protected Members<P != 's'> {
         unsigned short                   _signed;
         unsigned short             _connectivity;
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _signed(), _connectivity(c) {
+        OperatorBase(const Preconditioner& p, const unsigned short& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _connectivity(c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _sparsity.reserve(_map.size());
             for(const pairNeighbor& n : _map)
