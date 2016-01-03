@@ -62,14 +62,14 @@ void HPDDM_F77(B ## hseqr)(const char*, const char*, const int*, const int*, con
                            U*, U*, const int*, U*, const int*, int*);                                        \
 void HPDDM_F77(C ## hseqr)(const char*, const char*, const int*, const int*, const int*, T*, const int*, T*, \
                            T*, const int*, T*, const int*, int*);                                            \
-void HPDDM_F77(B ## hsein)(const char* side, const char* eigsrc, const char* initv, int* select,             \
-                           const int* n, U* h, const int* ldh, U* wr, const U* wi, U* vl, const int* ldvl,   \
-                           U* vr, const int* ldvr, const int* mm, int* m, U* work, int* ifaill, int* ifailr, \
-                           int* info);                                                                       \
-void HPDDM_F77(C ## hsein)(const char* side, const char* eigsrc, const char* initv, int* select,             \
-                           const int* n, T* h, const int* ldh, T* w, T* vl, const int* ldvl, T* vr,          \
-                           const int* ldvr, const int* mm, int* m, T* work, U* rwork, int* ifaill,           \
-                           int* ifailr, int* info);                                                          \
+void HPDDM_F77(B ## hsein)(const char*, const char*, const char*, int*, const int*, U*, const int*, U*,      \
+                           const U*, U*, const int*, U*, const int*, const int*, int*, U*, int*, int*, int*);\
+void HPDDM_F77(C ## hsein)(const char*, const char*, const char*, int*, const int*, T*, const int*, T*, T*,  \
+                           const int*, T*, const int*, const int*, int*, T*, U*, int*, int*, int*);          \
+void HPDDM_F77(B ## ggev)(const char*, const char*, const int*, U*, const int*, U*, const int*, U*, U*, U*,  \
+                          U*, const int*, U*, const int*, U*, const int*, int*);                             \
+void HPDDM_F77(C ## ggev)(const char*, const char*, const int*, T*, const int*, T*, const int*, T*, T*,      \
+                          T*, const int*, T*, const int*, T*, const int*, U*, int*);                         \
 void HPDDM_F77(B ## gesdd)(const char*, const int*, const int*, U*, const int*, U*, U*, const int*, U*,      \
                            const int*, U*, const int*, int*, int*);                                          \
 void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, U*, T*, const int*, T*,      \
@@ -166,6 +166,9 @@ class Lapack : public Eigensolver<K> {
         /* Function: hsein
          *  Computes selected eigenvectors of an upper Hessenberg matrix that correspond to specified eigenvalues. */
         static void hsein(const char*, const char*, const char*, int*, const int*, K*, const int*, K*, const K*, K*, const int*, K*, const int*, const int*, int*, K*, underlying_type<K>*, int*, int*, int*);
+        /* Function: ggev
+         *  Computes the eigenvalues and the eigenvectors of a nonsymmetric generalized eigenvalue problem. */
+        static void ggev(const char*, const char*, const int*, K*, const int*, K*, const int*, K*, K*, K*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
 
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
@@ -516,6 +519,20 @@ inline void Lapack<T>::hsein(const char* side, const char* eigsrc, const char* i
                              int* ifailr, int* info) {                                                       \
     HPDDM_F77(C ## hsein)(side, eigsrc, initv, select, n, h, ldh, w, vl, ldvl, vr, ldvr, mm, m, work, rwork, \
                           ifaill, ifailr, info);                                                             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<U>::ggev(const char* jobvl, const char* jobvr, const int* n, U* a, const int* lda, U* b,  \
+                            const int* ldb, U* alphar, U* alphai, U* beta, U* vl, const int* ldvl, U* vr,    \
+                            const int* ldvr, U* work, const int* lwork, U*, int* info) {                     \
+    HPDDM_F77(B ## ggev)(jobvl, jobvr, n, a, lda, b, ldb, alphar, alphai, beta, vl, ldvl, vr, ldvr, work,    \
+                         lwork, info);                                                                       \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::ggev(const char* jobvl, const char* jobvr, const int* n, T* a, const int* lda, T* b,  \
+                            const int* ldb, T* alpha, T*, T* beta, T* vl, const int* ldvl, T* vr,            \
+                            const int* ldvr, T* work, const int* lwork, U* rwork, int* info) {               \
+    HPDDM_F77(C ## ggev)(jobvl, jobvr, n, a, lda, b, ldb, alpha, beta, vl, ldvl, vr, ldvr, work, lwork,      \
+                         rwork, info);                                                                       \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<U>::gesdd(const char* jobz, const int* m, const int* n, U* a, const int* lda, U* s,       \

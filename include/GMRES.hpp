@@ -104,7 +104,17 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         }
         int i = 0;
         while(i < m && j <= it) {
-            Arnoldi<excluded>(A, variant, static_cast<char>(opt["gs"]), m, H, v, s, sn, n, i, mu, Ax, comm);
+            if(variant == 'L') {
+                if(!excluded)
+                    A.GMV(v[i], Ax, mu);
+                A.template apply<excluded>(Ax, v[i + 1], mu);
+            }
+            else {
+                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, mu, v[i + 1]);
+                if(!excluded)
+                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
+            }
+            Arnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, s, sn, n, i, mu, Ax, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[(i + 1) * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[(i + 1) * mu + nu]) <= -tol)))
                     hasConverged[nu] = i + 1;
@@ -138,17 +148,29 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 ++i, ++j;
         }
         if(j != it + 1 && i == m) {
-            if(!excluded)
-                update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
-            std::fill_n(s + mu, mu * m, K());
+            if(!excluded) {
+                if(mu > 1) {
+                    for(unsigned short k = 0; k < m; ++k)
+                        Wrapper<K>::template imatcopy<'T'>(k + 1, mu, H[k], mu, m + 1);
+                }
+                updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+            }
             if(verbosity > 0)
                 std::cout << "GMRES restart(" << m << ")" << std::endl;
         }
         else
             break;
     }
-    if(!excluded)
-        update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+    if(!excluded) {
+        const int rem = it % m;
+        std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
+        if(mu > 1) {
+            unsigned short dim = *std::max_element(hasConverged, hasConverged + mu);
+            for(unsigned short i = 0; i < dim; ++i)
+                Wrapper<K>::template imatcopy<'T'>(i + 1, mu, H[i], mu, m + 1);
+        }
+        updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+    }
     if(verbosity > 0) {
         if(j != it + 1)
             std::cout << "GMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
@@ -289,7 +311,17 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         std::fill(*H, *v, K());
         int i = 0;
         while(i < m && j <= it) {
-            BlockArnoldi<excluded>(A, variant, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i, deflated, Ax, comm);
+            if(variant == 'L') {
+                if(!excluded)
+                    A.GMV(v[i], Ax, mu);
+                A.template apply<excluded>(Ax, v[i + 1], mu);
+            }
+            else {
+                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, mu, v[i + 1]);
+                if(!excluded)
+                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
+            }
+            BlockArnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i, deflated, Ax, comm);
             unsigned short converged = 0;
             for(unsigned short nu = 0; nu < deflated; ++nu) {
                 beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * (i + 1) + nu * ldh, &i__1);
@@ -320,7 +352,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             if(opt.set("initial_deflation_tol"))
                 Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
             if(!excluded)
-                update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+                updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
             if(opt.set("initial_deflation_tol")) {
                 Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
                 Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
@@ -333,8 +365,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     }
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
-    if(!excluded)
-        update(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+    if(!excluded) {
+        const int rem = it % m;
+        if(rem != 0)
+            dim = deflated * rem;
+        updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+    }
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     delete [] piv;

@@ -33,6 +33,8 @@ void    HPDDM_F77(C ## gemv)(const char*, const int*, const int*, const T*,     
                              const T*, T*, const int*);                                                      \
 void    HPDDM_F77(C ## symv)(const char*, const int*, const T*, const T*, const int*,                        \
                              const T*, const int*, const T*, T*, const int*);                                \
+void    HPDDM_F77(C ## trsv)(const char*, const char*, const char*, const int*, const T*, const int*,        \
+                             T*, const int*);                                                                \
 void    HPDDM_F77(C ## gemm)(const char*, const char*, const int*, const int*, const int*,                   \
                              const T*, const T*, const int*, const T*, const int*,                           \
                              const T*, T*, const int*);                                                      \
@@ -143,6 +145,9 @@ struct Blas {
      *  Computes a symmetric scalar-matrix-vector product. */
     static void symv(const char* const, const int* const, const K* const, const K* const, const int* const,
                      const K* const, const int* const, const K* const, K* const, const int* const);
+    /* Function: trsv
+     *  Solves a system of linear equations with a triangular matrix and a single right-hand side. */
+    static void trsv(const char* const, const char* const, const char* const, const int* const, const K* const, const int* const, K* const, const int* const);
     /* Function: her
      *  Computes a rank-1 update of a symmetric or Hermitian matrix. */
     static void her(const char* const, const int* const, const underlying_type<K>* const, const K* const, const int* const, K* const, const int* const);
@@ -219,6 +224,12 @@ inline void Blas<T>::symv(const char* const uplo, const int* const n, const T* c
                           const int* const lda, const T* const b, const int* const ldb, const T* const beta, \
                           T* const c, const int* const ldc) {                                                \
     HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);                                      \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Blas<T>::trsv(const char* const uplo, const char* const trans, const char* const diag,           \
+                          const int* const n, const T* const a, const int* const lda, T* const x,            \
+                          const int* const incx) {                                                           \
+    HPDDM_F77(C ## trsv)(uplo, trans, diag, n, a, lda, x, incx);                                             \
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \

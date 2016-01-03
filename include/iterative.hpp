@@ -60,7 +60,7 @@ class IterativeMethod {
         static void depenalize(const K& b, K& x) { x = b / HPDDM_PEN; }
         template<class K, typename std::enable_if<Wrapper<K>::is_complex>::type* = nullptr>
         static void depenalize(const K& b, K& x) { x = b / std::complex<underlying_type<K>>(HPDDM_PEN, HPDDM_PEN); }
-        /* Function: update
+        /* Function: updateSol
          *
          *  Updates a solution vector after convergence of <Iterative method::GMRES>.
          *
@@ -76,36 +76,41 @@ class IterativeMethod {
          *    s              - Coefficients in the Krylov subspace.
          *    v              - Basis of the Krylov subspace. */
         template<class Operator, class K>
-        static void update(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, const K* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
-            int tmp = std::distance(h[0], h[1]);
-            if(mu == 1 || deflated != -1) {
+        static void updateSol(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, const K* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+            computeMin(h, s, hasConverged, mu, deflated);
+            addSol(A, variant, n, x, std::distance(h[0], h[1]) / std::abs(deflated), s, v, hasConverged, mu, work, deflated);
+        }
+        template<class K>
+        static void computeMin(const K* const* const h, K* const s, const short* const hasConverged, const int& mu, const int& deflated = -1, const int& shift = 0) {
+            int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
+            if(deflated != -1) {
                 int dim = std::abs(*hasConverged);
                 int info;
-                if(deflated != -1)
-                    tmp /= deflated;
-                Lapack<K>::trtrs("U", "N", "N", &dim, deflated != -1 ? &deflated : &mu, *h, &tmp, s, &tmp, &info);
+                Lapack<K>::trtrs("U", "N", "N", &dim, deflated != -1 ? &deflated : &mu, *h, &ldh, s, &ldh, &info);
             }
             else
                 for(unsigned short nu = 0; nu < mu; ++nu) {
-                    for(int i = std::abs(hasConverged[nu]); i-- > 0; ) {
-                        K alpha = -(s[i * mu + nu] /= h[i][i * mu + nu]);
-                        Blas<K>::axpy(&i, &alpha, h[i] + nu, &mu, s + nu, &mu);
-                    }
+                    int dim = std::abs(hasConverged[nu]);
+                    if(dim != 0)
+                        Blas<K>::trsv("U", "N", "N", &(dim -= shift), *h + shift * (1 + ldh) + (ldh / mu) * nu, &ldh, s + nu, &mu);
                 }
-            K* const correction = (variant == 'R' ? const_cast<K*>(v[tmp / (deflated == -1 ? mu : deflated) - 1]) : work);
+        }
+        template<class Operator, class K>
+        static void addSol(const Operator& A, char variant, const int& n, K* const x, const int& ldh, const K* const s, const K* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+            K* const correction = (variant == 'R' ? const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1]) : work);
             if(deflated == -1) {
-                tmp = mu * n;
+                int ldv = mu * n;
                 if(variant == 'L') {
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         if(hasConverged[nu] != 0) {
                             int dim = std::abs(hasConverged[nu]);
-                            Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &tmp, s + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
+                            Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
                         }
                 }
                 else {
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         int dim = std::abs(hasConverged[nu]);
-                        Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &tmp, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
+                        Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
                     }
                     if(variant == 'R')
                         A.apply(work, correction, mu);
@@ -114,24 +119,25 @@ class IterativeMethod {
                             Blas<K>::axpy(&n, &(Wrapper<K>::d__1), correction + nu * n, &i__1, x + nu * n, &i__1);
                 }
             }
-            else if(deflated == mu) {
-                int dim = *hasConverged;
-                if(variant == 'L')
-                    Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__1), x, &n);
-                else {
-                    Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__0), work, &n);
-                    if(variant == 'R')
-                        A.apply(work, correction, mu);
-                    Blas<K>::axpy(&(tmp = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
-                }
-            }
             else {
                 int dim = *hasConverged;
-                Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &tmp, &(Wrapper<K>::d__0), work, &n);
-                if(variant == 'R')
-                    A.apply(work, correction, deflated);
-                Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * tmp, &tmp, &(Wrapper<K>::d__1), x + deflated * n, &n);
-                Blas<K>::axpy(&(tmp = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
+                if(deflated == mu) {
+                    if(variant == 'L')
+                        Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__1), x, &n);
+                    else {
+                        Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
+                        if(variant == 'R')
+                            A.apply(work, correction, mu);
+                        Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
+                    }
+                }
+                else {
+                    Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
+                    if(variant == 'R')
+                        A.apply(work, correction, deflated);
+                    Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d__1), x + deflated * n, &n);
+                    Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
+                }
             }
         }
         template<class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
@@ -175,17 +181,7 @@ class IterativeMethod {
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class Operator, class K>
-        static void Arnoldi(const Operator& A, const char variant, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
-            if(variant == 'L') {
-                if(!excluded)
-                    A.GMV(v[i], Ax, mu);
-                A.template apply<excluded>(Ax, v[i + 1], mu);
-            }
-            else {
-                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, mu, v[i + 1]);
-                if(!excluded)
-                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
-            }
+        static void Arnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
             if(excluded) {
                 std::fill_n(H[i], mu * (i + 1), K());
                 if(gs == 1)
@@ -250,17 +246,7 @@ class IterativeMethod {
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class Operator, class K>
-        static void BlockArnoldi(const Operator& A, const char variant, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
-            if(variant == 'L') {
-                if(!excluded)
-                    A.GMV(v[i], Ax, mu);
-                A.template apply<excluded>(Ax, v[i + 1], mu);
-            }
-            else {
-                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, mu, v[i + 1]);
-                if(!excluded)
-                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
-            }
+        static void BlockArnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
             int ldh = mu * (m + 1);
             if(gs == 1) {
                 for(unsigned short k = 0; k < i + 1; ++k) {

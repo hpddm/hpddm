@@ -55,7 +55,7 @@ struct Wrapper {
     static MPI_Datatype mpi_underlying_type() {
         return Wrapper<underlying_type<K>>::mpi_type();
     }
-    static constexpr bool is_complex = !std::is_same<K, underlying_type<K>>::value;
+    static constexpr bool is_complex = !std::is_same<typename std::remove_const<K>::type, underlying_type<K>>::value;
     /* Variable: transc
      *  Transposed real operators or Hermitian transposed complex operators. */
     static constexpr char transc = is_complex ? 'C' : 'T';
@@ -115,9 +115,9 @@ struct Wrapper {
     /* Function: conj
      *  Conjugates a real or complex number. */
     template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
-    static T conj(T& x) { return x; }
+    static T conj(const T& x) { return x; }
     template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
-    static T conj(T& x) { return std::conj(x); }
+    static T conj(const T& x) { return std::conj(x); }
     template<char O>
     static void cycle(const int n, const int m, K* const ab, const int k) {
         if((O == 'T' || O == 'C') && n != 1 && m != 1) {
@@ -495,7 +495,7 @@ inline void Wrapper<K>::omatcopy(const int n, const int m, const K* const a, con
                 else
                     b[j * ldb + i] = conj(a[i * lda + j]);
             }
-    if(O == 'R' && is_complex)
+    else if(O == 'R' && is_complex)
         for(int i = 0; i < n; ++i)
             std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const K& z) { return conj(z); });
     else
