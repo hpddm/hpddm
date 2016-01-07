@@ -75,8 +75,9 @@ class IterativeMethod {
          *    h              - Hessenberg matrix.
          *    s              - Coefficients in the Krylov subspace.
          *    v              - Basis of the Krylov subspace. */
-        template<class Operator, class K>
-        static void updateSol(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, const K* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+        template<class Operator, class K, class T>
+        static void updateSol(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+            static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
             computeMin(h, s, hasConverged, mu, deflated);
             addSol(A, variant, n, x, std::distance(h[0], h[1]) / std::abs(deflated), s, v, hasConverged, mu, work, deflated);
         }
@@ -95,9 +96,10 @@ class IterativeMethod {
                         Blas<K>::trsv("U", "N", "N", &(dim -= shift), *h + shift * (1 + ldh) + (ldh / mu) * nu, &ldh, s + nu, &mu);
                 }
         }
-        template<class Operator, class K>
-        static void addSol(const Operator& A, char variant, const int& n, K* const x, const int& ldh, const K* const s, const K* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
-            K* const correction = (variant == 'R' ? const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1]) : work);
+        template<class Operator, class K, class T>
+        static void addSol(const Operator& A, char variant, const int& n, K* const x, const int& ldh, const K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+            static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
+            K* const correction = (variant == 'R' ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K* const>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
             if(deflated == -1) {
                 int ldv = mu * n;
                 if(variant == 'L') {
@@ -178,43 +180,68 @@ class IterativeMethod {
             else
                 Wrapper<T>::diag(n, d, in);
         }
+        /* Function: orthonormalization
+         *
+         *  Orthonormalizes a block of vectors against a contiguous set of block of vectors.
+         *
+         * Template Parameters:
+         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    K              - Scalar type.
+         *
+         * Parameters:
+         *    gs             - Type of orthonormalization procedure.
+         *    n              - Size of the vectors to orthonormalize.
+         *    k              - Size of the basis to orthogonalize against.
+         *    mu             - Number of vectors in each block.
+         *    B              - Pointer to the basis.
+         *    v              - Input block of vectors.
+         *    H              - Dot products.
+         *    comm           - Global MPI communicator. */
+        template<bool excluded, class K>
+        static void orthonormalization(const char gs, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm) {
+            if(excluded) {
+                std::fill_n(H, mu * k, K());
+                if(gs == 1)
+                    for(unsigned short i = 0; i < k; ++i)
+                        MPI_Allreduce(MPI_IN_PLACE, H + mu * i, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                else
+                    MPI_Allreduce(MPI_IN_PLACE, H, mu * k, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+            }
+            else {
+                if(gs == 1)
+                    for(unsigned short i = 0; i < k; ++i) {
+                        for(unsigned short nu = 0; nu < mu; ++nu)
+                            H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
+                        MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        std::transform(H + i * mu, H + (i + 1) * mu, H + k * mu, [](const K& h) { return -h; });
+                        for(unsigned short nu = 0; nu < mu; ++nu)
+                            Blas<K>::axpy(&n, H + k * mu + nu, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
+                    }
+                else {
+                    int ldb = mu * n;
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d__1), B + nu * n, &ldb, v + nu * n, &i__1, &(Wrapper<K>::d__0), H + nu, &mu);
+                    MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    if(gs == 0)
+                        for(unsigned short nu = 0; nu < mu; ++nu)
+                            Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d__1), v + nu * n, &i__1);
+                    else if(k > 0)
+                        for(unsigned short nu = 0; nu < mu; ++nu)
+                            Blas<K>::axpby(n, -H[(k - 1) * mu + nu], B + ((k - 1) * mu + nu) * n, 1, 1.0, v + nu * n, 1);
+                }
+            }
+        }
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class Operator, class K>
         static void Arnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
+            orthonormalization<excluded>(gs, n, i + 1, mu, *v, v[i + 1], H[i], comm);
             if(excluded) {
-                std::fill_n(H[i], mu * (i + 1), K());
-                if(gs == 1)
-                    for(int k = 0; k < i + 1; ++k)
-                        MPI_Allreduce(MPI_IN_PLACE, H[i] + mu * k, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                else
-                    MPI_Allreduce(MPI_IN_PLACE, H[i], mu * (i + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                 std::fill_n(sn + i * mu, mu, underlying_type<K>());
                 MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-                std::transform(sn + i * mu, sn + (i + 1) * mu, H[i] + (i + 1) * mu, [](const underlying_type<K>& b) { return std::sqrt(b); });
+                std::fill_n(H[i] + (i + 1) * mu, mu, K());
             }
             else {
-                if(gs == 1)
-                    for(unsigned short k = 0; k < i + 1; ++k) {
-                        for(unsigned short nu = 0; nu < mu; ++nu)
-                            H[i][k * mu + nu] = Blas<K>::dot(&n, v[k] + nu * n, &i__1, v[i + 1] + nu * n, &i__1);
-                        MPI_Allreduce(MPI_IN_PLACE, H[i] + k * mu, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                        std::transform(H[i] + k * mu, H[i] + (k + 1) * mu, H[i] + (i + 1) * mu, [](const K& h) { return -h; });
-                        for(unsigned short nu = 0; nu < mu; ++nu)
-                            Blas<K>::axpy(&n, H[i] + (i + 1) * mu + nu, v[k] + nu * n, &i__1, v[i + 1] + nu * n, &i__1);
-                    }
-                else {
-                    int tmp[2] { i + 1, mu * n };
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, tmp, &(Wrapper<K>::d__1), *v + nu * n, tmp + 1, v[i + 1] + nu * n, &i__1, &(Wrapper<K>::d__0), H[i] + nu, &mu);
-                    MPI_Allreduce(MPI_IN_PLACE, H[i], (i + 1) * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    if(gs == 0)
-                        for(unsigned short nu = 0; nu < mu; ++nu)
-                            Blas<K>::gemv("N", &n, tmp, &(Wrapper<K>::d__2), *v + nu * n, tmp + 1, H[i] + nu, &mu, &(Wrapper<K>::d__1), v[i + 1] + nu * n, &i__1);
-                    else
-                        for(unsigned short nu = 0; nu < mu; ++nu)
-                            Blas<K>::axpby(n, -H[i][i * mu + nu], v[i] + nu * n, 1, 1.0, v[i + 1] + nu * n, 1);
-                }
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     sn[i * mu + nu] = std::real(Blas<K>::dot(&n, v[i + 1] + nu * n, &i__1, v[i + 1] + nu * n, &i__1));
                 MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);

@@ -24,7 +24,7 @@ Yes, as long as you have a modern C++ compiler (cf. the previous paragraph). Wit
 If you need help or have questions regarding HPDDM, feel free to contact [Pierre Jolivet](http://jolivet.perso.enseeiht.fr/) or [Frédéric Nataf](http://www.ann.jussieu.fr/nataf/).
 
 #### How to cite HPDDM ?
-If you use this software, please cite the following paper: http://dl.acm.org/citation.cfm?doid=2503210.2503212.
+If you use this software, please cite this [paper](http://dl.acm.org/citation.cfm?doid=2503210.2503212) and this [book](http://www.siam.org/books/ot144/), thank you.
 
 #### Acknowledgments
 [Centre National de la Recherche Scientifique](http://www.cnrs.fr/index.php), France  

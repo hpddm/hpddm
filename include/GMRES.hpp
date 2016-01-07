@@ -34,6 +34,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
     const char verbosity = opt.val<char>("verbosity");
+    std::cout << std::scientific;
     if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
         if(verbosity > 0)
             std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
@@ -102,7 +103,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             s[nu] = std::sqrt(sn[nu]);
             std::for_each(*v + nu * n, *v + (nu + 1) * n, [&](K& y) { y /= s[nu]; });
         }
-        int i = 0;
+        unsigned short i = 0;
         while(i < m && j <= it) {
             if(variant == 'L') {
                 if(!excluded)
@@ -114,26 +115,26 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            Arnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, s, sn, n, i, mu, Ax, comm);
+            Arnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, s, sn, n, i++, mu, Ax, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[(i + 1) * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[(i + 1) * mu + nu]) <= -tol)))
-                    hasConverged[nu] = i + 1;
+                if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
+                    hasConverged[nu] = i;
             }
             if(verbosity > 0) {
                 int tmp[2] { 0, 0 };
-                underlying_type<K> beta = std::abs(s[(i + 1) * mu]);
+                underlying_type<K> beta = std::abs(s[i * mu]);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     if(hasConverged[nu] != -m)
                         ++tmp[0];
-                    else if(std::abs(s[(i + 1) * mu + nu]) > beta) {
-                        beta = std::abs(s[(i + 1) * mu + nu]);
+                    else if(std::abs(s[i * mu + nu]) > beta) {
+                        beta = std::abs(s[i * mu + nu]);
                         tmp[1] = nu;
                     }
                 }
                 if(tol > 0)
-                    std::cout << "GMRES: " << std::setw(3) << j << " " << std::scientific << beta << " " <<  norm[tmp[1]] << " " <<  beta / norm[tmp[1]] << " < " << tol;
+                    std::cout << "GMRES: " << std::setw(3) << j << " " << beta << " " <<  norm[tmp[1]] << " " <<  beta / norm[tmp[1]] << " < " << tol;
                 else
-                    std::cout << "GMRES: " << std::setw(3) << j << " " << std::scientific << beta << " < " << -tol;
+                    std::cout << "GMRES: " << std::setw(3) << j << " " << beta << " < " << -tol;
                 if(mu > 1) {
                     std::cout << " (rhs #" << tmp[1] + 1;
                     if(tmp[0] > 0)
@@ -142,16 +143,18 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 }
                 std::cout << std::endl;
             }
-            if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu)
+            if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
+                i = 0;
                 break;
+            }
             else
-                ++i, ++j;
+                ++j;
         }
         if(j != it + 1 && i == m) {
             if(!excluded) {
                 if(mu > 1) {
-                    for(unsigned short k = 0; k < m; ++k)
-                        Wrapper<K>::template imatcopy<'T'>(k + 1, mu, H[k], mu, m + 1);
+                    for(i = 0; i < m; ++i)
+                        Wrapper<K>::template imatcopy<'T'>(i + 1, mu, H[i], mu, m + 1);
                 }
                 updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
             }
@@ -191,6 +194,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
     const char verbosity = opt.val<char>("verbosity");
+    std::cout << std::scientific;
     if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
         if(verbosity > 0)
             std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
@@ -250,11 +254,11 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             }
         }
         Blas<K>::herk("U", "C", &mu, &n, &(Wrapper<underlying_type<K>>::d__1), *v, &n, &(Wrapper<underlying_type<K>>::d__0), Ax, &mu);
-        for(unsigned short row = 1; row < mu; ++row)
-            std::copy_n(Ax + row * mu, row + 1, Ax + (row * (row + 1)) / 2);
+        for(unsigned short nu = 1; nu < mu; ++nu)
+            std::copy_n(Ax + nu * mu, nu + 1, Ax + (nu * (nu + 1)) / 2);
         MPI_Allreduce(MPI_IN_PLACE, Ax, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-        for(unsigned short row = mu; row-- > 0; )
-            std::copy_n(Ax + (row * (row + 1)) / 2, row + 1, s + row * mu);
+        for(unsigned short nu = mu; nu-- > 0; )
+            std::copy_n(Ax + (nu * (nu + 1)) / 2, nu + 1, s + nu * mu);
         if(!opt.set("initial_deflation_tol")) {
             Lapack<K>::potrf("U", &mu, s, &mu, &info);
             if(verbosity > 3) {
@@ -306,10 +310,10 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         std::fill_n(tau, m * N, K());
         Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
         Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, *v, &n);
-        for(unsigned short row = 0; row < deflated; ++row)
-            std::fill(s + row * (ldh + 1) + 1, s + (row + 1) * ldh, K());
+        for(unsigned short nu = 0; nu < deflated; ++nu)
+            std::fill(s + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
         std::fill(*H, *v, K());
-        int i = 0;
+        unsigned short i = 0;
         while(i < m && j <= it) {
             if(variant == 'L') {
                 if(!excluded)
@@ -321,19 +325,19 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            BlockArnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i, deflated, Ax, comm);
+            BlockArnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm);
             unsigned short converged = 0;
             for(unsigned short nu = 0; nu < deflated; ++nu) {
-                beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * (i + 1) + nu * ldh, &i__1);
+                beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * i + nu * ldh, &i__1);
                 if(((tol > 0 && beta[nu] / norm[nu] <= tol) || (tol < 0 && beta[nu] <= -tol)))
                     ++converged;
             }
             if(verbosity > 0) {
                 underlying_type<K>* max = std::max_element(beta, beta + deflated);
                 if(tol > 0)
-                    std::cout << "BGMRES: " << std::setw(3) << j << " " << std::scientific << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
+                    std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
                 else
-                    std::cout << "BGMRES: " << std::setw(3) << j << " " << std::scientific << *max << " < " << -tol;
+                    std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " < " << -tol;
                 std::cout << " (rhs #" << std::distance(beta, max) + 1;
                 if(converged > 0)
                     std::cout << ", " << converged << " converged rhs";
@@ -342,11 +346,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 std::cout << ")" << std::endl;
             }
             if(converged == deflated) {
-                dim = deflated * (i + 1);
+                dim = deflated * i;
+                i = 0;
                 break;
             }
             else
-                ++i, ++j;
+                ++j;
         }
         if(j != it + 1 && i == m) {
             if(opt.set("initial_deflation_tol"))

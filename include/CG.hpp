@@ -36,6 +36,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
     const char verbosity = opt.val<char>("verbosity");
+    std::cout << std::scientific;
     if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
         if(verbosity > 0)
             std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
@@ -114,9 +115,9 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         dir[0] = std::sqrt(dir[0]);
         if(verbosity > 0) {
             if(tol > 0)
-                std::cout << "CG: " << std::setw(3) << i << " " << std::scientific << dir[0] << " " << resInit << " " << dir[0] / resInit << " < " << tol << std::endl;
+                std::cout << "CG: " << std::setw(3) << i << " " << dir[0] << " " << resInit << " " << dir[0] / resInit << " < " << tol << std::endl;
             else
-                std::cout << "CG: " << std::setw(3) << i << " " << std::scientific << dir[0] << " < " << -tol << std::endl;
+                std::cout << "CG: " << std::setw(3) << i << " " << dir[0] << " < " << -tol << std::endl;
         }
         if((tol > 0.0 && dir[0] / resInit <= tol) || (tol < 0.0 && dir[0] <= -tol))
             break;
@@ -144,6 +145,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
     const char verbosity = opt.val<char>("verbosity");
+    std::cout << std::scientific;
     if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
         if(verbosity > 0)
             std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
@@ -228,7 +230,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
         A.template computeDot<excluded>(&resRel, zCurr, zCurr, comm);
         resRel = std::sqrt(resRel);
         if(verbosity > 0)
-            std::cout << "PCG: " << std::setw(3) << i << " " << std::scientific << resRel << " " << resInit << " " << resRel / resInit << " < " << tol << std::endl;
+            std::cout << "PCG: " << std::setw(3) << i << " " << resRel << " " << resInit << " " << resRel / resInit << " < " << tol << std::endl;
         if(resRel / resInit <= tol)
             break;
         else

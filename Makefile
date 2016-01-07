@@ -163,12 +163,12 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_verbosity=2 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_verbosity=2 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_gs=modified
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_local_matrix_1=${TRASH_DIR}/output
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_1_4.txt; \
 	fi
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -distributed_sol
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -distributed_sol -hpddm_gs   modified
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_initial_deflation_tol=1e-4
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr --hpddm_dump_local_matrix_2 ${TRASH_DIR}/output
