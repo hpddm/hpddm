@@ -27,7 +27,10 @@
 from mpi4py import MPI
 import sys
 import ctypes
+import ctypes.util
+_libc = ctypes.cdll.LoadLibrary(ctypes.util.find_library('c'))
 import numpy
+import re
 if 'linux' in sys.platform:
     lib = ctypes.cdll.LoadLibrary('lib/libhpddm_python.so')
 elif sys.platform == 'darwin':
@@ -53,14 +56,60 @@ else:
     scalar = numpy.complex128
     underlying = ctypes.c_double
 
+pair = re.compile(r'\(([^,\)]+),([^,\)]+)\)')
+def parse_pair(s):
+    match = pair.match(s)
+    if match is None:
+        return float(s) + 0j
+    else:
+        return complex(*map(float, match.groups()))
+
+def parse_file(filename):
+    with open(filename, 'r') as input:
+        k = 0
+        for line in input:
+            if not line.startswith('# '):
+                words = line.split()
+                y = 0
+                for w in words:
+                    if k == 0:
+                        if y == 0:
+                            n = int(w)
+                        elif y == 1:
+                            m = int(w)
+                        elif y == 2:
+                            sym = bool(int(w) == 1)
+                        elif y == 3:
+                            nnz = int(w)
+                            ia = numpy.zeros(n + 1, dtype = ctypes.c_int)
+                            ja = numpy.empty(nnz, dtype = ctypes.c_int)
+                            a = numpy.empty(nnz, dtype = scalar)
+                            ia[0] = (numbering.value == b'F')
+                    else:
+                        if y == 0:
+                            ia[int(w)] += 1
+                        elif y == 1:
+                            ja[k - 1] = int(w) - (numbering.value == b'C')
+                        else:
+                            if scalar == underlying:
+                                a[k - 1] = w
+                            else:
+                                a[k - 1] = parse_pair(w)
+                    y += 1
+                k += 1
+    ia[:] = numpy.cumsum(ia[:])
+    return n, m, nnz, a, ia, ja, sym
+
 class Option(ctypes.Structure):
     pass
 optionGet = lib.optionGet
 optionGet.restype = ctypes.POINTER(Option)
 optionGet.argtypes = None
-optionParse = lib.optionParse
-optionParse.restype = ctypes.c_int
-optionParse.argtypes = [ ctypes.POINTER(Option), ctypes.c_char_p, ctypes.c_bool ]
+_optionParse = lib.optionParse
+_optionParse.restype = ctypes.c_int
+_optionParse.argtypes = [ ctypes.POINTER(Option), ctypes.c_char_p, ctypes.c_bool ]
+def optionParse(opt, args, verbosity = True):
+    _optionParse(opt, args, verbosity)
 optionParseInts = lib.optionParseInts
 optionParseInts.restype = ctypes.c_int
 optionParseInts.argtypes = [ ctypes.POINTER(Option), ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_char_p) ]
@@ -82,6 +131,14 @@ optionAddr.argtypes = [ ctypes.POINTER(Option), ctypes.c_char_p ]
 optionApp = lib.optionApp
 optionApp.restype = ctypes.c_double
 optionApp.argtypes = [ ctypes.POINTER(Option), ctypes.c_char_p ]
+_optionPrefix = lib.optionPrefix
+_optionPrefix.restype = ctypes.POINTER(ctypes.c_char)
+_optionPrefix.argtypes = [ ctypes.POINTER(Option), ctypes.c_char_p, ctypes.c_bool ]
+def optionPrefix(opt, pre, internal = False):
+    str_p = _optionPrefix(opt, pre, internal)
+    val = ctypes.string_at(str_p)
+    _libc.free(str_p)
+    return val
 
 class MatrixCSR(ctypes.Structure):
     pass
@@ -177,24 +234,37 @@ schwarzDestroy = lib.schwarzDestroy
 schwarzDestroy.restype = None
 schwarzDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Schwarz)) ]
 
+precondFunc = ctypes.CFUNCTYPE(None, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int)
 CG = lib.CG
 CG.restype = ctypes.c_int
 CG.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.POINTER(MPI_Comm) ]
 _GMRES = lib.GMRES
 _GMRES.restype = ctypes.c_int
 _GMRES.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
+_CustomOperatorGMRES = lib.CustomOperatorGMRES
+_CustomOperatorGMRES.restype = ctypes.c_int
+_CustomOperatorGMRES.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
 def GMRES(A, f, sol, comm):
     try:
-        mu = f.shape[1]
+        mu = sol.shape[1]
     except IndexError:
         mu = 1
-    return _GMRES(A, f, sol, mu, comm)
+    try:
+        return _GMRES(A, f, sol, mu, comm)
+    except ctypes.ArgumentError:
+        return _CustomOperatorGMRES(A, f, sol, comm, sol.shape[0], mu)
 _BGMRES = lib.BGMRES
 _BGMRES.restype = ctypes.c_int
 _BGMRES.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
+_CustomOperatorBGMRES = lib.CustomOperatorBGMRES
+_CustomOperatorBGMRES.restype = ctypes.c_int
+_CustomOperatorBGMRES.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
 def BGMRES(A, f, sol, comm):
     try:
-        mu = f.shape[1]
+        mu = sol.shape[1]
     except IndexError:
         mu = 1
-    return _BGMRES(A, f, sol, mu, comm)
+    try:
+        return _BGMRES(A, f, sol, mu, comm)
+    except ctypes.ArgumentError:
+        return _CustomOperatorBGMRES(A, f, sol, comm, sol.shape[0], mu)

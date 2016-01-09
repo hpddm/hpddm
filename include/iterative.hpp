@@ -273,7 +273,7 @@ class IterativeMethod {
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class Operator, class K>
-        static void BlockArnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
+        static bool BlockArnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
             int ldh = mu * (m + 1);
             if(gs == 1) {
                 for(unsigned short k = 0; k < i + 1; ++k) {
@@ -298,6 +298,8 @@ class IterativeMethod {
                 std::copy_n(Ax + (row * (row + 1)) / 2, row + 1, H[i] + (i + 1) * mu + row * ldh);
             int info;
             Lapack<K>::potrf("U", &mu, H[i] + (i + 1) * mu, &ldh, &info);
+            if(info > 0)
+                return true;
             if(save)
                 for(unsigned short row = 0; row < mu; ++row)
                     std::copy_n(H[i] + row * ldh, (i + 1) * mu + row + 1, save[i] + row * ldh);
@@ -308,6 +310,7 @@ class IterativeMethod {
                 Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[leading] + leading * mu, &ldh, tau + leading * N, H[i] + leading * mu, &ldh, Ax, &lwork, &info);
             Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, Ax, &lwork, &info);
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, Ax, &lwork, &info);
+            return false;
         }
     public:
         /* Function: GMRES

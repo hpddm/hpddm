@@ -29,49 +29,9 @@ sys.path.append('interface')
 import ctypes
 import numpy
 import hpddm
-import re
 
-pair = re.compile(r'\(([^,\)]+),([^,\)]+)\)')
-def parse_pair(s):
-    match = pair.match(s)
-    if match is None:
-        return float(s) + 0j
-    else:
-        return complex(*map(float, match.groups()))
+n, m, nnz, a, ia, ja, sym = hpddm.parse_file(sys.argv[1])
 
-with open(sys.argv[1], 'r') as input:
-    k = 0
-    for line in input:
-        if not line.startswith('# '):
-            words = line.split()
-            y = 0
-            for w in words:
-                if k == 0:
-                    if y == 0:
-                        n = int(w)
-                    elif y == 1:
-                        m = int(w)
-                    elif y == 2:
-                        sym = bool(int(w) == 1)
-                    elif y == 3:
-                        nnz = int(w)
-                        ia = numpy.zeros(n + 1, dtype = ctypes.c_int)
-                        ja = numpy.empty(nnz, dtype = ctypes.c_int)
-                        a = numpy.empty(nnz, dtype = hpddm.scalar)
-                        ia[0] = (hpddm.numbering.value == b'F')
-                else:
-                    if y == 0:
-                        ia[int(w)] += 1
-                    elif y == 1:
-                        ja[k - 1] = int(w) - (hpddm.numbering.value == b'C')
-                    else:
-                        if hpddm.scalar == hpddm.underlying:
-                            a[k - 1] = w
-                        else:
-                            a[k - 1] = parse_pair(w)
-                y += 1
-            k += 1
-ia[:] = numpy.cumsum(ia[:])
 Mat = hpddm.matrixCSRCreate(n, m, nnz, a, ia, ja, sym)
 S = ctypes.POINTER(hpddm.Subdomain)()
 hpddm.subdomainNumfact(ctypes.byref(S), Mat)

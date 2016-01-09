@@ -325,7 +325,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            BlockArnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm);
+            if(BlockArnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
+                dim = deflated * (i - 1);
+                i = m;
+                j = it + 1;
+                break;
+            }
             unsigned short converged = 0;
             for(unsigned short nu = 0; nu < deflated; ++nu) {
                 beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * i + nu * ldh, &i__1);

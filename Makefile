@@ -158,7 +158,13 @@ test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwar
 test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
-	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity
+	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt
+	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ]; then \
+		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity ; \
+		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres; \
+		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4; \
+		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 4 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_initial_deflation_tol 1e-6; \
+	fi
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity -generate_random_rhs 8

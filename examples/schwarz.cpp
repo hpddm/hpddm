@@ -23,25 +23,15 @@
 
 #include "schwarz.hpp"
 
-struct CustomOperator {
-    bool setBuffer(const int&, K* = nullptr, const int& = 0) const { return false; }
-    template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
-    void clearBuffer(const bool) const { }
-
-    const HPDDM::MatrixCSR<K>& _A;
-    CustomOperator(HPDDM::MatrixCSR<K>* A) : _A(*A) { }
-    int getDof() const { return _A._n; }
+struct CustomOperator : public HPDDM::EmptyOperator<K> {
+    CustomOperator(HPDDM::MatrixCSR<K>* A) : HPDDM::EmptyOperator<K>(A) { }
     template<bool = true>
     void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         for(int i = 0; i < _A._n; ++i) {
             int mid = (_A._sym ? (_A._ia[i + 1] - _A._ia[0]) : std::distance(_A._ja, std::upper_bound(_A._ja + _A._ia[i] - _A._ia[0], _A._ja + _A._ia[i + 1] - _A._ia[0], i + _A._ia[0]))) - 1;
-            for(unsigned short nu = 0; nu < mu; ++nu) {
+            for(unsigned short nu = 0; nu < mu; ++nu)
                 out[nu * _A._n + i] = in[nu * _A._n + i] / _A._a[mid];
-            }
         }
-    }
-    void GMV(const K* const in, K* const out, const int& mu = 1) const {
-        HPDDM::Wrapper<K>::csrmm(_A._sym, &(_A._n), &mu, _A._a, _A._ia, _A._ja, in, out);
     }
 };
 
@@ -145,6 +135,11 @@ int main(int argc, char **argv) {
     else {
         mu = std::max(1, mu);
         int it = 0;
+        std::string filename = opt.prefix("dump_local_matrices", true);
+        if(!filename.empty()) {
+            std::ofstream output { filename };
+            output << *Mat;
+        }
         if(opt["schwarz_method"] != 5) {
             SUBDOMAIN<K> S;
             S.numfact(Mat);

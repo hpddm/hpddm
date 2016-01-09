@@ -53,6 +53,15 @@ const char symCoarse = 'G';
 const char symCoarse = 'S';
 #endif
 
+struct CustomOperator : public HPDDM::EmptyOperator<K> {
+    void (* _precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int);
+    CustomOperator(HPDDM::MatrixCSR<K>* A, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int)) : HPDDM::EmptyOperator<K>(A), _precond(precond) { }
+    template<bool = true>
+    void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
+        _precond(reinterpret_cast<const HPDDM::pod_type<K>*>(in), reinterpret_cast<HPDDM::pod_type<K>*>(out), _A._n, mu);
+    }
+};
+
 extern "C" {
 char numbering = HPDDM_NUMBERING;
 unsigned short scalar = std::is_same<K, float>::value ? 0 : std::is_same<K, double>::value ? 1 : std::is_same<K, std::complex<float>>::value ? 2 : 3;
@@ -107,6 +116,14 @@ double optionApp(void* option, char* str) {
         return opt.app()[str];
     else
         return 0;
+}
+char* optionPrefix(void* option, const char* pre, bool internal) {
+    HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);
+    std::string str = opt.prefix(pre, internal);
+    char* val = static_cast<char*>(malloc((str.size() + 1) * sizeof(char)));
+    std::copy(str.cbegin(), str.cend(), val);
+    val[str.size()] = '\0';
+    return val;
 }
 
 void* matrixCSRCreate(int n, int m, int nnz, HPDDM::pod_type<K>* a, int* ia, int* ja, bool sym) {
@@ -218,7 +235,13 @@ int CG(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, MPI_Comm* comm) 
 int GMRES(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_Comm* comm) {
     return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, *comm);
 }
+int CustomOperatorGMRES(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int n, int mu) {
+    return HPDDM::IterativeMethod::GMRES(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat), precond), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, MPI_COMM_SELF);
+}
 int BGMRES(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_Comm* comm) {
     return HPDDM::IterativeMethod::BGMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, *comm);
+}
+int CustomOperatorBGMRES(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int n, int mu) {
+    return HPDDM::IterativeMethod::BGMRES(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat), precond), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, MPI_COMM_SELF);
 }
 }
