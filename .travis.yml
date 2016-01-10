@@ -69,15 +69,26 @@ addons:
       - libarpack2-dev
       - libhypre-dev
 
+cache:
+  directories:
+    - $HOME/.cache
+
+before_cache:
+  - find $HOME/miniconda/pkgs -mindepth 1 -maxdepth 1 -type d -exec rm -r {} \;
+
 install:
+  - mkdir -p $HOME/.cache/pkgs
   - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; else export OMPI_CC=$CC; export OMPI_CXX=$CXX; fi
-  - if [ "$PYTHON_VERSION" == "2.7" ]; then
-      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - if [ ! -f ${HOME}/.cache/miniconda${PYTHON_VERSION} ]; then
+        if [ "$PYTHON_VERSION" == "2.7" ]; then
+          wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
+        else
+          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
+        fi
     fi
-  - bash miniconda.sh -b -p $HOME/miniconda
+  - bash ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh -b -p ${HOME}/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
+  - rm -rf ${HOME}/miniconda/pkgs && ln -s ${HOME}/.cache/pkgs ${HOME}/miniconda/pkgs
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
@@ -95,16 +106,14 @@ install:
   - export CXXFLAGS="-Wpedantic -Werror"
   - if [ "$CXX" == "g++" ]; then export CCFLAGS="-Wno-literal-suffix ${CCFLAGS}"; export CXXFLAGS="-Wno-literal-suffix ${CXXFLAGS}"; fi
   - if [ "$PYTHON_VERSION" == "2.7" ]; then
-      make all -j2
+      make all -j2;
     else
-      export PYTHON_VERSION=3.5m
-      make python
+      export PYTHON_VERSION=3.5m; make python;
     fi
 
 script:
   - if [ "$PYTHON_VERSION" == "2.7" ]; then
-      make test_cpp
-      make test_c
+      make test_cpp test_c;
     fi
   - make test_python
 
