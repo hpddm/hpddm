@@ -30,11 +30,12 @@
 #ifndef HPDDM_NO_REGEX
 #include <regex>
 #endif
+#include "singleton.hpp"
 
 namespace HPDDM {
 /* Class: Option
  *  A class to handle internal options of HPDDM or custom options as defined by the user in its application. */
-class Option {
+class Option : private Singleton {
     private:
         /* Variable: opt
          *  Unordered map that stores the internal options of HPDDM. */
@@ -42,15 +43,12 @@ class Option {
         /* Variable: app
          *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
         std::unordered_map<std::string, double>* _app;
-        template<int N>
-        class construct_key { };
     public:
         template<int N>
-        Option(construct_key<N>);
-        Option(const Option&) = delete;
+        Option(Singleton::construct_key<N>);
         ~Option() {
             std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
-            if(show != _opt.cend() && show->second > 0) {
+            if(show != _opt.cend() && show->second > 1) {
                 std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> output = [](const std::unordered_map<std::string, double>& map, const std::string& header) {
                     std::vector<std::string> output;
                     output.reserve(map.size() + 3);
@@ -99,8 +97,7 @@ class Option {
          *  Returns a shared pointer to <Option::opt>. */
         template<int N = 0>
         static std::shared_ptr<Option> get() {
-            static std::shared_ptr<Option> instance = std::make_shared<Option>(construct_key<N>());
-            return instance;
+            return Singleton::get<Option, N>();
         }
         /* Function: app
          *  Returns a constant reference of <Option::app>. */

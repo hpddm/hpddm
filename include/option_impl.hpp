@@ -26,7 +26,7 @@
 
 namespace HPDDM {
 template<int N>
-inline Option::Option(construct_key<N>) {
+inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
     _opt = { { "tol",                           1.0e-8 },
              { "max_it",                        100 },

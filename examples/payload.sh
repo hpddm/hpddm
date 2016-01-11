@@ -41,10 +41,13 @@ do
     I=0
     START=$SECONDS
     if [ "$CXX" == "g++" ]; then
-        export OMPI_CC=gcc
-        export MPICH_CC=gcc
-        export OMPI_CXX=g++
-        export MPICH_CXX=g++
+        if [[ "$OSTYPE" == darwin* ]]; then
+            SUFFIX=-5
+        fi
+        export OMPI_CC=gcc${SUFFIX}
+        export MPICH_CC=gcc${SUFFIX}
+        export OMPI_CXX=g++${SUFFIX}
+        export MPICH_CXX=g++${SUFFIX}
     elif [ "$CXX" == "icpc" ]; then
         export OMPI_CC=icc
         export MPICH_CC=icc
@@ -90,6 +93,7 @@ do
                                 make test HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
                             elif [[ "$OSTYPE" == darwin* ]];
                             then
+                                unlink lib/libhpddm_python.dylib
                                 make test_cpp test_c HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
                             fi
                             if [ $? -ne 0 ]; then

@@ -62,6 +62,7 @@ File: Hypre  (Hypre.hpp)
 File: Option  (option.hpp)
 File: Blas  (BLAS.hpp)
 File: ScaLapack  (ScaLAPACK.hpp)
+File: Singleton  (singleton.hpp)
 
 Group: Index  {
 

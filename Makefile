@@ -159,7 +159,7 @@ test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt
-	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ]; then \
+	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" == "test_bin/schwarz_cpp" ] ; then \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity ; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4; \

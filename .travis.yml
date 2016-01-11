@@ -95,6 +95,7 @@ install:
   - conda info -a
   - conda create -q -n test-environment python=$PYTHON_VERSION numpy scipy
   - source activate test-environment
+  - python -V
   - pip install --user mpi4py
   - cp Make.inc/Makefile.Travis-CI Makefile.inc
   - if [ "$FORCE_SINGLE" == "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi

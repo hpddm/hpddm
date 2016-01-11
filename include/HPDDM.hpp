@@ -226,21 +226,6 @@ using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::
 #  endif
 # endif
 # include "matrix.hpp"
-namespace HPDDM {
-    template<class K>
-    struct EmptyOperator {
-        bool setBuffer(const int&, K* = nullptr, const int& = 0) const { return false; }
-        template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
-        void clearBuffer(const bool) const { }
-
-        const HPDDM::MatrixCSR<K>& _A;
-        EmptyOperator(HPDDM::MatrixCSR<K>* A) : _A(*A) { }
-        int getDof() const { return _A._n; }
-        void GMV(const K* const in, K* const out, const int& mu = 1) const {
-            HPDDM::Wrapper<K>::csrmm(_A._sym, &(_A._n), &mu, _A._a, _A._ia, _A._ja, in, out);
-        }
-    };
-}
 # ifndef HPDDM_MINIMAL
 #  include "dmatrix.hpp"
 

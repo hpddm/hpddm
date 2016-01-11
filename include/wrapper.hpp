@@ -586,8 +586,8 @@ inline void reorder(const Idx& i, const Idx& j, const First& first, const Rest&.
 /* Function: reorder
  *  Rearranges an arbitrary number of containers based on the permutation defined by the first argument. */
 template<class T, class... Args>
-inline void reorder(std::vector<T>& order, const Args&... args) {
-    static_assert(sizeof...(args) > 0, "Nothing to reorder");
+inline void reorder(std::vector<T>& order, const Args&... arguments) {
+    static_assert(sizeof...(arguments) > 0, "Nothing to reorder");
     for(T i = 0; i < order.size() - 1; ++i) {
         T j = order[i];
         if(j != i) {
@@ -595,7 +595,7 @@ inline void reorder(std::vector<T>& order, const Args&... args) {
             while(order[k] != i)
                 ++k;
             std::swap(order[i], order[k]);
-            reorder(i, j, args...);
+            reorder(i, j, arguments...);
         }
     }
 }
