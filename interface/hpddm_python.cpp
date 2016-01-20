@@ -77,9 +77,17 @@ int optionParse(void* option, char* args, bool display) {
 int optionParseInts(void* option, char* args, int size, char** str, char** desc) {
     std::vector<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> pack;
     pack.reserve(size);
-    for(int i = 0; i < size; ++i) {
+    for(int i = 0; i < size; ++i)
         pack.emplace_back(str[i], desc[i], HPDDM::Option::Arg::integer);
-    }
+    HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);
+    std::string arg(args);
+    return opt.parse(arg, false, pack);
+}
+int optionParseDoubles(void* option, char* args, int size, char** str, char** desc) {
+    std::vector<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> pack;
+    pack.reserve(size);
+    for(int i = 0; i < size; ++i)
+        pack.emplace_back(str[i], desc[i], HPDDM::Option::Arg::numeric);
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);
     std::string arg(args);
     return opt.parse(arg, false, pack);
@@ -87,9 +95,8 @@ int optionParseInts(void* option, char* args, int size, char** str, char** desc)
 int optionParseArgs(void* option, char* args, int size, char** str, char** desc) {
     std::vector<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> pack;
     pack.reserve(size);
-    for(int i = 0; i < size; ++i) {
+    for(int i = 0; i < size; ++i)
         pack.emplace_back(str[i], desc[i], HPDDM::Option::Arg::argument);
-    }
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);
     std::string arg(args);
     return opt.parse(arg, false, pack);

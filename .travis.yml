@@ -117,6 +117,9 @@ script:
       make test_cpp test_c;
     fi
   - make test_python
+  - if [ "$PYTHON_VERSION" == "2.7" ] && [ "$HPDDM_NUMBERING" == "F" ] && [ "$CO" == "GENERAL_CO" ] && [ "$FORCE_SINGLE" == "OFF" ] && [ "$FORCE_COMPLEX" == "OFF" ]; then
+      make test_bin/driver;
+    fi
 
 notifications:
   email:

@@ -42,11 +42,14 @@ opt = hpddm.optionGet()
 args = ctypes.create_string_buffer(' '.join(sys.argv[1:]).encode('ascii', 'ignore'))
 hpddm.optionParse(opt, args)
 def appArgs():
-    val = (ctypes.c_char_p * 1)()
-    val[0] = b'generate_random_rhs=<1>'
-    desc = (ctypes.c_char_p * 1)()
-    desc[0] =  b'Number of generated random right-hand sides.'
-    hpddm.optionParseInts(opt, args, 1, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
+    val = (ctypes.c_char_p * 2)()
+    (val[0], val[1]) = [ b'generate_random_rhs=<1>', b'fill_factor=<14>' ]
+    desc = (ctypes.c_char_p * 2)()
+    (desc[0], desc[1]) =  [ b'Number of generated random right-hand sides.', b'Specifies the fill ratio upper bound (>= 1.0) for ILU.' ]
+    hpddm.optionParseInts(opt, args, 2, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
+    val[0] = b'drop_tol=<1.0e-6>'
+    desc[0] = b'Drop tolerance (0 <= tol <= 1) for an incomplete LU decomposition.'
+    hpddm.optionParseDoubles(opt, args, 1, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
     val[0] = b'matrix_filename=<input_file>'
     desc[0] = b'Name of the file in which the matrix is stored.'
     hpddm.optionParseArgs(opt, args, 1, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
@@ -75,7 +78,7 @@ f[:] = numpy.random.random_sample(shape)
 if hpddm.scalar == numpy.complex64 or hpddm.scalar == numpy.complex128:
     f[:] += numpy.random.random_sample(shape) * 1j
 
-lu = scipy.sparse.linalg.spilu(csr.tocsc(), drop_tol = 1e-6, fill_factor = 14)
+lu = scipy.sparse.linalg.spilu(csr.tocsc(), drop_tol = hpddm.optionApp(opt, b'drop_tol'), fill_factor = hpddm.optionApp(opt, b'fill_factor'))
 @hpddm.precondFunc
 def precond(y, x, n, m):
     if m == 1:

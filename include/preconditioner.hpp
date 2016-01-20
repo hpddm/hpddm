@@ -111,11 +111,11 @@ class Preconditioner : public Subdomain<K> {
                 }
                 double construction = MPI_Wtime();
                 if(allUniform[1] == nu && allUniform[2] == static_cast<unsigned short>(~nu))
-                    ret = _co->template construction<1, excluded>(std::move(Operator(*B, allUniform[0])), comm);
+                    ret = _co->template construction<1, excluded>(Operator(*B, allUniform[0]), comm);
                 else if(N == 3 && allUniform[1] == 0 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]))
-                    ret = _co->template construction<2, excluded>(std::move(Operator(*B, allUniform[0])), comm);
+                    ret = _co->template construction<2, excluded>(Operator(*B, allUniform[0]), comm);
                 else
-                    ret = _co->template construction<0, excluded>(std::move(Operator(*B, allUniform[0])), comm);
+                    ret = _co->template construction<0, excluded>(Operator(*B, allUniform[0]), comm);
                 construction = MPI_Wtime() - construction;
                 if(_co->getRank() == 0 && opt.val<int>("verbosity") > 0) {
                     std::stringstream ss;

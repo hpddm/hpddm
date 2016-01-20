@@ -274,8 +274,6 @@ using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::
 #   endif
 #  endif
 
-#  include "option_impl.hpp"
-
 #  if HPDDM_SCHWARZ
 #   include "schwarz.hpp"
 template<class K = double, char S = 'S'>
@@ -293,8 +291,10 @@ using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #  endif
 
 #  include "GMRES.hpp"
+#  include "GCRODR.hpp"
 #  include "CG.hpp"
 # endif // HPDDM_MINIMAL
+# include "option_impl.hpp"
 #else
 # include "BLAS.hpp"
 # include "LAPACK.hpp"

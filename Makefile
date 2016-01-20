@@ -113,7 +113,7 @@ LIST_COMPILATION ?= cpp c python
 
 all: Makefile.inc ${LIST_COMPILATION}
 
-cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
+cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp ${TOP_DIR}/${BIN_DIR}/driver
 c: ${TOP_DIR}/${BIN_DIR}/schwarz_c
 python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB}
 
@@ -128,7 +128,7 @@ Makefile.inc:
 
 clean:
 	rm -rf ${TOP_DIR}/${BIN_DIR} ${TOP_DIR}/${LIB_DIR} ${TOP_DIR}/${TRASH_DIR}
-	find ${TOP_DIR} \( -name "*.o" -o -name "*.${EXTENSION_LIB}" -o -name "*.pyc" \) -exec rm -vf '{}' ';'
+	find ${TOP_DIR} \( -name "*.o" -o -name "*.${EXTENSION_LIB}" -o -name "*.pyc" -o -name "*.gcov" \) -exec rm -vf '{}' ';'
 
 ${TOP_DIR}/${BIN_DIR}/%_cpp.o: examples/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
@@ -148,6 +148,9 @@ ${TOP_DIR}/${BIN_DIR}/schwarz_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c.o ${TOP_DIR}/${
 ${TOP_DIR}/${BIN_DIR}/schwarz_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp.o ${TOP_DIR}/${BIN_DIR}/generate_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
+${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
+	${MPICXX} $^ -o $@ ${LIBS}
+
 ${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}
 	${POSTCOMPILE}
@@ -159,17 +162,17 @@ test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt
-	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" == "test_bin/schwarz_cpp" ] ; then \
+	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ] ; then \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity ; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4; \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 4 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_initial_deflation_tol 1e-6; \
+		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_initial_deflation_tol 1e-6; \
 	fi
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_verbosity=2 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_gs=modified
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_verbosity=1 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_gs=modified
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-6 -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_local_matrix_1=${TRASH_DIR}/output
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_1_4.txt; \
@@ -186,15 +189,23 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 		examples/solver.py ${TRASH_DIR}/output_2_8.txt; \
 	fi
 
-test_bin/schwarz_cpp_custom_op: ${BIN_DIR}/schwarz_cpp
+test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10 -hpddm_krylov_method bgmres
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10 ---hpddm_krylov_method bgmres
 
+test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
+	mkdir -p ${TOP_DIR}/${TRASH_DIR}/data
+	tar xzf ./examples/data/40X.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data
+	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 0 -hpddm_variant left
+	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 0 -hpddm_variant right
+	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 1 -hpddm_variant left
+	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 1 -hpddm_variant right
+
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
-SOURCES = schwarz.cpp generate.cpp schwarz.c generate.c
+SOURCES = schwarz.cpp generate.cpp driver.cpp schwarz.c generate.c
 INTERFACES = hpddm_c.cpp hpddm_python.cpp
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(subst .,_,${SOURCES}))
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(basename ${INTERFACES}))

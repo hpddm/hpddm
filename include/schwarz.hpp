@@ -220,10 +220,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         }
         template<bool excluded = false>
         void start(const K* const b, K* const x, const unsigned short& mu = 1) const {
-            if(super::_co)
+            if(super::_co) {
                 super::start(mu);
-            if(Option::get()->val("schwarz_coarse_correction", -1) == 2)
-                deflation<excluded>(b, x, mu);
+                if(Option::get()->val("schwarz_coarse_correction", -1) == 2)
+                    deflation<excluded>(b, x, mu);
+            }
         }
         /* Function: apply
          *

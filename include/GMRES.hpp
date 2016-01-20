@@ -43,7 +43,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
     const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
 
-    K** const H = new K*[static_cast<int>(m) * (2 + (variant == 'F')) + 1];
+    K** const H = new K*[m * (2 + (variant == 'F')) + 1];
     K** const v = H + m;
     K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + m * (1 + (variant == 'F'))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
     K* const Ax = s + mu * (m + 1);
@@ -60,9 +60,18 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     std::fill_n(hasConverged, mu, -m);
 
     A.template start<excluded>(b, x, mu);
-    A.template apply<excluded>(b, *v, mu, Ax);
-    for(unsigned short nu = 0; nu < mu; ++nu)
-        norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+    if(variant == 'L') {
+        A.template apply<excluded>(b, *v, mu, Ax);
+        for(unsigned short nu = 0; nu < mu; ++nu)
+            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+    }
+    else
+        for(unsigned short nu = 0; nu < mu; ++nu) {
+            norm[nu] = 0.0;
+            for(unsigned int i = 0; i < n; ++i)
+                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
+                    norm[nu] += std::norm(b[nu * n + i]);
+        }
 
     if(!excluded)
         for(unsigned short nu = 0; nu < mu; ++nu)
@@ -203,7 +212,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
     const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
 
-    K** const H = new K*[static_cast<int>(m) * (2 + (variant == 'F')) + 1];
+    K** const H = new K*[m * (2 + (variant == 'F')) + 1];
     K** const v = H + m;
     int ldh = mu * (m + 1);
     int info;
@@ -219,9 +228,18 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     bool alloc = A.setBuffer(mu);
 
     A.template start<excluded>(b, x, mu);
-    A.template apply<excluded>(b, *v, mu, Ax);
-    for(unsigned short nu = 0; nu < mu; ++nu)
-        norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+    if(variant == 'L') {
+        A.template apply<excluded>(b, *v, mu, Ax);
+        for(unsigned short nu = 0; nu < mu; ++nu)
+            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+    }
+    else
+        for(unsigned short nu = 0; nu < mu; ++nu) {
+            norm[nu] = 0.0;
+            for(unsigned int i = 0; i < n; ++i)
+                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
+                    norm[nu] += std::norm(b[nu * n + i]);
+        }
 
     if(!excluded)
         for(unsigned short nu = 0; nu < mu; ++nu)

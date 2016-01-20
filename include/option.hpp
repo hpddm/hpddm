@@ -124,7 +124,15 @@ class Option : private Singleton {
             else
                 return static_cast<T>(it->second);
         }
-        const double& operator[](const std::string& key) const { return _opt.at(key); }
+        const double& operator[](const std::string& key) const {
+            try {
+                return _opt.at(key);
+            }
+            catch(const std::out_of_range& oor) {
+                std::cerr << "out_of_range error: " << oor.what() << std::endl;
+                return _opt.cbegin()->second;
+            }
+        }
         double& operator[](const std::string& key) { return _opt[key]; }
         struct Arg {
             static bool integer(const std::string& opt, const std::string& s, bool verbose) {

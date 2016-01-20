@@ -304,18 +304,18 @@ class IterativeMethod {
                 Wrapper<K>::template omatcopy<'N'>(mu, tmp, Ax, tmp, H[i], ldh);
             }
             Blas<K>::herk("U", "C", &mu, &n, &(Wrapper<underlying_type<K>>::d__1), v[i + 1], &n, &(Wrapper<underlying_type<K>>::d__0), Ax, &mu);
-            for(unsigned short row = 1; row < mu; ++row)
-                std::copy_n(Ax + row * mu, row + 1, Ax + (row * (row + 1)) / 2);
+            for(unsigned short nu = 1; nu < mu; ++nu)
+                std::copy_n(Ax + nu * mu, nu + 1, Ax + (nu * (nu + 1)) / 2);
             MPI_Allreduce(MPI_IN_PLACE, Ax, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-            for(unsigned short row = mu; row-- > 0; )
-                std::copy_n(Ax + (row * (row + 1)) / 2, row + 1, H[i] + (i + 1) * mu + row * ldh);
+            for(unsigned short nu = mu; nu-- > 0; )
+                std::copy_n(Ax + (nu * (nu + 1)) / 2, nu + 1, H[i] + (i + 1) * mu + nu * ldh);
             int info;
             Lapack<K>::potrf("U", &mu, H[i] + (i + 1) * mu, &ldh, &info);
             if(info > 0)
                 return true;
             if(save)
-                for(unsigned short row = 0; row < mu; ++row)
-                    std::copy_n(H[i] + row * ldh, (i + 1) * mu + row + 1, save[i] + row * ldh);
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    std::copy_n(H[i] + nu * ldh, (i + 1) * mu + nu + 1, save[i] + nu * ldh);
             if(i < m - 1)
                 Blas<K>::trsm("R", "U", "N", "N", &n, &mu, &(Wrapper<K>::d__1), H[i] + (i + 1) * mu, &ldh, v[i + 1], &n);
             int N = 2 * mu;
@@ -344,6 +344,8 @@ class IterativeMethod {
         static int GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
         template<bool excluded = false, class Operator = void, class K = double>
         static int BGMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
+        template<bool excluded = false, class Operator = void, class K = double>
+        static int GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
         /* Function: CG
          *
          *  Implements the CG method.
