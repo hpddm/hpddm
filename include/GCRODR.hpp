@@ -153,21 +153,14 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     }
                 }
                 K* work = new K[k * k * mu];
+                VR<excluded>(n, k, mu, C, work, comm);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
-                    Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d__1), C + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d__0), work + nu * (k * (k + 1)) / 2, &k);
-                    for(unsigned short xi = 1; xi < k; ++xi)
-                        std::copy_n(work + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
-                }
-                MPI_Allreduce(MPI_IN_PLACE, work, mu * (k * (k + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                for(unsigned short nu = mu; nu-- > 0; ) {
-                    for(unsigned short xi = k; xi > 0; --xi)
-                        std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, work + k * k * nu + k * xi - (k - xi));
                     Lapack<K>::potrf("U", &k, work + k * k * nu, &k, &info);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), work + k * k * nu, &k, U + nu * n, &ldv);
                 }
                 delete [] work;
             }
-            orthonormalization<excluded>(0, n, k, mu, C, v[i], H[i], comm);
+            orthogonalization<excluded>(0, n, k, mu, C, v[i], H[i], comm);
             if(variant == 'L')
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), U + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
@@ -224,16 +217,15 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
             if(recycling) {
-                const char gs = static_cast<char>(opt["gs"]);
-                orthonormalization<excluded>(gs, n, k, mu, C, v[i + 1], H[i], comm);
+                orthogonalization<excluded>(opt["orthogonalization"], n, k, mu, C, v[i + 1], H[i], comm);
                 H[i - k] += k * (mu + ldh);
                 v[i - k + 1] += k * ldv;
                 if(variant == 'F')
                     v[i - k + m + 2] += k * ldv;
-                Arnoldi<excluded>(A, gs, m - k, H, v, s + k * mu, sn + k * mu, n, i++ - k, mu, Ax, comm, save);
+                Arnoldi<excluded>(A, opt["orthogonalization"], m - k, H, v, s + k * mu, sn + k * mu, n, i++ - k, mu, Ax, comm, save);
             }
             else
-                Arnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, s, sn, n, i++, mu, Ax, comm, save);
+                Arnoldi<excluded>(A, opt["orthogonalization"], m, H, v, s, sn, n, i++, mu, Ax, comm, save);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;

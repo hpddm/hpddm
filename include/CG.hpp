@@ -44,7 +44,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     }
     underlying_type<K>* dir;
     K* trash;
-    allocate(dir, trash, n, opt["variant"] == 2 ? 2 : (opt["gs"] != 2 ? 1 : 0), it);
+    allocate(dir, trash, n, opt["variant"] == 2 ? 2 : (opt["orthogonalization"] != 2 ? 1 : 0), it);
     bool alloc = A.setBuffer(1);
     K* z = trash + n;
     K* r = z + n;
@@ -80,7 +80,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             }
         }
         A.GMV(p, z);
-        if(opt["gs"] != 2 && i > 1) {
+        if(opt["orthogonalization"] != 2 && i > 1) {
             Wrapper<K>::diag(n, d, z, trash);
             for(unsigned short k = 0; k < i - 1; ++k)
                 dir[1 + k] = -std::real(Blas<K>::dot(&n, trash, &i__1, p + (1 + k) * n, &i__1)) / dir[1 + it + k];
@@ -94,7 +94,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         Wrapper<K>::diag(n, d, p, trash);
         dir[1] = std::real(Blas<K>::dot(&n, z, &i__1, trash, &i__1));
         MPI_Allreduce(MPI_IN_PLACE, dir, 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        if(opt["gs"] != 2 || opt["variant"] == 2) {
+        if(opt["orthogonalization"] != 2 || opt["variant"] == 2) {
             dir[it + i] = dir[1];
             std::copy_n(p, n, p + i * n);
             if(opt["variant"] == 2)

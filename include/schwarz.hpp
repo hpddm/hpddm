@@ -389,7 +389,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 A->_ia = nullptr;
                 A->_ja = nullptr;
             }
-            (*Option::get())["geneo_nu"] = nu = evp.getNu();
+            (*Option::get())["geneo_nu"] = nu = evp._nu;
             const int n = Subdomain<K>::_dof;
             std::for_each(super::_ev, super::_ev + nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
         }

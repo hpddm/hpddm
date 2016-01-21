@@ -95,201 +95,81 @@ HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, void, d, double)
 namespace HPDDM {
 /* Class: Lapack
  *
- *  A class inheriting from <Eigensolver> to use <Lapack> for dense eigenvalue problems.
+ *  A class that wraps some LAPACK routines for dense linear algebra.
  *
  * Template Parameter:
  *    K              - Scalar type. */
 template<class K>
-class Lapack : public Eigensolver<K> {
-    private:
-        /* Function: gst
-         *  Reduces a symmetric or Hermitian definite generalized eigenvalue problem to a standard form. */
-        static void gst(const int*, const char*, const int*, K*, const int*, K*, const int*, int*);
-        /* Function: trd
-         *  Reduces a symmetric or Hermitian matrix to a tridiagonal form. */
-        static void trd(const char*, const int*, K*, const int*, underlying_type<K>*, underlying_type<K>*, K*, K*, const int*, int*);
-        /* Function: stein
-         *  Computes the eigenvectors corresponding to specified eigenvalues of a symmetric tridiagonal matrix. */
-        static void stein(const int*, const underlying_type<K>*, const underlying_type<K>*, const int*, const underlying_type<K>*, const int*, const int*, K*, const int*, underlying_type<K>*, int*, int*, int*);
-        /* Function: stebz
-         *  Computes selected eigenvalues of a symmetric tridiagonal matrix by bisection. */
-        static void stebz(const char*, const char*, const int*, const underlying_type<K>*, const underlying_type<K>*, const int*, const int*, const underlying_type<K>*, const underlying_type<K>*, const underlying_type<K>*, int*, int*, underlying_type<K>*, int*, int*, underlying_type<K>*, int*, int*);
-        /* Function: mtr
-         *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::trd>. */
-        static void mtr(const char*, const char*, const char*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
-        /* Function: gesdd
-         *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
-        static void gesdd(const char*, const int*, const int*, K*, const int*, underlying_type<K>*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*, int*);
-    public:
-        Lapack(int n)                                                               : Eigensolver<K>(n) { }
-        Lapack(int n, int nu)                                                       : Eigensolver<K>(n, nu) { }
-        Lapack(underlying_type<K> threshold, int n, int nu)                         : Eigensolver<K>(threshold, n, nu) { }
-        Lapack(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : Eigensolver<K>(tol, threshold, n, nu) { }
-        /* Function: lapmt
-         *  Performs a forward or backward permutation of the columns of a matrix. */
-        static void lapmt(const int*, const int*, const int*, K*, const int*, int*);
-        /* Function: lange
-         *  Computes the norm of a general rectangular matrix. */
-        static underlying_type<K> lange(const char*, const int*, const int*, const K*, const int*, underlying_type<K>*);
-        /* Function: lan
-         *  Computes the norm of a symmetric or Hermitian matrix. */
-        static underlying_type<K> lan(const char*, const char*, const int*, const K*, const int*, underlying_type<K>*);
-        /* Function: potrf
-         *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
-        static void potrf(const char*, const int*, K*, const int*, int*);
-        /* Function: pocon
-         *  Estimates the reciprocal of the condition number of a symmetric or Hermitian positive definite matrix. */
-        static void pocon(const char*, const int*, const K*, const int*, underlying_type<K>*, underlying_type<K>*, K*, typename std::conditional<Wrapper<K>::is_complex, underlying_type<K>*, int*>::type, int*);
-        /* Function: potrs
-         *  Solves a system of linear equations with a Cholesky-factored matrix. */
-        static void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
-        /* Function: pstrf
-         *  Computes the Cholesky factorization of a symmetric or Hermitian positive semidefinite matrix with pivoting. */
-        static void pstrf(const char*, const int*, K*, const int*, int*, int*, const underlying_type<K>*, underlying_type<K>*, int*);
-        /* Function: trtrs
-         *  Solves a system of linear equations with a triangular matrix. */
-        static void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
-        /* Function: geqp3
-         *  Computes a QR decomposition of a rectangular matrix with column pivoting. */
-        static void geqp3(const int*, const int*, K*, const int*, int*, K*, K*, const int*, underlying_type<K>*, int*);
-        /* Function: geqrf
-         *  Computes a QR decomposition of a rectangular matrix. */
-        static void geqrf(const int*, const int*, K*, const int*, K*, K*, const int*, int*);
-        /* Function: geqrt
-         *  Computes a blocked QR decomposition of a rectangular matrix using the compact WY representation of Q. */
-        static void geqrt(const int*, const int*, const int*, K*, const int*, K*, const int*, K*, int*);
-        /* Function: gemqrt
-         *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geqrt>. */
-        static void gemqrt(const char*, const char*, const int*, const int*, const int*, const int*, const K*, const int*, const K*, const int*, K*, const int*, K*, int*);
-        /* Function: mqr
-         *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geq>. */
-        static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
-        /* Function: hseqr
-         *  Computes all eigenvalues and (optionally) the Schur factorization of an upper Hessenberg matrix. */
-        static void hseqr(const char*, const char*, const int*, const int*, const int*, K*, const int*, K*, K*, K*, const int*, K*, const int*, int*);
-        /* Function: hsein
-         *  Computes selected eigenvectors of an upper Hessenberg matrix that correspond to specified eigenvalues. */
-        static void hsein(const char*, const char*, const char*, int*, const int*, K*, const int*, K*, const K*, K*, const int*, K*, const int*, const int*, int*, K*, underlying_type<K>*, int*, int*, int*);
-        /* Function: geev
-         *  Computes the eigenvalues and the eigenvectors of a nonsymmetric eigenvalue problem. */
-        static void geev(const char*, const char*, const int*, K*, const int*, K*, K*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
-        /* Function: ggev
-         *  Computes the eigenvalues and the eigenvectors of a nonsymmetric generalized eigenvalue problem. */
-        static void ggev(const char*, const char*, const int*, K*, const int*, K*, const int*, K*, K*, K*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
-
-        /* Function: workspace
-         *  Returns the optimal size of the workspace array. */
-        int workspace() const {
-            int info;
-            int lwork = -1;
-            K wkopt;
-            trd("L", &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
-            return static_cast<int>(std::real(wkopt));
-        }
-        /* Function: reduce
-         *
-         *  Reduces a symmetric or Hermitian definite generalized eigenvalue problem to a standard problem after factorizing the right-hand side matrix.
-         *
-         * Parameters:
-         *    A              - Left-hand side matrix.
-         *    B              - Right-hand side matrix. */
-        void reduce(K* const& A, K* const& B) const {
-            int info;
-            potrf("L", &(Eigensolver<K>::_n), B, &(Eigensolver<K>::_n), &info);
-            gst(&i__1, "L", &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), B, &(Eigensolver<K>::_n), &info);
-        }
-        /* Function: expand
-         *
-         *  Computes the eigenvectors of a generalized eigenvalue problem after completion of <Lapack::solve>.
-         *
-         * Parameters:
-         *    B              - Right-hand side matrix.
-         *    ev             - Array of eigenvectors. */
-        void expand(K* const& B, K* const* const ev) const {
-            int info;
-            trtrs("L", "T", "N", &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), B, &(Eigensolver<K>::_n), *ev, &(Eigensolver<K>::_n), &info);
-        }
-        /* Function: solve
-         *
-         *  Computes eigenvectors of the standard eigenvalue problem Ax = l x.
-         *
-         * Parameters:
-         *    A              - Left-hand side matrix.
-         *    ev             - Array of eigenvectors.
-         *    work           - Workspace array.
-         *    lwork          - Size of the input workspace array.
-         *    communicator   - MPI communicator for selecting the threshold criterion. */
-        void solve(K* const& A, K**& ev, K* const& work, int& lwork, const MPI_Comm& communicator) {
-            int info;
-            K* tau = work + lwork;
-            underlying_type<K>* d = reinterpret_cast<underlying_type<K>*>(tau + Eigensolver<K>::_n);
-            underlying_type<K>* e = d + Eigensolver<K>::_n;
-            trd("L", &(Eigensolver<K>::_n), A, &(Eigensolver<K>::_n), d, e, tau, work, &lwork, &info);
-            underlying_type<K> vl = -1.0 / HPDDM_EPS;
-            underlying_type<K> vu = Eigensolver<K>::_threshold;
-            int iu = Eigensolver<K>::_nu;
-            int nsplit;
-            underlying_type<K>* evr = e + Eigensolver<K>::_n - 1;
-            int* iblock = new int[5 * Eigensolver<K>::_n];
-            int* isplit = iblock + Eigensolver<K>::_n;
-            int* iwork = isplit + Eigensolver<K>::_n;
-            char range = Eigensolver<K>::_threshold > 0.0 ? 'V' : 'I';
-            stebz(&range, "B", &(Eigensolver<K>::_n), &vl, &vu, &i__1, &iu, &(Eigensolver<K>::_tol), d, e, &(Eigensolver<K>::_nu), &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K>*>(work), iwork, &info);
-            if(Eigensolver<K>::_nu) {
-                ev = new K*[Eigensolver<K>::_nu];
-                *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
-                for(unsigned short i = 1; i < Eigensolver<K>::_nu; ++i)
-                    ev[i] = *ev + i * Eigensolver<K>::_n;
-                int* ifailv = new int[Eigensolver<K>::_nu];
-                stein(&(Eigensolver<K>::_n), d, e, &(Eigensolver<K>::_nu), evr, iblock, isplit, *ev, &(Eigensolver<K>::_n), reinterpret_cast<underlying_type<K>*>(work), iwork, ifailv, &info);
-                delete [] ifailv;
-                mtr("L", "L", "N", &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), A, &(Eigensolver<K>::_n), tau, *ev, &(Eigensolver<K>::_n), work, &lwork, &info);
-                if(!Wrapper<K>::is_complex)
-                    lwork += 3 * Eigensolver<K>::_n - 1;
-                else
-                    lwork += 4 * Eigensolver<K>::_n - 1;
-            }
-            delete [] iblock;
-        }
-        int workspace(const char* jobz, const int* const m) const {
-            int info;
-            int lwork = -1;
-            K wkopt;
-            gesdd(jobz, &(Eigensolver<K>::_n), m, nullptr, &(Eigensolver<K>::_n), nullptr, nullptr, &(Eigensolver<K>::_n), nullptr, m, &wkopt, &lwork, nullptr, nullptr, &info);
-            return static_cast<int>(std::real(wkopt));
-        }
-        void svd(const char* jobz, const int* m, K* a, underlying_type<K>* s, K* u, K* vt, K* work, const int* lwork, int* iwork, underlying_type<K>* rwork = nullptr) const {
-            int info;
-            gesdd(jobz, &(Eigensolver<K>::_n), m, a, &(Eigensolver<K>::_n), s, u, &(Eigensolver<K>::_n), vt, m, work, lwork, rwork, iwork, &info);
-        }
-        void purify(K* ev, const underlying_type<K>* const d = nullptr) {
-            int lwork = workspace("N", &(Eigensolver<K>::_nu));
-            K* a, *work;
-            underlying_type<K>* rwork, *s;
-            if(!Wrapper<K>::is_complex) {
-                a = new K[&(Eigensolver<K>::_n) * Eigensolver<K>::_nu + lwork + Eigensolver<K>::_nu];
-                work = a + &(Eigensolver<K>::_n) * Eigensolver<K>::_nu;
-                s = reinterpret_cast<underlying_type<K>*>(work) + lwork;
-                rwork = nullptr;
-            }
-            else {
-                a = new K[&(Eigensolver<K>::_n) * Eigensolver<K>::_nu + lwork];
-                work = a + &(Eigensolver<K>::_n) * Eigensolver<K>::_nu;
-                s = new underlying_type<K>[Eigensolver<K>::_nu + std::max(1, Eigensolver<K>::_nu * std::max(5 * Eigensolver<K>::_nu + 7, 2 * &(Eigensolver<K>::_n) + 2 * Eigensolver<K>::_nu + 1))];
-                rwork = s + Eigensolver<K>::_nu;
-            }
-            if(d)
-                Wrapper<K>::diag(Eigensolver<K>::_n, d, ev, a, Eigensolver<K>::_nu);
-            else
-                std::copy_n(ev, &(Eigensolver<K>::_n) * Eigensolver<K>::_nu, a);
-            int* iwork = new int[8 * Eigensolver<K>::_n];
-            int info;
-            gesdd("N", &(Eigensolver<K>::_n), &(Eigensolver<K>::_nu), a, &(Eigensolver<K>::_n), s, nullptr, &(Eigensolver<K>::_n), nullptr, &(Eigensolver<K>::_nu), work, &lwork, rwork, iwork, &info);
-            delete [] iwork;
-            if(Wrapper<K>::is_complex)
-                delete [] s;
-            delete [] a;
-        }
+struct Lapack {
+    /* Function: lapmt
+     *  Performs a forward or backward permutation of the columns of a matrix. */
+    static void lapmt(const int*, const int*, const int*, K*, const int*, int*);
+    /* Function: lange
+     *  Computes the norm of a general rectangular matrix. */
+    static underlying_type<K> lange(const char*, const int*, const int*, const K*, const int*, underlying_type<K>*);
+    /* Function: lan
+     *  Computes the norm of a symmetric or Hermitian matrix. */
+    static underlying_type<K> lan(const char*, const char*, const int*, const K*, const int*, underlying_type<K>*);
+    /* Function: potrf
+     *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
+    static void potrf(const char*, const int*, K*, const int*, int*);
+    /* Function: pocon
+     *  Estimates the reciprocal of the condition number of a symmetric or Hermitian positive definite matrix. */
+    static void pocon(const char*, const int*, const K*, const int*, underlying_type<K>*, underlying_type<K>*, K*, typename std::conditional<Wrapper<K>::is_complex, underlying_type<K>*, int*>::type, int*);
+    /* Function: potrs
+     *  Solves a system of linear equations with a Cholesky-factored matrix. */
+    static void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
+    /* Function: pstrf
+     *  Computes the Cholesky factorization of a symmetric or Hermitian positive semidefinite matrix with pivoting. */
+    static void pstrf(const char*, const int*, K*, const int*, int*, int*, const underlying_type<K>*, underlying_type<K>*, int*);
+    /* Function: trtrs
+     *  Solves a system of linear equations with a triangular matrix. */
+    static void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
+    /* Function: geqp3
+     *  Computes a QR decomposition of a rectangular matrix with column pivoting. */
+    static void geqp3(const int*, const int*, K*, const int*, int*, K*, K*, const int*, underlying_type<K>*, int*);
+    /* Function: geqrf
+     *  Computes a QR decomposition of a rectangular matrix. */
+    static void geqrf(const int*, const int*, K*, const int*, K*, K*, const int*, int*);
+    /* Function: geqrt
+     *  Computes a blocked QR decomposition of a rectangular matrix using the compact WY representation of Q. */
+    static void geqrt(const int*, const int*, const int*, K*, const int*, K*, const int*, K*, int*);
+    /* Function: gemqrt
+     *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geqrt>. */
+    static void gemqrt(const char*, const char*, const int*, const int*, const int*, const int*, const K*, const int*, const K*, const int*, K*, const int*, K*, int*);
+    /* Function: mqr
+     *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geq>. */
+    static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
+    /* Function: hseqr
+     *  Computes all eigenvalues and (optionally) the Schur factorization of an upper Hessenberg matrix. */
+    static void hseqr(const char*, const char*, const int*, const int*, const int*, K*, const int*, K*, K*, K*, const int*, K*, const int*, int*);
+    /* Function: hsein
+     *  Computes selected eigenvectors of an upper Hessenberg matrix that correspond to specified eigenvalues. */
+    static void hsein(const char*, const char*, const char*, int*, const int*, K*, const int*, K*, const K*, K*, const int*, K*, const int*, const int*, int*, K*, underlying_type<K>*, int*, int*, int*);
+    /* Function: geev
+     *  Computes the eigenvalues and the eigenvectors of a nonsymmetric eigenvalue problem. */
+    static void geev(const char*, const char*, const int*, K*, const int*, K*, K*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
+    /* Function: ggev
+     *  Computes the eigenvalues and the eigenvectors of a nonsymmetric generalized eigenvalue problem. */
+    static void ggev(const char*, const char*, const int*, K*, const int*, K*, const int*, K*, K*, K*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
+    /* Function: gst
+     *  Reduces a symmetric or Hermitian definite generalized eigenvalue problem to a standard form. */
+    static void gst(const int*, const char*, const int*, K*, const int*, K*, const int*, int*);
+    /* Function: trd
+     *  Reduces a symmetric or Hermitian matrix to a tridiagonal form. */
+    static void trd(const char*, const int*, K*, const int*, underlying_type<K>*, underlying_type<K>*, K*, K*, const int*, int*);
+    /* Function: stein
+     *  Computes the eigenvectors corresponding to specified eigenvalues of a symmetric tridiagonal matrix. */
+    static void stein(const int*, const underlying_type<K>*, const underlying_type<K>*, const int*, const underlying_type<K>*, const int*, const int*, K*, const int*, underlying_type<K>*, int*, int*, int*);
+    /* Function: stebz
+     *  Computes selected eigenvalues of a symmetric tridiagonal matrix by bisection. */
+    static void stebz(const char*, const char*, const int*, const underlying_type<K>*, const underlying_type<K>*, const int*, const int*, const underlying_type<K>*, const underlying_type<K>*, const underlying_type<K>*, int*, int*, underlying_type<K>*, int*, int*, underlying_type<K>*, int*, int*);
+    /* Function: mtr
+     *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::trd>. */
+    static void mtr(const char*, const char*, const char*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
+    /* Function: gesdd
+     *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
+    static void gesdd(const char*, const int*, const int*, K*, const int*, underlying_type<K>*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*, int*);
 };
 
 /* Class: QR

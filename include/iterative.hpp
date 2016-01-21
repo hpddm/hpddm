@@ -193,17 +193,17 @@ class IterativeMethod {
             else
                 Wrapper<T>::diag(n, d, in);
         }
-        /* Function: orthonormalization
+        /* Function: orthogonalization
          *
-         *  Orthonormalizes a block of vectors against a contiguous set of block of vectors.
+         *  Orthogonalizes a block of vectors against a contiguous set of block of vectors.
          *
          * Template Parameters:
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *    K              - Scalar type.
          *
          * Parameters:
-         *    gs             - Type of orthonormalization procedure.
-         *    n              - Size of the vectors to orthonormalize.
+         *    id             - Type of orthogonalization procedure.
+         *    n              - Size of the vectors to orthogonalize.
          *    k              - Size of the basis to orthogonalize against.
          *    mu             - Number of vectors in each block.
          *    B              - Pointer to the basis.
@@ -211,17 +211,17 @@ class IterativeMethod {
          *    H              - Dot products.
          *    comm           - Global MPI communicator. */
         template<bool excluded, class K>
-        static void orthonormalization(const char gs, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm) {
+        static void orthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm) {
             if(excluded) {
                 std::fill_n(H, mu * k, K());
-                if(gs == 1)
+                if(id == 1)
                     for(unsigned short i = 0; i < k; ++i)
                         MPI_Allreduce(MPI_IN_PLACE, H + mu * i, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                 else
                     MPI_Allreduce(MPI_IN_PLACE, H, mu * k, Wrapper<K>::mpi_type(), MPI_SUM, comm);
             }
             else {
-                if(gs == 1)
+                if(id == 1)
                     for(unsigned short i = 0; i < k; ++i) {
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
@@ -235,7 +235,7 @@ class IterativeMethod {
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d__1), B + nu * n, &ldb, v + nu * n, &i__1, &(Wrapper<K>::d__0), H + nu, &mu);
                     MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    if(gs == 0)
+                    if(id == 0)
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d__1), v + nu * n, &i__1);
                     else if(k > 0)
@@ -244,11 +244,26 @@ class IterativeMethod {
                 }
             }
         }
+        /* Function: VR
+         *  Computes the inverse of the upper triangular matrix of a QR decomposition using the Cholesky QR method. */
+        template<bool excluded, class K>
+        static void VR(const int n, const int k, const int mu, const K* const V, K* const R, const MPI_Comm& comm) {
+            const int ldv = mu * n;
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d__1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d__0), R + nu * (k * (k + 1)) / 2, &k);
+                for(unsigned short xi = 1; xi < k; ++xi)
+                    std::copy_n(R + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, R + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
+            }
+            MPI_Allreduce(MPI_IN_PLACE, R, mu * (k * (k + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+            for(unsigned short nu = mu; nu-- > 0; )
+                for(unsigned short xi = k; xi > 0; --xi)
+                    std::copy_backward(R + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, R + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + k * k * nu + k * xi - (k - xi));
+        }
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class Operator, class K>
-        static void Arnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
-            orthonormalization<excluded>(gs, n, i + 1, mu, *v, v[i + 1], H[i], comm);
+        static void Arnoldi(const Operator& A, const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
+            orthogonalization<excluded>(id, n, i + 1, mu, *v, v[i + 1], H[i], comm);
             if(excluded) {
                 std::fill_n(sn + i * mu, mu, underlying_type<K>());
                 MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
@@ -286,9 +301,9 @@ class IterativeMethod {
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class Operator, class K>
-        static bool BlockArnoldi(const Operator& A, const char gs, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
+        static bool BlockArnoldi(const Operator& A, const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
             int ldh = mu * (m + 1);
-            if(gs == 1) {
+            if(id == 1) {
                 for(unsigned short k = 0; k < i + 1; ++k) {
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &mu, &mu, &n, &(Wrapper<K>::d__1), v[k], &n, v[i + 1], &n, &(Wrapper<K>::d__0), Ax, &mu);
                     MPI_Allreduce(MPI_IN_PLACE, Ax, mu * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);

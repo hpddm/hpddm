@@ -124,7 +124,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            Arnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, s, sn, n, i++, mu, Ax, comm);
+            Arnoldi<excluded>(A, opt["orthogonalization"], m, H, v, s, sn, n, i++, mu, Ax, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
@@ -217,7 +217,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int ldh = mu * (m + 1);
     int info;
     int N = 2 * mu;
-    int lwork = mu * std::max(n, opt["gs"] != 1 ? ldh : mu);
+    int lwork = mu * std::max(n, opt["orthogonalization"] != 1 ? ldh : mu);
     *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 'F')) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m * mu * ldh;
     K* const s = *v + mu * n * (m * (1 + (variant == 'F')) + 1);
@@ -271,12 +271,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                     norm[nu] = 1.0;
             }
         }
-        Blas<K>::herk("U", "C", &mu, &n, &(Wrapper<underlying_type<K>>::d__1), *v, &n, &(Wrapper<underlying_type<K>>::d__0), Ax, &mu);
-        for(unsigned short nu = 1; nu < mu; ++nu)
-            std::copy_n(Ax + nu * mu, nu + 1, Ax + (nu * (nu + 1)) / 2);
-        MPI_Allreduce(MPI_IN_PLACE, Ax, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-        for(unsigned short nu = mu; nu-- > 0; )
-            std::copy_n(Ax + (nu * (nu + 1)) / 2, nu + 1, s + nu * mu);
+        VR<excluded>(n, mu, 1, *v, s, comm);
         if(!opt.set("initial_deflation_tol")) {
             Lapack<K>::potrf("U", &mu, s, &mu, &info);
             if(verbosity > 3) {
@@ -343,7 +338,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            if(BlockArnoldi<excluded>(A, static_cast<char>(opt["gs"]), m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
+            if(BlockArnoldi<excluded>(A, opt["orthogonalization"], m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
                 dim = deflated * (i - 1);
                 i = m;
                 j = it + 1;
