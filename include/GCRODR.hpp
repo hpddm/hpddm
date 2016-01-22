@@ -359,7 +359,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                 p.pop_back();
                         }
                         int mm = Wrapper<K>::is_complex ? k : 0;
-                        for(typename decltype(p)::const_iterator it = p.cbegin(); it != p.cend(); ++it) {
+                        for(typename decltype(p)::const_iterator it = p.cbegin(); it < p.cend(); ++it) {
                             if(Wrapper<K>::is_complex)
                                 select[it->first] = 1;
                             else {
@@ -376,7 +376,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                     break;
                             }
                         }
-                        underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[k] : nullptr;
+                        decltype(p)().swap(p);
+                        underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[m] : nullptr;
                         K* vr = new K[mm * m];
                         int* ifailr = new int[mm];
                         int col;
@@ -419,7 +420,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                             Blas<K>::scal(&n, prod + k * mu * (m + 1) + k * nu + i, U + nu * n + i * ldv, &i__1);
                         for(i = 0; i < m; ++i)
                             std::fill_n(save[i] + i + 2 + nu * (m + 1), m - i - 1, K());
-                        int lda = m;
                         K* A = new K[m * m];
                         for(i = 0; i < k; ++i)
                             for(unsigned short j = 0; j < k; ++j)
@@ -427,11 +427,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         int diff = m - k;
                         Wrapper<K>::template omatcopy<'N'>(m - k, k, H[k] + nu * (m + 1), ldh, A + k * m, m);
                         for(i = 0; i < k; ++i)
-                            Blas<K>::scal(&diff, prod + k * mu * (m + 1) + k * nu + i, A + k * m + i, &lda);
+                            Blas<K>::scal(&diff, prod + k * mu * (m + 1) + k * nu + i, A + k * m + i, &m);
                         Wrapper<K>::template omatcopy<'C'>(m - k, k, A + k * m, m, A + k, m);
                         int row = diff + 1;
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, H[k] + nu * (m + 1), &ldh, &(Wrapper<K>::d__0), A + k * m + k, &lda);
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, *save + nu * (m + 1), &ldh, &(Wrapper<K>::d__1), A + k * m + k, &lda);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, H[k] + nu * (m + 1), &ldh, &(Wrapper<K>::d__0), A + k * m + k, &m);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, *save + nu * (m + 1), &ldh, &(Wrapper<K>::d__1), A + k * m + k, &m);
                         K* B = new K[m * (m + 1)]();
                         row = m + 1;
                          for(i = 0; i < k; ++i)
@@ -442,18 +442,18 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &k, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, B, &row, &(Wrapper<K>::d__1), B + k, &row);
                         for(i = 0; i < k; ++i)
                             Blas<K>::scal(&k, prod + k * mu * (m + 1) + k * nu + i, B + i, &row);
-                        K* alpha = new K[(2 + !Wrapper<K>::is_complex) * lda];
+                        K* alpha = new K[(2 + !Wrapper<K>::is_complex) * m];
                         int lwork = -1;
                         K* vr = new K[m * m];
-                        Lapack<K>::ggev("N", "V", &lda, A, &lda, B, &row, alpha, alpha + 2 * lda, alpha + lda, nullptr, &i__1, nullptr, &m, *H + k + 1, &lwork, nullptr, &info);
+                        Lapack<K>::ggev("N", "V", &m, A, &m, B, &row, alpha, alpha + 2 * m, alpha + m, nullptr, &i__1, nullptr, &m, *H + k + 1, &lwork, nullptr, &info);
                         lwork = std::real(H[0][k + 1]);
-                        K* work = new K[Wrapper<K>::is_complex ? (lwork + lda / 4 + 2) : lwork];
+                        K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * m) : lwork];
                         underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
-                        Lapack<K>::ggev("N", "V", &lda, A, &lda, B, &row, alpha, alpha + 2 * lda, alpha + lda, nullptr, &i__1, vr, &m, work, &lwork, rwork, &info);
+                        Lapack<K>::ggev("N", "V", &m, A, &m, B, &row, alpha, alpha + 2 * m, alpha + m, nullptr, &i__1, vr, &m, work, &lwork, rwork, &info);
                         std::vector<std::pair<unsigned short, underlying_type<K>>> q;
                         q.reserve(m);
                         for(i = 0; i < m; ++i) {
-                            underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[lda + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * lda + i] * alpha[2 * lda + i]) / (alpha[lda + i] * alpha[lda + i]));
+                            underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[m + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * m + i] * alpha[2 * m + i]) / (alpha[m + i] * alpha[m + i]));
                             q.emplace_back(i, magnitude);
                         }
                         std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
@@ -463,6 +463,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         int* perm = new int[i];
                         for(unsigned short j = 0; j < i; ++j)
                             perm[j] = q[j].first + 1;
+                        decltype(q)().swap(q);
                         Lapack<K>::lapmt(&i__1, &m, &(info = i), vr, &m, perm);
                         row = diff + 1;
                         Blas<K>::gemm("N", "N", &row, &k, &diff, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, vr + k, &m, &(Wrapper<K>::d__0), *H + k + nu * (m + 1), &ldh);
@@ -476,7 +477,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, work, perm, &info);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, nullptr, &ldh, nullptr, nullptr, &ldv, work + 1, perm, &info);
                         delete [] perm;
-                        if(std::real(work[0]) > lwork || std::real(work[1]) > lwork) {
+                        if(std::real(work[0]) > (Wrapper<K>::is_complex ? (lwork + 4 * m) : lwork) || std::real(work[1]) > (Wrapper<K>::is_complex ? (lwork + 4 * m) : lwork)) {
                             lwork = std::max(std::real(work[0]), std::real(work[1]));
                             delete [] work;
                             work = new K[lwork];

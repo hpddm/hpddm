@@ -32,10 +32,16 @@
 
 #include "HPDDM.hpp"
 
-struct CustomOperator : public HPDDM::EmptyOperator<double> {
-    CustomOperator(HPDDM::MatrixCSR<double>* A) : HPDDM::EmptyOperator<double>(A) { }
+#ifdef FORCE_COMPLEX
+typedef std::complex<double> K;
+#else
+typedef double K;
+#endif
+
+struct CustomOperator : public HPDDM::EmptyOperator<K> {
+    CustomOperator(HPDDM::MatrixCSR<K>* A) : HPDDM::EmptyOperator<K>(A) { }
     template<bool = true>
-    void apply(const double* const in, double* const out, const unsigned short& mu = 1, double* = nullptr, const unsigned short& = 0) const {
+    void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         HPDDM::Option& opt = *HPDDM::Option::get();
         if(opt.app()["diagonal_scaling"] == 0)
             std::copy_n(in, mu * _A._n, out);
@@ -65,8 +71,8 @@ int main(int argc, char** argv) {
     int status = 0;
     unsigned int it = 0;
     do {
-        HPDDM::MatrixCSR<double>* Mat = nullptr;
-        double* rhs = nullptr;
+        HPDDM::MatrixCSR<K>* Mat = nullptr;
+        K* rhs = nullptr;
         int mu = opt.app()["mu"];
         {
             t.seekg(0, std::ios::end);
@@ -86,20 +92,20 @@ int main(int argc, char** argv) {
             std::cout << "Solving system #" << no << ": " << s[0] << "x" << s[0] << ", " << s[1] << " nnz" << std::endl;
             int n = HPDDM::template sto<int>(s[0]);
             int nnz = HPDDM::template sto<int>(s[1]);
-            Mat = new HPDDM::MatrixCSR<double>(n, n, nnz, false);
+            Mat = new HPDDM::MatrixCSR<K>(n, n, nnz, false);
             for(unsigned int i = 0; i < nnz; ++i)
                 Mat->_a[i] = HPDDM::template sto<double>(s[3 + i]);
             for(unsigned int i = 0; i < nnz; ++i)
                 Mat->_ja[i] = HPDDM::template sto<int>(s[nnz + 3 + i]);
             for(unsigned int i = 0; i < n + 1; ++i)
                 Mat->_ia[i] = HPDDM::template sto<int>(s[2 * nnz + 3 + i]);
-            rhs = new double[mu * n];
+            rhs = new K[mu * n];
             for(unsigned int i = 0; i < n; ++i)
                 rhs[i] = HPDDM::template sto<double>(s[2 * nnz + n + 4 + i]);
             t.close();
         }
         CustomOperator A(Mat);
-        double* x = new double[mu * Mat->_n]();
+        K* x = new K[mu * Mat->_n]();
         if(mu > 1)
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs, Mat->_n, rhs + nu * Mat->_n);
@@ -108,18 +114,18 @@ int main(int argc, char** argv) {
             case 1:  it += HPDDM::IterativeMethod::BGMRES(A, rhs, x, mu, MPI_COMM_SELF); break;
             default: it += HPDDM::IterativeMethod::GMRES(A, rhs, x, mu, MPI_COMM_SELF);
         }
-        HPDDM::underlying_type<double>* nrmb = new HPDDM::underlying_type<double>[2 * mu];
+        HPDDM::underlying_type<K>* nrmb = new HPDDM::underlying_type<K>[2 * mu];
         int n = Mat->_n;
         for(unsigned short nu = 0; nu < mu; ++nu)
-            nrmb[nu] = HPDDM::Blas<double>::nrm2(&n, rhs + nu * n, &(HPDDM::i__1));
-        double* tmp = new double[mu * n];
-        HPDDM::Wrapper<double>::csrmm(Mat->_sym, &n, &mu, Mat->_a, Mat->_ia, Mat->_ja, x, tmp);
+            nrmb[nu] = HPDDM::Blas<K>::nrm2(&n, rhs + nu * n, &(HPDDM::i__1));
+        K* tmp = new K[mu * n];
+        HPDDM::Wrapper<K>::csrmm(Mat->_sym, &n, &mu, Mat->_a, Mat->_ia, Mat->_ja, x, tmp);
         n *= mu;
-        HPDDM::Blas<double>::axpy(&n, &(HPDDM::Wrapper<double>::d__2), rhs, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
+        HPDDM::Blas<K>::axpy(&n, &(HPDDM::Wrapper<K>::d__2), rhs, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
         n /= mu;
-        HPDDM::underlying_type<double>* nrmAx = nrmb + mu;
+        HPDDM::underlying_type<K>* nrmAx = nrmb + mu;
         for(unsigned short nu = 0; nu < mu; ++nu) {
-            nrmAx[nu] = HPDDM::Blas<double>::nrm2(&n, tmp + nu * n, &(HPDDM::i__1));
+            nrmAx[nu] = HPDDM::Blas<K>::nrm2(&n, tmp + nu * n, &(HPDDM::i__1));
             if(nu == 0)
                 std::cout << " --- error = ";
             else

@@ -168,7 +168,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 exchangeSchurComplement<L>(send, recv, res);
 
-                Lapack<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
+                Eigensolver<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
                 K* A;
                 if(size < Subdomain<K>::_dof * Subdomain<K>::_dof)
                     A = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
@@ -179,9 +179,15 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
                         for(unsigned int j = i; j < Subdomain<K>::_dof; ++j)
                             res[j + i * Subdomain<K>::_dof] *= d[i] * d[j];
-                evp.reduce(A, res);
-                int flag;
-                int lwork = evp.workspace();
+                int flag, info;
+                Lapack<K>::potrf("L", &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof), &flag);
+                Lapack<K>::gst(&i__1, "L", &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof), &flag);
+                int lwork = -1;
+                {
+                    K wkopt;
+                    Lapack<K>::trd("L", &(Subdomain<K>::_dof), nullptr, &(Subdomain<K>::_dof), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
+                    lwork = std::real(wkopt);
+                }
                 MPI_Testall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
                 K* work;
                 const int storage = !Wrapper<K>::is_complex ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
@@ -197,8 +203,39 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     else
                         work = new K[lwork + storage];
                 }
-                evp.solve(A, super::_ev, work, lwork, Subdomain<K>::_communicator);
-                nu = evp.getNu();
+                {
+                    K* tau = work + lwork;
+                    underlying_type<K>* d = reinterpret_cast<underlying_type<K>*>(tau + Subdomain<K>::_dof);
+                    underlying_type<K>* e = d + Subdomain<K>::_dof;
+                    Lapack<K>::trd("L", &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof), d, e, tau, work, &lwork, &info);
+                    underlying_type<K> vl = -1.0 / HPDDM_EPS;
+                    underlying_type<K> vu = threshold;
+                    int iu = evp._nu;
+                    int nsplit;
+                    underlying_type<K>* evr = e + Subdomain<K>::_dof - 1;
+                    int* iblock = new int[5 * Subdomain<K>::_dof];
+                    int* isplit = iblock + Subdomain<K>::_dof;
+                    int* iwork = isplit + Subdomain<K>::_dof;
+                    char range = threshold > 0.0 ? 'V' : 'I';
+                    underlying_type<K> tol = evp.getTol();
+                    Lapack<K>::stebz(&range, "B", &(Subdomain<K>::_dof), &vl, &vu, &i__1, &iu, &tol, d, e, &evp._nu, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K>*>(work), iwork, &info);
+                    if(evp._nu) {
+                        super::_ev = new K*[evp._nu];
+                        *super::_ev = new K[Subdomain<K>::_dof * evp._nu];
+                        for(unsigned short i = 1; i < evp._nu; ++i)
+                            super::_ev[i] = *super::_ev + i * Subdomain<K>::_dof;
+                        int* ifailv = new int[evp._nu];
+                        Lapack<K>::stein(&(Subdomain<K>::_dof), d, e, &(evp._nu), evr, iblock, isplit, *super::_ev, &(Subdomain<K>::_dof), reinterpret_cast<underlying_type<K>*>(work), iwork, ifailv, &info);
+                        delete [] ifailv;
+                        Lapack<K>::mtr("L", "L", "N", &(Subdomain<K>::_dof), &(evp._nu), A, &(Subdomain<K>::_dof), tau, *super::_ev, &(Subdomain<K>::_dof), work, &lwork, &info);
+                        if(!Wrapper<K>::is_complex)
+                            lwork += 3 * Subdomain<K>::_dof - 1;
+                        else
+                            lwork += 4 * Subdomain<K>::_dof - 1;
+                    }
+                    delete [] iblock;
+                }
+                nu = evp._nu;
                 if(nu && *(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
                     _deficiency = 1;
                     underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
@@ -208,7 +245,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 if(A != *recv)
                     delete [] A;
                 if(nu)
-                    evp.expand(res, super::_ev);
+                    Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::_dof), &(evp._nu), res, &(Subdomain<K>::_dof), *super::_ev, &(Subdomain<K>::_dof), &info);
                 else if(super::_ev) {
                     delete [] *super::_ev;
                     delete []  super::_ev;
