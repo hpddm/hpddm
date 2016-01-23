@@ -160,13 +160,8 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 ++j;
         }
         if(j != it + 1 && i == m) {
-            if(!excluded) {
-                if(mu > 1) {
-                    for(i = 0; i < m; ++i)
-                        Wrapper<K>::template imatcopy<'T'>(i + 1, mu, H[i], mu, m + 1);
-                }
+            if(!excluded)
                 updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
-            }
             if(verbosity > 0)
                 std::cout << "GMRES restart(" << m << ")" << std::endl;
         }
@@ -176,11 +171,6 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     if(!excluded) {
         const int rem = it % m;
         std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
-        if(mu > 1) {
-            unsigned short dim = *std::max_element(hasConverged, hasConverged + mu);
-            for(unsigned short i = 0; i < dim; ++i)
-                Wrapper<K>::template imatcopy<'T'>(i + 1, mu, H[i], mu, m + 1);
-        }
         updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
     }
     if(verbosity > 0) {

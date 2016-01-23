@@ -280,11 +280,11 @@ class IterativeMethod {
                 }
             }
             if(save)
-                std::copy_n(H[i], (i + 2) * mu, save[i]);
+                Wrapper<K>::template omatcopy<'T'>(i + 2, mu, H[i], mu, save[i], m + 1);
             for(unsigned short k = 0; k < i; ++k) {
                 for(unsigned short nu = 0; nu < mu; ++nu) {
-                    K gamma = Wrapper<K>::conj(H[k][(k + 1) * mu + nu]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
-                    H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(k + 1) * mu + nu] * H[i][(k + 1) * mu + nu];
+                    K gamma = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
+                    H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(m + 1) * nu + k + 1] * H[i][(k + 1) * mu + nu];
                     H[i][k * mu + nu] = gamma;
                 }
             }
@@ -297,6 +297,8 @@ class IterativeMethod {
                 s[(i + 1) * mu + nu] = -sn[i * mu + nu] * s[i * mu + nu];
                 s[i * mu + nu] *= Wrapper<K>::conj(H[i][(i + 1) * mu + nu]);
             }
+            if(mu > 1)
+                Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
         }
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
