@@ -52,12 +52,12 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     const underlying_type<K>* const d = A.getScaling();
 
     A.template start<excluded>(b, x);
-    for(unsigned int i = 0; i < n; ++i)
-        if(std::abs(b[i]) > HPDDM_PEN * HPDDM_EPS)
-            depenalize(b[i], x[i]);
     A.GMV(x, z);
     std::copy_n(b, n, r);
     Blas<K>::axpy(&n, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
+    for(unsigned int i = 0; i < n; ++i)
+        if(std::abs(r[i]) > HPDDM_PEN * HPDDM_EPS)
+            r[i] = K();
 
     A.apply(r, p, 1, z);
 

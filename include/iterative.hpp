@@ -67,12 +67,6 @@ class IterativeMethod {
                 p = new K[std::max(1, (4 + extra * it) * n)];
             }
         }
-        /* Function: depenalize
-         *  Divides a scalar by <HPDDM_PEN>. */
-        template<class K, typename std::enable_if<!Wrapper<K>::is_complex>::type* = nullptr>
-        static void depenalize(const K& b, K& x) { x = b / HPDDM_PEN; }
-        template<class K, typename std::enable_if<Wrapper<K>::is_complex>::type* = nullptr>
-        static void depenalize(const K& b, K& x) { x = b / std::complex<underlying_type<K>>(HPDDM_PEN, HPDDM_PEN); }
         /* Function: updateSol
          *
          *  Updates a solution vector after convergence of <Iterative method::GMRES>.
@@ -262,8 +256,8 @@ class IterativeMethod {
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class Operator, class K>
-        static void Arnoldi(const Operator& A, const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
-            orthogonalization<excluded>(id, n, i + 1, mu, *v, v[i + 1], H[i], comm);
+        static void Arnoldi(const Operator& A, const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
+            orthogonalization<excluded>(id, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, comm);
             if(excluded) {
                 std::fill_n(sn + i * mu, mu, underlying_type<K>());
                 MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
@@ -280,8 +274,8 @@ class IterativeMethod {
                 }
             }
             if(save)
-                Wrapper<K>::template omatcopy<'T'>(i + 2, mu, H[i], mu, save[i], m + 1);
-            for(unsigned short k = 0; k < i; ++k) {
+                Wrapper<K>::template omatcopy<'T'>(i - shift + 2, mu, H[i] + shift * mu, mu, save[i - shift], m + 1);
+            for(unsigned short k = shift; k < i; ++k) {
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     K gamma = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
                     H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(m + 1) * nu + k + 1] * H[i][(k + 1) * mu + nu];

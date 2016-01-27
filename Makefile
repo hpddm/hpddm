@@ -198,10 +198,13 @@ test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 	mkdir -p ${TOP_DIR}/${TRASH_DIR}/data
 	tar xzf ./examples/data/40X.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data
-	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 0 -hpddm_variant left
-	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 0 -hpddm_variant right
-	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 1 -hpddm_variant left
-	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling 1 -hpddm_variant right
+	for SCALING in 0 1; do \
+		for VARIANT in left right; do \
+			for MU in 1 3; do \
+				${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_gmres_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT} -mu $${MU}; \
+			done \
+		done \
+	done
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 

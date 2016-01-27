@@ -73,12 +73,6 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                     norm[nu] += std::norm(b[nu * n + i]);
         }
 
-    if(!excluded)
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            for(unsigned int i = 0; i < n; ++i)
-                if(std::abs(b[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
-                    depenalize(b[nu * n + i], x[nu * n + i]);
-
     unsigned short j = 1;
     while(j <= it) {
         if(!excluded)
@@ -86,6 +80,11 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
         if(variant == 'L')
             A.template apply<excluded>(Ax, *v, mu);
+        if(!excluded)
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                for(unsigned int j = 0; j < n; ++j)
+                    if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
+                        v[0][nu * n + j] = K();
         for(unsigned short nu = 0; nu < mu; ++nu)
             sn[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
         if(j == 1) {
@@ -231,12 +230,6 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                     norm[nu] += std::norm(b[nu * n + i]);
         }
 
-    if(!excluded)
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            for(unsigned int i = 0; i < n; ++i)
-                if(std::abs(b[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
-                    depenalize(b[nu * n + i], x[nu * n + i]);
-
     unsigned short j = 1;
     short dim = mu * m;
     int* const piv = new int[mu];
@@ -248,6 +241,11 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
         if(variant == 'L')
             A.template apply<excluded>(Ax, *v, mu);
+        if(!excluded)
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                for(unsigned int j = 0; j < n; ++j)
+                    if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
+                        v[0][nu * n + j] = K();
         if(j == 1) {
             for(unsigned short nu = 0; nu < mu; ++nu)
                 beta[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
