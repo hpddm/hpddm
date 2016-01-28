@@ -93,14 +93,6 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 norm[nu] = std::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
-                if(tol > 0.0 && sn[nu] / norm[nu] < tol) {
-                    if(norm[nu] > 1.0 / HPDDM_EPS)
-                        norm[nu] = 1.0;
-                    else
-                        hasConverged[nu] = 0;
-                }
-                else if(sn[nu] < -tol)
-                    hasConverged[nu] = 0;
             }
         }
         else
@@ -328,8 +320,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             }
             if(BlockArnoldi<excluded>(A, opt["orthogonalization"], m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
                 dim = deflated * (i - 1);
-                i = m;
-                j = it + 1;
+                i = j = 0;
                 break;
             }
             unsigned short converged = 0;
@@ -385,18 +376,21 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     delete [] piv;
-
-    if(verbosity > 0) {
-        if(j != it + 1)
-            std::cout << "BGMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
-        else
-            std::cout << "BGMRES does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
-    }
     A.clearBuffer(alloc);
     delete [] *H;
     delete [] H;
     std::cout.unsetf(std::ios_base::scientific);
-    return std::min(j, it);
+    if(j != 0) {
+        if(verbosity > 0) {
+            if(j != it + 1)
+                std::cout << "BGMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
+            else
+                std::cout << "BGMRES does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
+        }
+        return std::min(j, it);
+    }
+    else
+        return GMRES(A, b, x, mu, comm);
 }
 } // HPDDM
 #endif // _HPDDM_GMRES_

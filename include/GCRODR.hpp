@@ -180,14 +180,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 norm[nu] = std::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
-                if(tol > 0.0 && sn[nu] / norm[nu] < tol) {
-                    if(norm[nu] > 1.0 / HPDDM_EPS)
-                        norm[nu] = 1.0;
-                    else
-                        hasConverged[nu] = 0;
-                }
-                else if(sn[nu] < -tol)
-                    hasConverged[nu] = 0;
             }
         }
         else
@@ -476,8 +468,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     for(i = k; info != (k * (k - 1)) / 2 && i < m; ++i)
                         info += q[i].first;
                     int* perm = new int[i];
-                    for(unsigned short j = 0; j < i; ++j)
-                        perm[j] = q[j].first + 1;
+                    std::transform(q.cbegin(), q.cbegin() + i, perm, [](const std::pair<unsigned short, underlying_type<K>>& u) { return u.first + 1; });
                     decltype(q)().swap(q);
                     Lapack<K>::lapmt(&i__1, &m, &(info = i), vr, &m, perm);
                     row = diff + 1;

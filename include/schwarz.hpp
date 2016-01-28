@@ -79,7 +79,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         void callNumfact(MatrixCSR<K>* const& A = nullptr) {
             Option& opt = *Option::get();
             if(A != nullptr) {
-                if(opt["schwarz_method"] == 1)
+                if(opt["schwarz_method"] == 2)
                     _type = Prcndtnr::OS;
                 else
                     _type = Prcndtnr::OG;
