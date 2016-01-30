@@ -92,6 +92,7 @@ int main(int argc, char **argv) {
         const MPI_Comm* comm = HpddmGetCommunicator(HpddmSchwarzPreconditioner(A));
         /*# Solution #*/
         switch((int)HpddmOptionVal(opt, "krylov_method")) {
+            case 3:  it = HpddmGCRODR(A, f, sol, mu, comm); break;
             case 2:  it = HpddmCG(A, f, sol, comm); break;
             case 1:  it = HpddmBGMRES(A, f, sol, mu, comm); break;
             default: it = HpddmGMRES(A, f, sol, mu, comm);

@@ -93,7 +93,11 @@ def precond(y, x, n, m):
         y = numpy.ctypeslib.as_array(y, (m, n)).transpose()
     x[:] = lu.solve(y[:])
 
-if hpddm.optionVal(opt, b'krylov_method') == 1:
+if hpddm.optionVal(opt, b'krylov_method') == 3:
+    hpddm.GCRODR(Mat, precond, f, sol)
+elif hpddm.optionVal(opt, b'krylov_method') == 2:
+    hpddm.CG(Mat, precond, f, sol)
+elif hpddm.optionVal(opt, b'krylov_method') == 1:
     hpddm.BGMRES(Mat, precond, f, sol)
 else:
     hpddm.GMRES(Mat, precond, f, sol)

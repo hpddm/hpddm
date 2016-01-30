@@ -271,3 +271,18 @@ def BGMRES(A, f, sol, comm):
         return _BGMRES(A, f, sol, mu, comm)
     except ctypes.ArgumentError:
         return _CustomOperatorBGMRES(A, f, sol, comm, sol.shape[0], mu)
+_GCRODR = lib.GCRODR
+_GCRODR.restype = ctypes.c_int
+_GCRODR.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
+_CustomOperatorGCRODR = lib.CustomOperatorGCRODR
+_CustomOperatorGCRODR.restype = ctypes.c_int
+_CustomOperatorGCRODR.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
+def GCRODR(A, f, sol, comm):
+    try:
+        mu = sol.shape[1]
+    except IndexError:
+        mu = 1
+    try:
+        return _GCRODR(A, f, sol, mu, comm)
+    except ctypes.ArgumentError:
+        return _CustomOperatorGCRODR(A, f, sol, comm, sol.shape[0], mu)

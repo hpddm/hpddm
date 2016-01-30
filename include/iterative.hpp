@@ -240,7 +240,7 @@ class IterativeMethod {
         }
         /* Function: VR
          *  Computes the inverse of the upper triangular matrix of a QR decomposition using the Cholesky QR method. */
-        template<bool excluded, class K>
+        template<bool excluded, class K, bool copy = true>
         static void VR(const int n, const int k, const int mu, const K* const V, K* const R, const MPI_Comm& comm) {
             const int ldv = mu * n;
             for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -249,9 +249,10 @@ class IterativeMethod {
                     std::copy_n(R + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, R + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
             }
             MPI_Allreduce(MPI_IN_PLACE, R, mu * (k * (k + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-            for(unsigned short nu = mu; nu-- > 0; )
-                for(unsigned short xi = k; xi > 0; --xi)
-                    std::copy_backward(R + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, R + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + k * k * nu + k * xi - (k - xi));
+            if(copy)
+                for(unsigned short nu = mu; nu-- > 0; )
+                    for(unsigned short xi = k; xi > 0; --xi)
+                        std::copy_backward(R + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, R + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + k * k * nu + k * xi - (k - xi));
         }
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
@@ -314,11 +315,8 @@ class IterativeMethod {
                 Blas<K>::gemm("N", "N", &n, &mu, &tmp, &(Wrapper<K>::d__2), *v, &n, Ax, &tmp, &(Wrapper<K>::d__1), v[i + 1], &n);
                 Wrapper<K>::template omatcopy<'N'>(mu, tmp, Ax, tmp, H[i], ldh);
             }
-            Blas<K>::herk("U", "C", &mu, &n, &(Wrapper<underlying_type<K>>::d__1), v[i + 1], &n, &(Wrapper<underlying_type<K>>::d__0), Ax, &mu);
-            for(unsigned short nu = 1; nu < mu; ++nu)
-                std::copy_n(Ax + nu * mu, nu + 1, Ax + (nu * (nu + 1)) / 2);
-            MPI_Allreduce(MPI_IN_PLACE, Ax, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-            for(unsigned short nu = mu; nu-- > 0; )
+            VR<excluded>(n, mu, 1, v[i + 1], Ax, comm);
+            for(unsigned short nu = 0; nu < mu; ++nu)
                 std::copy_n(Ax + (nu * (nu + 1)) / 2, nu + 1, H[i] + (i + 1) * mu + nu * ldh);
             int info;
             Lapack<K>::potrf("U", &mu, H[i] + (i + 1) * mu, &ldh, &info);

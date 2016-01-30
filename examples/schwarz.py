@@ -79,7 +79,9 @@ if sizeWorld > 1:
     if rankWorld != 0:
         hpddm.optionRemove(opt, b'verbosity')
     comm = hpddm.getCommunicator(hpddm.schwarzPreconditioner(A))
-    if hpddm.optionVal(opt, b'krylov_method') == 2:
+    if hpddm.optionVal(opt, b'krylov_method') == 3:
+        it = hpddm.GCRODR(A, f, sol, comm)
+    elif hpddm.optionVal(opt, b'krylov_method') == 2:
         it = hpddm.CG(A, f, sol, comm)
     elif hpddm.optionVal(opt, b'krylov_method') == 1:
         it = hpddm.BGMRES(A, f, sol, comm)

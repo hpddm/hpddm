@@ -105,6 +105,7 @@ int main(int argc, char **argv) {
         int it;
         /*# Solution #*/
         switch(static_cast<int>(opt["krylov_method"])) {
+            case 3:  it = HPDDM::IterativeMethod::GCRODR(A, f, sol, mu, A.getCommunicator()); break;
             case 2:  it = HPDDM::IterativeMethod::CG(A, f, sol, A.getCommunicator()); break;
             case 1:  it = HPDDM::IterativeMethod::BGMRES(A, f, sol, mu, A.getCommunicator()); break;
             default: it = HPDDM::IterativeMethod::GMRES(A, f, sol, mu, A.getCommunicator());
@@ -148,6 +149,7 @@ int main(int argc, char **argv) {
         else {
             CustomOperator A(Mat);
             switch(static_cast<int>(opt["krylov_method"])) {
+                case 3:  it = HPDDM::IterativeMethod::GCRODR(A, f, sol, mu, MPI_COMM_SELF); break;
                 case 1:  it = HPDDM::IterativeMethod::BGMRES(A, f, sol, mu, MPI_COMM_SELF); break;
                 default: it = HPDDM::IterativeMethod::GMRES(A, f, sol, mu, MPI_COMM_SELF);
             }
