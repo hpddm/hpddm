@@ -30,7 +30,6 @@ inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
     _opt = { { "tol",                           1.0e-8 },
              { "max_it",                        100 },
-             { "orthogonalization",             0 },
 #if HPDDM_SCHWARZ
              { "krylov_method",                 0 },
              { "gmres_restart",                 50 },
@@ -94,7 +93,9 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
         std::forward_as_tuple("verbosity(=<integer>)", "Use verbose output.", Arg::anything),
         std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not construct a new preconditioner when solving subsequent systems with the same sparsity pattern.", Arg::argument),
-        std::forward_as_tuple("orthogonalization=(cgs|mgs|none)", "Classical (faster) or modified (more robust) Gram-Schmidt process, or no orthogonalization at all.", Arg::argument),
+        std::forward_as_tuple("local_operators_not_spd=(0|1)", "Assume local operators are general symmetric (instead of symmetric or Hermitian positive definite).", Arg::argument),
+        std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
+        std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save local operators to disk.", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient or Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),

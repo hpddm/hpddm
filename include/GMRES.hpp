@@ -115,7 +115,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            Arnoldi<excluded>(A, opt["orthogonalization"], m, H, v, s, sn, n, i++, mu, Ax, comm);
+            Arnoldi<excluded>(A, opt.val<char>("orthogonalization", 0), m, H, v, s, sn, n, i++, mu, Ax, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
@@ -160,8 +160,10 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             break;
     }
     if(!excluded) {
-        const int rem = it % m;
-        std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
+        if(j == it + 1) {
+            const int rem = it % m;
+            std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
+        }
         updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
     }
     if(verbosity > 0) {
@@ -198,7 +200,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int ldh = mu * (m + 1);
     int info;
     int N = 2 * mu;
-    int lwork = mu * std::max(n, opt["orthogonalization"] != 1 ? ldh : mu);
+    char id = opt.val<char>("orthogonalization", 0);
+    int lwork = mu * std::max(n, id != 1 ? ldh : mu);
+    id += 4 * opt.val<char>("qr", 0);
     *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 'F')) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m * mu * ldh;
     K* const s = *v + mu * n * (m * (1 + (variant == 'F')) + 1);
@@ -251,7 +255,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                     norm[nu] = 1.0;
             }
         }
-        VR<excluded>(n, mu, 1, *v, s, comm);
+        VR<excluded>(n, mu, 1, *v, s, mu, comm);
         if(!opt.set("initial_deflation_tol")) {
             Lapack<K>::potrf("U", &mu, s, &mu, &info);
             if(verbosity > 3) {
@@ -318,7 +322,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            if(BlockArnoldi<excluded>(A, opt["orthogonalization"], m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
+            if(BlockArnoldi<excluded>(A, id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
                 dim = deflated * (i - 1);
                 i = j = 0;
                 break;
@@ -368,9 +372,11 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
     if(!excluded) {
-        const int rem = it % m;
-        if(rem != 0)
-            dim = deflated * rem;
+        if(j != 0 && j == it + 1) {
+            const int rem = it % m;
+            if(rem != 0)
+                dim = deflated * rem;
+        }
         updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
     }
     if(opt.set("initial_deflation_tol"))

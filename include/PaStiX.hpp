@@ -153,7 +153,7 @@ class Pastix : public DMatrix {
             _dparm = new double[DPARM_SIZE];
 
             pstx<K>::initParam(_iparm, _dparm);
-            Option& opt = *Option::get();
+            const Option& opt = *Option::get();
             int val = opt.val<int>("verbosity");
             if(val < 2)
                 _iparm[IPARM_VERBOSE]         = API_VERBOSE_NOT;
@@ -308,7 +308,7 @@ class PastixSub {
                 }
             }
             if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = Wrapper<K>::is_complex || detection ? API_FACT_LDLT : API_FACT_LLT;
+                _iparm[IPARM_FACTORIZATION]       = (Option::get()->val<char>("local_operators_not_spd", 0) || detection) ? API_FACT_LDLT : API_FACT_LLT;
                 Wrapper<K>::template csrcsc<N, 'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
             }
             else {

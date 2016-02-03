@@ -276,7 +276,7 @@ class SuiteSparseSub {
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false) {
             static_assert(N == 'C', "Unsupported numbering");
-            if(!Wrapper<K>::is_complex && A->_sym) {
+            if(!Option::get()->val<char>("local_operators_not_spd", 0) && A->_sym) {
                 if(!_c) {
                     _c = new cholmod_common;
                     cholmod_start(_c);

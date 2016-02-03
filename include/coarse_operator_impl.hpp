@@ -247,10 +247,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     if(Operator::_pattern == 'c')
         v.adjustConnectivity(_scatterComm);
     Solver<K>::initialize();
-    Option& opt = *Option::get();
     if(U == 2 && _local == 0)
         _offset = true;
-    switch(static_cast<int>(opt["master_topology"])) {
+    switch(Option::get()->val<unsigned short>("master_topology")) {
 #ifndef HPDDM_CONTIGUOUS
         case  1: return constructionMatrix<1, U, excluded>(v);
 #endif

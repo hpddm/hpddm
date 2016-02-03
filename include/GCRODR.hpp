@@ -128,6 +128,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     norm[nu] += std::norm(b[nu * n + i]);
         }
 
+    char id = opt.val<char>("orthogonalization", 0) + 4 * opt.val<char>("qr", 0);
     while(j <= it) {
         unsigned short i = (recycling ? k : 0);
         if(!excluded)
@@ -153,14 +154,10 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     }
                 }
                 K* work = new K[k * k * mu];
-                VR<excluded>(n, k, mu, C, work, comm);
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    Lapack<K>::potrf("U", &k, work + k * k * nu, &k, &info);
-                    Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), work + k * k * nu, &k, U + nu * n, &ldv);
-                }
+                QR<excluded>(id / 4, n, k, mu, C, work, k, comm);
                 delete [] work;
             }
-            orthogonalization<excluded>(0, n, k, mu, C, v[i], H[i], comm);
+            orthogonalization<excluded>(id % 4, n, k, mu, C, v[i], H[i], comm);
             if(variant == 'L')
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), U + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
@@ -206,8 +203,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
             if(recycling)
-                orthogonalization<excluded>(opt["orthogonalization"], n, k, mu, C, v[i + 1], H[i], comm);
-            Arnoldi<excluded>(A, opt["orthogonalization"], m, H, v, s, sn, n, i++, mu, Ax, comm, save, recycling ? k : 0);
+                orthogonalization<excluded>(id % 4, n, k, mu, C, v[i + 1], H[i], comm);
+            Arnoldi<excluded>(A, id % 4, m, H, v, s, sn, n, i++, mu, Ax, comm, save, recycling ? k : 0);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
@@ -281,11 +278,13 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         else {
             converged = true;
             if(!excluded) {
-                int rem = (recycling ? (it - m) % (m - k) : it % m);
-                if(rem != 0) {
-                    if(recycling)
-                        rem += k;
-                    std::for_each(hasConverged, hasConverged + mu, [&](short& dim) { if(dim < 0) dim = rem; });
+                if(j == it + 1) {
+                    int rem = (recycling ? (it - m) % (m - k) : it % m);
+                    if(rem != 0) {
+                        if(recycling)
+                            rem += k;
+                        std::for_each(hasConverged, hasConverged + mu, [&](short& dim) { if(dim < 0) dim = rem; });
+                    }
                 }
                 if(!recycling)
                     updateSol(A, variant, n, x, H, s, static_cast<const K* const* const>(v + (m + 1) * (variant == 'F')), hasConverged, mu, Ax);
@@ -318,9 +317,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         }
         if(!recycling) {
             recycling = true;
-            if(j < k)
-                k = j;
-            int dim = std::min(j, static_cast<unsigned short>(m));
+            int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));
+            if(j < k || dim < k)
+                k = dim;
             recycled.allocate(n, k);
             U = recycled.storage();
             C = U + k * ldv;

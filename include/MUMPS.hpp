@@ -115,7 +115,7 @@ class Mumps : public DMatrix {
             _id->job = -1;
             _id->par = 1;
             _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
-            Option& opt = *Option::get();
+            const Option& opt = *Option::get();
             if(S == 'S')
                 _id->sym = opt.val<unsigned short>("master_not_spd", 0) ? 2 : 1;
             else
@@ -215,12 +215,13 @@ class MumpsSub {
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
+            const Option& opt = *Option::get();
             if(!_id) {
                 _id = new typename MUMPS_STRUC_C<K>::trait();
                 _id->job = -1;
                 _id->par = 1;
                 _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
-                _id->sym = A->_sym ? 1 + detection : 0;
+                _id->sym = A->_sym ? 1 + (opt.val<char>("local_operators_not_spd", 0) || detection) : 0;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
             }
             _id->icntl[23] = detection;
@@ -234,7 +235,6 @@ class MumpsSub {
                 _id->nrhs = 1;
                 std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
-                Option& opt = *Option::get();
                 for(unsigned short i = 5; i < 40; ++i) {
                     int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                     if(val != std::numeric_limits<int>::lowest())

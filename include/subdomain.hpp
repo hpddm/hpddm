@@ -59,7 +59,7 @@ class Subdomain {
             if(_a) {
                 int rankWorld;
                 MPI_Comm_rank(_communicator, &rankWorld);
-                Option& opt = *Option::get();
+                const Option& opt = *Option::get();
                 std::string filename = opt.prefix("dump_local_matrices", true);
                 if(filename.size() == 0)
                     filename = opt.prefix("dump_local_matrix_" + to_string(rankWorld), true);
@@ -254,7 +254,7 @@ class Subdomain {
             if(_a) {
                 int rankWorld;
                 MPI_Comm_rank(_communicator, &rankWorld);
-                Option& opt = *Option::get();
+                const Option& opt = *Option::get();
                 std::string filename = opt.prefix("dump_local_matrices", true);
                 if(filename.size() == 0)
                     filename = opt.prefix("dump_local_matrix_" + to_string(rankWorld), true);

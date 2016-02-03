@@ -111,7 +111,7 @@ class MklPardiso : public DMatrix {
             _I = I;
             _J = J;
             _C = C;
-            Option& opt = *Option::get();
+            const Option& opt = *Option::get();
             if(S == 'S')
                 _mtype = opt.val<unsigned short>("master_not_spd", 0) ? prds<K>::SYM : prds<K>::SPD;
             else
@@ -204,11 +204,11 @@ class MklPardisoSub {
             int* perm = nullptr;
             int phase, error;
             K ddum;
+            const Option& opt = *Option::get();
             if(!_w) {
                 _n = A->_n;
                 std::fill_n(_iparm, 64, 0);
                 _iparm[0] = 1;
-                Option& opt = *Option::get();
                 for(unsigned short i : { 1, 7, 9, 10, 12, 20, 23, 26 }) {
                     int val = opt.val<int>("mkl_pardiso_iparm_" + to_string(i + 1));
                     if(val != std::numeric_limits<int>::lowest())
@@ -240,7 +240,7 @@ class MklPardisoSub {
                 phase = 22;
             }
             if(A->_sym) {
-                _mtype = Wrapper<K>::is_complex || detection ? prds<K>::SYM : prds<K>::SPD;
+                _mtype = (opt.val<char>("local_operators_not_spd", 0) || detection) ? prds<K>::SYM : prds<K>::SPD;
                 Wrapper<K>::template csrcsc<N, N>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
             }
             else {
