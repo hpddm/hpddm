@@ -93,6 +93,7 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
+  - conda install nomkl
   - conda create -q -n test-environment python=$PYTHON_VERSION numpy scipy
   - source activate test-environment
   - python -V
@@ -105,7 +106,7 @@ install:
   - if [ "$HPDDM_NUMBERING" == "F" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'F\'"; fi
   - export CCFLAGS="-Wall -Wpedantic -Werror -Wno-sign-compare"
   - export CXXFLAGS="-Wall -Wpedantic -Werror -Wno-sign-compare"
-  - if [ "$CXX" == "g++" ]; then export CCFLAGS="-Wno-literal-suffix ${CCFLAGS}"; export CXXFLAGS="-Wno-literal-suffix ${CXXFLAGS}"; fi
+  - if [ "$CXX" == "g++" ]; then export CCFLAGS="-Wno-literal-suffix -Wno-maybe-uninitialized ${CCFLAGS}"; export CXXFLAGS="-Wno-literal-suffix -Wno-maybe-uninitialized ${CXXFLAGS}"; fi
   - if [ "$PYTHON_VERSION" == "2.7" ]; then
       make all -j2;
     else
