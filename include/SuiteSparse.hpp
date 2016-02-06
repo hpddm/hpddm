@@ -356,7 +356,9 @@ class SuiteSparseSub {
                     a  = new K[nnz];
                     nnz = 0;
                     unsigned int i;
+#ifdef __OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
+#endif
                     for(i = 0; i < A->_n; ++i)
                         std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
                     ia[0] = 0;

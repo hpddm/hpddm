@@ -333,7 +333,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                         intoOverlap.insert(i);
             std::vector<std::vector<std::pair<unsigned int, K>>> tmp(intoOverlap.size());
             unsigned int k, iPrev = 0;
+#ifdef __OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY) reduction(+ : iPrev)
+#endif
             for(k = 0; k < intoOverlap.size(); ++k) {
                 auto it = std::next(intoOverlap.cbegin(), k);
                 tmp[k].reserve(A->_ia[*it + 1] - A->_ia[*it]);

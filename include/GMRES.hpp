@@ -115,7 +115,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            Arnoldi<excluded>(A, opt.val<char>("orthogonalization", 0), m, H, v, s, sn, n, i++, mu, Ax, comm);
+            Arnoldi<excluded>(opt.val<char>("orthogonalization", 0), m, H, v, s, sn, n, i++, mu, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
@@ -322,7 +322,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
-            if(BlockArnoldi<excluded>(A, id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
+            if(BlockArnoldi<excluded>(id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
                 dim = deflated * (i - 1);
                 i = j = 0;
                 break;

@@ -204,7 +204,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
             if(recycling)
                 orthogonalization<excluded>(id % 4, n, k, mu, C, v[i + 1], H[i], comm);
-            Arnoldi<excluded>(A, id % 4, m, H, v, s, sn, n, i++, mu, Ax, comm, save, recycling ? k : 0);
+            Arnoldi<excluded>(id % 4, m, H, v, s, sn, n, i++, mu, comm, save, recycling ? k : 0);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
@@ -255,8 +255,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     int inc = mu;
                     int diff = m - k;
                     for(unsigned short nu = 0; nu < mu; ++nu) {
-                        **v = sn[nu];
-                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, *v, C + nu * n, &ldv, *v + (k * mu + nu) * n , &i__1, &(Wrapper<K>::d__0), s + nu, &inc);
+                        K alpha = sn[nu];
+                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &alpha, C + nu * n, &ldv, *v + (k * mu + nu) * n , &i__1, &(Wrapper<K>::d__0), s + nu, &inc);
                     }
                     MPI_Allreduce(MPI_IN_PLACE, s, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -351,8 +351,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 K* work = new K[lwork];
                 K* w = new K[Wrapper<K>::is_complex ? dim : (2 * dim)];
                 K* backup = new K[dim * dim]();
-                for(i = 0; i < dim; ++i)
-                    std::copy_n(*H + nu * (m + 1) + i * ldh, dim, backup + i * dim);
+                Wrapper<K>::template omatcopy<'N'>(dim, dim, *H + nu * (m + 1), ldh, backup, dim);
                 Lapack<K>::hseqr("E", "N", &dim, &i__1, &dim, backup, &dim, w, w + dim, nullptr, &i__1, work, &lwork, &info);
                 delete [] backup;
                 std::vector<std::pair<unsigned short, underlying_type<K>>> p;

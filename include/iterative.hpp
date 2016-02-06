@@ -94,7 +94,7 @@ class IterativeMethod {
             if(deflated != -1) {
                 int dim = std::abs(*hasConverged);
                 int info;
-                Lapack<K>::trtrs("U", "N", "N", &dim, deflated != -1 ? &deflated : &mu, *h, &ldh, s, &ldh, &info);
+                Lapack<K>::trtrs("U", "N", "N", &dim, &deflated, *h, &ldh, s, &ldh, &info);
             }
             else
                 for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -294,8 +294,8 @@ class IterativeMethod {
         }
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
-        template<bool excluded, class Operator, class K>
-        static void Arnoldi(const Operator& A, const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
+        template<bool excluded, class K>
+        static void Arnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
             orthogonalization<excluded>(id % 4, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, comm);
             if(excluded) {
                 std::fill_n(sn + i * mu, mu, underlying_type<K>());
@@ -335,8 +335,8 @@ class IterativeMethod {
         }
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
-        template<bool excluded, class Operator, class K>
-        static bool BlockArnoldi(const Operator& A, const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
+        template<bool excluded, class K>
+        static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
             int ldh = mu * (m + 1);
             if(id % 4 == 1) {
                 for(unsigned short k = 0; k < i + 1; ++k) {
