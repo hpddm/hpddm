@@ -243,15 +243,10 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                     if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
                         v[0][nu * n + j] = K();
         if(j == 1) {
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                beta[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
-            MPI_Allreduce(MPI_IN_PLACE, beta, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 norm[nu] = std::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
-                    norm[nu] = 1.0;
-                beta[nu] = std::sqrt(beta[nu]);
-                if(tol > 0.0 && beta[nu] / norm[nu] < tol && norm[nu] > 1.0 / HPDDM_EPS)
                     norm[nu] = 1.0;
             }
         }

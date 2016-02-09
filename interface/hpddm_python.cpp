@@ -241,12 +241,12 @@ int CG(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, MPI_Comm* comm) 
 }
 #define HPDDM_GENERATE_METHOD(name)                                                                          \
 int name(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_Comm* comm) {                  \
-    return HPDDM::IterativeMethod::GMRES(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR,        \
+    return HPDDM::IterativeMethod::name(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR,         \
                 symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, *comm);         \
 }                                                                                                            \
 int CustomOperator ## name(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int,   \
             int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int n, int mu) {                           \
-    return HPDDM::IterativeMethod::GMRES(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat),         \
+    return HPDDM::IterativeMethod::name(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat),          \
                 precond), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, MPI_COMM_SELF);            \
 }
 HPDDM_GENERATE_METHOD(GMRES)

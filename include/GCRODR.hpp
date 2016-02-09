@@ -101,7 +101,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     int info;
     unsigned short j = 1;
     bool recycling;
-    K* U, *C;
+    K* U, *C = nullptr;
     Recycling<K>& recycled = *Recycling<K>::get(mu);
     if(recycled.recycling()) {
         recycling = true;
@@ -242,79 +242,24 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         bool converged;
         if(j != it + 1 && i == m) {
             converged = false;
-            if(!excluded) {
-                if(!recycling)
-                    updateSol(A, variant, n, x, H, s, static_cast<const K* const* const>(v + (m + 1) * (variant == 'F')), hasConverged, mu, Ax);
-                else {
-                    if(mu > 1) {
-                        for(i = k; i < m; ++i)
-                            for(unsigned short nu = 0; nu < mu; ++nu)
-                                std::fill_n(H[i] + nu * (m + 1) + i + 1, m - i, K());
-                    }
-                    computeMin(H, s + k * mu, hasConverged, mu, -1, k);
-                    int inc = mu;
-                    int diff = m - k;
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        K alpha = sn[nu];
-                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &alpha, C + nu * n, &ldv, *v + (k * mu + nu) * n , &i__1, &(Wrapper<K>::d__0), s + nu, &inc);
-                    }
-                    MPI_Allreduce(MPI_IN_PLACE, s, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        Blas<K>::gemv("N", &k, &diff, &(Wrapper<K>::d__2), H[k] + nu * (m + 1), &ldh, s + k * mu + nu, &inc, &(Wrapper<K>::d__1), s + nu, &inc);
-                    }
-                    std::copy_n(U, k * ldv, v[(m + 1) * (variant == 'F')]);
-                    addSol(A, variant, n, x, std::distance(H[0], H[1]), s, static_cast<const K* const* const>(v + (m + 1) * (variant == 'F')), hasConverged, mu, Ax);
-                }
-            }
-            else {
-                if(!recycling)
-                    updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
-                else
-                    addSol(A, variant, n, x, std::distance(H[0], H[1]), s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
-            }
             if(verbosity > 0)
                 std::cout << "GCRODR restart(" << m << ", " << k << ")" << std::endl;
         }
         else {
             converged = true;
-            if(!excluded) {
-                if(j == it + 1) {
-                    int rem = (recycling ? (it - m) % (m - k) : it % m);
-                    if(rem != 0) {
-                        if(recycling)
-                            rem += k;
-                        std::for_each(hasConverged, hasConverged + mu, [&](short& dim) { if(dim < 0) dim = rem; });
-                    }
-                }
-                if(!recycling)
-                    updateSol(A, variant, n, x, H, s, static_cast<const K* const* const>(v + (m + 1) * (variant == 'F')), hasConverged, mu, Ax);
-                else {
-                    if(mu > 1) {
-                        unsigned short dim = std::abs(*std::max_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return std::abs(lhs) < std::abs(rhs); }));
-                        for(unsigned short i = k; i < dim; ++i)
-                            for(unsigned short nu = 0; nu < mu; ++nu)
-                                std::fill_n(H[i] + nu * (m + 1) + i + 1, m - i, K());
-                    }
-                    computeMin(H, s + k * mu, hasConverged, mu, -1, k);
-                    int inc = mu;
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        int diff = std::abs(hasConverged[nu]) - k;
-                        if(diff != -k) {
-                            **v = sn[nu];
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, *v, C + nu * n, &ldv, *v + (k * mu + nu) * n , &i__1, &(Wrapper<K>::d__0), s + nu, &inc);
-                        }
-                    }
-                    MPI_Allreduce(MPI_IN_PLACE, s, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        int diff = std::abs(hasConverged[nu]) - k;
-                        if(diff != -k)
-                            Blas<K>::gemv("N", &k, &diff, &(Wrapper<K>::d__2), H[k] + nu * (m + 1), &ldh, s + k * mu + nu, &inc, &(Wrapper<K>::d__0), s + nu, &inc);
-                    }
-                    std::copy_n(U, k * ldv, v[(m + 1) * (variant == 'F')]);
-                    addSol(A, variant, n, x, std::distance(H[0], H[1]), s, static_cast<const K* const* const>(v + (m + 1) * (variant == 'F')), hasConverged, mu, Ax);
+            if(!excluded && j == it + 1) {
+                int rem = (recycling ? (it - m) % (m - k) : it % m);
+                if(rem != 0) {
+                    if(recycling)
+                        rem += k;
+                    std::for_each(hasConverged, hasConverged + mu, [&](short& dim) { if(dim < 0) dim = rem; });
                 }
             }
         }
+        if(!excluded)
+            updateSolRecycling(A, variant, n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);
+        else
+            addSol(A, variant, n, x, std::distance(H[0], H[1]), s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
         if(!recycling) {
             recycling = true;
             int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));

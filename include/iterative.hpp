@@ -92,9 +92,9 @@ class IterativeMethod {
         static void computeMin(const K* const* const h, K* const s, const short* const hasConverged, const int& mu, const int& deflated = -1, const int& shift = 0) {
             int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
             if(deflated != -1) {
-                int dim = std::abs(*hasConverged);
+                int dim = std::abs(*hasConverged) - shift;
                 int info;
-                Lapack<K>::trtrs("U", "N", "N", &dim, &deflated, *h, &ldh, s, &ldh, &info);
+                Lapack<K>::trtrs("U", "N", "N", &dim, &deflated, *h + deflated * shift * (1 + ldh), &ldh, s, &ldh, &info);
             }
             else
                 for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -148,6 +148,46 @@ class IterativeMethod {
                     Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                 }
             }
+        }
+        template<class Operator, class K, class T>
+        static void updateSolRecycling(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, K* const* const v, T* const norm, K* const C, K* const U, const short* const hasConverged, const int shift, const int mu, K* const work, const MPI_Comm& comm, const int& deflated = -1) {
+            const int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
+            const int dim = ldh / (deflated == -1 ? mu : deflated);
+            if(C != nullptr && U != nullptr) {
+                computeMin(h, s + shift * mu, hasConverged, mu, deflated, shift);
+                const int ldv = mu * n;
+                if(deflated == -1) {
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        if(std::abs(hasConverged[nu]) != 0) {
+                            K alpha = norm[nu];
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, v[shift] + nu * n , &i__1, &(Wrapper<K>::d__0), s + nu, &mu);
+                        }
+                    }
+                    MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        if(std::abs(hasConverged[nu]) != 0) {
+                            int diff = std::abs(hasConverged[nu]) - shift;
+                            Blas<K>::gemv("N", &shift, &diff, &(Wrapper<K>::d__2), h[shift] + nu * dim, &ldh, s + shift * mu + nu, &mu, &(Wrapper<K>::d__1), s + nu, &mu);
+                        }
+                }
+                else {
+                    std::copy_n(v[shift], deflated * n, work);
+                    Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K* const>(norm), &ldh, work, &n);
+                    int bK = deflated * shift;
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
+                    for(unsigned short i = 0; i < deflated; ++i)
+                        std::copy_n(s + i * ldh, bK, work + i * bK);
+                    MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    for(unsigned short i = 0; i < deflated; ++i)
+                        std::copy_n(work + i * bK, bK, s + i * ldh);
+                    int diff = deflated * (*hasConverged - shift);
+                    Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * mu, &ldh, &(Wrapper<K>::d__1), s, &ldh);
+                }
+                std::copy_n(U, shift * std::abs(deflated) * ldv, v[dim * (variant == 'F')]);
+                addSol(A, variant, n, x, ldh, s, static_cast<const K* const* const>(v + dim * (variant == 'F')), hasConverged, mu, work, deflated);
+            }
+            else
+                updateSol(A, variant, n, x, h, s, static_cast<const K* const* const>(v + dim * (variant == 'F')), hasConverged, mu, work, deflated);
         }
         template<class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
         static void clean(T* const& pt) {
@@ -232,6 +272,34 @@ class IterativeMethod {
                     MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d__1), v + nu * n, &i__1);
+                }
+            }
+        }
+        template<bool excluded, class K>
+        static void blockOrthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const int ldh, K* const work, const MPI_Comm& comm) {
+            if(excluded) {
+                std::fill_n(work, mu * mu * k, K());
+                if(id == 1)
+                    for(unsigned short i = 0; i < k; ++i)
+                        MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                else
+                    MPI_Allreduce(MPI_IN_PLACE, work, mu * mu * k, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+            }
+            else {
+                if(id == 1) {
+                    for(unsigned short i = 0; i < k; ++i) {
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &mu, &mu, &n, &(Wrapper<K>::d__1), B + i * mu * n, &n, v, &n, &(Wrapper<K>::d__0), work, &mu);
+                        MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__2), B + i * mu * n, &n, work, &mu, &(Wrapper<K>::d__1), v, &n);
+                        Wrapper<K>::template omatcopy<'N'>(mu, mu, work, mu, H + mu * i, ldh);
+                    }
+                }
+                else {
+                    int tmp = mu * k;
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &tmp, &mu, &n, &(Wrapper<K>::d__1), B, &n, v, &n, &(Wrapper<K>::d__0), work, &tmp);
+                    MPI_Allreduce(MPI_IN_PLACE, work, mu * tmp, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    Blas<K>::gemm("N", "N", &n, &mu, &tmp, &(Wrapper<K>::d__2), B, &n, work, &tmp, &(Wrapper<K>::d__1), v, &n);
+                    Wrapper<K>::template omatcopy<'N'>(mu, tmp, work, tmp, H, ldh);
                 }
             }
         }
@@ -336,36 +404,22 @@ class IterativeMethod {
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class K>
-        static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const Ax, const MPI_Comm& comm, K* const* const save = nullptr) {
-            int ldh = mu * (m + 1);
-            if(id % 4 == 1) {
-                for(unsigned short k = 0; k < i + 1; ++k) {
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &mu, &mu, &n, &(Wrapper<K>::d__1), v[k], &n, v[i + 1], &n, &(Wrapper<K>::d__0), Ax, &mu);
-                    MPI_Allreduce(MPI_IN_PLACE, Ax, mu * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__2), v[k], &n, Ax, &mu, &(Wrapper<K>::d__1), v[i + 1], &n);
-                    Wrapper<K>::template omatcopy<'N'>(mu, mu, Ax, mu, H[i] + mu * k, ldh);
-                }
-            }
-            else {
-                int tmp = mu * (i + 1);
-                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &tmp, &mu, &n, &(Wrapper<K>::d__1), *v, &n, v[i + 1], &n, &(Wrapper<K>::d__0), Ax, &tmp);
-                MPI_Allreduce(MPI_IN_PLACE, Ax, mu * tmp, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                Blas<K>::gemm("N", "N", &n, &mu, &tmp, &(Wrapper<K>::d__2), *v, &n, Ax, &tmp, &(Wrapper<K>::d__1), v[i + 1], &n);
-                Wrapper<K>::template omatcopy<'N'>(mu, tmp, Ax, tmp, H[i], ldh);
-            }
-            int info = QR<excluded>(id / 4, n, mu, 1, v[i + 1], H[i] + (i + 1) * mu, ldh, comm, Ax, i < m - 1);
+        static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
+            int ldh = (m + 1) * mu;
+            blockOrthogonalization<excluded>(id % 4, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, work, comm);
+            int info = QR<excluded>(id / 4, n, mu, 1, v[i + 1], H[i] + (i + 1) * mu, ldh, comm, work, i < m - 1);
             if(info > 0)
                 return true;
             for(unsigned short nu = 0; nu < mu; ++nu)
                 std::fill(H[i] + (i + 1) * mu + nu * ldh + nu + 1, H[i] + (nu + 1) * ldh, K());
             if(save)
                 for(unsigned short nu = 0; nu < mu; ++nu)
-                    std::copy_n(H[i] + nu * ldh, (i + 1) * mu + nu + 1, save[i] + nu * ldh);
+                    std::copy_n(H[i] + shift * mu + nu * ldh, (i + 1 - shift) * mu + nu + 1, save[i - shift] + nu * ldh);
             int N = 2 * mu;
-            for(unsigned short leading = 0; leading < i; ++leading)
-                Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[leading] + leading * mu, &ldh, tau + leading * N, H[i] + leading * mu, &ldh, Ax, &lwork, &info);
-            Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, Ax, &lwork, &info);
-            Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, Ax, &lwork, &info);
+            for(unsigned short leading = shift; leading < i; ++leading)
+                Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[leading] + leading * mu, &ldh, tau + leading * N, H[i] + leading * mu, &ldh, work, &lwork, &info);
+            Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
+            Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
             return false;
         }
     public:
