@@ -238,51 +238,18 @@ schwarzDestroy.restype = None
 schwarzDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Schwarz)) ]
 
 precondFunc = ctypes.CFUNCTYPE(None, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int)
-CG = lib.CG
-CG.restype = ctypes.c_int
-CG.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.POINTER(MPI_Comm) ]
-_GMRES = lib.GMRES
-_GMRES.restype = ctypes.c_int
-_GMRES.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
-_CustomOperatorGMRES = lib.CustomOperatorGMRES
-_CustomOperatorGMRES.restype = ctypes.c_int
-_CustomOperatorGMRES.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
-def GMRES(A, f, sol, comm):
+_solve = lib.solve
+_solve.restype = ctypes.c_int
+_solve.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
+_CustomOperatorSolve = lib.CustomOperatorSolve
+_CustomOperatorSolve.restype = ctypes.c_int
+_CustomOperatorSolve.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
+def solve(A, f, sol, comm):
     try:
         mu = sol.shape[1]
     except IndexError:
         mu = 1
     try:
-        return _GMRES(A, f, sol, mu, comm)
+        return _solve(A, f, sol, mu, comm)
     except ctypes.ArgumentError:
-        return _CustomOperatorGMRES(A, f, sol, comm, sol.shape[0], mu)
-_BGMRES = lib.BGMRES
-_BGMRES.restype = ctypes.c_int
-_BGMRES.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
-_CustomOperatorBGMRES = lib.CustomOperatorBGMRES
-_CustomOperatorBGMRES.restype = ctypes.c_int
-_CustomOperatorBGMRES.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
-def BGMRES(A, f, sol, comm):
-    try:
-        mu = sol.shape[1]
-    except IndexError:
-        mu = 1
-    try:
-        return _BGMRES(A, f, sol, mu, comm)
-    except ctypes.ArgumentError:
-        return _CustomOperatorBGMRES(A, f, sol, comm, sol.shape[0], mu)
-_GCRODR = lib.GCRODR
-_GCRODR.restype = ctypes.c_int
-_GCRODR.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
-_CustomOperatorGCRODR = lib.CustomOperatorGCRODR
-_CustomOperatorGCRODR.restype = ctypes.c_int
-_CustomOperatorGCRODR.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
-def GCRODR(A, f, sol, comm):
-    try:
-        mu = sol.shape[1]
-    except IndexError:
-        mu = 1
-    try:
-        return _GCRODR(A, f, sol, mu, comm)
-    except ctypes.ArgumentError:
-        return _CustomOperatorGCRODR(A, f, sol, comm, sol.shape[0], mu)
+        return _CustomOperatorSolve(A, f, sol, comm, sol.shape[0], mu)

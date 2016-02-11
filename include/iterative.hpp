@@ -31,6 +31,7 @@ struct EmptyOperator {
     bool setBuffer(const int&, K* = nullptr, const int& = 0) const { return false; }
     template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
     void clearBuffer(const bool) const { }
+    const underlying_type<K>* getScaling() const { return nullptr; }
 
     const HPDDM::MatrixCSR<K>& _A;
     EmptyOperator(HPDDM::MatrixCSR<K>* A) : _A(*A) { }
@@ -440,9 +441,9 @@ class IterativeMethod {
         template<bool excluded = false, class Operator = void, class K = double>
         static int GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
         template<bool excluded = false, class Operator = void, class K = double>
-        static int BGMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
+        static int BGMRES(const Operator&, const K* const, K* const x, const int&, const MPI_Comm&);
         template<bool excluded = false, class Operator = void, class K = double>
-        static int GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
+        static int GCRODR(const Operator&, const K* const, K* const x, const int&, const MPI_Comm&);
         /* Function: CG
          *
          *  Implements the CG method.
@@ -468,11 +469,25 @@ class IterativeMethod {
          *
          * Parameters:
          *    A              - Global operator.
-         *    f              - Right-hand side.
+         *    b              - Right-hand side.
          *    x              - Solution vector.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
-        static int PCG(const Operator& A, const K* const f, K* const x, const MPI_Comm& comm);
+        static int PCG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm);
+        template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
+        static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+            const Option& opt = *Option::get();
+            switch(opt.val<unsigned short>("krylov_method")) {
+                case 3:  return HPDDM::IterativeMethod::template GCRODR<excluded>(A, b, x, mu, comm); break;
+                case 2:  return HPDDM::IterativeMethod::template CG<excluded>(A, b, x, comm); break;
+                case 1:  return HPDDM::IterativeMethod::template BGMRES<excluded>(A, b, x, mu, comm); break;
+                default: return HPDDM::IterativeMethod::template GMRES<excluded>(A, b, x, mu, comm);
+            }
+        }
+        template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
+        static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+            return HPDDM::IterativeMethod::template PCG<excluded>(A, b, x, comm);
+        }
 };
 } // HPDDM
 #endif // _HPDDM_ITERATIVE_

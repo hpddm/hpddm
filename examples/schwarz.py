@@ -79,14 +79,7 @@ if sizeWorld > 1:
     if rankWorld != 0:
         hpddm.optionRemove(opt, b'verbosity')
     comm = hpddm.getCommunicator(hpddm.schwarzPreconditioner(A))
-    if hpddm.optionVal(opt, b'krylov_method') == 3:
-        it = hpddm.GCRODR(A, f, sol, comm)
-    elif hpddm.optionVal(opt, b'krylov_method') == 2:
-        it = hpddm.CG(A, f, sol, comm)
-    elif hpddm.optionVal(opt, b'krylov_method') == 1:
-        it = hpddm.BGMRES(A, f, sol, comm)
-    else:
-        it = hpddm.GMRES(A, f, sol, comm)
+    it = hpddm.solve(A, f, sol, comm)
     storage = numpy.empty(2 * mu, order = 'F', dtype = hpddm.underlying)
     hpddm.schwarzComputeError(A, sol, f, storage)
     if rankWorld == 0:

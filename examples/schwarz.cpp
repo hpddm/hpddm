@@ -102,14 +102,8 @@ int main(int argc, char **argv) {
         A.callNumfact();
         if(rankWorld != 0)
             opt.remove("verbosity");
-        int it;
         /*# Solution #*/
-        switch(static_cast<int>(opt["krylov_method"])) {
-            case 3:  it = HPDDM::IterativeMethod::GCRODR(A, f, sol, mu, A.getCommunicator()); break;
-            case 2:  it = HPDDM::IterativeMethod::CG(A, f, sol, A.getCommunicator()); break;
-            case 1:  it = HPDDM::IterativeMethod::BGMRES(A, f, sol, mu, A.getCommunicator()); break;
-            default: it = HPDDM::IterativeMethod::GMRES(A, f, sol, mu, A.getCommunicator());
-        }
+        int it = HPDDM::IterativeMethod::solve(A, f, sol, mu, A.getCommunicator());
         /*# SolutionEnd #*/
         HPDDM::underlying_type<K>* storage = new HPDDM::underlying_type<K>[2 * mu];
         A.computeError(sol, f, storage, mu);
@@ -146,14 +140,8 @@ int main(int argc, char **argv) {
             S.numfact(Mat);
             S.solve(f, sol, mu);
         }
-        else {
-            CustomOperator A(Mat);
-            switch(static_cast<int>(opt["krylov_method"])) {
-                case 3:  it = HPDDM::IterativeMethod::GCRODR(A, f, sol, mu, MPI_COMM_SELF); break;
-                case 1:  it = HPDDM::IterativeMethod::BGMRES(A, f, sol, mu, MPI_COMM_SELF); break;
-                default: it = HPDDM::IterativeMethod::GMRES(A, f, sol, mu, MPI_COMM_SELF);
-            }
-        }
+        else
+            it = HPDDM::IterativeMethod::solve(CustomOperator(Mat), f, sol, mu, MPI_COMM_SELF);
         HPDDM::underlying_type<K>* nrmb = new HPDDM::underlying_type<K>[2 * mu];
         for(unsigned short nu = 0; nu < mu; ++nu)
             nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + nu * ndof, &(HPDDM::i__1));

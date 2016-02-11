@@ -109,11 +109,7 @@ int main(int argc, char** argv) {
         if(mu > 1)
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs, Mat->_n, rhs + nu * Mat->_n);
-        switch(static_cast<int>(opt["krylov_method"])) {
-            case 3:  it += HPDDM::IterativeMethod::GCRODR(A, rhs, x, mu, MPI_COMM_SELF); break;
-            case 1:  it += HPDDM::IterativeMethod::BGMRES(A, rhs, x, mu, MPI_COMM_SELF); break;
-            default: it += HPDDM::IterativeMethod::GMRES(A, rhs, x, mu, MPI_COMM_SELF);
-        }
+        it += HPDDM::IterativeMethod::solve(A, rhs, x, mu, MPI_COMM_SELF);
         HPDDM::underlying_type<K>* nrmb = new HPDDM::underlying_type<K>[2 * mu];
         int n = Mat->_n;
         for(unsigned short nu = 0; nu < mu; ++nu)

@@ -351,5 +351,8 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             super::template solveGEVP<L>(_m, nu, threshold);
         }
 };
+
+template<template<class> class Solver, template<class> class CoarseSolver, char S, class K>
+struct is_substructuring_method<Bdd<Solver, CoarseSolver, S, K>> : std::true_type { };
 } // HPDDM
 #endif // _HPDDM_BDD_

@@ -198,6 +198,9 @@ template<class T>
 using underlying_type = typename underlying_type_spec<T>::type;
 template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
+
+template<class>
+struct is_substructuring_method : std::false_type { };
 } // HPDDM
 # if (!defined(__clang__) && defined(__GNUC__)) || (defined(__INTEL_COMPILER) && defined(__GNUC__))
 #  if (__GNUC__ * 10000 + __GNUC_MINOR__ * 100) < 40900
