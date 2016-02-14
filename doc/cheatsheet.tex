@@ -1,0 +1,100 @@
+\documentclass{article}
+\pagestyle{empty}
+\usepackage[landscape,vmargin=1cm,hmargin=1cm]{geometry}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{url}
+\usepackage{color, colortbl}
+\definecolor{LightRed}{rgb}{1,0.88,0.88}
+\begin{document}
+\begin{center} {\LARGE --- $\quad$ HPDDM $\quad$ ---} \\[5pt] \url{https://github.com/hpddm/hpddm} \end{center}
+    All keywords must be prefixed by \texttt{-hpddm\_}. When no default value is specified in the last column for an option with literal values (e.g., \texttt{orthogonalization}), the value used is the first on the list of possible values (e.g., \texttt{cgs}) unless another value is set by the user. Options highlighted in \colorbox{LightRed}{red} should be reserved for expert users.
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.49\textwidth}| p{.115\textwidth}| p{.05\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values & Default \\ \hline
+        help & Display available options & Anything & \\ \hline
+        tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-8}$ \\ \hline
+        max\_it & Maximum number of iterations of iterative methods & Integer & 100 \\ \hline
+        verbosity & Number of messages printed to screen & Integer & \\ \hline
+        \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
+        local\_operators\_not\_spd & Assume local operators are general symmetric (instead of symmetric or Hermitian positive definite) & Boolean & \\ \hline
+        orthogonalization & Method used to orthogonalize a vector against a previously generated orthogonalized basis & \texttt{cgs}, \texttt{mgs} & \\ \hline
+        qr & Method used to perform the distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & \\ \hline
+        dump\_local\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
+        krylov\_method & Type of iterative method used to solve linear systems & \texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{gcrodr} & \\ \hline
+        initial\_deflation\_tol & Tolerance for deflating right-hand sides inside Block GMRES & Numeric & \\ \hline
+        gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & 50 \\ \hline
+        gmres\_recycle & Number of harmonic Ritz vectors to compute & Integer & \\ \hline
+        variant & Select the preconditioning side & \texttt{left}, \texttt{right}, \texttt{flexible} & \\ \hline
+        geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & 20 \\ \hline
+        \rowcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & \\ \hline
+        \rowcolor{LightRed}geneo\_eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ \\ \hline
+        master\_p & Number of master processes & Integer & 1 \\ \hline
+        \rowcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol}, \texttt{sol\_and\_rhs} & \\ \hline
+        \rowcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & \\ \hline
+        master\_filename & Save the coarse operator to disk & String & \\ \hline
+        \rowcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & \\ \hline
+        master\_not\_spd & Assume the coarse operator is general symmetric (instead of symmetric positive definite) & Boolean & \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+When using Schwarz methods, there are additional options.
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.4\textwidth}| p{.20\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values \\ \hline
+        schwarz\_method & Type of Schwarz preconditioner used to solve linear systems & \texttt{ras}, \texttt{oras}, \texttt{soras}, \texttt{asm}, \texttt{osm}, \texttt{none} \\ \hline
+        schwarz\_coarse\_correction & Type of coarse correction used in two-level methods & \texttt{deflated}, \texttt{additive}, \texttt{balanced} \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+\newpage
+\noindent{
+When using substructuring methods, there is an additional option.}
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.2\textwidth} | p{.45\textwidth}| p{.25\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values \\ \hline
+        substructuring\_scaling & Type of scaling used in the definition of the Schur complement preconditioner & \texttt{multiplicity}, \texttt{stiffness}, \texttt{coefficient} \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+When using MKL PARDISO has a subdomain solver (resp. coarse operator solver), there are additional options, cf. \url{https://software.intel.com/en-us/node/470298} (resp. \url{https://software.intel.com/en-us/node/590089}).
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values \\ \hline
+        \rowcolor{LightRed}mkl\_pardiso\_iparm\_(2|8|1[013]|2[147]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
+        \rowcolor{LightRed}master\_mkl\_pardiso\_iparm\_(2|1[013]|2[17]) & Integer control parameters of MKL PARDISO for the coarse operator solver & Integer \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+When using MUMPS has a subdomain solver (resp. coarse operator solver), there are additional options, cf. \url{http://mumps.enseeiht.fr/index.php?page=doc}.
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values \\ \hline
+        \rowcolor{LightRed}mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the subdomain solvers & Integer \\ \hline
+        \rowcolor{LightRed}master\_mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the coarse operator solver & Integer \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+When using \textit{hypre} has a coarse operator solver, there are additional options, cf. \url{http://acts.nersc.gov/hypre/#Documentation}.
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.49\textwidth}| p{.115\textwidth}| p{.05\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values & Default \\ \hline
+        \rowcolor{LightRed}master\_hypre\_solver & Solver used by \textit{hypre} to solve coarse linear systems & \texttt{fgmres}, \texttt{pcg}, \texttt{amg} & \\ \hline
+        \rowcolor{LightRed}master\_hypre\_tol & Relative convergence tolerance & Numeric & $10^{-12}$ \\ \hline
+        \rowcolor{LightRed}master\_hypre\_max\_it & Maximum number of iterations & Integer & 500 \\ \hline
+        \rowcolor{LightRed}master\_hypre\_gmres\_restart & Maximum number of Arnoldi vectors generated per cycle when using FlexGMRES & Integer & 100 \\ \hline
+        \rowcolor{LightRed}master\_boomeramg\_coarsen\_type & Parallel coarsening algorithm & Integer & 6 \\ \hline
+        \rowcolor{LightRed}master\_boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
+        \rowcolor{LightRed}master\_boomeramg\_num\_sweeps & Number of sweeps & Integer & 1 \\ \hline
+        \rowcolor{LightRed}master\_boomeramg\_max\_levels & Maximum number of multigrid levels & Integer & 10 \\ \hline
+        \rowcolor{LightRed}master\_boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+\end{document}

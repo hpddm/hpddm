@@ -30,10 +30,9 @@ inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
     _opt = { { "tol",                           1.0e-8 },
              { "max_it",                        100 },
-#if HPDDM_SCHWARZ
-             { "krylov_method",                 0 },
              { "gmres_restart",                 50 },
              { "variant",                       0 },
+#if HPDDM_SCHWARZ
              { "schwarz_method",                0 },
 #endif
 #if HPDDM_FETI || HPDDM_BDD
@@ -75,6 +74,10 @@ inline Option::Option(Singleton::construct_key<N>) {
              { "master_boomeramg_num_sweeps",   1 },
              { "master_boomeramg_max_levels",   10 },
              { "master_boomeramg_interp_type",  0 },
+#elif defined(DMKL_PARDISO)
+             { "master_mkl_pardiso_iparm_2",    2 },
+             { "master_mkl_pardiso_iparm_10",   13 },
+             { "master_mkl_pardiso_iparm_11",   1 },
 #endif
 #if defined(DHYPRE) || defined(DPASTIX)
              { "master_distribution",           2 },
@@ -97,12 +100,12 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save local operators to disk.", Arg::argument),
-#if HPDDM_SCHWARZ
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient or Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
         std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance for deflating right-hand sides inside Block GMRES.", Arg::numeric),
         std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
         std::forward_as_tuple("gmres_recycle=<val>", "Number of harmonic Ritz vectors to compute.", Arg::integer),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left or right or flexible preconditioning.", Arg::argument),
+#if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),
         std::forward_as_tuple("schwarz_coarse_correction=(deflated|additive|balanced)", "Switch to a multilevel preconditioner.", Arg::argument),
@@ -115,9 +118,14 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("geneo_nu=<20>", "Local number of GenEO vectors to compute.", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Local threshold for selecting GenEO vectors.", Arg::numeric),
         std::forward_as_tuple("geneo_eigensolver_tol=<1.0e-6>", "Requested tolerance of eigenpairs computed by ARPACK or LAPACK.", Arg::numeric),
-#ifdef MKL_PARDISOSUB
+#if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
+#endif
+#ifdef MKL_PARDISOSUB
         std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[147])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers.", Arg::integer),
+#endif
+#ifdef DMKL_PARDISO
+        std::forward_as_tuple("master_mkl_pardiso_iparm_(2|1[013]|2[17])=<val>", "Integer control parameters of MKL PARDISO for the coarse operator solver.", Arg::integer),
 #endif
 #if defined(DMUMPS) || defined(MUMPSSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),

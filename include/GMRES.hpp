@@ -349,9 +349,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             else
                 ++j;
         }
+        if(opt.set("initial_deflation_tol"))
+            Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
         if(j != it + 1 && i == m) {
-            if(opt.set("initial_deflation_tol"))
-                Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
             if(!excluded)
                 updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
             if(opt.set("initial_deflation_tol")) {
@@ -364,8 +364,6 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         else
             break;
     }
-    if(opt.set("initial_deflation_tol"))
-        Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
     if(!excluded) {
         if(j != 0 && j == it + 1) {
             const int rem = it % m;

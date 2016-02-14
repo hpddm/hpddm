@@ -129,7 +129,7 @@ class Option : private Singleton {
                 return _opt.at(key);
             }
             catch(const std::out_of_range& oor) {
-                std::cerr << "out_of_range error: " << oor.what() << std::endl;
+                std::cerr << "out_of_range error: " << oor.what() << " (key: " << key << ")" << std::endl;
                 return _opt.cbegin()->second;
             }
         }

@@ -119,15 +119,14 @@ class MklPardiso : public DMatrix {
             int phase, error;
             K ddum;
             std::fill_n(_iparm, 64, 0);
+            for(unsigned short i : { 1, 9, 10, 12, 20, 26 }) {
+                int val = opt.val<int>("master_mkl_pardiso_iparm_" + to_string(i + 1));
+                if(val != std::numeric_limits<int>::lowest())
+                    _iparm[i] = val;
+
+            }
             _iparm[0] = 1;
-#ifdef _OPENMP
-            _iparm[1] = omp_get_num_threads() > 1 ? 3 : 2;
-#else
-            _iparm[1] = 2;
-#endif
             _iparm[5] = 1;
-            _iparm[9] = 13;
-            _iparm[10] = 1;
             _iparm[27] = std::is_same<double, underlying_type<K>>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
             _iparm[39] = 2;
