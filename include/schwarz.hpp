@@ -406,7 +406,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector. */
-        void GMV(const K* const in, K* const out, const int& mu = 1) const {
+        void GMV(const K* const in, K* const out, const int& mu = 1, MatrixCSR<K>* const& A = nullptr) const {
 #if 0
             K* tmp = new K[mu * Subdomain<K>::_dof];
             Wrapper<K>::diag(Subdomain<K>::_dof, _d, in, tmp, mu);
@@ -419,8 +419,12 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             delete [] tmp;
             Subdomain<K>::exchange(out, mu);
 #else
-            if(HPDDM_NUMBERING == Wrapper<K>::I)
-                Wrapper<K>::csrmm(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
+            if(HPDDM_NUMBERING == Wrapper<K>::I || A != nullptr) {
+                if(A != nullptr)
+                    Wrapper<K>::csrmm(A->_sym, &(A->_n), &mu, A->_a, A->_ia, A->_ja, in, out);
+                else
+                    Wrapper<K>::csrmm(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
+            }
             else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
                 Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             else

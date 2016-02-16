@@ -212,7 +212,7 @@ class Subdomain {
             return alloc;
         }
         void clearBuffer(const bool free = true) const {
-            if(free)
+            if(free && !_map.empty())
                 delete [] *_buff;
         }
         /* Function: initialize(dummy)
@@ -496,12 +496,12 @@ class Subdomain {
          *    d             - Local partition of unity (optional). */
         template<char N, class It>
         void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const underlying_type<K>* const d = nullptr) const {
-            setBuffer(1);
             unsigned int between = 0;
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);
             MPI_Comm_size(_communicator, &sizeWorld);
             if(sizeWorld > 1) {
+                setBuffer(1);
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
                 unsigned int size = std::ceil(2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) / static_cast<float>(sizeof(K)));
@@ -596,6 +596,7 @@ class Subdomain {
                     delete [] rbuff;
                 global = end - (N == 'F');
                 MPI_Bcast(&global, 1, MPI_UNSIGNED, sizeWorld - 1, _communicator);
+                clearBuffer();
             }
             else {
                 std::iota(first, last, N == 'F');
@@ -603,7 +604,6 @@ class Subdomain {
                 end = std::distance(first, last);
                 global = end - start;
             }
-            clearBuffer();
         }
         /* Function: distributedCSR
          *  Assembles a distributed matrix that can be used by a backend such as PETSc.

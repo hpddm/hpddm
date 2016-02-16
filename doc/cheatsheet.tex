@@ -19,7 +19,7 @@
         verbosity & Number of messages printed to screen & Integer & \\ \hline
         \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
         local\_operators\_not\_spd & Assume local operators are general symmetric (instead of symmetric or Hermitian positive definite) & Boolean & \\ \hline
-        orthogonalization & Method used to orthogonalize a vector against a previously generated orthogonalized basis & \texttt{cgs}, \texttt{mgs} & \\ \hline
+        orthogonalization & Method used to orthogonalize a vector against a previously generated orthogonal basis & \texttt{cgs}, \texttt{mgs} & \\ \hline
         qr & Method used to perform the distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & \\ \hline
         dump\_local\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
         krylov\_method & Type of iterative method used to solve linear systems & \texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{gcrodr} & \\ \hline
