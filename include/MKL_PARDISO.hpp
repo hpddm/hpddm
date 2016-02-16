@@ -37,7 +37,8 @@ template<class K>
 struct prds {
     static constexpr int SPD = !Wrapper<K>::is_complex ? 2 : 4;
     static constexpr int SYM = !Wrapper<K>::is_complex ? -2 : 6;
-    static constexpr int UNS = !Wrapper<K>::is_complex ? 1 : 3;
+    static constexpr int SSY = !Wrapper<K>::is_complex ? 1 : 3;
+    static constexpr int UNS = !Wrapper<K>::is_complex ? 11 : 13;
 };
 
 #ifdef DMKL_PARDISO
@@ -115,7 +116,7 @@ class MklPardiso : public DMatrix {
             if(S == 'S')
                 _mtype = opt.val<unsigned short>("master_not_spd", 0) ? prds<K>::SYM : prds<K>::SPD;
             else
-                _mtype = prds<K>::UNS;
+                _mtype = prds<K>::SSY;
             int phase, error;
             K ddum;
             std::fill_n(_iparm, 64, 0);
@@ -222,8 +223,19 @@ class MklPardisoSub {
                     _J = new int[A->_nnz];
                     _C = new K[A->_nnz];
                 }
-                else
-                    _mtype = prds<K>::UNS;
+                else {
+                    _mtype = prds<K>::SSY;
+                    for(unsigned int i = 0; i < _n && _mtype != prds<K>::UNS; ++i) {
+                        for(unsigned int j = A->_ia[i] - (N == 'F'); j < A->_ia[i + 1] - (N == 'F'); ++j) {
+                            if(A->_ja[j] != (i + (N == 'F'))) {
+                                if(!std::binary_search(A->_ja + A->_ia[A->_ja[j] - (N == 'F')] - (N == 'F'), A->_ja + A->_ia[A->_ja[j] - (N == 'F') + 1] - (N == 'F'), i + (N == 'F'))) {
+                                    _mtype = prds<K>::UNS;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 if(schur != nullptr) {
                     _iparm[35] = 2;
                     perm = new int[_n];
