@@ -67,9 +67,10 @@ struct MUMPS_STRUC_C<std::complex<double>> {
     }
 };
 
-#include "preprocessor_check.hpp"
-
 #ifdef DMUMPS
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_COARSEOPERATOR
+#include "preprocessor_check.hpp"
 #define COARSEOPERATOR HPDDM::Mumps
 /* Class: Mumps
  *
@@ -192,6 +193,9 @@ class Mumps : public DMatrix {
 #endif // DMUMPS
 
 #ifdef MUMPSSUB
+#undef HPDDM_CHECK_COARSEOPERATOR
+#define HPDDM_CHECK_SUBDOMAIN
+#include "preprocessor_check.hpp"
 #define SUBDOMAIN HPDDM::MumpsSub
 template<class K>
 class MumpsSub {

@@ -93,7 +93,7 @@ do
                                 make test HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
                             elif [[ "$OSTYPE" == darwin* ]];
                             then
-                                unlink lib/libhpddm_python.dylib
+                                unlink lib/libhpddm_python.dylib 2>/dev/null
                                 make test_cpp test_c HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
                             fi
                             if [ $? -ne 0 ]; then

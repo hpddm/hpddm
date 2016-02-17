@@ -111,7 +111,15 @@ endif
 
 LIST_COMPILATION ?= cpp c python
 
+.PHONY: all cpp c python clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_op test_bin/driver force
+
 all: Makefile.inc ${LIST_COMPILATION}
+
+${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp: force
+	@echo "${CXXFLAGS} ${HPDDMFLAGS}" | cmp -s - $@ || echo "${CXXFLAGS} ${HPDDMFLAGS}" > $@
+
+${TOP_DIR}/${TRASH_DIR}/compiler_flags_c: force
+	@echo "${CCFLAGS} ${HPDDMFLAGS}" | cmp -s - $@ || echo "${CCFLAGS} ${HPDDMFLAGS}" > $@
 
 cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 c: ${TOP_DIR}/${BIN_DIR}/schwarz_c
@@ -130,15 +138,15 @@ clean:
 	rm -rf ${TOP_DIR}/${BIN_DIR} ${TOP_DIR}/${LIB_DIR} ${TOP_DIR}/${TRASH_DIR}
 	find ${TOP_DIR} \( -name "*.o" -o -name "*.${EXTENSION_LIB}" -o -name "*.pyc" -o -name "*.gcov" \) -exec rm -vf '{}' ';'
 
-${TOP_DIR}/${BIN_DIR}/%_cpp.o: examples/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
+${TOP_DIR}/${BIN_DIR}/%_cpp.o: examples/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
 	${POSTCOMPILE}
 
-${TOP_DIR}/${BIN_DIR}/%_c.o: examples/%.c ${TOP_DIR}/${TRASH_DIR}/%.d
+${TOP_DIR}/${BIN_DIR}/%_c.o: examples/%.c ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_c
 	${MPICC} ${DEPFLAGS} ${CFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
 	${POSTCOMPILE}
 
-${TOP_DIR}/${BIN_DIR}/%.o: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
+${TOP_DIR}/${BIN_DIR}/%.o: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
 	${POSTCOMPILE}
 

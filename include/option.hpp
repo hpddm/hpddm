@@ -48,7 +48,7 @@ class Option : private Singleton {
         Option(Singleton::construct_key<N>);
         ~Option() {
             std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
-            if(show != _opt.cend() && show->second > 1) {
+            if(show != _opt.cend()) {
                 std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> output = [](const std::unordered_map<std::string, double>& map, const std::string& header) {
                     std::vector<std::string> output;
                     output.reserve(map.size() + 3);
@@ -87,12 +87,17 @@ class Option : private Singleton {
                     std::cout << output.back() << std::setfill('-') << std::setw(max + 1) << std::right << "┘" << std::endl;
                     std::cout << std::setfill(' ');
                 };
-                if(_app)
-                    output(*_app, "Application-specific");
-                output(_opt, "HPDDM");
+                if(show->second > 1) {
+                    if(_app)
+                        output(*_app, "Application-specific");
+                    output(_opt, "HPDDM");
+                }
+                if(show->second > 0 && _opt.find("version") != _opt.cend())
+                    version();
             }
             delete _app;
         }
+        void version() const;
         /* Function: get
          *  Returns a shared pointer to <Option::opt>. */
         template<int N = 0>

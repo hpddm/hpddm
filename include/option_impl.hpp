@@ -92,6 +92,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         return 0;
     std::vector<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> option {
         std::forward_as_tuple("help", "Display available options.", Arg::anything),
+        std::forward_as_tuple("version", "Display informations about HPDDM.", Arg::anything),
         std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm.", Arg::numeric),
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
         std::forward_as_tuple("verbosity(=<integer>)", "Use verbose output.", Arg::anything),
@@ -261,6 +262,39 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
     }
     _opt.rehash(_opt.size());
     return 0;
+}
+void Option::version() const {
+    std::vector<std::string> v = {
+        " ┌",
+        " │ HPDDM compilation options: ",
+        " │  HPDDM version: " + std::string(HPDDM_STR(HPDDM_VERSION)),
+        " │  epsilon: " + std::string(HPDDM_STR(HPDDM_EPS)),
+        " │  penalization: " + std::string(HPDDM_STR(HPDDM_PEN)),
+        " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
+        " │  numbering: '" + std::string(1, HPDDM_NUMBERING) + "'",
+        " │  MKL support? " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
+        " │  Schwarz module activated? " + std::string(bool(HPDDM_SCHWARZ) ? "true" : "false"),
+        " │  FETI module activated? " + std::string(bool(HPDDM_FETI) ? "true" : "false"),
+        " │  BDD module activated? " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
+        " │  QR algorithm: " + std::string(HPDDM_STR(HPDDM_QR)),
+        " │  asynchronous collectives? " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
+        " │  optimized matrix-vector products? " + std::string(bool(HPDDM_GMV) ? "true" : "false"),
+#ifdef INTEL_MKL_VERSION
+        " │  MKL version: " + to_string(INTEL_MKL_VERSION),
+#endif
+        " │  subdomain solver: " + std::string(HPDDM_STR(SUBDOMAIN)),
+        " │  coarse operator solver: " + std::string(HPDDM_STR(COARSEOPERATOR)),
+        " │  eigensolver: " + std::string(HPDDM_STR(EIGENSOLVER)),
+        " └"
+    };
+    size_t max = 0;
+    for(const auto& x : v)
+        max = std::max(max, x.size());
+    std::cout << v.front() << std::setfill('-') << std::setw(max + 1) << std::right << "┐" << std::endl;
+    for(std::vector<std::string>::const_iterator it = v.begin() + 1; it != v.end() - 1; ++it)
+        std::cout << std::left << std::setfill(' ') << std::setw(max + 2) << *it << "│" << std::endl;
+    std::cout << v.back() << std::setfill('-') << std::setw(max + 1) << std::right << "┘" << std::endl;
+    std::cout << std::setfill(' ');
 }
 } // HPDDM
 #endif // _HPDDM_OPTION_IMPL_

@@ -30,6 +30,9 @@
 
 namespace HPDDM {
 #ifdef DHYPRE
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_COARSEOPERATOR
+#include "preprocessor_check.hpp"
 #define COARSEOPERATOR HPDDM::Hypre
 /* Class: Hypre
  *

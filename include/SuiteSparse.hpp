@@ -84,9 +84,11 @@ struct stsprs<std::complex<double>> {
     }
 };
 
-#include "preprocessor_check.hpp"
 
 #ifdef DSUITESPARSE
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_COARSEOPERATOR
+#include "preprocessor_check.hpp"
 #define COARSEOPERATOR HPDDM::SuiteSparse
 /* Class: SuiteSparse
  *
@@ -236,6 +238,9 @@ class SuiteSparse : public DMatrix {
 #endif // DSUITESPARSE
 
 #ifdef SUITESPARSESUB
+#undef HPDDM_CHECK_COARSEOPERATOR
+#define HPDDM_CHECK_SUBDOMAIN
+#include "preprocessor_check.hpp"
 #define SUBDOMAIN HPDDM::SuiteSparseSub
 template<class K>
 class SuiteSparseSub {

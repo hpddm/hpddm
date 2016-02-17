@@ -41,9 +41,10 @@ struct prds {
     static constexpr int UNS = !Wrapper<K>::is_complex ? 11 : 13;
 };
 
-#include "preprocessor_check.hpp"
-
 #ifdef DMKL_PARDISO
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_COARSEOPERATOR
+#include "preprocessor_check.hpp"
 #define COARSEOPERATOR HPDDM::MklPardiso
 /* Class: MKL Pardiso
  *
@@ -155,7 +156,6 @@ class MklPardiso : public DMatrix {
             int error;
             int phase = 33;
             int nrhs = n;
-            K ddum;
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), rhs, _w, const_cast<int*>(&_comm), &error);
         }
         void initialize() {
@@ -167,6 +167,9 @@ class MklPardiso : public DMatrix {
 #endif // DMKL_PARDISO
 
 #ifdef MKL_PARDISOSUB
+#undef HPDDM_CHECK_COARSEOPERATOR
+#define HPDDM_CHECK_SUBDOMAIN
+#include "preprocessor_check.hpp"
 #define SUBDOMAIN HPDDM::MklPardisoSub
 template<class K>
 class MklPardisoSub {

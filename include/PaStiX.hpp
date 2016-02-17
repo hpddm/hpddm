@@ -77,9 +77,10 @@ HPDDM_GENERATE_PASTIX(c, std::complex<float>)
 HPDDM_GENERATE_PASTIX(z, std::complex<double>)
 #endif
 
-#include "preprocessor_check.hpp"
-
 #ifdef DPASTIX
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_COARSEOPERATOR
+#include "preprocessor_check.hpp"
 #define COARSEOPERATOR HPDDM::Pastix
 /* Class: Pastix
  *
@@ -251,6 +252,9 @@ class Pastix : public DMatrix {
 #endif // DPASTIX
 
 #ifdef PASTIXSUB
+#undef HPDDM_CHECK_COARSEOPERATOR
+#define HPDDM_CHECK_SUBDOMAIN
+#include "preprocessor_check.hpp"
 #define SUBDOMAIN HPDDM::PastixSub
 template<class K>
 class PastixSub {

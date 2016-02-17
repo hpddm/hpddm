@@ -21,16 +21,20 @@
  */
 
 #ifndef _HPDDM_PREPROCESSOR_CHECK_
-#define _HPDDM_PREPROCESSOR_CHECK_
-#define HPDDM_STR_HELPER(x) #x
-#define HPDDM_STR(x) HPDDM_STR_HELPER(x)
+# define _HPDDM_PREPROCESSOR_CHECK_
+# define HPDDM_STR_HELPER(x) #x
+# define HPDDM_STR(x) HPDDM_STR_HELPER(x)
 #endif // _HPDDM_PREPROCESSOR_CHECK_
 
-#ifdef COARSEOPERATOR
-#pragma message("COARSEOPERATOR macro already set to " HPDDM_STR(COARSEOPERATOR) ", it has now been reset")
-#undef COARSEOPERATOR
+#ifdef HPDDM_CHECK_COARSEOPERATOR
+# ifdef COARSEOPERATOR
+#  pragma message("COARSEOPERATOR macro already set to " HPDDM_STR(COARSEOPERATOR) ", it has now been reset")
+#  undef COARSEOPERATOR
+# endif
 #endif
-#ifdef SUBDOMAIN
-#pragma message("SUBDOMAIN macro already set to " HPDDM_STR(SUBDOMAIN) ", it has now been reset")
-#undef SUBDOMAIN
+#ifdef HPDDM_CHECK_SUBDOMAIN
+# ifdef SUBDOMAIN
+#  pragma message("SUBDOMAIN macro already set to " HPDDM_STR(SUBDOMAIN) ", it has now been reset")
+#  undef SUBDOMAIN
+# endif
 #endif
