@@ -29,7 +29,6 @@
 #include <dmumps_c.h>
 #include <cmumps_c.h>
 #include <zmumps_c.h>
-#endif
 
 namespace HPDDM {
 template<class>
