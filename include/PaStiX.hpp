@@ -77,6 +77,8 @@ HPDDM_GENERATE_PASTIX(c, std::complex<float>)
 HPDDM_GENERATE_PASTIX(z, std::complex<double>)
 #endif
 
+#include "preprocessor_check.hpp"
+
 #ifdef DPASTIX
 #define COARSEOPERATOR HPDDM::Pastix
 /* Class: Pastix

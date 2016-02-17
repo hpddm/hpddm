@@ -41,6 +41,8 @@ struct prds {
     static constexpr int UNS = !Wrapper<K>::is_complex ? 11 : 13;
 };
 
+#include "preprocessor_check.hpp"
+
 #ifdef DMKL_PARDISO
 #define COARSEOPERATOR HPDDM::MklPardiso
 /* Class: MKL Pardiso

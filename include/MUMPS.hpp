@@ -29,8 +29,6 @@
 #include <dmumps_c.h>
 #include <cmumps_c.h>
 #include <zmumps_c.h>
-#ifndef MUMPS_VERSION
-#define MUMPS_VERSION "0.0.0"
 #endif
 
 namespace HPDDM {
@@ -69,6 +67,8 @@ struct MUMPS_STRUC_C<std::complex<double>> {
         zmumps_c(id);
     }
 };
+
+#include "preprocessor_check.hpp"
 
 #ifdef DMUMPS
 #define COARSEOPERATOR HPDDM::Mumps

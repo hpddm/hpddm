@@ -84,6 +84,8 @@ struct stsprs<std::complex<double>> {
     }
 };
 
+#include "preprocessor_check.hpp"
+
 #ifdef DSUITESPARSE
 #define COARSEOPERATOR HPDDM::SuiteSparse
 /* Class: SuiteSparse
