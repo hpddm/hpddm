@@ -141,13 +141,13 @@ int main(int argc, char** argv) {
     } while(t.open(opt.prefix("path") + "/40" + to_string(no++) + ".txt"), t.good());
     std::cout << "Total number of iterations: " << it << std::endl;
     MPI_Finalize();
-    if(status == 0 && opt["krylov_method"] == 3) {
+    if(status == 0 && opt.any_of("krylov_method", { 3, 4 })) {
         if(opt.app()["diagonal_scaling"] == 0)
-            status = !(it > 2347 && it < 2365);
+            status = !(it > 2346 && it < 2366);
         else if(opt["variant"] == 0)
-            status = !(it > 2053 && it < 2071);
+            status = !(it > 2052 && it < 2072);
         else if(opt["variant"] == 1)
-            status =!(it > 2061 && it < 2079);
+            status = !(it > 2060 && it < 2080);
     }
     return status;
 }

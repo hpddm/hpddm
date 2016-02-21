@@ -101,7 +101,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save local operators to disk.", Arg::argument),
-        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient or Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
+        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
         std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance for deflating right-hand sides inside Block GMRES.", Arg::numeric),
         std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
         std::forward_as_tuple("gmres_recycle=<val>", "Number of harmonic Ritz vectors to compute.", Arg::integer),
@@ -273,15 +273,15 @@ void Option::version() const {
         " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
         " │  numbering: '" + std::string(1, HPDDM_NUMBERING) + "'",
         " │  MKL support? " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
+#ifdef INTEL_MKL_VERSION
+        " │  MKL version: " + to_string(INTEL_MKL_VERSION),
+#endif
         " │  Schwarz module activated? " + std::string(bool(HPDDM_SCHWARZ) ? "true" : "false"),
         " │  FETI module activated? " + std::string(bool(HPDDM_FETI) ? "true" : "false"),
         " │  BDD module activated? " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
         " │  QR algorithm: " + std::string(HPDDM_STR(HPDDM_QR)),
         " │  asynchronous collectives? " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
         " │  optimized matrix-vector products? " + std::string(bool(HPDDM_GMV) ? "true" : "false"),
-#ifdef INTEL_MKL_VERSION
-        " │  MKL version: " + to_string(INTEL_MKL_VERSION),
-#endif
         " │  subdomain solver: " + std::string(HPDDM_STR(SUBDOMAIN)),
         " │  coarse operator solver: " + std::string(HPDDM_STR(COARSEOPERATOR)),
         " │  eigensolver: " + std::string(HPDDM_STR(EIGENSOLVER)),
@@ -290,11 +290,7 @@ void Option::version() const {
     size_t max = 0;
     for(const auto& x : v)
         max = std::max(max, x.size());
-    std::cout << v.front() << std::setfill('-') << std::setw(max + 1) << std::right << "┐" << std::endl;
-    for(std::vector<std::string>::const_iterator it = v.begin() + 1; it != v.end() - 1; ++it)
-        std::cout << std::left << std::setfill(' ') << std::setw(max + 2) << *it << "│" << std::endl;
-    std::cout << v.back() << std::setfill('-') << std::setw(max + 1) << std::right << "┘" << std::endl;
-    std::cout << std::setfill(' ');
+    output(v, max);
 }
 } // HPDDM
 #endif // _HPDDM_OPTION_IMPL_

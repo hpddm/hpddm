@@ -225,6 +225,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
                     norm[nu] += std::norm(b[nu * n + i]);
         }
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    for(unsigned short nu = 0; nu < mu; ++nu) {
+        norm[nu] = std::sqrt(norm[nu]);
+        if(norm[nu] < HPDDM_EPS)
+            norm[nu] = 1.0;
+    }
 
     unsigned short j = 1;
     short dim = mu * m;
@@ -242,14 +248,6 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 for(unsigned int j = 0; j < n; ++j)
                     if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
                         v[0][nu * n + j] = K();
-        if(j == 1) {
-            MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                norm[nu] = std::sqrt(norm[nu]);
-                if(norm[nu] < HPDDM_EPS)
-                    norm[nu] = 1.0;
-            }
-        }
         VR<excluded>(n, mu, 1, *v, s, mu, comm);
         if(!opt.set("initial_deflation_tol")) {
             Lapack<K>::potrf("U", &mu, s, &mu, &info);
@@ -309,13 +307,13 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         while(i < m && j <= it) {
             if(variant == 'L') {
                 if(!excluded)
-                    A.GMV(v[i], Ax, mu);
-                A.template apply<excluded>(Ax, v[i + 1], mu);
+                    A.GMV(v[i], Ax, deflated);
+                A.template apply<excluded>(Ax, v[i + 1], deflated);
             }
             else {
-                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, mu, v[i + 1]);
+                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, deflated, v[i + 1]);
                 if(!excluded)
-                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
+                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], deflated);
             }
             if(BlockArnoldi<excluded>(id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
                 dim = deflated * (i - 1);

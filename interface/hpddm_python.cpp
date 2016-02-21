@@ -67,7 +67,7 @@ char numbering = HPDDM_NUMBERING;
 unsigned short scalar = std::is_same<K, float>::value ? 0 : std::is_same<K, double>::value ? 1 : std::is_same<K, std::complex<float>>::value ? 2 : 3;
 
 void* const optionGet() {
-    return &*HPDDM::Option::get();
+    return HPDDM::Option::get().get();
 }
 int optionParse(void* option, char* args, bool display) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);

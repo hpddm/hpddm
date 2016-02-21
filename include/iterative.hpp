@@ -155,8 +155,8 @@ class IterativeMethod {
             const int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
             const int dim = ldh / (deflated == -1 ? mu : deflated);
             if(C != nullptr && U != nullptr) {
-                computeMin(h, s + shift * mu, hasConverged, mu, deflated, shift);
-                const int ldv = mu * n;
+                computeMin(h, s + shift * (deflated == -1 ? mu : deflated), hasConverged, mu, deflated, shift);
+                const int ldv = (deflated == -1 ? mu : deflated) * n;
                 if(deflated == -1) {
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         if(std::abs(hasConverged[nu]) != 0) {
@@ -181,10 +181,10 @@ class IterativeMethod {
                     MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short i = 0; i < deflated; ++i)
                         std::copy_n(work + i * bK, bK, s + i * ldh);
-                    int diff = deflated * (*hasConverged - shift);
-                    Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * mu, &ldh, &(Wrapper<K>::d__1), s, &ldh);
+                    int diff = *hasConverged - deflated * shift;
+                    Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * deflated, &ldh, &(Wrapper<K>::d__1), s, &ldh);
                 }
-                std::copy_n(U, shift * std::abs(deflated) * ldv, v[dim * (variant == 'F')]);
+                std::copy_n(U, shift * ldv, v[dim * (variant == 'F')]);
                 addSol(A, variant, n, x, ldh, s, static_cast<const K* const* const>(v + dim * (variant == 'F')), hasConverged, mu, work, deflated);
             }
             else
@@ -441,9 +441,11 @@ class IterativeMethod {
         template<bool excluded = false, class Operator = void, class K = double>
         static int GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
         template<bool excluded = false, class Operator = void, class K = double>
-        static int BGMRES(const Operator&, const K* const, K* const x, const int&, const MPI_Comm&);
+        static int BGMRES(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         template<bool excluded = false, class Operator = void, class K = double>
-        static int GCRODR(const Operator&, const K* const, K* const x, const int&, const MPI_Comm&);
+        static int GCRODR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
+        template<bool excluded = false, class Operator = void, class K = double>
+        static int BGCRODR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         /* Function: CG
          *
          *  Implements the CG method.
@@ -478,6 +480,7 @@ class IterativeMethod {
         static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
             const Option& opt = *Option::get();
             switch(opt.val<unsigned short>("krylov_method")) {
+                case 4:  return HPDDM::IterativeMethod::template BGCRODR<excluded>(A, b, x, mu, comm); break;
                 case 3:  return HPDDM::IterativeMethod::template GCRODR<excluded>(A, b, x, mu, comm); break;
                 case 2:  return HPDDM::IterativeMethod::template CG<excluded>(A, b, x, comm); break;
                 case 1:  return HPDDM::IterativeMethod::template BGMRES<excluded>(A, b, x, mu, comm); break;

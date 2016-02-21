@@ -43,33 +43,40 @@ class Option : private Singleton {
         /* Variable: app
          *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
         std::unordered_map<std::string, double>* _app;
+        static void output(const std::vector<std::string>& list, size_t width) {
+            std::cout << list.front() << std::setfill('-') << std::setw(width + 1) << std::right << "┐" << std::endl;
+            for(std::vector<std::string>::const_iterator it = list.begin() + 1; it != list.end() - 1; ++it)
+                std::cout << std::left << std::setfill(' ') << std::setw(width + 2) << *it << "│" << std::endl;
+            std::cout << list.back() << std::setfill('-') << std::setw(width + 1) << std::right << "┘" << std::endl;
+            std::cout << std::setfill(' ');
+        }
     public:
         template<int N>
         Option(Singleton::construct_key<N>);
         ~Option() {
             std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
             if(show != _opt.cend()) {
-                std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> output = [](const std::unordered_map<std::string, double>& map, const std::string& header) {
-                    std::vector<std::string> output;
-                    output.reserve(map.size() + 3);
-                    output.emplace_back(" ┌");
-                    output.emplace_back(" │ " + header + " option" + std::string(map.size() > 1 ? "s" : "") + " used:");
-                    size_t max = output.back().size();
+                std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> generate = [](const std::unordered_map<std::string, double>& map, const std::string& header) {
+                    std::vector<std::string> v;
+                    v.reserve(map.size() + 3);
+                    v.emplace_back(" ┌");
+                    v.emplace_back(" │ " + header + " option" + std::string(map.size() > 1 ? "s" : "") + " used:");
+                    size_t max = v.back().size();
                     for(const auto& x : map) {
                         double intpart;
                         if(x.second < -10000000 && x.first[-x.second - 10000000] == '_')
-                            output.emplace_back(" │  " + x.first.substr(0, -x.second - 10000000) + ": " + x.first.substr(-x.second - 10000000 + 1));
+                            v.emplace_back(" │  " + x.first.substr(0, -x.second - 10000000) + ": " + x.first.substr(-x.second - 10000000 + 1));
                         else if(x.second < 1000 && std::modf(x.second, &intpart) == 0.0)
-                            output.emplace_back(" │  " + x.first + ": " + to_string(static_cast<int>(x.second)));
+                            v.emplace_back(" │  " + x.first + ": " + to_string(static_cast<int>(x.second)));
                         else {
                             std::stringstream ss;
                             ss << std::scientific << std::setprecision(1) << x.second;
-                            output.emplace_back(" │  " + x.first + ": " + ss.str());
+                            v.emplace_back(" │  " + x.first + ": " + ss.str());
                         }
-                        max = std::max(max, output.back().size());
+                        max = std::max(max, v.back().size());
                     }
-                    output.emplace_back(" └");
-                    std::sort(output.begin() + 2, output.end() - 1, [](const std::string& a, const std::string& b) {
+                    v.emplace_back(" └");
+                    std::sort(v.begin() + 2, v.end() - 1, [](const std::string& a, const std::string& b) {
                         std::string::const_iterator p[2] { std::find_if(a.cbegin(), a.cend(), ::isdigit), std::find_if(b.cbegin(), b.cend(), ::isdigit) };
                         if(p[0] != a.cend() && p[1] != b.cend()) {
                             std::iterator_traits<std::string::const_iterator>::difference_type v[2] { std::distance(a.cbegin(), p[0]), std::distance(b.cbegin(), p[1]) };
@@ -81,16 +88,12 @@ class Option : private Singleton {
                         else
                             return a < b;
                     });
-                    std::cout << output.front() << std::setfill('-') << std::setw(max + 1) << std::right << "┐" << std::endl;
-                    for(std::vector<std::string>::const_iterator it = output.begin() + 1; it != output.end() - 1; ++it)
-                        std::cout << std::left << std::setfill(' ') << std::setw(max + 2) << *it << "│" << std::endl;
-                    std::cout << output.back() << std::setfill('-') << std::setw(max + 1) << std::right << "┘" << std::endl;
-                    std::cout << std::setfill(' ');
+                    output(v, max);
                 };
                 if(show->second > 1) {
                     if(_app)
-                        output(*_app, "Application-specific");
-                    output(_opt, "HPDDM");
+                        generate(*_app, "Application-specific");
+                    generate(_opt, "HPDDM");
                 }
                 if(show->second > 0 && _opt.find("version") != _opt.cend())
                     version();

@@ -134,13 +134,13 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         if(!excluded)
             A.GMV(x, variant == 'L' ? Ax : v[i], mu);
         Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, variant == 'L' ? Ax : v[i], 1);
+        if(variant == 'L')
+            A.template apply<excluded>(Ax, v[i], mu);
         if(!excluded)
             for(unsigned short nu = 0; nu < mu; ++nu)
                 for(unsigned int j = 0; j < n; ++j)
                     if(std::abs(v[i][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
                         v[i][nu * n + j] = K();
-        if(variant == 'L')
-            A.template apply<excluded>(Ax, v[i], mu);
         if(j == 1 && recycling) {
             if(!recycled._same) {
                 for(unsigned short nu = 0; nu < k; ++nu) {
@@ -149,8 +149,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         A.template apply<excluded>(Ax, C + nu * ldv, mu);
                     }
                     else {
-                        A.template apply<excluded>(U + nu * ldv, variant == 'F' ? v[m + 1] + nu * n : Ax, mu, v[i + 1]);
-                        A.GMV(variant == 'F' ? v[m + 1] + nu * n : Ax, C + nu * ldv, mu);
+                        A.template apply<excluded>(U + nu * ldv, Ax, mu, v[i + 1]);
+                        A.GMV(Ax, C + nu * ldv, mu);
                     }
                 }
                 K* work = new K[k * k * mu];
@@ -260,6 +260,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             updateSolRecycling(A, variant, n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);
         else
             addSol(A, variant, n, x, std::distance(H[0], H[1]), s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+        if(i == m) {
+            if(recycling)
+                i -= k;
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                std::for_each(v[m] + nu * n, v[m] + (nu + 1) * n, [&](K& y) { y /= save[i - 1][i + nu * (m + 1)]; });
+        }
         if(!recycling) {
             recycling = true;
             int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));
@@ -341,7 +347,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 Blas<K>::gemm("N", "N", &row, &k, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H + nu * (m + 1), &ldh);
                 delete [] vr;
                 K* tau = new K[k];
-                std::for_each(v[m] + nu * n, v[m] + (nu + 1) * n, [&](K& y) { y /= save[m - 1][m + nu * (m + 1)]; });
                 Lapack<K>::geqrf(&row, &k, *H + nu * (m + 1), &ldh, tau, work, &lwork, &info);
                 Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m + 1), &ldh, tau, *v + nu * n, &ldv, work, &lwork, &info);
                 Wrapper<K>::template omatcopy<'N'>(k, n, *v + nu * n, ldv, C + nu * n, ldv);
@@ -355,85 +360,85 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             K* prod = new K[k * mu * (m + 2)];
             if(variant == 'F')
                 std::copy_n(v[m + 1], k * ldv, U);
+            info = m + 1;
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                std::for_each(v[m] + nu * n, v[m] + (nu + 1) * n, [&](K& y) { y /= save[m - k - 1][m - k + nu * (m + 1)]; });
-                int row = m + 1;
-                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &row, &k, &n, &(Wrapper<K>::d__1), *v + nu * n, &ldv, U + nu * n, &ldv, &(Wrapper<K>::d__0), prod + k * nu * row, &row);
+                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &k, &n, &(Wrapper<K>::d__1), *v + nu * n, &ldv, U + nu * n, &ldv, &(Wrapper<K>::d__0), prod + k * nu * info, &info);
                 for(i = 0; i < k; ++i)
-                    prod[k * mu * row + k * nu + i] = Blas<K>::dot(&n, U + nu * n + i * ldv, &i__1, U + nu * n + i * ldv, &i__1);
+                    prod[k * mu * info + k * nu + i] = Blas<K>::dot(&n, U + nu * n + i * ldv, &i__1, U + nu * n + i * ldv, &i__1);
             }
             MPI_Allreduce(MPI_IN_PLACE, prod, k * mu * (m + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
             std::for_each(prod + k * mu * (m + 1), prod + k * mu * (m + 2), [](K& u) { u = 1.0 / std::sqrt(std::real(u)); });
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                if(hasConverged[nu] == -m) {
+                if(hasConverged[nu] != 0) {
+                    int dim = std::abs(hasConverged[nu]);
                     for(i = 0; i < k; ++i)
                         Blas<K>::scal(&n, prod + k * mu * (m + 1) + k * nu + i, U + nu * n + i * ldv, &i__1);
-                    for(i = 0; i < m; ++i)
+                    for(i = 0; i < dim; ++i)
                         std::fill_n(save[i] + i + 2 + nu * (m + 1), m - i - 1, K());
-                    K* A = new K[m * m];
+                    K* A = new K[dim * dim];
                     for(i = 0; i < k; ++i)
                         for(unsigned short j = 0; j < k; ++j)
-                            A[j + i * m] = (i == j ? prod[k * mu * (m + 1) + k * nu + i] * prod[k * mu * (m + 1) + k * nu + i] : Wrapper<K>::d__0);
-                    int diff = m - k;
-                    Wrapper<K>::template omatcopy<'N'>(m - k, k, H[k] + nu * (m + 1), ldh, A + k * m, m);
+                            A[j + i * dim] = (i == j ? prod[k * mu * (m + 1) + k * nu + i] * prod[k * mu * (m + 1) + k * nu + i] : Wrapper<K>::d__0);
+                    int diff = dim - k;
+                    Wrapper<K>::template omatcopy<'N'>(diff, k, H[k] + nu * (m + 1), ldh, A + k * dim, dim);
                     for(i = 0; i < k; ++i)
-                        Blas<K>::scal(&diff, prod + k * mu * (m + 1) + k * nu + i, A + k * m + i, &m);
-                    Wrapper<K>::template omatcopy<'C'>(m - k, k, A + k * m, m, A + k, m);
+                        Blas<K>::scal(&diff, prod + k * mu * (m + 1) + k * nu + i, A + k * dim + i, &dim);
+                    Wrapper<K>::template omatcopy<'C'>(diff, k, A + k * dim, dim, A + k, dim);
                     int row = diff + 1;
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, H[k] + nu * (m + 1), &ldh, &(Wrapper<K>::d__0), A + k * m + k, &m);
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, *save + nu * (m + 1), &ldh, &(Wrapper<K>::d__1), A + k * m + k, &m);
-                    K* B = new K[m * (m + 1)]();
-                    row = m + 1;
-                     for(i = 0; i < k; ++i)
-                         std::transform(prod + k * nu * (m + 1) + i * (m + 1), prod + k * nu * (m + 1) + (i + 1) * (m + 1), B + i * (m + 1), [&](const K& u) { return prod[k * mu * (m + 1) + k * nu + i] * u; });
-                    Wrapper<K>::template omatcopy<'C'>(m - k, m - k, *save + nu * (m + 1), ldh, B + k + k * (m + 1), m + 1);
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, H[k] + nu * (m + 1), &ldh, &(Wrapper<K>::d__0), A + k * dim + k, &dim);
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, *save + nu * (m + 1), &ldh, &(Wrapper<K>::d__1), A + k * dim + k, &dim);
+                    K* B = new K[dim * (dim + 1)]();
+                    row = dim + 1;
+                    for(i = 0; i < k; ++i)
+                        std::transform(prod + k * nu * (m + 1) + i * (m + 1), prod + k * nu * (m + 1) + i * (m + 1) + dim + 1, B + i * (dim + 1), [&](const K& u) { return prod[k * mu * (m + 1) + k * nu + i] * u; });
+                    Wrapper<K>::template omatcopy<'C'>(diff, diff, *save + nu * (m + 1), ldh, B + k + k * (dim + 1), dim + 1);
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &row, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, B + k, &row, &(Wrapper<K>::d__0), *H + k + 1 + nu * (m + 1), &ldh);
-                    Wrapper<K>::template omatcopy<'N'>(k, m - k, *H + k + 1 + nu * (m + 1), ldh, B + k, m + 1);
+                    Wrapper<K>::template omatcopy<'N'>(k, diff, *H + k + 1 + nu * (m + 1), ldh, B + k, dim + 1);
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &k, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, B, &row, &(Wrapper<K>::d__1), B + k, &row);
                     for(i = 0; i < k; ++i)
                         Blas<K>::scal(&k, prod + k * mu * (m + 1) + k * nu + i, B + i, &row);
-                    K* alpha = new K[(2 + !Wrapper<K>::is_complex) * m];
+                    K* alpha = new K[(2 + !Wrapper<K>::is_complex) * dim];
                     int lwork = -1;
-                    K* vr = new K[m * m];
-                    Lapack<K>::ggev("N", "V", &m, A, &m, B, &row, alpha, alpha + 2 * m, alpha + m, nullptr, &i__1, nullptr, &m, *H + k + 1, &lwork, nullptr, &info);
-                    lwork = std::real(H[0][k + 1]);
-                    K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * m) : lwork];
+                    K* vr = new K[dim * dim];
+                    Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, nullptr, &dim, alpha, &lwork, nullptr, &info);
+                    lwork = std::real(*alpha);
+                    K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork];
                     underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
-                    Lapack<K>::ggev("N", "V", &m, A, &m, B, &row, alpha, alpha + 2 * m, alpha + m, nullptr, &i__1, vr, &m, work, &lwork, rwork, &info);
+                    Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
                     std::vector<std::pair<unsigned short, underlying_type<K>>> q;
-                    q.reserve(m);
-                    for(i = 0; i < m; ++i) {
-                        underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[m + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * m + i] * alpha[2 * m + i]) / (alpha[m + i] * alpha[m + i]));
+                    q.reserve(dim);
+                    for(i = 0; i < dim; ++i) {
+                        underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[dim + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * dim + i] * alpha[2 * dim + i]) / (alpha[dim + i] * alpha[dim + i]));
                         q.emplace_back(i, magnitude);
                     }
                     std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
                     info = std::accumulate(q.cbegin(), q.cbegin() + k, 0, [](int a, const std::pair<unsigned short, underlying_type<K>>& b) { return a + b.first; });
-                    for(i = k; info != (k * (k - 1)) / 2 && i < m; ++i)
+                    for(i = k; info != (k * (k - 1)) / 2 && i < dim; ++i)
                         info += q[i].first;
                     int* perm = new int[i];
                     std::transform(q.cbegin(), q.cbegin() + i, perm, [](const std::pair<unsigned short, underlying_type<K>>& u) { return u.first + 1; });
                     decltype(q)().swap(q);
-                    Lapack<K>::lapmt(&i__1, &m, &(info = i), vr, &m, perm);
+                    Lapack<K>::lapmt(&i__1, &dim, &(info = i), vr, &dim, perm);
                     row = diff + 1;
-                    Blas<K>::gemm("N", "N", &row, &k, &diff, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, vr + k, &m, &(Wrapper<K>::d__0), *H + k + nu * (m + 1), &ldh);
-                    Wrapper<K>::template omatcopy<'N'>(k, k, vr, m, *H + nu * (m + 1), ldh);
+                    Blas<K>::gemm("N", "N", &row, &k, &diff, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__0), *H + k + nu * (m + 1), &ldh);
+                    Wrapper<K>::template omatcopy<'N'>(k, k, vr, dim, *H + nu * (m + 1), ldh);
                     for(i = 0; i < k; ++i)
                         Blas<K>::scal(&k, prod + k * mu * (m + 1) + k * nu + i, *H + nu * (m + 1) + i, &ldh);
-                    Blas<K>::gemm("N", "N", &k, &k, &diff, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, vr + k, &m, &(Wrapper<K>::d__1), *H + nu * (m + 1), &ldh);
-                    row = m + 1;
+                    Blas<K>::gemm("N", "N", &k, &k, &diff, &(Wrapper<K>::d__1), H[k] + nu * (m + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__1), *H + nu * (m + 1), &ldh);
+                    row = dim + 1;
                     K* tau = new K[k];
                     *perm = -1;
                     Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, work, perm, &info);
                     Lapack<K>::mqr("R", "N", &n, &row, &k, nullptr, &ldh, nullptr, nullptr, &ldv, work + 1, perm, &info);
                     delete [] perm;
-                    if(std::real(work[0]) > (Wrapper<K>::is_complex ? (lwork + 4 * m) : lwork) || std::real(work[1]) > (Wrapper<K>::is_complex ? (lwork + 4 * m) : lwork)) {
+                    if(std::real(work[0]) > (Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork) || std::real(work[1]) > (Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork)) {
                         lwork = std::max(std::real(work[0]), std::real(work[1]));
                         delete [] work;
                         work = new K[lwork];
                     }
                     Lapack<K>::geqrf(&row, &k, *H + nu * (m + 1), &ldh, tau, work, &lwork, &info);
                     Wrapper<K>::template omatcopy<'N'>(k, n, U + nu * n, ldv, v[(m + 1) * (variant == 'F')] + nu * n, ldv);
-                    Blas<K>::gemm("N", "N", &n, &k, &m, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 'F')] + nu * n, &ldv, vr, &m, &(Wrapper<K>::d__0), U + nu * n, &ldv);
+                    Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 'F')] + nu * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + nu * n, &ldv);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + nu * (m + 1), &ldh, U + nu * n, &ldv);
                     Wrapper<K>::template omatcopy<'N'>(k, n, C + nu * n, ldv, *v + nu * n, ldv);
                     Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m + 1), &ldh, tau, *v + nu * n, &ldv, work, &lwork, &info);
@@ -465,5 +470,445 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     std::cout.unsetf(std::ios_base::scientific);
     return std::min(j, it);
 }
+template<bool excluded, class Operator, class K>
+inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+    const Option& opt = *Option::get();
+    int k = opt.val<int>("gmres_recycle", 0);
+    if(k == 0)
+        return BGMRES(A, b, x, mu, comm);
+    const int n = excluded ? 0 : A.getDof();
+    const unsigned short it = opt["max_it"];
+    underlying_type<K> tol = opt["tol"];
+    const char verbosity = opt.val<char>("verbosity");
+    std::cout << std::scientific;
+    if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
+        if(verbosity > 0)
+            std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
+        tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
+    }
+    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
+    const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+
+    int ldh = mu * (m + 1);
+    K** const H = new K*[m * (3 + (variant == 'F')) + 1];
+    K** const save = H + m;
+    *save = new K[ldh * mu * m]();
+    K** const v = save + m;
+    int info;
+    int N = 2 * mu;
+    char id = opt.val<char>("orthogonalization", 0);
+    int lwork = mu * std::max((1 + (variant == 'R')) * n, id != 1 ? ldh : mu);
+    id += 4 * opt.val<char>("qr", 0);
+    *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 'F')) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+    *v = *H + m * mu * ldh;
+    int ldv = mu * n;
+    K* const s = *v + ldv * (m * (1 + (variant == 'F')) + 1);
+    K* const tau = s + mu * ldh;
+    K* const Ax = tau + m * N;
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
+    underlying_type<K>* const beta = norm - mu;
+    bool alloc = A.setBuffer(mu);
+
+    A.template start<excluded>(b, x, mu);
+    if(variant == 'L') {
+        A.template apply<excluded>(b, *v, mu, Ax);
+        for(unsigned short nu = 0; nu < mu; ++nu)
+            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+    }
+    else
+        for(unsigned short nu = 0; nu < mu; ++nu) {
+            norm[nu] = 0.0;
+            for(unsigned int i = 0; i < n; ++i)
+                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
+                    norm[nu] += std::norm(b[nu * n + i]);
+        }
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    for(unsigned short nu = 0; nu < mu; ++nu) {
+        norm[nu] = std::sqrt(norm[nu]);
+        if(norm[nu] < HPDDM_EPS)
+            norm[nu] = 1.0;
+    }
+
+    unsigned short j = 1;
+    bool recycling;
+    K* U, *C = nullptr;
+    Recycling<K>& recycled = *Recycling<K>::get(mu);
+    if(recycled.recycling()) {
+        recycling = true;
+        k = recycled.k();
+        U = recycled.storage();
+        C = U + k * ldv;
+    }
+    else
+        recycling = false;
+    short dim = mu * m;
+    int* const piv = new int[mu];
+    underlying_type<K>* workpiv = norm - 2 * mu;
+    int deflated = -1;
+    while(j <= it) {
+        if(!excluded)
+            A.GMV(x, variant == 'L' ? Ax : *v, mu);
+        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
+        if(variant == 'L')
+            A.template apply<excluded>(Ax, *v, mu);
+        if(!excluded)
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                for(unsigned int j = 0; j < n; ++j)
+                    if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
+                        v[0][nu * n + j] = K();
+        if(j == 1 && recycling) {
+            int bK = mu * k;
+            if(!recycled._same) {
+                for(unsigned short nu = 0; nu < k; ++nu) {
+                    if(variant == 'L') {
+                        A.GMV(U + nu * ldv, Ax, mu);
+                        A.template apply<excluded>(Ax, C + nu * ldv, mu);
+                    }
+                    else {
+                        A.template apply<excluded>(U + nu * ldv, Ax, mu, *v + ldv);
+                        A.GMV(Ax, C + nu * ldv, mu);
+                    }
+                }
+                K* work = new K[bK * bK];
+                QR<excluded>(id / 4, n, bK, 1, C, work, bK, comm, Ax);
+                delete [] work;
+            }
+            blockOrthogonalization<excluded>(id % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
+            if(variant == 'L')
+                Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), U, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
+            else {
+                for(unsigned short nu = 0; nu < k; ++nu)
+                    A.template apply<excluded>(U + nu * ldv, *v + (variant == 'F' ? (m + 1) : k) * ldv + nu * ldv, mu, Ax);
+                Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), *v + (variant == 'F' ? (m + 1) : k) * ldv, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
+            }
+        }
+        VR<excluded>(n, mu, 1, v[0], s, mu, comm);
+        if(!opt.set("initial_deflation_tol")) {
+            Lapack<K>::potrf("U", &mu, s, &mu, &info);
+            if(verbosity > 3) {
+                std::cout << "BGCRODR diag(R), QR = block residual: ";
+                std::cout << s[0];
+                if(mu > 1) {
+                    if(mu > 2)
+                        std::cout << "\t...";
+                    std::cout << "\t" << s[(mu - 1) * (mu + 1)];
+                }
+                std::cout << std::endl;
+            }
+            N = (info > 0 ? info - 1 : mu);
+        }
+        else {
+            Lapack<K>::pstrf("U", &mu, s, &mu, piv, &N, &(Wrapper<underlying_type<K>>::d__0), workpiv, &info);
+            if(verbosity > 3) {
+                std::cout << "BGCRODR diag(R), QR = block residual, with pivoting: ";
+                std::cout << s[0] << " (" << piv[0] << ")";
+                if(mu > 1) {
+                    if(mu > 2)
+                        std::cout << "\t...";
+                    std::cout << "\t" << s[(mu - 1) * (mu + 1)] << " (" << piv[mu - 1] << ")";
+                }
+                std::cout << std::endl;
+            }
+            if(info == 0) {
+                N = mu;
+                while(N > 1 && std::abs(s[(N - 1) * (mu + 1)] / s[0]) <= opt.val("initial_deflation_tol"))
+                    --N;
+            }
+            Lapack<K>::lapmt(&i__1, &n, &mu, v[0], &n, piv);
+            Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
+        }
+        if(N != mu) {
+            int nrhs = mu - N;
+            Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
+        }
+        if(N != deflated) {
+            deflated = N;
+            dim = deflated * (j - 1 + m > it ? it - j + 1 : m);
+            ldh = deflated * (m + 1);
+            ldv = deflated * n;
+            for(unsigned short i = 1; i < m; ++i) {
+                H[i] = *H + i * deflated * ldh;
+                save[i] = *save + i * deflated * ldh;
+            }
+            for(unsigned short i = 1; i < m * (1 + (variant == 'F')) + 1; ++i)
+                v[i] = *v + i * ldv;
+        }
+        N *= 2;
+        std::fill_n(tau, m * N, K());
+        Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
+        if(recycling) {
+            for(unsigned short shift = k; shift < m; ++shift) {
+                for(unsigned short nu = 0; nu < deflated; ++nu) {
+                    std::fill(H[shift] + deflated * k + nu * ldh, H[shift] + (nu + 1) * ldh, K());
+                }
+            }
+            for(unsigned short i = 0; i < mu; ++i)
+                std::copy_n(s + i * ldh, deflated, s + i * ldh + deflated * k);
+            std::copy_n(*v, ldv, v[k]);
+        }
+        else
+            std::fill(*H, *v, K());
+        unsigned short i = (recycling ? k : 0);
+        Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, v[i], &n);
+        for(unsigned short nu = 0; nu < deflated; ++nu)
+            std::fill(s + i * deflated + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
+        if(j == 1 && recycling) {
+            if(variant == 'F')
+                std::copy_n(*v + (m + 1) * mu * n, k * ldv, v[m + 1]);
+            std::copy_n(C, k * ldv, *v);
+        }
+        while(i < m && j <= it) {
+            if(variant == 'L') {
+                if(!excluded)
+                    A.GMV(v[i], Ax, deflated);
+                A.template apply<excluded>(Ax, v[i + 1], deflated);
+            }
+            else {
+                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, deflated, v[i + 1]);
+                if(!excluded)
+                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], deflated);
+            }
+            if(recycling)
+                blockOrthogonalization<excluded>(id % 4, n, k, deflated, C, v[i + 1], H[i], ldh, Ax, comm);
+            if(BlockArnoldi<excluded>(id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm, save, recycling ? k : 0)) {
+                dim = deflated * (i - 1);
+                i = j = 0;
+                break;
+            }
+            unsigned short converged = 0;
+            for(unsigned short nu = 0; nu < deflated; ++nu) {
+                beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * i + nu * ldh, &i__1);
+                if(((tol > 0 && beta[nu] / norm[nu] <= tol) || (tol < 0 && beta[nu] <= -tol)))
+                    ++converged;
+            }
+            if(verbosity > 0) {
+                underlying_type<K>* max = std::max_element(beta, beta + deflated);
+                if(tol > 0)
+                    std::cout << "BGCRODR: " << std::setw(3) << j << " " << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
+                else
+                    std::cout << "BGCRODR: " << std::setw(3) << j << " " << *max << " < " << -tol;
+                std::cout << " (rhs #" << std::distance(beta, max) + 1;
+                if(converged > 0)
+                    std::cout << ", " << converged << " converged rhs";
+                if(deflated != mu)
+                    std::cout << ", " << mu - deflated << " deflated rhs";
+                std::cout << ")" << std::endl;
+            }
+            if(converged == deflated) {
+                dim = deflated * i;
+                i = 0;
+                break;
+            }
+            else
+                ++j;
+        }
+        bool converged;
+        if(opt.set("initial_deflation_tol"))
+            Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
+        if(j != it + 1 && i == m) {
+            converged = false;
+            if(opt.set("initial_deflation_tol"))
+                Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
+            if(verbosity > 0)
+                std::cout << "BGCRODR restart(" << m << ", " << k << ")" << std::endl;
+        }
+        else {
+            converged = true;
+            if(!excluded && j != 0 && j == it + 1) {
+                const int rem = (recycling ? (it - m) % (m - k) : it % m);
+                if(rem != 0)
+                    dim = deflated * (rem + recycling * k);
+            }
+        }
+        if(!excluded)
+            updateSolRecycling(A, variant, n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);
+        if(opt.set("initial_deflation_tol"))
+            Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
+        if(i == m && id / 4 == 0) {
+            if(recycling)
+                i -= k;
+            Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), save[i - 1] + i * deflated, &ldh, v[m], &ldv);
+        }
+        if(!recycling) {
+            recycling = true;
+            int dim = std::min(j, m);
+            if(dim < k)
+                k = dim;
+            recycled.allocate(n, k);
+            U = recycled.storage();
+            C = U + k * ldv;
+            std::fill_n(s, deflated * ldh, K());
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &deflated, &(Wrapper<K>::d__1), save[dim - 1] + dim * deflated, &ldh, save[m - 1] + dim * deflated, &ldh, &(Wrapper<K>::d__0), s + (dim - 1) * deflated, &ldh);
+            Lapack<K>::trtrs("U", &(Wrapper<K>::transc), "N", &dim, &deflated, *H, &ldh, s, &ldh, &info);
+            for(i = dim; i-- > 0; )
+                Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &deflated, &N, H[i] + i * deflated, &ldh, tau + i * N, s + i, &ldh, Ax, &lwork, &info);
+            for(i = 0; i < dim; ++i)
+                for(unsigned short nu = 0; nu < deflated; ++nu)
+                    std::fill(save[i] + nu * ldh + (i + 1) * deflated + nu + 1, save[i] + (nu + 1) * ldh, K());
+            std::copy_n(*save, deflated * ldh * m, *H);
+            for(i = 0; i < deflated; ++i)
+                Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), s + i * ldh, &i__1, H[dim - 1] + i * ldh, &i__1);
+            int lwork = -1;
+            int bDim = deflated * dim;
+            int row = bDim + 1;
+            int bK = deflated * k;
+            K* w = new K[Wrapper<K>::is_complex ? bDim : (2 * bDim)];
+            K* vr = new K[bDim * bDim];
+            underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * n] : nullptr;
+            {
+                Lapack<K>::geev("N", "V", &bDim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &bDim, vr, &lwork, nullptr, &info);
+                vr[1] = std::max(static_cast<int>(std::real(*vr)), Wrapper<K>::is_complex ? bDim * bDim : (bDim * (bDim + 2)));
+                Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, vr, &lwork, &info);
+                vr[1] = std::max(std::real(*vr), std::real(vr[1]));
+                Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &ldv, vr, &lwork, &info);
+                lwork = std::max(std::real(*vr), std::real(vr[1]));
+            }
+            K* work = new K[lwork];
+            Lapack<K>::geev("N", "V", &bDim, *H, &ldh, w, w + bDim, nullptr, &i__1, vr, &bDim, work, &lwork, rwork, &info);
+            std::vector<std::pair<unsigned short, underlying_type<K>>> q;
+            q.reserve(bDim);
+            for(i = 0; i < bDim; ++i) {
+                underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(w[i]) : std::real(w[i] * w[i] + w[bDim + i] * w[bDim + i]);
+                q.emplace_back(i, magnitude);
+            }
+            std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
+            info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, const std::pair<unsigned short, underlying_type<K>>& b) { return a + b.first; });
+            for(i = bK; info != (bK * (bK - 1)) / 2 && i < bDim; ++i)
+                info += q[i].first;
+            int* perm = new int[i];
+            for(unsigned short j = 0; j < i; ++j)
+                perm[j] = q[j].first + 1;
+            Lapack<K>::lapmt(&i__1, &bDim, &(info = i), vr, &bDim, perm);
+            delete [] perm;
+            delete [] rwork;
+            delete [] w;
+            Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 'F')], &ldv, vr, &bDim, &(Wrapper<K>::d__0), U, &ldv);
+            Blas<K>::gemm("N", "N", &row, &bK, &bDim, &(Wrapper<K>::d__1), *save, &ldh, vr, &bDim, &(Wrapper<K>::d__0), *H, &ldh);
+            delete [] vr;
+            K* tau = new K[bK];
+            Lapack<K>::geqrf(&row, &bK, *H, &ldh, tau, work, &lwork, &info);
+            Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, tau, *v, &ldv, work, &lwork, &info);
+            std::copy_n(*v, bK * ldv, C);
+            Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &ldv);
+            delete [] tau;
+            delete [] work;
+        }
+        else if(!recycled._same) {
+            std::copy_n(C, k * ldv, *v);
+            int bK = deflated * k;
+            K* prod = new K[bK * (dim + deflated + 1)];
+            if(variant == 'F')
+                std::copy_n(v[dim + 1], k * ldv, U);
+            info =  dim + deflated;
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, U, &n, &(Wrapper<K>::d__0), prod, &info);
+            for(unsigned short nu = 0; nu < bK; ++nu)
+                prod[bK * (dim + deflated) + nu] = Blas<K>::dot(&n, U + nu * n, &i__1, U + nu * n, &i__1);
+            MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
+            for(unsigned short nu = 0; nu < bK; ++nu) {
+                prod[bK * (dim + deflated) + nu] = 1.0 / std::sqrt(std::real(prod[bK * (dim + deflated) + nu]));
+                Blas<K>::scal(&n, prod + bK * (dim + deflated) + nu, U + nu * n, &i__1);
+            }
+            for(i = 0; i < m - k; ++i)
+                for(unsigned short nu = 0; nu < deflated; ++nu)
+                    std::fill(save[i] + nu + 2 + nu * ldh + (i + 1) * deflated, save[i] + (nu + 1) * ldh, K());
+            K* A = new K[dim * dim];
+            for(i = 0; i < bK; ++i)
+                for(unsigned short j = 0; j < bK; ++j)
+                    A[j + i * dim] = (i == j ? prod[bK * (dim + deflated) + i] * prod[bK * (dim + deflated) + i] : Wrapper<K>::d__0);
+            int diff = dim - bK;
+            Wrapper<K>::template omatcopy<'N'>(diff, bK, H[k], ldh, A + bK * dim, dim);
+            info = dim;
+            for(unsigned short nu = 0; nu < bK; ++nu)
+                Blas<K>::scal(&diff, prod + bK * (dim + deflated) + nu, A + bK * dim + nu, &info);
+            Wrapper<K>::template omatcopy<'C'>(diff, bK, A + bK * dim, info, A + bK, info);
+            int row = diff + deflated;
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &bK, &(Wrapper<K>::d__1), H[k], &ldh, H[k], &ldh, &(Wrapper<K>::d__0), A + bK * dim + bK, &info);
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save, &ldh, *save, &ldh, &(Wrapper<K>::d__1), A + bK * dim + bK, &info);
+            K* B = new K[deflated * m * (dim + deflated)]();
+            row = dim + deflated;
+            for(i = 0; i < bK; ++i)
+                std::transform(prod + i * (dim + deflated), prod + (i + 1) * (dim + deflated), B + i * deflated * (dim + 1), [&](const K& u) { return prod[bK * (dim + deflated) + i] * u; });
+            Wrapper<K>::template omatcopy<'C'>(diff, diff, *save, ldh, B + bK + bK * row, row);
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &bK, &row, &(Wrapper<K>::d__1), *save, &ldh, B + bK, &row, &(Wrapper<K>::d__0), *H + deflated * (k + 1), &ldh);
+            Wrapper<K>::template omatcopy<'N'>(bK, diff, *H + deflated * (k + 1), ldh, B + bK, row);
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &bK, &bK, &(Wrapper<K>::d__1), H[k], &ldh, B, &row, &(Wrapper<K>::d__1), B + bK, &row);
+            for(i = 0; i < bK; ++i)
+                Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, B + i, &row);
+            int bDim = dim;
+            K* alpha = new K[(2 + !Wrapper<K>::is_complex) * bDim];
+            int lwork = -1;
+            K* vr = new K[bDim * bDim];
+            Lapack<K>::ggev("N", "V", &bDim, A, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, nullptr, &bDim, alpha, &lwork, nullptr, &info);
+            lwork = std::real(*alpha);
+            K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork];
+            underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
+            Lapack<K>::ggev("N", "V", &bDim, A, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, vr, &bDim, work, &lwork, rwork, &info);
+            std::vector<std::pair<unsigned short, underlying_type<K>>> q;
+            q.reserve(bDim);
+            for(i = 0; i < bDim; ++i) {
+                underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[bDim + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * bDim + i] * alpha[2 * bDim + i]) / (alpha[bDim + i] * alpha[bDim + i]));
+                q.emplace_back(i, magnitude);
+            }
+            std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
+            info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, const std::pair<unsigned short, underlying_type<K>>& b) { return a + b.first; });
+            for(i = bK; info != (bK * (bK - 1)) / 2 && i < bDim; ++i)
+                info += q[i].first;
+            int* perm = new int[i];
+            std::transform(q.cbegin(), q.cbegin() + i, perm, [](const std::pair<unsigned short, underlying_type<K>>& u) { return u.first + 1; });
+            decltype(q)().swap(q);
+            Lapack<K>::lapmt(&i__1, &bDim, &(info = i), vr, &bDim, perm);
+            row = deflated * (diff + 1);
+            Blas<K>::gemm("N", "N", &row, &bK, &diff, &(Wrapper<K>::d__1), *save, &ldh, vr + bK, &bDim, &(Wrapper<K>::d__0), *H + bK, &ldh);
+            Wrapper<K>::template omatcopy<'N'>(bK, bK, vr, bDim, *H, ldh);
+            for(i = 0; i < bK; ++i)
+                Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, *H + i, &ldh);
+            Blas<K>::gemm("N", "N", &bK, &bK, &diff, &(Wrapper<K>::d__1), H[k], &ldh, vr + bK, &bDim, &(Wrapper<K>::d__1), *H, &ldh);
+            row = dim + deflated;
+            K* tau = new K[bK];
+            *perm = -1;
+            Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, perm, &info);
+            Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &ldv, work + 1, perm, &info);
+            delete [] perm;
+            if(std::real(work[0]) > (Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork) || std::real(work[1]) > (Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork)) {
+                lwork = std::max(std::real(work[0]), std::real(work[1]));
+                delete [] work;
+                work = new K[lwork];
+            }
+            Lapack<K>::geqrf(&row, &bK, *H, &ldh, tau, work, &lwork, &info);
+            Wrapper<K>::template omatcopy<'N'>(bK, n, U, n, v[(m + 1) * (variant == 'F')], n);
+            Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 'F')], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
+            Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &n);
+            Wrapper<K>::template omatcopy<'N'>(bK, n, C, n, *v, n);
+            Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, tau, *v, &n, work, &lwork, &info);
+            Wrapper<K>::template omatcopy<'N'>(bK, n, *v, n, C, n);
+            delete [] tau;
+            delete [] work;
+            delete [] vr;
+            delete [] alpha;
+            delete [] B;
+            delete [] A;
+            delete [] prod;
+        }
+        if(converged)
+            break;
+    }
+    delete [] piv;
+    A.clearBuffer(alloc);
+    delete [] *H;
+    delete [] *save;
+    delete [] H;
+    std::cout.unsetf(std::ios_base::scientific);
+    if(j != 0) {
+        if(verbosity > 0) {
+            if(j != it + 1)
+                std::cout << "BGCRODR converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
+            else
+                std::cout << "BGCRODR does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
+        }
+        return std::min(j, it);
+    }
+    else
+        return GCRODR(A, b, x, mu, comm);
+}
 } // HPDDM
-#endif // _HPDDM_GCRODR__
+#endif // _HPDDM_GCRODR_
