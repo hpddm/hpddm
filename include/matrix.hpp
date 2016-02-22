@@ -131,6 +131,12 @@ class MatrixCSR {
             else
                 return false;
         }
+        std::size_t hashIndices() const {
+            std::size_t seed = 0;
+            hash_range(seed, _ia, _ia + _n);
+            hash_range(seed, _ja, _ja + _nnz);
+            return seed;
+        }
         /* Function: dump
          *
          *  Outputs the matrix to an output stream.

@@ -181,7 +181,8 @@ template<class T>
 inline T sto(std::string s, typename std::enable_if<std::is_same<T, double>::value>::type* = nullptr) {
     return std::stod(s);
 }
-#  define to_string(x) std::to_string(x)
+template<class T>
+inline std::string to_string(const T& x) { return std::to_string(x); }
 # endif // __MINGW32__
 template<class T>
 using alias = T;
@@ -201,6 +202,13 @@ using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::
 
 template<class>
 struct is_substructuring_method : std::false_type { };
+
+template<class T>
+inline void hash_range(std::size_t& seed, T begin, T end) {
+    std::hash<typename std::remove_const<typename std::remove_reference<decltype(*begin)>::type>::type> hasher;
+    while(begin != end)
+        seed ^= hasher(*begin++) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
 } // HPDDM
 # if (!defined(__clang__) && defined(__GNUC__)) || (defined(__INTEL_COMPILER) && defined(__GNUC__))
 #  if (__GNUC__ * 10000 + __GNUC_MINOR__ * 100) < 40900

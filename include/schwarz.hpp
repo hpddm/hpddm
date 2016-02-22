@@ -61,8 +61,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         /* Variable: type
          *  Type of <Prcndtnr> used in <Schwarz::apply> and <Schwarz::deflation>. */
         Prcndtnr               _type;
+        std::size_t            _hash;
     public:
-        Schwarz() : _d() { }
+        Schwarz() : _d(), _hash() { }
         ~Schwarz() { _d = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
@@ -83,6 +84,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     _type = Prcndtnr::OS;
                 else
                     _type = Prcndtnr::OG;
+                std::size_t hash = A->hashIndices();
+                if(_hash != hash) {
+                    _hash = hash;
+                    super::destroySolver();
+                }
             }
             else {
                 if(opt["schwarz_method"] == 3)
@@ -96,19 +102,15 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             }
             unsigned short reuse = opt.val<unsigned short>("reuse_preconditioner", 0);
             if(reuse <= 1)
-                super::_s.template numfact<N>(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a, _type == Prcndtnr::OS ? true : false);
+                super::_s.template numfact<N>(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a);
             if(reuse >= 1)
                 opt["reuse_preconditioner"] += 1;
         }
         void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a) && _type != Prcndtnr::OS && _type != Prcndtnr::OG;
             if(fact) {
-                using type = alias<Solver<K>>;
-                super::_s.~type();
+                super::destroySolver();
                 super::_s.numfact(a);
-                Option& opt = *Option::get();
-                if(opt.val<unsigned short>("reuse_preconditioner", 0) >= 1)
-                    opt["reuse_preconditioner"] = 1;
             }
         }
         /* Function: multiplicityScaling

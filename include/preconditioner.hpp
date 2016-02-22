@@ -168,6 +168,13 @@ class Preconditioner : public Subdomain<K> {
                 _co->setLocal(deflation);
             }
         }
+        void destroySolver() {
+            using type = alias<Solver<K>>;
+            _s.~type();
+            Option& opt = *Option::get();
+            if(opt.val<unsigned short>("reuse_preconditioner", 0) >= 1)
+                opt["reuse_preconditioner"] = 1;
+        }
         /* Function: callSolve
          *
          *  Applies <Preconditioner::s> to multiple right-hand sides in-place.
