@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
         std::forward_as_tuple("path=<./examples/data>", "Relative path to the different .txt files.", HPDDM::Option::Arg::argument)
     });
     unsigned short no = 0;
-    std::ifstream t(opt.prefix("path") + "/40" + to_string(no++) + ".txt");
+    std::ifstream t(opt.prefix("path") + "/40" + HPDDM::to_string(no++) + ".txt");
     if(!t.good()) {
         std::cerr << "Please specity a correct -path=<./examples/data>" << std::endl;
         return 1;
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
         delete [] x;
         delete [] rhs;
         delete Mat;
-    } while(t.open(opt.prefix("path") + "/40" + to_string(no++) + ".txt"), t.good());
+    } while(t.open(opt.prefix("path") + "/40" + HPDDM::to_string(no++) + ".txt"), t.good());
     std::cout << "Total number of iterations: " << it << std::endl;
     MPI_Finalize();
     if(status == 0 && opt.any_of("krylov_method", { 3, 4 })) {
