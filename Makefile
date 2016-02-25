@@ -80,6 +80,10 @@ else
         LIBS += ${SUITESPARSE_LIBS}
     endif
 endif
+ifeq (${SUBSOLVER}, DISSECTION)
+    INCS += ${DISSECTION_INCS}
+    LIBS += ${DISSECTION_LIBS}
+endif
 
 LIBS += ${ARPACK_LIBS} ${SCALAPACK_LIBS}
 ifdef MKL_INCS

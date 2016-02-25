@@ -459,20 +459,17 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     unsigned int stop;
                     if(!Subdomain<K>::_a->_sym) {
                         int* const bound = std::upper_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i] - shift, Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i + 1] - shift, i + shift);
-                        if(bound == Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i + 1] - shift)
-                            continue;
                         stop = std::distance(Subdomain<K>::_a->_ja, bound);
                     }
                     else
                         stop = Subdomain<K>::_a->_ia[i + 1] - shift;
-                    if(Subdomain<K>::_a->_ja[std::max(1U, stop) - 1] != i + shift || std::abs(Subdomain<K>::_a->_a[stop - 1]) > HPDDM_EPS * HPDDM_PEN)
-                        continue;
-                    for(unsigned int j = Subdomain<K>::_a->_ia[i] - shift; j < stop && isBoundaryCond; ++j) {
-                        if(i != Subdomain<K>::_a->_ja[j] - shift && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
-                            isBoundaryCond = false;
-                        else if(i == Subdomain<K>::_a->_ja[j] - shift && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
-                            isBoundaryCond = false;
-                    }
+                    if((Subdomain<K>::_a->_sym || stop < Subdomain<K>::_a->_ia[i + 1] - shift) && Subdomain<K>::_a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(Subdomain<K>::_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
+                        for(unsigned int j = Subdomain<K>::_a->_ia[i] - shift; j < stop && isBoundaryCond; ++j) {
+                            if(i != Subdomain<K>::_a->_ja[j] - shift && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
+                                isBoundaryCond = false;
+                            else if(i == Subdomain<K>::_a->_ja[j] - shift && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
+                                isBoundaryCond = false;
+                        }
                 }
                 else
                     isBoundaryCond = false;

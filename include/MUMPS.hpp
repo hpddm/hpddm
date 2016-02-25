@@ -32,8 +32,7 @@
 
 namespace HPDDM {
 template<class>
-struct MUMPS_STRUC_C {
-};
+struct MUMPS_STRUC_C { };
 template<>
 struct MUMPS_STRUC_C<float> {
     typedef SMUMPS_STRUC_C trait;

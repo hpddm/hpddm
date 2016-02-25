@@ -265,6 +265,9 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
 #   include "SuiteSparse.hpp"
 #  endif
+#  ifdef DISSECTIONSUB
+#   include "Dissection.hpp"
+#  endif
 #  if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
 #   undef HPDDM_SCHWARZ
 #   undef HPDDM_FETI

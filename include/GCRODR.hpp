@@ -309,8 +309,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 p.reserve(k + 1);
                 for(i = 0; i < dim; ++i) {
                     underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(w[i]) : std::real(w[i] * w[i] + w[dim + i] * w[dim + i]);
-                    typename decltype(p)::const_iterator it = std::lower_bound(p.cbegin(), p.cend(), std::make_pair(i, magnitude), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
-                    if(p.size() < k || it != p.cend())
+                    typename decltype(p)::iterator it = std::lower_bound(p.begin(), p.end(), std::make_pair(i, magnitude), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
+                    if(p.size() < k || it != p.end())
                         p.insert(it, std::make_pair(i, magnitude));
                     if(p.size() == k + 1)
                         p.pop_back();
