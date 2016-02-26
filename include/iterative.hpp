@@ -228,6 +228,18 @@ class IterativeMethod {
             else
                 Wrapper<T>::diag(n, d, in);
         }
+        template<class K>
+        static void localSquaredNorm(const K* const b, const unsigned int n, underlying_type<K>* const norm, const unsigned short mu = 1) {
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                norm[nu] = 0.0;
+                for(unsigned int i = 0; i < n; ++i) {
+                    if(std::abs(b[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
+                        norm[nu] += std::norm(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+                    else
+                        norm[nu] += std::norm(b[nu * n + i]);
+                }
+            }
+        }
         /* Function: orthogonalization
          *
          *  Orthogonalizes a block of vectors against a contiguous set of block of vectors.

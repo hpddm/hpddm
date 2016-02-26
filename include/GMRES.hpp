@@ -66,12 +66,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
     }
     else
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            norm[nu] = 0.0;
-            for(unsigned int i = 0; i < n; ++i)
-                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
-                    norm[nu] += std::norm(b[nu * n + i]);
-        }
+        localSquaredNorm(b, n, norm, mu);
 
     unsigned short j = 1;
     while(j <= it) {
@@ -80,11 +75,6 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
         if(variant == 'L')
             A.template apply<excluded>(Ax, *v, mu);
-        if(!excluded)
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                for(unsigned int j = 0; j < n; ++j)
-                    if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
-                        v[0][nu * n + j] = K();
         for(unsigned short nu = 0; nu < mu; ++nu)
             sn[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
         if(j == 1) {
@@ -219,12 +209,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
     }
     else
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            norm[nu] = 0.0;
-            for(unsigned int i = 0; i < n; ++i)
-                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
-                    norm[nu] += std::norm(b[nu * n + i]);
-        }
+        localSquaredNorm(b, n, norm, mu);
     MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     for(unsigned short nu = 0; nu < mu; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
@@ -243,11 +228,6 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
         if(variant == 'L')
             A.template apply<excluded>(Ax, *v, mu);
-        if(!excluded)
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                for(unsigned int j = 0; j < n; ++j)
-                    if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
-                        v[0][nu * n + j] = K();
         VR<excluded>(n, mu, 1, *v, s, mu, comm);
         if(!opt.set("initial_deflation_tol")) {
             Lapack<K>::potrf("U", &mu, s, &mu, &info);

@@ -148,6 +148,11 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("master_boomeramg_max_levels=<10>", "Maximum number of multigrid levels.", Arg::integer),
         std::forward_as_tuple("master_boomeramg_interp_type=<0>", "Parallel interpolation operator.", Arg::integer),
 #endif
+#ifdef DISSECTIONSUB
+        std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Dissection-specific options:"; return true; }),
+        std::forward_as_tuple("dissection_pivot_tol=<val>", "Tolerance for choosing when to pivot during numerical factorizations.", Arg::numeric),
+        std::forward_as_tuple("dissection_kkt_scaling=(0|1)", "Turn on KKT scaling instead of the default diagonal scaling.", Arg::argument),
+#endif
         std::forward_as_tuple("", "", Arg::anything),
 #if !defined(DSUITESPARSE)
         std::forward_as_tuple("master_p=<1>", "Number of master processes.", Arg::integer),

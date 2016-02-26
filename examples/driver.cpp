@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
         else if(opt["variant"] == 0)
             status = !(it > 2052 && it < 2072);
         else if(opt["variant"] == 1)
-            status = !(it > 2060 && it < 2080);
+            status = !(it > 2055 && it < 2075);
     }
     return status;
 }

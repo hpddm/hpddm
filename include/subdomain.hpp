@@ -234,6 +234,28 @@ class Subdomain {
             MPI_Comm_compare(_communicator, comm, &result);
             return result != MPI_CONGRUENT && result != MPI_IDENT;
         }
+        K boundaryCond(const unsigned int i) const {
+            const int shift = _a->_ia[0];
+            unsigned int stop;
+            if(_a->_ia[i] != _a->_ia[i + 1]) {
+                if(!_a->_sym) {
+                    int* const bound = std::upper_bound(_a->_ja + _a->_ia[i] - shift, _a->_ja + _a->_ia[i + 1] - shift, i + shift);
+                    stop = std::distance(_a->_ja, bound);
+                }
+                else
+                    stop = _a->_ia[i + 1] - shift;
+                if((_a->_sym || stop < _a->_ia[i + 1] - shift) && _a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
+                    for(unsigned int j = _a->_ia[i] - shift; j < stop; ++j) {
+                        if(i != _a->_ja[j] - shift && std::abs(_a->_a[j]) > HPDDM_EPS)
+                            return K();
+                        else if(i == _a->_ja[j] - shift && std::abs(_a->_a[j] - K(1.0)) > HPDDM_EPS)
+                            return K();
+                    }
+            }
+            else
+                return K();
+            return _a->_a[stop - 1];
+        }
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */
         int getDof() const { return _dof; }

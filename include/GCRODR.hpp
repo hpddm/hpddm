@@ -121,12 +121,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
     }
     else
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            norm[nu] = 0.0;
-            for(unsigned int i = 0; i < n; ++i)
-                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
-                    norm[nu] += std::norm(b[nu * n + i]);
-        }
+        localSquaredNorm(b, n, norm, mu);
 
     char id = opt.val<char>("orthogonalization", 0) + 4 * opt.val<char>("qr", 0);
     while(j <= it) {
@@ -136,11 +131,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, variant == 'L' ? Ax : v[i], 1);
         if(variant == 'L')
             A.template apply<excluded>(Ax, v[i], mu);
-        if(!excluded)
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                for(unsigned int j = 0; j < n; ++j)
-                    if(std::abs(v[i][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
-                        v[i][nu * n + j] = K();
         if(j == 1 && recycling) {
             if(!recycled._same) {
                 for(unsigned short nu = 0; nu < k; ++nu) {
@@ -516,12 +506,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
     }
     else
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            norm[nu] = 0.0;
-            for(unsigned int i = 0; i < n; ++i)
-                if(std::abs(b[nu * n + i]) <= HPDDM_PEN * HPDDM_EPS)
-                    norm[nu] += std::norm(b[nu * n + i]);
-        }
+        localSquaredNorm(b, n, norm, mu);
     MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     for(unsigned short nu = 0; nu < mu; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
@@ -551,11 +536,6 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
         if(variant == 'L')
             A.template apply<excluded>(Ax, *v, mu);
-        if(!excluded)
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                for(unsigned int j = 0; j < n; ++j)
-                    if(std::abs(v[0][nu * n + j]) > HPDDM_PEN * HPDDM_EPS)
-                        v[0][nu * n + j] = K();
         if(j == 1 && recycling) {
             int bK = mu * k;
             if(!recycled._same) {

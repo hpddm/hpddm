@@ -48,12 +48,19 @@ class DissectionSub {
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
-            static_assert(N == 'C', "Unsupported numbering");
             if(!_dslv) {
                 _dslv = new DissectionSolver<K, underlying_type<K>>(1, false, 0, nullptr);
+                if(N == 'F') {
+                    std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { --i; });
+                    std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
+                }
                 _dslv->SymbolicFact(A->_n, A->_ia, A->_ja, A->_sym, false);
+                if(N == 'F') {
+                    std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
+                    std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { ++i; });
+                }
             }
-            _dslv->NumericFact(0, A->_a, DIAGONAL_SCALING, 1.0 / HPDDM_PEN);
+            _dslv->NumericFact(0, A->_a, Option::get()->val<unsigned short>("dissection_kkt_scaling") ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
         }
         unsigned short deficiency() const { return _dslv->kern_dimension(); }
         void solve(K* const x, const unsigned short& n = 1) const {

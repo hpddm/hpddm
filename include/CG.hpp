@@ -55,9 +55,6 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     A.GMV(x, z);
     std::copy_n(b, n, r);
     Blas<K>::axpy(&n, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
-    for(unsigned int i = 0; i < n; ++i)
-        if(std::abs(r[i]) > HPDDM_PEN * HPDDM_EPS)
-            r[i] = K();
 
     A.apply(r, p, 1, z);
 

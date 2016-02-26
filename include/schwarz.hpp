@@ -222,9 +222,17 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         }
         template<bool excluded = false>
         void start(const K* const b, K* const x, const unsigned short& mu = 1) const {
+            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+                K boundary = Subdomain<K>::boundaryCond(i);
+                if(std::abs(boundary) > HPDDM_EPS) {
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        x[nu * Subdomain<K>::_dof + i] = b[nu * Subdomain<K>::_dof + i] / boundary;
+                }
+            }
+            scaledExchange(x, mu);
             if(super::_co) {
                 super::start(mu);
-                if(Option::get()->val("schwarz_coarse_correction", -1) == 2)
+                if(Option::get()->val<unsigned short>("schwarz_coarse_correction") == 2)
                     deflation<excluded>(b, x, mu);
             }
         }
@@ -452,32 +460,13 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             Subdomain<K>::clearBuffer(alloc);
             Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
             std::fill_n(storage, 2 * mu, 0.0);
-            const int shift = Subdomain<K>::_a->_ia[0];
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
-                bool isBoundaryCond = true;
-                if(Subdomain<K>::_a->_ia[i] != Subdomain<K>::_a->_ia[i + 1]) {
-                    unsigned int stop;
-                    if(!Subdomain<K>::_a->_sym) {
-                        int* const bound = std::upper_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i] - shift, Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i + 1] - shift, i + shift);
-                        stop = std::distance(Subdomain<K>::_a->_ja, bound);
-                    }
-                    else
-                        stop = Subdomain<K>::_a->_ia[i + 1] - shift;
-                    if((Subdomain<K>::_a->_sym || stop < Subdomain<K>::_a->_ia[i + 1] - shift) && Subdomain<K>::_a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(Subdomain<K>::_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
-                        for(unsigned int j = Subdomain<K>::_a->_ia[i] - shift; j < stop && isBoundaryCond; ++j) {
-                            if(i != Subdomain<K>::_a->_ja[j] - shift && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
-                                isBoundaryCond = false;
-                            else if(i == Subdomain<K>::_a->_ja[j] - shift && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
-                                isBoundaryCond = false;
-                        }
-                }
-                else
-                    isBoundaryCond = false;
+                bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
-                    if(!isBoundaryCond)
+                    if(!boundary)
                         storage[2 * nu + 1] += _d[i] * std::norm(tmp[nu * Subdomain<K>::_dof + i]);
                     if(std::abs(f[nu * Subdomain<K>::_dof + i]) > HPDDM_EPS * HPDDM_PEN)
-                        storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i] / K(HPDDM_PEN));
+                        storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i] / underlying_type<K>(HPDDM_PEN));
                     else
                         storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i]);
                 }

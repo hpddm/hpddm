@@ -75,7 +75,7 @@ do
                 for SOLVER in $SOLVER_LIST
                 do
                     ProgressBar $I 36 "HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER}"
-                    make -j4 HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> /dev/null 2>$TMPFILE
+                    make -j4 all ./bin/driver HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> /dev/null 2>$TMPFILE
                     if [ $? -ne 0 ]; then
                         echo -e "\n[ \033[91;1mFAIL\033[0m ]"
                         cat $TMPFILE
@@ -102,6 +102,16 @@ do
                                 unlink $TMPFILE
                                 exit 1
                             fi
+                        fi
+                        if [[ ("$OTHER" == "" || "$OTHER" == "-DFORCE_COMPLEX") ]];
+                        then
+                            make test_bin/driver HPDDMFLAGS="-DHPDDM_NUMBERING=\'$N\' $OTHER" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER} 1> $TMPFILE 2>&1
+                        fi
+                        if [ $? -ne 0 ]; then
+                            echo -e "\n[ \033[91;1mFAIL\033[0m ] HPDDMFLAGS=\"-DHPDDM_NUMBERING=\\\'$N\\\' $OTHER\" SOLVER=${SOLVER} SUBSOLVER=${SUBSOLVER}"
+                            cat $TMPFILE
+                            unlink $TMPFILE
+                            exit 1
                         fi
                     fi
                     I=$((I + 1))
