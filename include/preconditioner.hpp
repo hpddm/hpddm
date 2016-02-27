@@ -172,7 +172,7 @@ class Preconditioner : public Subdomain<K> {
             using type = alias<Solver<K>>;
             _s.~type();
             Option& opt = *Option::get();
-            if(opt.val<unsigned short>("reuse_preconditioner", 0) >= 1)
+            if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
                 opt["reuse_preconditioner"] = 1;
         }
         /* Function: callSolve

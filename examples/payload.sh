@@ -36,7 +36,7 @@ function ProgressBar {
 
 TMPFILE=$(mktemp /tmp/hpddm-payload.XXXXXX)
 make clean > /dev/null
-for CXX in g++ clang++ # icpc
+for CXX in g++ clang++ icpc
 do
     I=0
     START=$SECONDS
@@ -53,7 +53,7 @@ do
         export MPICH_CC=icc
         export OMPI_CXX=icpc
         export MPICH_CXX=icpc
-        sed -i\ '' 's/ nullptr>/ (void*)0>/g; s/static constexpr const char/const char/g' include/*.hpp
+        export CXXFLAGS=-D__cpp_rtti
     else
         export OMPI_CC=clang
         export MPICH_CC=clang

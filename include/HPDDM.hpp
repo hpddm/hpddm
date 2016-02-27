@@ -201,7 +201,7 @@ template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 
 template<class>
-struct is_substructuring_method : std::false_type { };
+struct is_substructuring_method : public std::false_type { };
 
 template<class T>
 inline void hash_range(std::size_t& seed, T begin, T end) {

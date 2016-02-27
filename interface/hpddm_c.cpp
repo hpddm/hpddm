@@ -36,7 +36,7 @@ const char symCoarse = 'S';
 typedef typename std::conditional<std::is_same<K, underlying_type>::value, K, std::complex<underlying_type>>::type cpp_type;
 
 const HpddmOption* HpddmOptionGet() {
-    return (const HpddmOption* const)&*HPDDM::Option::get();
+    return (const HpddmOption*)HPDDM::Option::get().get();
 }
 int HpddmOptionParse(const HpddmOption* const option, int argc, char** argv, bool display) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);

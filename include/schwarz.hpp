@@ -100,7 +100,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     opt["schwarz_method"] = 0;
                 }
             }
-            unsigned short reuse = opt.val<unsigned short>("reuse_preconditioner", 0);
+            unsigned short reuse = opt.val<unsigned short>("reuse_preconditioner");
             if(reuse <= 1)
                 super::_s.template numfact<N>(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a);
             if(reuse >= 1)

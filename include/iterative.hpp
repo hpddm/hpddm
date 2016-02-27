@@ -107,7 +107,7 @@ class IterativeMethod {
         template<class Operator, class K, class T>
         static void addSol(const Operator& A, char variant, const int& n, K* const x, const int& ldh, const K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
             static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
-            K* const correction = (variant == 'R' ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K* const>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
+            K* const correction = (variant == 'R' ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
             if(deflated == -1) {
                 int ldv = mu * n;
                 if(variant == 'L') {
@@ -173,7 +173,7 @@ class IterativeMethod {
                 }
                 else {
                     std::copy_n(v[shift], deflated * n, work);
-                    Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K* const>(norm), &ldh, work, &n);
+                    Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K*>(norm), &ldh, work, &n);
                     int bK = deflated * shift;
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
                     for(unsigned short i = 0; i < deflated; ++i)
@@ -238,6 +238,18 @@ class IterativeMethod {
                     else
                         norm[nu] += std::norm(b[nu * n + i]);
                 }
+            }
+        }
+        template<class K>
+        static void epsilon(K& tol, const unsigned char verbosity = 0) {
+            if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
+                if(verbosity > 0)
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol
+#ifdef __cpp_rtti
+                     << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name())
+#endif
+                     << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
+                tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
             }
         }
         /* Function: orthogonalization

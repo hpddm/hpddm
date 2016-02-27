@@ -60,7 +60,7 @@ class DissectionSub {
                     std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { ++i; });
                 }
             }
-            _dslv->NumericFact(0, A->_a, Option::get()->val<unsigned short>("dissection_kkt_scaling") ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
+            _dslv->NumericFact(0, A->_a, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
         }
         unsigned short deficiency() const { return _dslv->kern_dimension(); }
         void solve(K* const x, const unsigned short& n = 1) const {

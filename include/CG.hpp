@@ -35,13 +35,9 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     const int n = A.getDof();
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
-    const char verbosity = opt.val<char>("verbosity");
+    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
     std::cout << std::scientific;
-    if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
-        if(verbosity > 0)
-            std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
-        tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
-    }
+    epsilon(tol, verbosity);
     underlying_type<K>* dir;
     K* trash;
     allocate(dir, trash, n, opt["variant"] == 2 ? 2 : 1, it);
@@ -139,13 +135,9 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
-    const char verbosity = opt.val<char>("verbosity");
+    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
     std::cout << std::scientific;
-    if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
-        if(verbosity > 0)
-            std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
-        tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
-    }
+    epsilon(tol, verbosity);
     const int offset = std::is_same<ptr_type, K*>::value ? A.getEliminated() : 0;
     ptr_type storage[std::is_same<ptr_type, K*>::value ? 1 : 2];
     // storage[0] = r

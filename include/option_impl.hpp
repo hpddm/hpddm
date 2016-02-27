@@ -183,9 +183,13 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
                 std::string val = def.substr(n + 2, def.size() - n - 3);
                 def = def.substr(0, n);
                 if(std::get<2>(x)(def, val, true)) {
+#ifdef __cpp_rtti
                     auto target = std::get<2>(x).template target<bool (*)(const std::string&, const std::string&, bool)>();
                     if(!target || (*target != Arg::argument))
                         (*_app)[def] = sto<double>(val);
+#else
+                    (*_app)[def] = sto<double>(val);
+#endif
                 }
             }
         }
@@ -277,6 +281,19 @@ void Option::version() const {
         " │  penalization: " + std::string(HPDDM_STR(HPDDM_PEN)),
         " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
         " │  numbering: '" + std::string(1, HPDDM_NUMBERING) + "'",
+        " │  regular expression support? "
+#ifdef HPDDM_NO_REGEX
+            "false",
+#else
+            "true",
+#endif
+        " │  C++ RTTI support? "
+#ifdef __cpp_rtti
+            "true",
+#else
+            "false",
+#pragma message("Consider enabling RTTI support with your C++ compiler")
+#endif
         " │  MKL support? " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
 #ifdef INTEL_MKL_VERSION
         " │  MKL version: " + to_string(INTEL_MKL_VERSION),

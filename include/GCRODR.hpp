@@ -67,13 +67,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     const int n = excluded ? 0 : A.getDof();
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
-    const char verbosity = opt.val<char>("verbosity");
+    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
     std::cout << std::scientific;
-    if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
-        if(verbosity > 0)
-            std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
-        tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
-    }
+    epsilon(tol, verbosity);
     const int m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
     k = std::min(m - 1, k);
     const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
@@ -469,13 +465,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     const int n = excluded ? 0 : A.getDof();
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
-    const char verbosity = opt.val<char>("verbosity");
+    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
     std::cout << std::scientific;
-    if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
-        if(verbosity > 0)
-            std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name()) << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
-        tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
-    }
+    epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
     const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
 

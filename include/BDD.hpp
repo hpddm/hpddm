@@ -353,6 +353,6 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
 };
 
 template<template<class> class Solver, template<class> class CoarseSolver, char S, class K>
-struct is_substructuring_method<Bdd<Solver, CoarseSolver, S, K>> : std::true_type { };
+struct is_substructuring_method<Bdd<Solver, CoarseSolver, S, K>> : public std::true_type { };
 } // HPDDM
 #endif // _HPDDM_BDD_

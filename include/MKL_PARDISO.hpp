@@ -117,7 +117,7 @@ class MklPardiso : public DMatrix {
             _C = C;
             const Option& opt = *Option::get();
             if(S == 'S')
-                _mtype = opt.val<unsigned short>("master_not_spd", 0) ? prds<K>::SYM : prds<K>::SPD;
+                _mtype = opt.val<char>("master_not_spd", 0) ? prds<K>::SYM : prds<K>::SPD;
             else
                 _mtype = prds<K>::SSY;
             int phase, error;
