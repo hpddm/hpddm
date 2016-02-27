@@ -320,7 +320,7 @@ class Option : private Singleton {
                             std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
                     }
                     else if(success) {
-#ifdef __cpp_rtti
+#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                         auto target = std::get<2>(*it).template target<bool (*)(const std::string&, const std::string&, bool)>();
                         if(!target || *target != Arg::argument)
                             map[str] = sto<double>(val);
@@ -333,7 +333,12 @@ class Option : private Singleton {
                             map[str + "_" + val] = -static_cast<int>(str.size()) - 10000000;
                         }
 #else
-                        map[str] = sto<double>(val);
+                        try {
+                            map[str] = sto<double>(val);
+                        }
+                        catch(const std::invalid_argument& ia) {
+                            std::cerr << "invalid_argument error: " << ia.what() << " (key: " << str << ", value: " << val << ")" << std::endl;
+                        }
 #endif
                     }
                 }

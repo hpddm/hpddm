@@ -127,6 +127,10 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <algorithm>
 # include <vector>
 # include <numeric>
+# include <functional>
+# if !defined(_cpp_rtti) && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
+#  pragma message("Consider enabling RTTI support with your C++ compiler")
+# endif
 static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double), "Incorrect sizes");
 # ifdef __GNUG__
 #  include <cxxabi.h>

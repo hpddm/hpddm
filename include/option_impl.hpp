@@ -183,7 +183,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
                 std::string val = def.substr(n + 2, def.size() - n - 3);
                 def = def.substr(0, n);
                 if(std::get<2>(x)(def, val, true)) {
-#ifdef __cpp_rtti
+#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                     auto target = std::get<2>(x).template target<bool (*)(const std::string&, const std::string&, bool)>();
                     if(!target || (*target != Arg::argument))
                         (*_app)[def] = sto<double>(val);
@@ -288,11 +288,10 @@ void Option::version() const {
             "true",
 #endif
         " │  C++ RTTI support? "
-#ifdef __cpp_rtti
+#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
             "true",
 #else
             "false",
-#pragma message("Consider enabling RTTI support with your C++ compiler")
 #endif
         " │  MKL support? " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
 #ifdef INTEL_MKL_VERSION
