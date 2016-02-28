@@ -24,8 +24,10 @@
 #ifndef _HPDDM_DISSECTION_
 #define _HPDDM_DISSECTION_
 
-#if !HPDDM_MKL
+#ifndef INTEL_MKL_VERSION
 # define BLAS_GENERIC
+#else
+# define BLAS_MKL
 #endif
 #define DD_REAL
 #include "Driver/DissectionSolver.hpp"
@@ -47,6 +49,7 @@ class DissectionSub {
         static constexpr char _numbering = 'C';
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+            static_assert(N == 'C' || N == 'F', "Unknown numbering");
             static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
             if(!_dslv) {
                 _dslv = new DissectionSolver<K, underlying_type<K>>(1, false, 0, nullptr);

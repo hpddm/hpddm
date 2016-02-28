@@ -221,8 +221,6 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  endif
 # endif
 # include "option.hpp"
-# include "enum.hpp"
-# include "BLAS.hpp"
 # if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201 && !defined(__INTEL_COMPILER)
 #  ifdef __clang__
 #   pragma clang diagnostic push
@@ -232,6 +230,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   pragma GCC diagnostic ignored "-Wwrite-strings"
 #  endif
 # endif
+# include "BLAS.hpp"
 # include "wrapper.hpp"
 # if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201 && !defined(__INTEL_COMPILER)
 #  ifdef __clang__
@@ -241,47 +240,47 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  endif
 # endif
 # include "matrix.hpp"
+# include "dmatrix.hpp"
+# if !HPDDM_MKL
+#  ifdef MKL_PARDISOSUB
+#   undef MKL_PARDISOSUB
+#   define MUMPSSUB
+#  endif
+#  ifdef DMKL_PARDISO
+#   undef DMKL_PARDISO
+#   define DMUMPS
+#  endif
+# endif // HPDDM_MKL
+# if defined(DMUMPS) || defined(MUMPSSUB)
+#  include "MUMPS.hpp"
+# endif
+# if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
+#  include "MKL_PARDISO.hpp"
+# endif
+# if defined(DPASTIX) || defined(PASTIXSUB)
+#  include "PaStiX.hpp"
+# endif
+# if defined(DHYPRE)
+#  include "Hypre.hpp"
+# endif
+# if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
+#  include "SuiteSparse.hpp"
+# endif
+# ifdef DISSECTIONSUB
+#  include "Dissection.hpp"
+# endif
+# if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
+#  undef HPDDM_SCHWARZ
+#  undef HPDDM_FETI
+#  undef HPDDM_BDD
+#  define HPDDM_SCHWARZ       0
+#  define HPDDM_FETI          0
+#  define HPDDM_BDD           0
+# endif
 # ifndef HPDDM_MINIMAL
-#  include "dmatrix.hpp"
-
-#  if !HPDDM_MKL
-#   ifdef MKL_PARDISOSUB
-#    undef MKL_PARDISOSUB
-#    define MUMPSSUB
-#   endif
-#   ifdef DMKL_PARDISO
-#    undef DMKL_PARDISO
-#    define DMUMPS
-#   endif
-#  endif // HPDDM_MKL
-#  if defined(DMUMPS) || defined(MUMPSSUB)
-#   include "MUMPS.hpp"
-#  endif
-#  if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
-#   include "MKL_PARDISO.hpp"
-#  endif
-#  if defined(DPASTIX) || defined(PASTIXSUB)
-#   include "PaStiX.hpp"
-#  endif
-#  if defined(DHYPRE)
-#   include "Hypre.hpp"
-#  endif
-#  if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
-#   include "SuiteSparse.hpp"
-#  endif
-#  ifdef DISSECTIONSUB
-#   include "Dissection.hpp"
-#  endif
-#  if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
-#   undef HPDDM_SCHWARZ
-#   undef HPDDM_FETI
-#   undef HPDDM_BDD
-#   define HPDDM_SCHWARZ       0
-#   define HPDDM_FETI          0
-#   define HPDDM_BDD           0
-#  endif
-#  include "eigensolver.hpp"
 #  include "LAPACK.hpp"
+#  include "enum.hpp"
+#  include "eigensolver.hpp"
 #  if HPDDM_SCHWARZ
 #   ifndef EIGENSOLVER
 #    ifdef INTEL_MKL_VERSION
@@ -311,8 +310,8 @@ using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #  include "GMRES.hpp"
 #  include "GCRODR.hpp"
 #  include "CG.hpp"
-#  include "option_impl.hpp"
 # endif // HPDDM_MINIMAL
+# include "option_impl.hpp"
 #else
 # include "BLAS.hpp"
 # include "LAPACK.hpp"

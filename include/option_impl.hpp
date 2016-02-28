@@ -272,14 +272,23 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
     _opt.rehash(_opt.size());
     return 0;
 }
-void Option::version() const {
+inline void Option::version() const {
     std::vector<std::string> v = {
         " ┌",
         " │ HPDDM compilation options: ",
         " │  HPDDM version: " + std::string(HPDDM_STR(HPDDM_VERSION)),
+#ifdef PY_VERSION
+        " │  Python.h version: "  PY_VERSION,
+#endif
         " │  epsilon: " + std::string(HPDDM_STR(HPDDM_EPS)),
         " │  penalization: " + std::string(HPDDM_STR(HPDDM_PEN)),
         " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
+        " │  OpenMP activated? "
+#ifdef __OPENMP
+            "true",
+#else
+            "false",
+#endif
         " │  numbering: '" + std::string(1, HPDDM_NUMBERING) + "'",
         " │  regular expression support? "
 #ifdef HPDDM_NO_REGEX
