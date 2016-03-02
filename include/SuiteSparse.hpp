@@ -363,7 +363,7 @@ class SuiteSparseSub {
                     a  = new K[nnz];
                     nnz = 0;
                     unsigned int i;
-#ifdef __OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
 #endif
                     for(i = 0; i < A->_n; ++i)

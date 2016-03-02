@@ -660,7 +660,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 MPI_Irecv(C + offsetIdx[k - 1], S == 'S' ? _local * infoSplit[k][0] * _local + _local * (_local + 1) / 2 : (_local * infoSplit[k][0] + _local) * _local, Wrapper<K>::mpi_type(), k, 3, _scatterComm, rqRecv + idx + k - 1);
         }
 #endif
-#ifdef __OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for shared(I, J, infoWorld, infoSplit, rankRelative, offsetIdx, offsetPosition) schedule(dynamic, 64)
 #endif
         for(unsigned int k = 1; k < _sizeSplit; ++k) {

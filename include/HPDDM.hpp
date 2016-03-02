@@ -128,7 +128,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <vector>
 # include <numeric>
 # include <functional>
-# if !defined(_cpp_rtti) && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
+# if !__cpp_rtti && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
 #  pragma message("Consider enabling RTTI support with your C++ compiler")
 # endif
 static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double), "Incorrect sizes");
@@ -159,11 +159,11 @@ inline std::string demangle(const char* name) { return name; }
 # ifdef __MINGW32__
 #  include <sstream>
 template<class T>
-inline T sto(std::string s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
+inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
     return atoi(s.c_str());
 }
 template<class T>
-inline T sto(std::string s, typename std::enable_if<std::is_same<T, double>::value || std::is_same<T, float>::value>::type* = nullptr) {
+inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, float>::value || std::is_same<T, double>::value>::type* = nullptr) {
     return atof(s.c_str());
 }
 template<class T>
@@ -174,20 +174,27 @@ inline std::string to_string(const T& x) {
 }
 # else
 template<class T>
-inline T sto(std::string s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
+inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
     return std::stoi(s);
 }
 template<class T>
-inline T sto(std::string s, typename std::enable_if<std::is_same<T, float>::value>::type* = nullptr) {
+inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, float>::value>::type* = nullptr) {
     return std::stof(s);
 }
 template<class T>
-inline T sto(std::string s, typename std::enable_if<std::is_same<T, double>::value>::type* = nullptr) {
+inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, double>::value>::type* = nullptr) {
     return std::stod(s);
 }
 template<class T>
 inline std::string to_string(const T& x) { return std::to_string(x); }
 # endif // __MINGW32__
+template<class T>
+inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, std::complex<float>>::value || std::is_same<T, std::complex<double>>::value>::type* = nullptr) {
+    std::istringstream stm(s);
+    T cplx;
+    stm >> cplx;
+    return cplx;
+}
 template<class T>
 using alias = T;
 

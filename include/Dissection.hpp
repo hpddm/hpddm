@@ -52,7 +52,12 @@ class DissectionSub {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
             static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
             if(!_dslv) {
-                _dslv = new DissectionSolver<K, underlying_type<K>>(1, false, 0, nullptr);
+#ifdef _OPENMP
+                int num_threads = omp_get_max_threads();
+#else
+                int num_threads = 1;
+#endif
+                _dslv = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
                 if(N == 'F') {
                     std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { --i; });
                     std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });

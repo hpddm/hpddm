@@ -21,9 +21,6 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef HPDDM_NUMBERING
-#define HPDDM_NUMBERING       'C'
-#endif
 #include <Python.h>
 #include <HPDDM.hpp>
 

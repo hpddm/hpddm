@@ -372,7 +372,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                 _C = new MatrixCSR<K>(_A->_n, _A->_n, nnz, false);
                 _C->_ia[0] = (Wrapper<K>::I == 'F');
                 nnz = 0;
-#ifdef __OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
 #endif
                 for(unsigned int i = 0; i < _A->_n; ++i)

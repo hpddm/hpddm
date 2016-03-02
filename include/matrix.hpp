@@ -67,17 +67,11 @@ class MatrixCSR {
         MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : _free(true), _a(new K[nnz]), _ia(new int[n + 1]), _ja(new int[nnz]), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : _free(takeOwnership), _a(a), _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
         ~MatrixCSR() {
-            if(_free) {
-                delete [] _a;
-                delete [] _ia;
-                delete [] _ja;
-                _a = nullptr;
-                _ia = _ja = nullptr;
-            }
+            destroy();
         }
         /* Function: destroy
          *  Destroys the pointer <MatrixCSR::a>, <MatrixCSR::ia>, and <MatrixCSR::ja> using a custom deallocator if <MatrixCSR::free> is true. */
-        void destroy(void (*dtor)(void*)) {
+        void destroy(void (*dtor)(void*) = ::operator delete[]) {
             if(_free) {
                 dtor(_a);
                 dtor(_ia);
@@ -146,15 +140,15 @@ class MatrixCSR {
         template<char N>
         std::ostream& dump(std::ostream& f) const {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
-            f << "# First line: n m (is symmetric) nnz indexing" << std::endl;
-            f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}" << std::endl;
-            f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << std::endl;
+            f << "# First line: n m (is symmetric) nnz indexing\n";
+            f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}\n";
+            f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << "\n";
             unsigned int k = _ia[0] - (N == 'F');
             std::streamsize old = f.precision();
-            for(unsigned int i = 0; i < _n; ++i) {
+            f << std::setprecision(20);
+            for(unsigned int i = 0; i < _n; ++i)
                 for(unsigned int ke = _ia[i + 1] - (N == 'F'); k < ke; ++k)
-                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setprecision(20) << _a[k] << std::endl;
-            }
+                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << _a[k] << "\n";
             f.precision(old);
             return f;
         }

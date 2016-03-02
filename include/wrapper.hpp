@@ -338,7 +338,7 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
         else {
             if(beta == &d__0)
                 std::fill_n(y, *m, K());
-#ifdef __OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
 #endif
             for(int i = 0; i < *m; ++i) {
@@ -408,12 +408,12 @@ inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const
             delete [] res;
         }
         else {
-#ifdef __OPENMP
+#ifdef _OPENMP
 #pragma omp parallel private(res)
 #endif
             {
                 res = new K[*n];
-#ifdef __OPENMP
+#ifdef _OPENMP
 #pragma omp for schedule(static, HPDDM_GRANULARITY)
 #endif
                 for(int i = 0; i < dimY; ++i) {

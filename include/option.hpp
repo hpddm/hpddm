@@ -320,7 +320,7 @@ class Option : private Singleton {
                             std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
                     }
                     else if(success) {
-#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
+#if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                         auto target = std::get<2>(*it).template target<bool (*)(const std::string&, const std::string&, bool)>();
                         if(!target || *target != Arg::argument)
                             map[str] = sto<double>(val);

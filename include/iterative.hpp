@@ -245,7 +245,7 @@ class IterativeMethod {
             if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
                 if(verbosity > 0)
                     std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol
-#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
+#if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                      << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name())
 #endif
                      << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;

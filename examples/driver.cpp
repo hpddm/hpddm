@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
             s.reserve(size);
             std::stringstream ss(buffer);
             std::string item;
-            while (std::getline(ss, item, ' ')) {
+            while(std::getline(ss, item, ' ')) {
                 item.erase(std::remove(item.begin(), item.end(), '\n'), item.end());
                 if(item.size() > 0)
                     s.emplace_back(item);

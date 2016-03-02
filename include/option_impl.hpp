@@ -183,7 +183,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
                 std::string val = def.substr(n + 2, def.size() - n - 3);
                 def = def.substr(0, n);
                 if(std::get<2>(x)(def, val, true)) {
-#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
+#if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                     auto target = std::get<2>(x).template target<bool (*)(const std::string&, const std::string&, bool)>();
                     if(!target || (*target != Arg::argument))
                         (*_app)[def] = sto<double>(val);
@@ -284,7 +284,7 @@ inline void Option::version() const {
         " │  penalization: " + std::string(HPDDM_STR(HPDDM_PEN)),
         " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
         " │  OpenMP activated? "
-#ifdef __OPENMP
+#ifdef _OPENMP
             "true",
 #else
             "false",
@@ -297,7 +297,7 @@ inline void Option::version() const {
             "true",
 #endif
         " │  C++ RTTI support? "
-#if defined(_cpp_rtti) || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
+#if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
             "true",
 #else
             "false",
