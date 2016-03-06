@@ -37,9 +37,13 @@ POSTCOMPILE = mv -f ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td ${TOP_DI
 
 INCS += -I./include -I./interface
 
-SOLVER ?= SUITESPARSE
-SUBSOLVER ?= SUITESPARSE
-override HPDDMFLAGS += -DD${SOLVER} -D${SUBSOLVER}SUB
+ifdef SOLVER
+    override HPDDMFLAGS += -DD${SOLVER}
+endif
+ifdef SUBSOLVER
+    override HPDDMFLAGS += -D${SUBSOLVER}SUB
+endif
+
 ifeq (${SOLVER}, MUMPS)
     INCS += ${MUMPS_INCS}
     LIBS += ${MUMPS_LIBS}
@@ -126,7 +130,7 @@ ${TOP_DIR}/${TRASH_DIR}/compiler_flags_c: force
 	@echo "${CCFLAGS} ${HPDDMFLAGS}" | cmp -s - $@ || echo "${CCFLAGS} ${HPDDMFLAGS}" > $@
 
 cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
-c: ${TOP_DIR}/${BIN_DIR}/schwarz_c
+c: ${TOP_DIR}/${BIN_DIR}/schwarz_c ${TOP_DIR}/${LIB_DIR}/libhpddm_c.${EXTENSION_LIB}
 python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB}
 
 Makefile.inc:
@@ -166,6 +170,8 @@ ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 ${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}
 	${POSTCOMPILE}
+
+lib: $(addprefix ${TOP_DIR}/${LIB_DIR}/libhpddm_, $(addsuffix .${EXTENSION_LIB}, $(filter-out cpp, ${LIST_COMPILATION})))
 
 test: all $(addprefix test_, ${LIST_COMPILATION})
 

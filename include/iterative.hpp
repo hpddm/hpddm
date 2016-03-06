@@ -33,13 +33,25 @@ struct EmptyOperator {
     void clearBuffer(const bool) const { }
     const underlying_type<K>* getScaling() const { return nullptr; }
 
-    const HPDDM::MatrixCSR<K>& _A;
-    EmptyOperator(HPDDM::MatrixCSR<K>* A) : _A(*A) { }
-    int getDof() const { return _A._n; }
+    const int _n;
+    EmptyOperator(int n) : _n(n) { }
+    int getDof() const { return _n; }
+};
+template<class Operator, class K>
+struct CustomOperator : EmptyOperator<K> {
+    const Operator* const _A;
+    CustomOperator(const Operator* const A, int n) : EmptyOperator<K>(n), _A(A) { }
+    void GMV(const K* const in, K* const out, const int& mu = 1) const;
+};
+template<class K>
+struct CustomOperator<MatrixCSR<K>, K> : EmptyOperator<K> {
+    const MatrixCSR<K>* const _A;
+    CustomOperator(const MatrixCSR<K>* const A) : EmptyOperator<K>(A ? A->_n : 0), _A(A) { }
     void GMV(const K* const in, K* const out, const int& mu = 1) const {
-        HPDDM::Wrapper<K>::csrmm(_A._sym, &(_A._n), &mu, _A._a, _A._ia, _A._ja, in, out);
+        HPDDM::Wrapper<K>::csrmm(_A->_sym, &(EmptyOperator<K>::_n), &mu, _A->_a, _A->_ia, _A->_ja, in, out);
     }
 };
+
 /* Class: Iterative method
  *  A class that implements various iterative methods. */
 class IterativeMethod {

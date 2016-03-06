@@ -31,12 +31,13 @@
 # define MKL_Complex8 void*
 #endif
 
-#include <complex.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
 #include <string.h>
-#include <stdio.h>
+#ifndef MPI_VERSION
+# include <mpi.h>
+#endif
 
 #ifdef FORCE_SINGLE
 #ifdef FORCE_COMPLEX
@@ -62,8 +63,6 @@ typedef double underlying_type;
 #endif
 #endif
 
-#include "HPDDM.hpp"
-
 struct HpddmOption;
 typedef struct HpddmOption HpddmOption;
 const HpddmOption* HpddmOptionGet();
@@ -72,11 +71,11 @@ int HpddmOptionParseInt(const HpddmOption* const, int, char**, char*, char*);
 int HpddmOptionParseInts(const HpddmOption* const, int, char**, int, char*[], char*[]);
 int HpddmOptionParseArg(const HpddmOption* const, int, char**, char*, char*);
 int HpddmOptionParseArgs(const HpddmOption* const, int, char**, int, char*[], char*[]);
-bool HpddmOptionSet(const HpddmOption* const, char*);
-void HpddmOptionRemove(const HpddmOption* const, char*);
-double HpddmOptionVal(const HpddmOption* const, char*);
-double* HpddmOptionAddr(const HpddmOption* const, char*);
-double HpddmOptionApp(const HpddmOption* const, char*);
+bool HpddmOptionSet(const HpddmOption* const, const char*);
+void HpddmOptionRemove(const HpddmOption* const, const char*);
+double HpddmOptionVal(const HpddmOption* const, const char*);
+double* HpddmOptionAddr(const HpddmOption* const, const char*);
+double HpddmOptionApp(const HpddmOption* const, const char*);
 
 struct HpddmMatrixCSR;
 typedef struct HpddmMatrixCSR HpddmMatrixCSR;
@@ -111,6 +110,9 @@ void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, und
 void HpddmSchwarzDestroy(HpddmSchwarz*);
 
 int HpddmSolve(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
+struct HpddmCustomOperator;
+typedef struct HpddmCustomOperator HpddmCustomOperator;
+int HpddmCustomOperatorSolve(const HpddmCustomOperator* const, int, void (*)(const HpddmCustomOperator* const, const K*, K*, int), void (*)(const HpddmCustomOperator* const, const K*, K*, int), const K* const, K* const, int, const MPI_Comm*);
 
 underlying_type nrm2(const int*, const K* const, const int*);
 void axpy(const int*, const K* const, const K* const, const int*, K* const, const int*);

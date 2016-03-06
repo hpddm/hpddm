@@ -23,14 +23,14 @@
 
 #include "schwarz.hpp"
 
-struct CustomOperator : public HPDDM::EmptyOperator<K> {
-    CustomOperator(HPDDM::MatrixCSR<K>* A) : HPDDM::EmptyOperator<K>(A) { }
+struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
+    using HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>::CustomOperator;
     template<bool = true>
     void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
-        for(int i = 0; i < _A._n; ++i) {
-            int mid = (_A._sym ? (_A._ia[i + 1] - _A._ia[0]) : std::distance(_A._ja, std::upper_bound(_A._ja + _A._ia[i] - _A._ia[0], _A._ja + _A._ia[i + 1] - _A._ia[0], i + _A._ia[0]))) - 1;
+        for(int i = 0; i < _n; ++i) {
+            int mid = (_A->_sym ? (_A->_ia[i + 1] - _A->_ia[0]) : std::distance(_A->_ja, std::upper_bound(_A->_ja + _A->_ia[i] - _A->_ia[0], _A->_ja + _A->_ia[i + 1] - _A->_ia[0], i + _A->_ia[0]))) - 1;
             for(unsigned short nu = 0; nu < mu; ++nu)
-                out[nu * _A._n + i] = in[nu * _A._n + i] / _A._a[mid];
+                out[nu * _n + i] = in[nu * _n + i] / _A->_a[mid];
         }
     }
 };

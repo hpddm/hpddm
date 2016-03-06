@@ -75,7 +75,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #ifdef __MINGW32__
 # include <inttypes.h>
 #endif
-#include <mpi.h>
+#ifndef MPI_VERSION
+# include <mpi.h>
+#endif
 #if HPDDM_ICOLLECTIVE
 # if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
 #  pragma message("You cannot use nonblocking MPI collective operations with that MPI implementation")
