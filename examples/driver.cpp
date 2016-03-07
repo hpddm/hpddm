@@ -25,10 +25,15 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HPDDM_NUMBERING
 #undef HPDDM_NUMBERING
-#endif
+#undef HPDDM_SCHWARZ
+#undef HPDDM_FETI
+#undef HPDDM_BDD
+
 #define HPDDM_NUMBERING 'F'
+#define HPDDM_SCHWARZ 0
+#define HPDDM_FETI 0
+#define HPDDM_BDD 0
 
 #include "HPDDM.hpp"
 
@@ -57,6 +62,10 @@ struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
     HPDDM::Option& opt = *HPDDM::Option::get();
+    opt["gmres_restart"] =      40;
+    opt["recycle"]       =      20;
+    opt["max_it"]        =    1000;
+    opt["tol"]           = 1.0e-10;
     opt.parse(argc, argv, 1, {
         std::forward_as_tuple("mu=<1>", "Number of right-hand sides.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("diagonal_scaling=<0>", "Use the diagonal of the matrix as a preconditioner.", HPDDM::Option::Arg::integer),

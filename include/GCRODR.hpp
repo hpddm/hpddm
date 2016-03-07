@@ -33,9 +33,8 @@ class Recycling : private Singleton {
         unsigned short       _mu;
         unsigned short        _k;
     public:
-        bool               _same;
         template<int N>
-        Recycling(Singleton::construct_key<N>, unsigned short mu) : _storage(), _mu(mu), _same(false) { }
+        Recycling(Singleton::construct_key<N>, unsigned short mu) : _storage(), _mu(mu) { }
         ~Recycling() {
             delete [] _storage;
         }
@@ -61,7 +60,7 @@ class Recycling : private Singleton {
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
-    int k = opt.val<int>("gmres_recycle", 0);
+    int k = opt.val<int>("recycle", 0);
     if(k == 0)
         return GMRES(A, b, x, mu, comm);
     const int n = excluded ? 0 : A.getDof();
@@ -128,31 +127,31 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         if(variant == 'L')
             A.template apply<excluded>(Ax, v[i], mu);
         if(j == 1 && recycling) {
-            if(!recycled._same) {
+            K* pt;
+            switch(variant) {
+                case 'L': pt = U; break;
+                case 'R': pt = *v;
+                          for(unsigned short nu = 0; nu < k; ++nu)
+                              A.template apply<excluded>(U + nu * ldv, pt + nu * ldv, mu, Ax);
+                          break;
+                default: std::copy_n(U, k * ldv, pt = v[m + 1]);
+            }
+            if(!opt.val<unsigned short>("recycle_same_system")) {
                 for(unsigned short nu = 0; nu < k; ++nu) {
                     if(variant == 'L') {
-                        A.GMV(U + nu * ldv, Ax, mu);
+                        A.GMV(pt + nu * ldv, Ax, mu);
                         A.template apply<excluded>(Ax, C + nu * ldv, mu);
                     }
-                    else {
-                        A.template apply<excluded>(U + nu * ldv, Ax, mu, v[i + 1]);
-                        A.GMV(Ax, C + nu * ldv, mu);
-                    }
+                    else
+                        A.GMV(pt + nu * ldv, C + nu * ldv, mu);
                 }
                 K* work = new K[k * k * mu];
                 QR<excluded>(id / 4, n, k, mu, C, work, k, comm);
                 delete [] work;
             }
             orthogonalization<excluded>(id % 4, n, k, mu, C, v[i], H[i], comm);
-            if(variant == 'L')
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), U + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
-            else {
-                for(unsigned short nu = 0; nu < k; ++nu)
-                    A.template apply<excluded>(U + nu * ldv, v[(m + 1) * (variant == 'F')] + nu * ldv, mu, Ax);
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 'F')] + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
-            }
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), pt + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
             std::copy_n(C, k * ldv, *v);
         }
         for(unsigned short nu = 0; nu < mu; ++nu)
@@ -341,7 +340,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 delete [] work;
             }
         }
-        else if(!recycled._same) {
+        else if(!opt.val<unsigned short>("recycle_same_system")) {
             std::copy_n(C, k * ldv, *v);
             K* prod = new K[k * mu * (m + 2)];
             if(variant == 'F')
@@ -459,7 +458,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
-    int k = opt.val<int>("gmres_recycle", 0);
+    int k = opt.val<int>("recycle", 0);
     if(k == 0)
         return BGMRES(A, b, x, mu, comm);
     const int n = excluded ? 0 : A.getDof();
@@ -529,30 +528,31 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(variant == 'L')
             A.template apply<excluded>(Ax, *v, mu);
         if(j == 1 && recycling) {
+            K* pt;
+            switch(variant) {
+                case 'L': pt = U; break;
+                case 'R': pt = *v + k * ldv;
+                          for(unsigned short nu = 0; nu < k; ++nu)
+                              A.template apply<excluded>(U + nu * ldv, pt + nu * ldv, mu, Ax);
+                          break;
+                default: std::copy_n(U, k * ldv, pt = *v + (m + 1) * ldv);
+            }
             int bK = mu * k;
-            if(!recycled._same) {
+            if(!opt.val<unsigned short>("recycle_same_system")) {
                 for(unsigned short nu = 0; nu < k; ++nu) {
                     if(variant == 'L') {
-                        A.GMV(U + nu * ldv, Ax, mu);
+                        A.GMV(pt + nu * ldv, Ax, mu);
                         A.template apply<excluded>(Ax, C + nu * ldv, mu);
                     }
-                    else {
-                        A.template apply<excluded>(U + nu * ldv, Ax, mu, *v + ldv);
-                        A.GMV(Ax, C + nu * ldv, mu);
-                    }
+                    else
+                        A.GMV(pt + nu * ldv, C + nu * ldv, mu);
                 }
                 K* work = new K[bK * bK];
                 QR<excluded>(id / 4, n, bK, 1, C, work, bK, comm, Ax);
                 delete [] work;
             }
             blockOrthogonalization<excluded>(id % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
-            if(variant == 'L')
-                Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), U, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
-            else {
-                for(unsigned short nu = 0; nu < k; ++nu)
-                    A.template apply<excluded>(U + nu * ldv, *v + (variant == 'F' ? (m + 1) : k) * ldv + nu * ldv, mu, Ax);
-                Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), *v + (variant == 'F' ? (m + 1) : k) * ldv, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
-            }
+            Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), pt, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
         }
         VR<excluded>(n, mu, 1, v[0], s, mu, comm);
         if(!opt.set("initial_deflation_tol")) {
@@ -765,12 +765,12 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             delete [] tau;
             delete [] work;
         }
-        else if(!recycled._same) {
+        else if(!opt.val<unsigned short>("recycle_same_system")) {
             std::copy_n(C, k * ldv, *v);
             int bK = deflated * k;
             K* prod = new K[bK * (dim + deflated + 1)];
             if(variant == 'F')
-                std::copy_n(v[dim + 1], k * ldv, U);
+                std::copy_n(v[m + 1], k * ldv, U);
             info =  dim + deflated;
             Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, U, &n, &(Wrapper<K>::d__0), prod, &info);
             for(unsigned short nu = 0; nu < bK; ++nu)

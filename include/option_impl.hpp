@@ -38,8 +38,8 @@ inline Option::Option(Singleton::construct_key<N>) {
 #if HPDDM_FETI || HPDDM_BDD
              { "substructuring_scaling",        0 },
 #endif
+             { "eigensolver_tol",               1.0e-6 },
              { "geneo_nu",                      20 },
-             { "geneo_eigensolver_tol",         1.0e-6 },
              { "master_p",                      1 },
 #ifdef MUMPSSUB
              { "mumps_icntl_28",                0 },
@@ -102,10 +102,11 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save local operators to disk.", Arg::argument),
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
-        std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance for deflating right-hand sides inside Block GMRES.", Arg::numeric),
         std::forward_as_tuple("gmres_restart=<50>", "Maximum size of the Krylov subspace.", Arg::integer),
-        std::forward_as_tuple("gmres_recycle=<val>", "Number of harmonic Ritz vectors to compute.", Arg::integer),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left or right or flexible preconditioning.", Arg::argument),
+        std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance for deflating right-hand sides inside Block GMRES.", Arg::numeric),
+        std::forward_as_tuple("recycle=<val>", "Number of harmonic Ritz vectors to compute.", Arg::integer),
+        std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed.", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),
@@ -115,10 +116,10 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Substructuring methods options:"; return true; }),
         std::forward_as_tuple("substructuring_scaling=(multiplicity|stiffness|coefficient)", "Type of scaling used for the preconditioner.", Arg::argument),
 #endif
+        std::forward_as_tuple("eigensolver_tol=<1.0e-6>", "Requested tolerance of eigenpairs computed by ARPACK or LAPACK.", Arg::numeric),
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Local number of GenEO vectors to compute.", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Local threshold for selecting GenEO vectors.", Arg::numeric),
-        std::forward_as_tuple("geneo_eigensolver_tol=<1.0e-6>", "Requested tolerance of eigenpairs computed by ARPACK or LAPACK.", Arg::numeric),
 #if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
 #endif

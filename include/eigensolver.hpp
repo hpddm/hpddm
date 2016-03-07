@@ -49,8 +49,8 @@ class Eigensolver {
          *  Number of desired eigenvalues. */
         int                       _nu;
         Eigensolver(int n)                                                                : _tol(), _threshold(), _n(n), _nu() { }
-        Eigensolver(int n, int nu)                                                        : _tol((*Option::get())["geneo_eigensolver_tol"]), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { }
-        Eigensolver(underlying_type<K> threshold, int n, int nu)                          : _tol(threshold > 0.0 ? HPDDM_EPS : (*Option::get())["geneo_eigensolver_tol"]), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }
+        Eigensolver(int n, int nu)                                                        : _tol((*Option::get())["eigensolver_tol"]), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { }
+        Eigensolver(underlying_type<K> threshold, int n, int nu)                          : _tol(threshold > 0.0 ? HPDDM_EPS : (*Option::get())["eigensolver_tol"]), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }
         Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : _tol(threshold > 0.0 ? HPDDM_EPS : tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }
         /* Function: selectNu
          *
