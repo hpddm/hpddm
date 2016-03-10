@@ -105,7 +105,7 @@ class IterativeMethod {
         static void computeMin(const K* const* const h, K* const s, const short* const hasConverged, const int& mu, const int& deflated = -1, const int& shift = 0) {
             int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
             if(deflated != -1) {
-                int dim = std::abs(*hasConverged) - shift;
+                int dim = std::abs(*hasConverged) - deflated * shift;
                 int info;
                 Lapack<K>::trtrs("U", "N", "N", &dim, &deflated, *h + deflated * shift * (1 + ldh), &ldh, s, &ldh, &info);
             }

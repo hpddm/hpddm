@@ -68,23 +68,36 @@ def parse_file(filename):
     with open(filename, 'r') as input:
         k = 0
         for line in input:
-            if not line.startswith('# '):
+            if not line[0] == '#' and not line[0] == '%':
                 words = line.split()
                 y = 0
                 for w in words:
                     if k == 0:
-                        if y == 0:
-                            n = int(w)
-                        elif y == 1:
-                            m = int(w)
-                        elif y == 2:
-                            sym = bool(int(w) == 1)
-                        elif y == 3:
-                            nnz = int(w)
-                            ia = numpy.zeros(n + 1, dtype = ctypes.c_int)
-                            ja = numpy.empty(nnz, dtype = ctypes.c_int)
-                            a = numpy.empty(nnz, dtype = scalar)
-                            ia[0] = (numbering.value == b'F')
+                        if len(words) == 3:
+                            if y == 0:
+                                n = int(w)
+                            elif y == 1:
+                                m = int(w)
+                            elif y == 2:
+                                nnz = int(w)
+                                sym = False
+                                ia = numpy.zeros(n + 1, dtype = ctypes.c_int)
+                                ja = numpy.empty(nnz, dtype = ctypes.c_int)
+                                a = numpy.empty(nnz, dtype = scalar)
+                                ia[0] = (numbering.value == b'F')
+                        else:
+                            if y == 0:
+                                n = int(w)
+                            elif y == 1:
+                                m = int(w)
+                            elif y == 2:
+                                sym = bool(int(w) == 1)
+                            elif y == 3:
+                                nnz = int(w)
+                                ia = numpy.zeros(n + 1, dtype = ctypes.c_int)
+                                ja = numpy.empty(nnz, dtype = ctypes.c_int)
+                                a = numpy.empty(nnz, dtype = scalar)
+                                ia[0] = (numbering.value == b'F')
                     else:
                         if y == 0:
                             ia[int(w)] += 1
