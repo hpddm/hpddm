@@ -58,6 +58,10 @@ int HpddmOptionParse(const HpddmOption* const option, int argc, char** argv, boo
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
     return opt.parse(argc, argv, display);
 }
+int HpddmOptionParseString(const HpddmOption* const option, const char* str) {
+    HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
+    return opt.parse(str, false);
+}
 int HpddmOptionParseInt(const HpddmOption* const option, int argc, char** argv, char* str, char* desc) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
     return opt.parse(argc, argv, false, { std::forward_as_tuple(str, desc, HPDDM::Option::Arg::integer) });

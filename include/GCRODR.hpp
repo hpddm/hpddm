@@ -63,12 +63,15 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
     int k = opt.val<int>("recycle", 0);
-    if(k == 0)
+    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
+    if(k <= 0) {
+        if(verbosity)
+            std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to GMRES" << std::endl;
         return GMRES(A, b, x, mu, comm);
+    }
     const int n = excluded ? 0 : A.getDof();
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
-    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const int m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
@@ -464,12 +467,15 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
     int k = opt.val<int>("recycle", 0);
-    if(k == 0)
+    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
+    if(k <= 0) {
+        if(verbosity)
+            std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to BGMRES" << std::endl;
         return BGMRES(A, b, x, mu, comm);
+    }
     const int n = excluded ? 0 : A.getDof();
     const unsigned short it = opt["max_it"];
     underlying_type<K> tol = opt["tol"];
-    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));

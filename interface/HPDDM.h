@@ -67,6 +67,7 @@ struct HpddmOption;
 typedef struct HpddmOption HpddmOption;
 const HpddmOption* HpddmOptionGet();
 int HpddmOptionParse(const HpddmOption* const, int, char**, bool);
+int HpddmOptionParseString(const HpddmOption* const, const char*);
 int HpddmOptionParseInt(const HpddmOption* const, int, char**, char*, char*);
 int HpddmOptionParseInts(const HpddmOption* const, int, char**, int, char*[], char*[]);
 int HpddmOptionParseArg(const HpddmOption* const, int, char**, char*, char*);

@@ -20,14 +20,15 @@
         \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
         local\_operators\_not\_spd & Assume local operators are general symmetric (instead of symmetric or Hermitian positive definite) & Boolean & \\ \hline
         orthogonalization & Method used to orthogonalize a vector against a previously generated orthogonal basis & \texttt{cgs}, \texttt{mgs} & \\ \hline
-        qr & Method used to perform the distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & \\ \hline
         dump\_local\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
-        krylov\_method & Type of iterative method used to solve linear systems & \texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{gcrodr} & \\ \hline
+        krylov\_method & Type of iterative method used to solve linear systems & \texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{gcrodr}, \texttt{bgcrodr} & \\ \hline
         gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & 50 \\ \hline
         variant & Select the preconditioning side & \texttt{left}, \texttt{right}, \texttt{flexible} & \\ \hline
-        initial\_deflation\_tol & Tolerance for deflating right-hand sides inside Block GMRES & Numeric & \\ \hline
+        qr & Method used to perform the distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & \\ \hline
+        initial\_deflation\_tol & Tolerance for deflating right-hand sides inside block GMRES or block GCRODR & Numeric & \\ \hline
         recycle & Number of harmonic Ritz vectors to compute & Integer & \\ \hline
         recycle\_same\_system & Assume the system is the same as the one for which Ritz vectors have been computed & Boolean & \\ \hline
+        recycle\_strategy & Generalized eigenvalue problem to solve for recycling & \texttt{A}, \texttt{B} & \\ \hline
         \rowcolor{LightRed}eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ \\ \hline
         geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & 20 \\ \hline
         \rowcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & \\ \hline
