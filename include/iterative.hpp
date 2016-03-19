@@ -163,20 +163,25 @@ class IterativeMethod {
             }
         }
         template<class Operator, class K, class T>
-        static void updateSolRecycling(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, K* const* const v, T* const norm, K* const C, K* const U, const short* const hasConverged, const int shift, const int mu, K* const work, const MPI_Comm& comm, const int& deflated = -1) {
+        static void updateSolRecycling(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, K* const* const v, T* const norm, const K* const C, const K* const U, const short* const hasConverged, const int shift, const int mu, K* const work, const MPI_Comm& comm, const int& deflated = -1) {
+            const Option& opt = *Option::get();
             const int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
             const int dim = ldh / (deflated == -1 ? mu : deflated);
             if(C != nullptr && U != nullptr) {
                 computeMin(h, s + shift * (deflated == -1 ? mu : deflated), hasConverged, mu, deflated, shift);
                 const int ldv = (deflated == -1 ? mu : deflated) * n;
                 if(deflated == -1) {
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        if(std::abs(hasConverged[nu]) != 0) {
-                            K alpha = norm[nu];
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, v[shift] + nu * n , &i__1, &(Wrapper<K>::d__0), s + nu, &mu);
+                    if(opt.val<unsigned short>("recycle_same_system") != 0)
+                        std::fill_n(s, shift * mu, K());
+                    else {
+                        for(unsigned short nu = 0; nu < mu; ++nu) {
+                            if(std::abs(hasConverged[nu]) != 0) {
+                                K alpha = norm[nu];
+                                Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, v[shift] + nu * n , &i__1, &(Wrapper<K>::d__0), s + nu, &mu);
+                            }
                         }
+                        MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     }
-                    MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         if(std::abs(hasConverged[nu]) != 0) {
                             int diff = std::abs(hasConverged[nu]) - shift;
@@ -184,17 +189,23 @@ class IterativeMethod {
                         }
                 }
                 else {
-                    std::copy_n(v[shift], deflated * n, work);
-                    Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K*>(norm), &ldh, work, &n);
                     int bK = deflated * shift;
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
-                    for(unsigned short i = 0; i < deflated; ++i)
-                        std::copy_n(s + i * ldh, bK, work + i * bK);
-                    MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                    for(unsigned short i = 0; i < deflated; ++i)
-                        std::copy_n(work + i * bK, bK, s + i * ldh);
+                    K beta;
+                    if(opt.val<unsigned short>("recycle_same_system") != 0)
+                        beta = K();
+                    else {
+                        std::copy_n(v[shift], deflated * n, work);
+                        Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K*>(norm), &ldh, work, &n);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
+                        for(unsigned short i = 0; i < deflated; ++i)
+                            std::copy_n(s + i * ldh, bK, work + i * bK);
+                        MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        for(unsigned short i = 0; i < deflated; ++i)
+                            std::copy_n(work + i * bK, bK, s + i * ldh);
+                        beta = Wrapper<K>::d__1;
+                    }
                     int diff = *hasConverged - deflated * shift;
-                    Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * deflated, &ldh, &(Wrapper<K>::d__1), s, &ldh);
+                    Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
                 }
                 std::copy_n(U, shift * ldv, v[dim * (variant == 'F')]);
                 addSol(A, variant, n, x, ldh, s, static_cast<const K* const* const>(v + dim * (variant == 'F')), hasConverged, mu, work, deflated);
