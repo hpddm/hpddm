@@ -158,6 +158,10 @@ ${TOP_DIR}/${BIN_DIR}/%.o: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
 	${POSTCOMPILE}
 
+${TOP_DIR}/${BIN_DIR}/%_cpp.o: benchmark/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
+	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
+	${POSTCOMPILE}
+
 ${TOP_DIR}/${BIN_DIR}/schwarz_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c.o ${TOP_DIR}/${BIN_DIR}/generate_c.o ${TOP_DIR}/${BIN_DIR}/hpddm_c.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
@@ -166,6 +170,16 @@ ${TOP_DIR}/${BIN_DIR}/schwarz_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp.o ${TOP_DIR
 
 ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
+
+${TOP_DIR}/${BIN_DIR}/local_solver: ${TOP_DIR}/${BIN_DIR}/local_solver_cpp.o
+	${MPICXX} $^ -o $@ ${LIBS}
+
+benchmark/local_solver:
+	@if [ -z ${MTX_FILE} ]; then \
+		echo "MTX_FILE is not set, no matrix to benchmark ${TOP_DIR}/${BIN_DIR}/local_solver"; \
+		exit 1; \
+	fi
+	@$@.py ${TOP_DIR}/${BIN_DIR}/local_solver ${MTX_FILE} ${BENCHMARKFLAGS}
 
 ${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}
@@ -233,7 +247,7 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
-SOURCES = schwarz.cpp generate.cpp driver.cpp schwarz.c generate.c
+SOURCES = schwarz.cpp generate.cpp driver.cpp local_solver.cpp schwarz.c generate.c
 INTERFACES = hpddm_c.cpp hpddm_python.cpp
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(subst .,_,${SOURCES}))
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(basename ${INTERFACES}))

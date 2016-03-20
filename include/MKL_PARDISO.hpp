@@ -124,10 +124,9 @@ class MklPardiso : public DMatrix {
             K ddum;
             std::fill_n(_iparm, 64, 0);
             for(unsigned short i : { 1, 9, 10, 12, 20, 26 }) {
-                int val = opt.val<int>("master_mkl_pardiso_iparm_" + to_string(i + 1));
-                if(val != std::numeric_limits<int>::lowest())
-                    _iparm[i] = val;
-
+                phase = opt.val<int>("master_mkl_pardiso_iparm_" + to_string(i + 1));
+                if(phase != std::numeric_limits<int>::lowest())
+                    _iparm[i] = phase;
             }
             _iparm[0] = 1;
             _iparm[5] = 1;
@@ -139,6 +138,9 @@ class MklPardiso : public DMatrix {
             delete [] loc2glob;
             phase = 12;
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val<int>("verbosity") < 2 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+            phase = opt.val<int>("master_mkl_pardiso_iparm_8");
+            if(phase != std::numeric_limits<int>::lowest())
+                _iparm[7] = phase;
             _w = new K[_iparm[41] - _iparm[40] + 1];
         }
         /* Function: solve
@@ -214,11 +216,10 @@ class MklPardisoSub {
                 _n = A->_n;
                 std::fill_n(_iparm, 64, 0);
                 _iparm[0] = 1;
-                for(unsigned short i : { 1, 7, 9, 10, 12, 20, 23, 26 }) {
-                    int val = opt.val<int>("mkl_pardiso_iparm_" + to_string(i + 1));
-                    if(val != std::numeric_limits<int>::lowest())
-                        _iparm[i] = val;
-
+                for(unsigned short i : { 1, 9, 10, 12, 20, 23, 26 }) {
+                    phase = opt.val<int>("mkl_pardiso_iparm_" + to_string(i + 1));
+                    if(phase != std::numeric_limits<int>::lowest())
+                        _iparm[i] = phase;
                 }
                 _iparm[27] = std::is_same<double, underlying_type<K>>::value ? 0 : 1;
                 _iparm[34] = (N == 'C');
@@ -271,6 +272,9 @@ class MklPardisoSub {
             }
             PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase,
                     const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, schur, &error);
+            phase = opt.val<int>("mkl_pardiso_iparm_8");
+            if(phase != std::numeric_limits<int>::lowest())
+                _iparm[7] = phase;
             delete [] perm;
             if(_mtype == prds<K>::SPD)
                 delete [] _C;
