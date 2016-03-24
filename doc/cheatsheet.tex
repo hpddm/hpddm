@@ -13,7 +13,7 @@
     All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified in the column ``Default'', this value is used when the corresponding option is not set by the user. When no default value is specified but the corresponding option is set by the user, the option is true (represented internally by 1). If the option is not set, its value is false (represented internally by 0). Options highlighted in \colorbox{LightRed}{red} should be reserved to expert users.
 \vspace*{-0.4cm}
 \begin{center}
-    \begin{longtable}{| >{\tt}p{.25\textwidth} | p{.49\textwidth}| p{.115\textwidth}| >{\tt}p{.05\textwidth} |} \hline
+    \begin{longtable}{| >{\tt}p{.25\textwidth} | p{.49\textwidth}| p{.14\textwidth}| >{\tt}p{.05\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & Default \\ \hline
         help & Display available options & Anything & \\ \hline
         version & Display information about HPDDM & Anything & \\ \hline
@@ -32,6 +32,7 @@
         recycle & Number of harmonic Ritz vectors to compute & Integer & \\ \hline
         recycle\_same\_system & Assume the system is the same as the one for which Ritz vectors have been computed & Boolean & \\ \hline
         \rowcolor{LightRed}recycle\_strategy & Generalized eigenvalue problem to solve for recycling & \texttt{A}, \texttt{B} & A \\ \hline
+        \rowcolor{LightRed}recycle\_target & Criterion to select harmonic Ritz vectors & \texttt{SM}, \texttt{LM}, \texttt{SR}, \texttt{LR}, \texttt{SI}, \texttt{LI} & SM \\ \hline
         \rowcolor{LightRed}eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ \\ \hline
         geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & $20$ \\ \hline
         \rowcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & \\ \hline

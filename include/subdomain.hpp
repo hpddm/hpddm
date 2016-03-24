@@ -647,7 +647,7 @@ class Subdomain {
                 ia[0] = 0;
                 nnz = 0;
                 for(unsigned int i = 0; i < dof; ++i) {
-                    std::sort(tmp[i].begin(), tmp[i].end());
+                    std::sort(tmp[i].begin(), tmp[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
                     for(std::pair<unsigned int, K>& p : tmp[i]) {
                         ja[nnz] = p.first;
                         c[nnz++] = p.second;

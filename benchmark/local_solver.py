@@ -101,5 +101,6 @@ with open('Makefile.inc', 'r') as input:
                         print(" --- benchmarking failed with the following message:")
                         print(err)
                         continue
+                    print(''.join(re.findall("//.*?\n" , output)), end = "")
                     df = pandas.read_table(StringIO(re.sub(re.compile("//.*?\n" ), "" , output)), sep = "\t", lineterminator = "\n", header = None)
                     print(df.describe(percentiles = [ 0.5 ]).transpose())

@@ -113,9 +113,21 @@ int main(int argc, char **argv) {
         auto tEnd = std::chrono::steady_clock::now();
         std::cout << "// matrix read from file in " << std::chrono::duration<double, std::ratio<1>>(tEnd - tBegin).count() << " second(s)\n";
     }
+    {
 #if defined(MUMPSSUB) || defined(PASTIXSUB)
-    MPI_Init(&argc, &argv);
+        MPI_Init(&argc, &argv);
+        int size;
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+#else
+        int size = 1;
 #endif
+#ifdef _OPENMP
+        int th = omp_get_max_threads();
+#else
+        int th = 1;
+#endif
+        std::cout << "// " << size << " MPI process" << (size > 1 ? "es" : "") << " x " << th << " thread" << (th > 1 ? "s" : "") << " = " << (size * th) << " worker" << (size * th > 1 ? "s" : "") << std::endl;
+    }
     HPDDM::Option& opt = *HPDDM::Option::get();
     opt.parse(argc, argv, false, {
         std::forward_as_tuple("warm_up=<2>", "Number of fake runs to prime the pump.", HPDDM::Option::Arg::integer),

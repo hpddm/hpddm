@@ -108,6 +108,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("recycle=<val>", "Number of harmonic Ritz vectors to compute.", Arg::integer),
         std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed.", Arg::argument),
         std::forward_as_tuple("recycle_strategy=(A|B)", "Generalized eigenvalue problem to solve for recycling.", Arg::argument),
+        std::forward_as_tuple("recycle_target=(SM|LM|SR|LR|SI|LI)", "Criterion to select harmonic Ritz vectors.", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),

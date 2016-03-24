@@ -58,6 +58,24 @@ class Recycling : private Singleton {
             return Singleton::get<Recycling, N>(mu);
         }
 };
+template<class K>
+inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>>& q, unsigned short n, const K* const alphar, const K* const alphai, const K* const beta = nullptr) {
+    for(unsigned short i = 0; i < n; ++i) {
+        std::complex<underlying_type<K>> tmp(Wrapper<K>::is_complex ? alphar[i] : std::complex<underlying_type<K>>(std::real(alphar[i]), std::real(alphai[i])));
+        if(beta)
+             tmp /= beta[i];
+        q.emplace_back(i, tmp);
+    }
+    using type = typename std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>>::const_reference;
+    switch(target) {
+        case 1:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }); break;
+        case 2:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) < std::real(rhs.second); }); break;
+        case 3:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) > std::real(rhs.second); }); break;
+        case 4:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) < std::imag(rhs.second); }); break;
+        case 5:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) > std::imag(rhs.second); }); break;
+        default: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) < std::norm(rhs.second); });
+    }
+}
 
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
@@ -311,18 +329,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     Wrapper<K>::template omatcopy<'N'>(dim, dim, *H + nu * (m + 1), ldh, backup, dim);
                     Lapack<K>::hseqr("E", "N", &dim, &i__1, &dim, backup, &dim, w, w + dim, nullptr, &i__1, work, &lwork, &info);
                     delete [] backup;
-                    std::vector<std::pair<unsigned short, underlying_type<K>>> p;
-                    p.reserve(k + 1);
-                    for(i = 0; i < dim; ++i) {
-                        underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(w[i]) : std::real(w[i] * w[i] + w[dim + i] * w[dim + i]);
-                        typename decltype(p)::iterator it = std::lower_bound(p.begin(), p.end(), std::make_pair(i, magnitude), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
-                        if(p.size() < k || it != p.end())
-                            p.insert(it, std::make_pair(i, magnitude));
-                        if(p.size() == k + 1)
-                            p.pop_back();
-                    }
+                    std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
+                    q.reserve(dim);
+                    selectNu(opt.val<unsigned short>("recycle_target"), q, dim, w, w + dim);
+                    q.resize(k);
                     int mm = Wrapper<K>::is_complex ? k : 0;
-                    for(typename decltype(p)::const_iterator it = p.cbegin(); it < p.cend(); ++it) {
+                    for(typename decltype(q)::const_iterator it = q.cbegin(); it < q.cend(); ++it) {
                         if(Wrapper<K>::is_complex)
                             select[it->first] = 1;
                         else {
@@ -339,7 +351,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                 break;
                         }
                     }
-                    decltype(p)().swap(p);
+                    decltype(q)().swap(q);
                     underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[dim] : nullptr;
                     K* vr = new K[mm * dim];
                     int* ifailr = new int[mm];
@@ -435,18 +447,15 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork];
                     underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
                     Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
-                    std::vector<std::pair<unsigned short, underlying_type<K>>> q;
+                    std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                     q.reserve(dim);
-                    for(i = 0; i < dim; ++i) {
-                        underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[dim + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * dim + i] * alpha[2 * dim + i]) / (alpha[dim + i] * alpha[dim + i]));
-                        q.emplace_back(i, magnitude);
-                    }
-                    std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
-                    info = std::accumulate(q.cbegin(), q.cbegin() + k, 0, [](int a, const std::pair<unsigned short, underlying_type<K>>& b) { return a + b.first; });
+                    selectNu(opt.val<unsigned short>("recycle_target"), q, dim, alpha, alpha + 2 * dim, alpha + dim);
+                    info = std::accumulate(q.cbegin(), q.cbegin() + k, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                     for(i = k; info != (k * (k - 1)) / 2 && i < dim; ++i)
                         info += q[i].first;
                     int* perm = new int[i];
-                    std::transform(q.cbegin(), q.cbegin() + i, perm, [](const std::pair<unsigned short, underlying_type<K>>& u) { return u.first + 1; });
+                    for(unsigned short j = 0; j < i; ++j)
+                        perm[j] = q[j].first + 1;
                     decltype(q)().swap(q);
                     Lapack<K>::lapmt(&i__1, &dim, &(info = i), vr, &dim, perm);
                     row = diff + 1;
@@ -796,19 +805,16 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 K* work = new K[lwork];
                 Lapack<K>::geev("N", "V", &dim, *H, &ldh, w, w + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
-                std::vector<std::pair<unsigned short, underlying_type<K>>> q;
+                std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                 q.reserve(dim);
-                for(i = 0; i < dim; ++i) {
-                    underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(w[i]) : std::real(w[i] * w[i] + w[dim + i] * w[dim + i]);
-                    q.emplace_back(i, magnitude);
-                }
-                std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
-                info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, const std::pair<unsigned short, underlying_type<K>>& b) { return a + b.first; });
+                selectNu(opt.val<unsigned short>("recycle_target"), q, dim, w, w + dim);
+                info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                 for(i = bK; info != (bK * (bK - 1)) / 2 && i < dim; ++i)
                     info += q[i].first;
                 int* perm = new int[i];
                 for(unsigned short j = 0; j < i; ++j)
                     perm[j] = q[j].first + 1;
+                decltype(q)().swap(q);
                 Lapack<K>::lapmt(&i__1, &dim, &(info = i), vr, &dim, perm);
                 delete [] perm;
                 delete [] rwork;
@@ -893,18 +899,15 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork];
                 underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
                 Lapack<K>::ggev("N", "V", &bDim, A, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, vr, &bDim, work, &lwork, rwork, &info);
-                std::vector<std::pair<unsigned short, underlying_type<K>>> q;
+                std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                 q.reserve(bDim);
-                for(i = 0; i < bDim; ++i) {
-                    underlying_type<K> magnitude = Wrapper<K>::is_complex ? std::norm(alpha[i] / alpha[bDim + i]) : std::real((alpha[i] * alpha[i] + alpha[2 * bDim + i] * alpha[2 * bDim + i]) / (alpha[bDim + i] * alpha[bDim + i]));
-                    q.emplace_back(i, magnitude);
-                }
-                std::sort(q.begin(), q.end(), [](const std::pair<unsigned short, underlying_type<K>>& lhs, const std::pair<unsigned short, underlying_type<K>>& rhs) { return lhs.second < rhs.second; });
-                info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, const std::pair<unsigned short, underlying_type<K>>& b) { return a + b.first; });
+                selectNu(opt.val<unsigned short>("recycle_target"), q, bDim, alpha, alpha + 2 * bDim, alpha + bDim);
+                info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                 for(i = bK; info != (bK * (bK - 1)) / 2 && i < bDim; ++i)
                     info += q[i].first;
                 int* perm = new int[i];
-                std::transform(q.cbegin(), q.cbegin() + i, perm, [](const std::pair<unsigned short, underlying_type<K>>& u) { return u.first + 1; });
+                for(unsigned short j = 0; j < i; ++j)
+                    perm[j] = q[j].first + 1;
                 decltype(q)().swap(q);
                 Lapack<K>::lapmt(&i__1, &bDim, &(info = i), vr, &bDim, perm);
                 row = diff + deflated;
