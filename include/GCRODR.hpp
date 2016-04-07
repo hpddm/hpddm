@@ -94,7 +94,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     epsilon(tol, verbosity);
     const int m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
     k = std::min(m - 1, k);
-    const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+    const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
 
     const int ldh = mu * (m + 1);
     K** const H = new K*[m * (3 + (variant == 'F')) + 1];
@@ -532,7 +532,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
-    const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+    const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
 
     int ldh = mu * (m + 1);
     K** const H = new K*[m * (3 + (variant == 'F')) + 1];
@@ -774,7 +774,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 int dim = std::min(j, m);
                 if(dim < k)
                     k = dim;
-                recycled.allocate(deflated * n, k);
+                recycled.allocate(n, k);
                 U = recycled.storage();
                 C = U + k * ldv;
                 std::fill_n(s, deflated * ldh, K());

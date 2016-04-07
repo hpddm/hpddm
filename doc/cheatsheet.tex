@@ -17,7 +17,7 @@
         \normalfont{Keyword} & Description & Possible values & Default \\ \hline
         help & Display available options & Anything & \\ \hline
         version & Display information about HPDDM & Anything & \\ \hline
-        tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-8}$ \\ \hline
+        tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-6}$ \\ \hline
         max\_it & Maximum number of iterations of iterative methods & Integer & $100$ \\ \hline
         verbosity & Level of output (higher means more displayed information) & Integer & \\ \hline
         \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
@@ -26,7 +26,7 @@
         dump\_local\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
         krylov\_method & Type of iterative method used to solve linear systems & \texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{gcrodr}, \texttt{bgcrodr} & gmres \\ \hline
         gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & $50$ \\ \hline
-        variant & Left, right, or variable preconditioning & \texttt{left}, \texttt{right}, \texttt{flexible} & left \\ \hline
+        variant & Left, right, or variable preconditioning & \texttt{left}, \texttt{right}, \texttt{flexible} & right \\ \hline
         qr & Method used to perform distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & cholqr \\ \hline
         initial\_deflation\_tol & Tolerance when deflating right-hand sides inside Block GMRES or Block GCRODR & Numeric & \\ \hline
         recycle & Number of harmonic Ritz vectors to compute & Integer & \\ \hline

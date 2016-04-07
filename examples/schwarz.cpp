@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
             if(mu > 1)
                 std::cout << " (rhs #" << nu + 1 << ")";
             std::cout << std::endl;
-            if(nrmAx[nu] / nrmb[nu] > (std::is_same<double, HPDDM::underlying_type<K>>::value ? 1.0e-8 : 1.0e-2))
+            if(nrmAx[nu] / nrmb[nu] > (std::is_same<double, HPDDM::underlying_type<K>>::value ? 1.0e-6 : 1.0e-2))
                 status = 1;
         }
         if(it > 75)

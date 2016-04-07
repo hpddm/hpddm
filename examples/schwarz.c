@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
             if(mu > 1)
                 printf(" (rhs #%d)", nu + 1);
             printf("\n");
-            if(nrmAx[nu] / nrmb[nu] > (sizeof(underlying_type) == sizeof(double) ? 1.0e-8 : 1.0e-2))
+            if(nrmAx[nu] / nrmb[nu] > (sizeof(underlying_type) == sizeof(double) ? 1.0e-6 : 1.0e-2))
                 status = 1;
         }
         free(tmp);

@@ -28,10 +28,9 @@ namespace HPDDM {
 template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
-    _opt = { { "tol",                           1.0e-8 },
+    _opt = { { "tol",                           1.0e-6 },
              { "max_it",                        100 },
              { "gmres_restart",                 50 },
-             { "variant",                       0 },
 #if HPDDM_SCHWARZ
              { "schwarz_method",                0 },
 #endif

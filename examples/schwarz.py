@@ -121,7 +121,7 @@ else:
         if mu > 1:
             print(' (rhs #{:d})'.format(nu + 1), end = '')
         print('')
-        if nrmAx[nu] / nrmb[nu] > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
+        if nrmAx[nu] / nrmb[nu] > (1.0e-6 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
             status = 1
     hpddm.subdomainDestroy(ctypes.byref(S))
     hpddm.matrixCSRDestroy(ctypes.byref(Mat))

@@ -37,7 +37,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
-    const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+    const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
 
     K** const H = new K*[m * (2 + (variant == 'F')) + 1];
     K** const v = H + m;
@@ -175,7 +175,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
-    const char variant = (opt["variant"] == 0 ? 'L' : opt["variant"] == 1 ? 'R' : 'F');
+    const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
 
     K** const H = new K*[m * (2 + (variant == 'F')) + 1];
     K** const v = H + m;

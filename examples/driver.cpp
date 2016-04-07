@@ -151,11 +151,12 @@ int main(int argc, char** argv) {
     std::cout << "Total number of iterations: " << it << std::endl;
     MPI_Finalize();
     if(status == 0 && opt.any_of("krylov_method", { 3, 4 })) {
+        const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
         if(opt.app()["diagonal_scaling"] == 0)
             status = !(it > 2346 && it < 2366);
-        else if(opt["variant"] == 0)
+        else if(variant == 'L')
             status = !(it > 2052 && it < 2072);
-        else if(opt["variant"] == 1)
+        else if(variant == 'R')
             status = !(it > 2055 && it < 2075);
     }
     return status;
