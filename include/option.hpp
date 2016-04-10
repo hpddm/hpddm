@@ -316,8 +316,14 @@ class Option : private Singleton {
                         if(found != std::string::npos)
                             map[str] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
 #endif
-                        else
-                            std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
+                        else {
+                            if(boolean && (val.compare("true") == 0 || val.compare("yes") == 0))
+                                map[str] = 1;
+                            else if(boolean && (val.compare("false") == 0 || val.compare("no") == 0))
+                                map[str];
+                            else
+                                std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
+                        }
                     }
                     else if(success) {
 #if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)

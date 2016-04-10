@@ -119,6 +119,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <mkl_trans.h>
 #endif // HPDDM_MKL
 
+#include "preprocessor_check.hpp"
 #ifdef __cplusplus
 # include <iostream>
 # include <fstream>
