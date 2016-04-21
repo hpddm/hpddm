@@ -44,10 +44,12 @@ typedef double K;
 #endif
 #endif
 
+#if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
 #ifdef GENERAL_CO
 const char symCoarse = 'G';
 #else
 const char symCoarse = 'S';
+#endif
 #endif
 
 struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
@@ -150,6 +152,7 @@ void csrmm(void* Mat, HPDDM::pod_type<K>* x, HPDDM::pod_type<K>* prod, int m) {
     HPDDM::Wrapper<K>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
 }
 
+#if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
 void subdomainNumfact(void** S, void* Mat) {
     if(Mat) {
         if(*S == NULL)
@@ -236,6 +239,7 @@ void schwarzDestroy(void** schwarz) {
 int solve(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_Comm* comm) {
     return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, *comm);
 }
+#endif
 int CustomOperatorSolve(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int n, int mu) {
     return HPDDM::IterativeMethod::solve(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat), precond), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, MPI_COMM_SELF);
 }

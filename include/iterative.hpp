@@ -33,7 +33,7 @@ struct EmptyOperator {
     void clearBuffer(const bool) const { }
     const underlying_type<K>* getScaling() const { return nullptr; }
 
-    const int _n;
+    int _n;
     EmptyOperator(int n) : _n(n) { }
     int getDof() const { return _n; }
 };

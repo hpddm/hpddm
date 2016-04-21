@@ -84,6 +84,7 @@ HpddmMatrixCSR* HpddmMatrixCSRCreate(int, int, int, K*, int*, int*, bool, bool);
 void HpddmMatrixCSRDestroy(HpddmMatrixCSR*);
 void HpddmCsrmm(HpddmMatrixCSR*, const K* const, K*, int);
 
+#if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
 struct HpddmSubdomain;
 typedef struct HpddmSubdomain HpddmSubdomain;
 void HpddmSubdomainNumfact(HpddmSubdomain**, HpddmMatrixCSR*);
@@ -111,6 +112,7 @@ void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, und
 void HpddmSchwarzDestroy(HpddmSchwarz*);
 
 int HpddmSolve(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
+#endif
 struct HpddmCustomOperator;
 typedef struct HpddmCustomOperator HpddmCustomOperator;
 int HpddmCustomOperatorSolve(const HpddmCustomOperator* const, int, void (*)(const HpddmCustomOperator* const, const K*, K*, int), void (*)(const HpddmCustomOperator* const, const K*, K*, int), const K* const, K* const, int, const MPI_Comm*);

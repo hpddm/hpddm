@@ -27,10 +27,12 @@ extern "C" {
 #include "HPDDM.h"
 }
 
+#if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
 #ifdef GENERAL_CO
 const char symCoarse = 'G';
 #else
 const char symCoarse = 'S';
+#endif
 #endif
 
 template<class T>
@@ -122,6 +124,7 @@ void HpddmCsrmm(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
     HPDDM::Wrapper<cpp_type<K>>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type<K>*>(x), reinterpret_cast<cpp_type<K>*>(prod));
 }
 
+#if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
 void HpddmSubdomainNumfact(HpddmSubdomain** S, HpddmMatrixCSR* Mat) {
     if(Mat) {
         if(*S == NULL)
@@ -186,6 +189,7 @@ void HpddmSchwarzDestroy(HpddmSchwarz* A) {
 int HpddmSolve(HpddmSchwarz* A, const K* const b, K* const sol, int mu, const MPI_Comm* comm) {
     return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)), reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(sol), mu, *comm);
 }
+#endif
 int HpddmCustomOperatorSolve(const HpddmCustomOperator* const A, int n, void (*mv)(const HpddmCustomOperator* const, const K*, K*, int), void (*precond)(const HpddmCustomOperator* const, const K*, K*, int), const K* const b, K* const sol, int mu, const MPI_Comm* comm) {
     return HPDDM::IterativeMethod::solve(CustomOperator<HpddmCustomOperator, K>(A, n, mv, precond), reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(sol), mu, *comm);
 }
