@@ -33,9 +33,9 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
         return GMRES(A, b, x, 1, comm);
     const int n = A.getDof();
-    const unsigned short it = opt["max_it"];
-    underlying_type<K> tol = opt["tol"];
-    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
+    const unsigned short it = opt.val<unsigned short>("max_it", 100);
+    underlying_type<K> tol = opt.val("tol", 1.0e-6);
+    const char verbosity = opt.val<char>("verbosity", 0);
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     underlying_type<K>* dir;
@@ -104,8 +104,8 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         if(opt.val<unsigned short>("variant") != 2)
             Blas<K>::axpby(n, 1.0, z, 1, dir[1], p, 1);
         dir[0] = std::sqrt(dir[0]);
-        if(verbosity > 0) {
-            if(tol > 0)
+        if(verbosity > 2) {
+            if(tol > 0.0)
                 std::cout << "CG: " << std::setw(3) << i << " " << dir[0] << " " << resInit << " " << dir[0] / resInit << " < " << tol << std::endl;
             else
                 std::cout << "CG: " << std::setw(3) << i << " " << dir[0] << " < " << -tol << std::endl;
@@ -115,7 +115,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         else
             ++i;
     }
-    if(verbosity > 0) {
+    if(verbosity) {
         if(i != it + 1)
             std::cout << "CG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
         else
@@ -133,9 +133,9 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K**, K*>::type ptr_type;
     const Option& opt = *Option::get();
     const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
-    const unsigned short it = opt["max_it"];
-    underlying_type<K> tol = opt["tol"];
-    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
+    const unsigned short it = opt.val<unsigned short>("max_it", 100);
+    underlying_type<K> tol = opt.val("tol", 1.0e-6);
+    const char verbosity = opt.val<char>("verbosity", 0);
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const int offset = std::is_same<ptr_type, K*>::value ? A.getEliminated() : 0;
@@ -216,7 +216,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
         }
         A.template computeDot<excluded>(&resRel, zCurr, zCurr, comm);
         resRel = std::sqrt(resRel);
-        if(verbosity > 0)
+        if(verbosity > 2)
             std::cout << "PCG: " << std::setw(3) << i << " " << resRel << " " << resInit << " " << resRel / resInit << " < " << tol << std::endl;
         if(resRel / resInit <= tol)
             break;
@@ -228,7 +228,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
             diag(n, m, z[i - 2]);
         }
     }
-    if(verbosity > 0) {
+    if(verbosity) {
         if(i != it + 1)
             std::cout << "PCG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
         else

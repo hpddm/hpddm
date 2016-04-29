@@ -1063,17 +1063,17 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const unsigne
                 }
             }
             else {
-                    if(Solver<K>::_communicator != MPI_COMM_NULL) {
-                        MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
-                        Wrapper<K>::template cycle<'T'>(_sizeSplit, mu, rhs, *Solver<K>::_gatherCounts);
-                        Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? *Solver<K>::_gatherCounts : 0), mu);
-                        Wrapper<K>::template cycle<'T'>(mu, _sizeSplit, rhs, *Solver<K>::_gatherCounts);
-                        MPI_Scatter(rhs, mu * *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
-                    }
-                    else {
-                        MPI_Gather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
-                        MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
-                    }
+                if(Solver<K>::_communicator != MPI_COMM_NULL) {
+                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    Wrapper<K>::template cycle<'T'>(_sizeSplit, mu, rhs, *Solver<K>::_gatherCounts);
+                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? *Solver<K>::_gatherCounts : 0), mu);
+                    Wrapper<K>::template cycle<'T'>(mu, _sizeSplit, rhs, *Solver<K>::_gatherCounts);
+                    MPI_Scatter(rhs, mu * *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+                }
+                else {
+                    MPI_Gather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                }
             }
         }
     }
@@ -1151,16 +1151,16 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const rhs, MPI_Request*
                 }
             }
             else {
-                    if(Solver<K>::_communicator != MPI_COMM_NULL) {
-                        MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
-                        MPI_Wait(rq, MPI_STATUS_IGNORE);
-                        Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? *Solver<K>::_gatherCounts : 0));
-                        MPI_Iscatter(rhs, *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
-                    }
-                    else {
-                        MPI_Igather(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
-                        MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
-                    }
+                if(Solver<K>::_communicator != MPI_COMM_NULL) {
+                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Wait(rq, MPI_STATUS_IGNORE);
+                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? *Solver<K>::_gatherCounts : 0));
+                    MPI_Iscatter(rhs, *Solver<K>::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
+                }
+                else {
+                    MPI_Igather(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
+                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
+                }
             }
         }
     }

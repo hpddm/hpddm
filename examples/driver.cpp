@@ -31,9 +31,9 @@
 #undef HPDDM_BDD
 
 #define HPDDM_NUMBERING 'F'
-#define HPDDM_SCHWARZ 0
-#define HPDDM_FETI 0
-#define HPDDM_BDD 0
+#define HPDDM_SCHWARZ    0
+#define HPDDM_FETI       0
+#define HPDDM_BDD        0
 
 #include "HPDDM.hpp"
 

@@ -113,7 +113,7 @@ class Mumps : public DMatrix {
                     _id->icntl[i] = val;
             }
             _id->job = 4;
-            if(opt.val<int>("verbosity") < 2)
+            if(opt.val<char>("verbosity", 0) < 3)
                 _id->icntl[2] = 0;
             MUMPS_STRUC_C<K>::mumps_c(_id);
             if(DMatrix::_rank == 0 && _id->infog[0] != 0)

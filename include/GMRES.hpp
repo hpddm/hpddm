@@ -31,12 +31,12 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
     const int n = excluded ? 0 : A.getDof();
-    const unsigned short it = opt["max_it"];
-    underlying_type<K> tol = opt["tol"];
-    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
+    const unsigned short it = opt.val<unsigned short>("max_it", 100);
+    underlying_type<K> tol = opt.val("tol", 1.0e-6);
+    const char verbosity = opt.val<char>("verbosity", 0);
     std::cout << std::scientific;
     epsilon(tol, verbosity);
-    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
+    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
     const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
 
     K** const H = new K*[m * (2 + (variant == 'F')) + 1];
@@ -103,10 +103,10 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             }
             Arnoldi<excluded>(opt.val<char>("orthogonalization", 0), m, H, v, s, sn, n, i++, mu, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                if(hasConverged[nu] == -m && ((tol > 0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0 && std::abs(s[i * mu + nu]) <= -tol)))
+                if(hasConverged[nu] == -m && ((tol > 0.0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
             }
-            if(verbosity > 0) {
+            if(verbosity > 2) {
                 int tmp[2] { 0, 0 };
                 underlying_type<K> beta = std::abs(s[i * mu]);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -117,7 +117,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                         tmp[1] = nu;
                     }
                 }
-                if(tol > 0)
+                if(tol > 0.0)
                     std::cout << "GMRES: " << std::setw(3) << j << " " << beta << " " <<  norm[tmp[1]] << " " <<  beta / norm[tmp[1]] << " < " << tol;
                 else
                     std::cout << "GMRES: " << std::setw(3) << j << " " << beta << " < " << -tol;
@@ -137,22 +137,19 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 ++j;
         }
         if(j != it + 1 && i == m) {
-            if(!excluded)
-                updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
-            if(verbosity > 0)
+            updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+            if(verbosity > 1)
                 std::cout << "GMRES restart(" << m << ")" << std::endl;
         }
         else
             break;
     }
-    if(!excluded) {
-        if(j == it + 1) {
+    if(!excluded && j == it + 1) {
             const int rem = it % m;
             std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
-        }
-        updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
     }
-    if(verbosity > 0) {
+    updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+    if(verbosity) {
         if(j != it + 1)
             std::cout << "GMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
         else
@@ -169,12 +166,12 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
     const int n = excluded ? 0 : A.getDof();
-    const unsigned short it = opt["max_it"];
-    underlying_type<K> tol = opt["tol"];
-    const unsigned char verbosity = opt.val<unsigned char>("verbosity");
+    const unsigned short it = opt.val<unsigned short>("max_it", 100);
+    underlying_type<K> tol = opt.val("tol", 1.0e-6);
+    const char verbosity = opt.val<char>("verbosity", 0);
     std::cout << std::scientific;
     epsilon(tol, verbosity);
-    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(static_cast<unsigned short>(opt["gmres_restart"]), it));
+    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
     const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
 
     K** const H = new K*[m * (2 + (variant == 'F')) + 1];
@@ -271,7 +268,8 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         N *= 2;
         std::fill_n(tau, m * N, K());
         Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
-        Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, *v, &n);
+        if(!excluded)
+            Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, *v, &n);
         for(unsigned short nu = 0; nu < deflated; ++nu)
             std::fill(s + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
         std::fill(*H, *v, K());
@@ -295,12 +293,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             unsigned short converged = 0;
             for(unsigned short nu = 0; nu < deflated; ++nu) {
                 beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * i + nu * ldh, &i__1);
-                if(((tol > 0 && beta[nu] / norm[nu] <= tol) || (tol < 0 && beta[nu] <= -tol)))
+                if(((tol > 0.0 && beta[nu] / norm[nu] <= tol) || (tol < 0.0 && beta[nu] <= -tol)))
                     ++converged;
             }
-            if(verbosity > 0) {
+            if(verbosity > 2) {
                 underlying_type<K>* max = std::max_element(beta, beta + deflated);
-                if(tol > 0)
+                if(tol > 0.0)
                     std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
                 else
                     std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " < " << -tol;
@@ -322,26 +320,23 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(opt.set("initial_deflation_tol"))
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
         if(j != it + 1 && i == m) {
-            if(!excluded)
-                updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+            updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
             if(opt.set("initial_deflation_tol")) {
                 Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
                 Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
             }
-            if(verbosity > 0)
+            if(verbosity > 1)
                 std::cout << "BGMRES restart(" << m << ")" << std::endl;
         }
         else
             break;
     }
-    if(!excluded) {
-        if(j != 0 && j == it + 1) {
-            const int rem = it % m;
-            if(rem != 0)
-                dim = deflated * rem;
-        }
-        updateSol(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+    if(!excluded && j != 0 && j == it + 1) {
+        const int rem = it % m;
+        if(rem != 0)
+            dim = deflated * rem;
     }
+    updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     delete [] piv;
@@ -350,7 +345,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     delete [] H;
     std::cout.unsetf(std::ios_base::scientific);
     if(j != 0) {
-        if(verbosity > 0) {
+        if(verbosity) {
             if(j != it + 1)
                 std::cout << "BGMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
             else
@@ -359,7 +354,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         return std::min(j, it);
     }
     else
-        return GMRES(A, b, x, mu, comm);
+        return GMRES<excluded>(A, b, x, mu, comm);
 }
 } // HPDDM
 #endif // _HPDDM_GMRES_

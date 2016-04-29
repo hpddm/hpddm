@@ -117,9 +117,9 @@ ifneq (, $(shell which mpixlc 2> /dev/null))
     SEP = : 
 endif
 
-LIST_COMPILATION ?= cpp c python
+LIST_COMPILATION ?= cpp c python fortran
 
-.PHONY: all cpp c python clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_op test_bin/driver force
+.PHONY: all cpp c python fortran clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_op test_bin/driver force
 
 all: Makefile.inc ${LIST_COMPILATION}
 
@@ -132,6 +132,7 @@ ${TOP_DIR}/${TRASH_DIR}/compiler_flags_c: force
 cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 c: ${TOP_DIR}/${BIN_DIR}/schwarz_c ${TOP_DIR}/${LIB_DIR}/libhpddm_c.${EXTENSION_LIB}
 python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB}
+fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
 
 Makefile.inc:
 	@echo "No Makefile.inc found, please choose one from directory Make.inc"
@@ -181,8 +182,14 @@ benchmark/local_solver:
 	fi
 	@$@.py ${TOP_DIR}/${BIN_DIR}/local_solver ${MTX_FILE} ${BENCHMARKFLAGS}
 
-${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d
-	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}
+${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
+	@if [ "$<" = "interface/hpddm_python.cpp" ]; then \
+		echo ${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}; \
+		${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}; \
+	else \
+		echo ${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -shared $< -o $@ ${LIBS}; \
+		${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -shared $< -o $@ ${LIBS}; \
+	fi
 	${POSTCOMPILE}
 
 lib: $(addprefix ${TOP_DIR}/${LIB_DIR}/libhpddm_, $(addsuffix .${EXTENSION_LIB}, $(filter-out cpp, ${LIST_COMPILATION})))
@@ -192,10 +199,11 @@ test: all $(addprefix test_, ${LIST_COMPILATION})
 test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_op
 test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
+test_fortran:
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt
-	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ] ; then \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity ; \
+	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ]; then \
+		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_initial_deflation_tol 1e-6; \
@@ -248,6 +256,6 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
 SOURCES = schwarz.cpp generate.cpp driver.cpp local_solver.cpp schwarz.c generate.c
-INTERFACES = hpddm_c.cpp hpddm_python.cpp
+INTERFACES = hpddm_c.cpp hpddm_python.cpp hpddm_fortran.cpp
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(subst .,_,${SOURCES}))
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(basename ${INTERFACES}))

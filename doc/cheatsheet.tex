@@ -14,9 +14,10 @@
 \vspace*{-0.4cm}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.25\textwidth} | p{.49\textwidth}| p{.14\textwidth}| >{\tt}p{.05\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values & Default \\ \hline
+        \normalfont{Keyword} & Description & Possible values & \normalfont{Default} \\ \hline
         help & Display available options & Anything & \\ \hline
         version & Display information about HPDDM & Anything & \\ \hline
+        config\_file & Load options from a file saved on disk & String & \\ \hline
         tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-6}$ \\ \hline
         max\_it & Maximum number of iterations of iterative methods & Integer & $100$ \\ \hline
         verbosity & Level of output (higher means more displayed information) & Integer & \\ \hline

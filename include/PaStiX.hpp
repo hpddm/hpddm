@@ -157,11 +157,11 @@ class Pastix : public DMatrix {
 
             pstx<K>::initParam(_iparm, _dparm);
             const Option& opt = *Option::get();
-            int val = opt.val<int>("verbosity");
-            if(val < 2)
+            const char val = opt.val<char>("verbosity", 0);
+            if(val < 3)
                 _iparm[IPARM_VERBOSE]         = API_VERBOSE_NOT;
             else
-                _iparm[IPARM_VERBOSE]         = val - 1;
+                _iparm[IPARM_VERBOSE]         = val - 2;
             _iparm[IPARM_MATRIX_VERIFICATION] = API_NO;
             _iparm[IPARM_START_TASK]          = API_TASK_INIT;
             _iparm[IPARM_END_TASK]            = API_TASK_INIT;

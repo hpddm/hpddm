@@ -216,7 +216,7 @@ class Option : private Singleton {
             std::vector<std::string> args(argv, argv + argc);
             return parse(args, display, reg);
         }
-        template<class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>, typename std::enable_if<!std::is_same<Container, bool>::value>::type* = nullptr>
+        template<class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>, typename std::enable_if<!std::is_same<Container, bool>::value && !std::is_same<C, std::ifstream>::value>::type* = nullptr>
         int parse(C& arg, bool display = true, const Container& reg = { }) {
             std::vector<std::string> args;
             std::stringstream ss(arg);
@@ -225,7 +225,35 @@ class Option : private Singleton {
                 args.push_back(item);
             return parse(args, display, reg);
         }
-        template<class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>>
+        int parse(std::ifstream& cfg, bool display = true) {
+            if(!cfg.good()) {
+                std::cout << "WARNING -- could not parse the supplied config file" << std::endl;
+                return 1;
+            }
+            else {
+                cfg.seekg(0, std::ios::end);
+                size_t size = cfg.tellg();
+                std::string buffer(size, ' ');
+                cfg.seekg(0);
+                cfg.read(&buffer[0], size);
+                std::vector<std::string> s;
+                s.reserve(size);
+                std::stringstream ss(buffer);
+                std::string item;
+                while(std::getline(ss, item, '\n')) {
+                    size = item.find("//");
+                    size = std::min(size, item.find("-hpddm_config_file"));
+                    item = item.substr(0, size);
+                    if(size > 0) {
+                        std::stringstream ws(item);
+                        while(ws >> item)
+                            s.emplace_back(item);
+                    }
+                }
+                return parse<true>(s, display);
+            }
+        }
+        template<bool = false, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>>
         int parse(std::vector<std::string>&, bool display = true, const Container& reg = { });
         template<class T>
         void insert(std::unordered_map<std::string, double>& map, const T& option, std::string& str, const std::string& arg) {

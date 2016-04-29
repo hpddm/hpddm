@@ -143,14 +143,14 @@ class Hypre : public DMatrix {
             if(solverId == 2) {
                 HYPRE_BoomerAMGSetTol(_solver, opt["master_hypre_tol"]);
                 HYPRE_BoomerAMGSetMaxIter(_solver, opt["master_hypre_max_it"]);
-                HYPRE_BoomerAMGSetPrintLevel(_solver, opt.val<int>("verbosity") < 2 ? 0 : 1);
+                HYPRE_BoomerAMGSetPrintLevel(_solver, opt.val<char>("verbosity", 0) < 3 ? 0 : 1);
                 HYPRE_BoomerAMGSetup(_solver, parcsr_A, nullptr, nullptr);
                 HYPRE_BoomerAMGSetPrintLevel(_solver, 0);
             }
             else {
                 HYPRE_BoomerAMGSetTol(_precond, 0.0);
                 HYPRE_BoomerAMGSetMaxIter(_precond, 1);
-                HYPRE_BoomerAMGSetPrintLevel(_precond, opt.val<int>("verbosity") < 2 ? 0 : 1);
+                HYPRE_BoomerAMGSetPrintLevel(_precond, opt.val<char>("verbosity", 0) < 3 ? 0 : 1);
                 if(solverId == 1) {
                     HYPRE_ParCSRPCGCreate(DMatrix::_communicator, &_solver);
                     HYPRE_PCGSetMaxIter(_solver, opt["master_hypre_max_it"]);
@@ -211,7 +211,7 @@ class Hypre : public DMatrix {
                     HYPRE_GMRESGetNumIterations(_solver, &num_iterations);
                 }
                 std::copy_n(hypre_ParVectorLocalVector(reinterpret_cast<hypre_ParVector*>(hypre_IJVectorObject(reinterpret_cast<hypre_IJVector*>(_x))))->data, _local, rhs + nu * _local);
-                if(DMatrix::_rank == 0 && opt.val<int>("verbosity") > 2)
+                if(DMatrix::_rank == 0 && opt.val<char>("verbosity", 0) > 3)
                     std::cout << " --- BoomerAMG performed " << num_iterations << " iteration" << (num_iterations > 1 ? "s" : "") << std::endl;
             }
             loc->data = b;

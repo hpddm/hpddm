@@ -28,9 +28,8 @@ namespace HPDDM {
 template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
-    _opt = { { "tol",                           1.0e-6 },
-             { "max_it",                        100 },
-             { "gmres_restart",                 50 },
+    _opt = {
+#if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
 #if HPDDM_SCHWARZ
              { "schwarz_method",                0 },
 #endif
@@ -83,15 +82,18 @@ inline Option::Option(Singleton::construct_key<N>) {
 #else
              { "master_distribution",           0 },
 #endif
-             { "master_topology",               0 } };
+             { "master_topology",               0 }
+#endif
+    };
 }
-template<class Container>
+template<bool recursive, class Container>
 inline int Option::parse(std::vector<std::string>& args, bool display, const Container& reg) {
     if(args.size() == 0 && reg.size() == 0)
         return 0;
     std::vector<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> option {
         std::forward_as_tuple("help", "Display available options.", Arg::anything),
         std::forward_as_tuple("version", "Display information about HPDDM.", Arg::anything),
+        std::forward_as_tuple("config_file=<input_file>", "Load options from a file saved on disk.", Arg::argument),
         std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm.", Arg::numeric),
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::integer),
         std::forward_as_tuple("verbosity(=<integer>)", "Level of output (higher means more displayed information).", Arg::anything),
@@ -100,7 +102,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk.", Arg::argument),
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
-        std::forward_as_tuple("gmres_restart=<50>", "Maximum number of Arnoldi vectors generated per cycle.", Arg::integer),
+        std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle.", Arg::integer),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning.", Arg::argument),
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance when deflating right-hand sides inside Block GMRES or Block GCRODR.", Arg::numeric),
@@ -121,6 +123,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Number of local eigenvectors to compute for adaptive methods.", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Threshold for selecting local eigenvectors for adaptive methods.", Arg::numeric),
+#if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
 #if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
 #endif
@@ -172,6 +175,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)
       , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::argument)
 #endif
+#endif
     };
 
     if(reg.size() != 0) {
@@ -212,7 +216,16 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
             insert(_opt, option, opt, itArg + 1 != args.cend() ? *(itArg + 1) : "");
         }
     }
-
+    if(!recursive)
+        for(const auto& x : _opt) {
+            const std::string key = x.first;
+            const double val = x.second;
+            if(val < -10000000 && key[-val - 10000000] == '_' && key.substr(0, -val - 10000000) == "config_file") {
+                std::ifstream cfg(key.substr(-val - 10000000 + 1));
+                parse(cfg, display);
+            }
+        }
+    _opt.rehash(_opt.size());
     if(display && _opt.find("help") != _opt.cend()) {
         size_t max = 0;
         int col = getenv("COLUMNS") ? sto<int>(std::getenv("COLUMNS")) : 200;
@@ -271,7 +284,6 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
             wrap(std::get<1>(x));
         }
     }
-    _opt.rehash(_opt.size());
     return 0;
 }
 inline void Option::version() const {

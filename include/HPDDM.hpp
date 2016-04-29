@@ -42,7 +42,7 @@
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_GMV           - For overlapping Schwarz methods, this can be used to reduce the volume of communication for computing global matrix-vector products. */
-#define HPDDM_VERSION         000300
+#define HPDDM_VERSION         000301
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -250,34 +250,36 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  endif
 # endif
 # include "matrix.hpp"
-# include "dmatrix.hpp"
-# if !HPDDM_MKL
-#  ifdef MKL_PARDISOSUB
-#   undef MKL_PARDISOSUB
-#   define MUMPSSUB
+# if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+#  include "dmatrix.hpp"
+#  if !HPDDM_MKL
+#   ifdef MKL_PARDISOSUB
+#    undef MKL_PARDISOSUB
+#    define MUMPSSUB
+#   endif
+#   ifdef DMKL_PARDISO
+#    undef DMKL_PARDISO
+#    define DMUMPS
+#   endif
+#  endif // HPDDM_MKL
+#  if defined(DMUMPS) || defined(MUMPSSUB)
+#   include "MUMPS.hpp"
 #  endif
-#  ifdef DMKL_PARDISO
-#   undef DMKL_PARDISO
-#   define DMUMPS
+#  if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
+#   include "MKL_PARDISO.hpp"
 #  endif
-# endif // HPDDM_MKL
-# if defined(DMUMPS) || defined(MUMPSSUB)
-#  include "MUMPS.hpp"
-# endif
-# if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
-#  include "MKL_PARDISO.hpp"
-# endif
-# if defined(DPASTIX) || defined(PASTIXSUB)
-#  include "PaStiX.hpp"
-# endif
-# if defined(DHYPRE)
-#  include "Hypre.hpp"
-# endif
-# if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
-#  include "SuiteSparse.hpp"
-# endif
-# ifdef DISSECTIONSUB
-#  include "Dissection.hpp"
+#  if defined(DPASTIX) || defined(PASTIXSUB)
+#   include "PaStiX.hpp"
+#  endif
+#  if defined(DHYPRE)
+#   include "Hypre.hpp"
+#  endif
+#  if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
+#   include "SuiteSparse.hpp"
+#  endif
+#  ifdef DISSECTIONSUB
+#   include "Dissection.hpp"
+#  endif
 # endif
 # if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
 #  undef HPDDM_SCHWARZ
