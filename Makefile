@@ -132,7 +132,14 @@ ${TOP_DIR}/${TRASH_DIR}/compiler_flags_c: force
 cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 c: ${TOP_DIR}/${BIN_DIR}/schwarz_c ${TOP_DIR}/${LIB_DIR}/libhpddm_c.${EXTENSION_LIB}
 python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB}
+
+ifneq (,$(findstring ifort,${MPIF90})$(findstring pgf,${MPIF90}))
+    F90MOD = -module
+else
+    F90MOD = -J
+endif
 fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
+	${MPIF90} -c interface/HPDDM.f90 -o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
 
 Makefile.inc:
 	@echo "No Makefile.inc found, please choose one from directory Make.inc"
@@ -145,7 +152,7 @@ Makefile.inc:
 
 clean:
 	rm -rf ${TOP_DIR}/${BIN_DIR} ${TOP_DIR}/${LIB_DIR} ${TOP_DIR}/${TRASH_DIR}
-	find ${TOP_DIR} \( -name "*.o" -o -name "*.${EXTENSION_LIB}" -o -name "*.pyc" -o -name "*.gcov" \) -exec rm -vf '{}' ';'
+	find ${TOP_DIR} \( -name "*.o" -o -name "*.${EXTENSION_LIB}" -o -name "*.mod" -o -name "__pycache__" -type d -o -name "*.pyc" -o -name "*.gcov" \) -exec rm -rvf '{}' '+'
 
 ${TOP_DIR}/${BIN_DIR}/%_cpp.o: examples/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
 	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@

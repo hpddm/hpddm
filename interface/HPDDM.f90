@@ -22,19 +22,22 @@
 
       module hpddm
           implicit none
-          interface HpddmInterface
-              use mpi
-              use, intrinsic :: iso_c_binding, only:                    &
-     &                          c_char, c_int, c_double, c_funptr
+          interface HpddmInterfaceRoutines
               subroutine HpddmOptionRemove(string)
+                  use, intrinsic :: iso_c_binding, only: c_char
                   character (c_char), intent (in) :: string
               end subroutine HpddmOptionRemove
+          end interface HpddmInterfaceRoutines
+          interface HpddmInterfaceFunctions
               function HpddmParseConfig(string)
+                  use, intrinsic :: iso_c_binding, only: c_char, c_int
                   integer (c_int) :: HpddmParseConfig
                   character (c_char), intent (in) :: string
               end function HpddmParseConfig
               function HpddmCustomOperatorSolve(n, mv, precond,         &
      &                                          in, out, mu, comm)
+                      use, intrinsic :: iso_c_binding, only:            &
+     &                                        c_int, c_double, c_funptr
                       integer (c_int) :: HpddmCustomOperatorSolve
                       integer (c_int), intent (in) :: n, comm, mu
                       type (c_funptr), intent (in) :: mv, precond
@@ -43,5 +46,5 @@
                       real (c_double), intent (inout), dimension(n, mu) &
      &                                                           :: out
               end function HpddmCustomOperatorSolve
-         end interface
+          end interface
       end module hpddm
