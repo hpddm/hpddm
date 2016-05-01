@@ -120,7 +120,7 @@ script:
   - make test_python
   - if [ "$PYTHON_VERSION" == "2.7" ] && [ "$HPDDM_NUMBERING" == "F" ] && [ "$CO" == "GENERAL_CO" ] && [ "$FORCE_SINGLE" == "OFF" ]; then
       make test_bin/driver;
-      if [ "$CXX" = "g++" ] && [ "$FORCE_COMPLEX" == "OFF" ] && [ "$SOLVER" == "MUMPS" ]; then
+      if [ "$CXX" = "g++" ]; then
           make test_fortran;
       fi
     fi

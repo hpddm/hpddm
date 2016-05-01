@@ -13,6 +13,8 @@ HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'
 INCS = 
 LIBS = 
 
+LIST_COMPILATION = cpp c python
+
 MUMPS_INCS = -I/usr/include
 PYTHON_INCS = -I${HOME}/miniconda/include/python${PYTHON_VERSION}
 
