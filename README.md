@@ -35,7 +35,7 @@ If you use this software, please cite this [paper](http://dl.acm.org/citation.cf
 [Inria](http://www.inria.fr/en/) Paris, France  
 [Agence Nationale de la Recherche](http://www.agence-nationale-recherche.fr/), France  
 [Partnership for Advanced Computing in Europe](http://www.prace-ri.eu/)  
-[Grand Equipement National de Calcul Intensif](http://www.genci.fr/en), France--
+[Grand Equipement National de Calcul Intensif](http://www.genci.fr/en), France  
 [Fondation Sciences Mathématiques de Paris](http://www.sciencesmaths-paris.fr/en/), France
 
 ###### Collaborators/contributors

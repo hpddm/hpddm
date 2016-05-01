@@ -21,7 +21,7 @@
 #  along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-TOP_DIR ?= .
+TOP_DIR ?= ${PWD}
 BIN_DIR = bin
 LIB_DIR = lib
 TRASH_DIR = .trash
@@ -101,15 +101,24 @@ endif
 ifeq (${OS}, Windows_NT)
     MAKE_OS = Windows
     EXTENSION_LIB = dll
+    ifeq (,$(findstring ${TOP_DIR}/${LIB_DIR},${PATH}))
+        PATH := ${PATH}:${TOP_DIR}/${LIB_DIR}
+    endif
 else
     UNAME_S := ${shell uname -s}
     ifeq (${UNAME_S}, Linux)
         MAKE_OS = Linux
         EXTENSION_LIB = so
+        ifeq (,$(findstring ${TOP_DIR}/${LIB_DIR},${LD_LIBRARY_PATH}))
+            LD_LIBRARY_PATH := ${LD_LIBRARY_PATH}:${TOP_DIR}/${LIB_DIR}
+        endif
     endif
     ifeq (${UNAME_S}, Darwin)
         MAKE_OS = OSX
         EXTENSION_LIB = dylib
+        ifeq (,$(findstring ${TOP_DIR}/${LIB_DIR},${DYLD_LIBRARY_PATH}))
+            DYLD_LIBRARY_PATH := ${DYLD_LIBRARY_PATH}:${TOP_DIR}/${LIB_DIR}
+        endif
     endif
 endif
 
@@ -133,10 +142,10 @@ cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 c: ${TOP_DIR}/${BIN_DIR}/schwarz_c ${TOP_DIR}/${LIB_DIR}/libhpddm_c.${EXTENSION_LIB}
 python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB}
 
-ifneq (,$(findstring ifort,${MPIF90})$(findstring pgf,${MPIF90}))
-    F90MOD = -module
-else
+ifneq (,$(findstring gfortran,${OMPI_FC}${MPICH_F90}))
     F90MOD = -J
+else
+    F90MOD = -module
 endif
 fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
 	${MPIF90} -c interface/HPDDM.f90 -o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
@@ -182,6 +191,9 @@ ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 ${TOP_DIR}/${BIN_DIR}/local_solver: ${TOP_DIR}/${BIN_DIR}/local_solver_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
+${TOP_DIR}/${BIN_DIR}/custom_operator: examples/custom_operator.f90 fortran
+	${MPIF90} -I${TOP_DIR}/${BIN_DIR} $< -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}
+
 benchmark/local_solver:
 	@if [ -z ${MTX_FILE} ]; then \
 		echo "MTX_FILE is not set, no matrix to benchmark ${TOP_DIR}/${BIN_DIR}/local_solver"; \
@@ -206,7 +218,10 @@ test: all $(addprefix test_, ${LIST_COMPILATION})
 test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_op
 test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
-test_fortran:
+test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator
+	cp examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}
+	cd ${TOP_DIR}/${BIN_DIR} && echo 100 2 | ${MPIRUN} 4 ./custom_operator && cd -
+
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ]; then \

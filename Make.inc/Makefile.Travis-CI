@@ -2,6 +2,7 @@ SOLVER ?= MUMPS
 SUBSOLVER ?= MUMPS
 MPICXX ?= mpic++
 MPICC ?= mpicc
+MPIF90 ?= mpif90
 MPIRUN ?= mpirun -np
 
 override CXXFLAGS += -std=c++11 -O3 -fPIC
