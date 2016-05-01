@@ -27,7 +27,7 @@
                   use, intrinsic :: iso_c_binding, only: c_char
                   character (c_char), intent (in) :: string
               end subroutine HpddmOptionRemove
-          end interface HpddmInterfaceRoutines
+          end interface
           interface HpddmInterfaceFunctions
               function HpddmParseConfig(string)
                   use, intrinsic :: iso_c_binding, only: c_char, c_int

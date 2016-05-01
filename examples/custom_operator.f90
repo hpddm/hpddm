@@ -23,7 +23,7 @@
       module my_operator
           implicit none
           contains
-              subroutine my_mv(n, in, out, mu)
+              subroutine my_mv(n, in, out, mu) bind(c)
                   use, intrinsic :: iso_c_binding, only: c_int, c_double
                   use mpi
                   ! size of the local matrix
@@ -53,7 +53,7 @@
 30                    continue
 20                continue
               end subroutine my_mv
-              subroutine my_prec (n, in, out, mu)
+              subroutine my_prec (n, in, out, mu) bind(c)
                   use, intrinsic :: iso_c_binding, only: c_int, c_double
                   use mpi
                   ! size of the local matrix
@@ -99,7 +99,7 @@
      & the number of right-hand sides:"
               read(*, *) dim(1), dim(2)
           end if
-          call MPI_Bcast(dim, 2, MPI_INT, 0, MPI_COMM_WORLD, ierr)
+          call MPI_Bcast(dim, 2, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
 
           allocate(rhs(dim(1), dim(2)))
           allocate(sol(dim(1), dim(2)))

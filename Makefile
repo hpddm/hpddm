@@ -21,6 +21,8 @@
 #  along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+-include Makefile.inc
+
 TOP_DIR ?= ${PWD}
 BIN_DIR = bin
 LIB_DIR = lib
@@ -29,8 +31,6 @@ TRASH_DIR = .trash
 $(shell mkdir -p ${TOP_DIR}/${BIN_DIR} > /dev/null)
 $(shell mkdir -p ${TOP_DIR}/${LIB_DIR} > /dev/null)
 $(shell mkdir -p ${TOP_DIR}/${TRASH_DIR} > /dev/null)
-
--include Makefile.inc
 
 DEPFLAGS = -MT $@ -MMD -MP -MF ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td
 POSTCOMPILE = mv -f ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td ${TOP_DIR}/${TRASH_DIR}/$(subst lib,,$(notdir $(basename $@))).d
@@ -109,16 +109,11 @@ else
     ifeq (${UNAME_S}, Linux)
         MAKE_OS = Linux
         EXTENSION_LIB = so
-        ifeq (,$(findstring ${TOP_DIR}/${LIB_DIR},${LD_LIBRARY_PATH}))
-            LD_LIBRARY_PATH := ${LD_LIBRARY_PATH}:${TOP_DIR}/${LIB_DIR}
-        endif
+        override LDFLAGS += -Wl,-rpath,${TOP_DIR}/${LIB_DIR}
     endif
     ifeq (${UNAME_S}, Darwin)
         MAKE_OS = OSX
         EXTENSION_LIB = dylib
-        ifeq (,$(findstring ${TOP_DIR}/${LIB_DIR},${DYLD_LIBRARY_PATH}))
-            DYLD_LIBRARY_PATH := ${DYLD_LIBRARY_PATH}:${TOP_DIR}/${LIB_DIR}
-        endif
     endif
 endif
 
@@ -192,7 +187,7 @@ ${TOP_DIR}/${BIN_DIR}/local_solver: ${TOP_DIR}/${BIN_DIR}/local_solver_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
 ${TOP_DIR}/${BIN_DIR}/custom_operator: examples/custom_operator.f90 fortran
-	${MPIF90} -I${TOP_DIR}/${BIN_DIR} $< -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}
+	${MPIF90} -I${TOP_DIR}/${BIN_DIR} $< -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} ${LDFLAGS} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}
 
 benchmark/local_solver:
 	@if [ -z ${MTX_FILE} ]; then \
