@@ -142,8 +142,7 @@ ifneq (,$(findstring gfortran,${OMPI_FC}${MPICH_F90}))
 else
     F90MOD = -module
 endif
-fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
-	${MPIF90} -c interface/HPDDM.f90 -o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
+fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB} ${TOP_DIR}/${BIN_DIR}/custom_operator
 
 Makefile.inc:
 	@echo "No Makefile.inc found, please choose one from directory Make.inc"
@@ -186,8 +185,10 @@ ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 ${TOP_DIR}/${BIN_DIR}/local_solver: ${TOP_DIR}/${BIN_DIR}/local_solver_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
-${TOP_DIR}/${BIN_DIR}/custom_operator: examples/custom_operator.f90 fortran
-	${MPIF90} -I${TOP_DIR}/${BIN_DIR} $< -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} ${LDFLAGS} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}
+${TOP_DIR}/${BIN_DIR}/custom_operator: examples/custom_operator.f90 ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
+	${MPIF90} -c interface/HPDDM.f90 -o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
+	${MPIF90} -I${TOP_DIR}/${BIN_DIR} -c $< -o $@.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
+	${MPIF90} -I${TOP_DIR}/${BIN_DIR} -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} $@.o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${LDFLAGS} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}
 
 benchmark/local_solver:
 	@if [ -z ${MTX_FILE} ]; then \
