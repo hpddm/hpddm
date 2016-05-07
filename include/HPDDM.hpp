@@ -42,7 +42,7 @@
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_GMV           - For overlapping Schwarz methods, this can be used to reduce the volume of communication for computing global matrix-vector products. */
-#define HPDDM_VERSION         000301
+#define HPDDM_VERSION         000302
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -177,7 +177,7 @@ inline std::string to_string(const T& x) {
 }
 # else
 template<class T>
-inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, int>::value>::type* = nullptr) {
+inline T sto(const std::string& s, typename std::enable_if<std::numeric_limits<T>::is_integer>::type* = nullptr) {
     return std::stoi(s);
 }
 template<class T>

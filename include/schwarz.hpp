@@ -278,7 +278,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 int tmp = mu * Subdomain<K>::_dof;
                 if(!work)
                     work = const_cast<K*>(in);
-                else
+                else if(!excluded)
                     std::copy_n(in, tmp, work);
                 if(correction == 1) {
 #if HPDDM_ICOLLECTIVE

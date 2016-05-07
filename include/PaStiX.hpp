@@ -239,7 +239,7 @@ class Pastix : public DMatrix {
             _iparm[IPARM_END_TASK]   = API_TASK_SOLVE;
             pstx<K>::dist(&_data, DMatrix::_communicator,
                           _ncol2, _colptr2, _rows2, _values2, _loc2glob2,
-                          NULL, NULL, rhs2, 1, _iparm, _dparm);
+                          NULL, NULL, rhs2, n, _iparm, _dparm);
 
             for(unsigned short nu = 0; nu < n; ++nu)
                 DMatrix::redistribute<2>(rhs + nu * *DMatrix::_ldistribution, rhs2 + nu * _ncol2);

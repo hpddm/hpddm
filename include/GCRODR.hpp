@@ -163,16 +163,13 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
             if(!opt.val<unsigned short>("recycle_same_system")) {
                 for(unsigned short nu = 0; nu < k; ++nu) {
-                    if(!excluded) {
-                        if(variant == 'L') {
+                    if(variant == 'L') {
+                        if(!excluded)
                             A.GMV(pt + nu * ldv, Ax, mu);
-                            A.template apply<excluded>(Ax, C + nu * ldv, mu);
-                        }
-                        else
-                            A.GMV(pt + nu * ldv, C + nu * ldv, mu);
-                    }
-                    else
                         A.template apply<excluded>(Ax, C + nu * ldv, mu);
+                    }
+                    else if(!excluded)
+                        A.GMV(pt + nu * ldv, C + nu * ldv, mu);
                 }
                 K* work = new K[k * k * mu];
                 QR<excluded>(id / 4, n, k, mu, C, work, k, comm);
@@ -622,16 +619,13 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             int bK = mu * k;
             if(!opt.val<unsigned short>("recycle_same_system")) {
                 for(unsigned short nu = 0; nu < k; ++nu) {
-                    if(!excluded) {
-                        if(variant == 'L') {
+                    if(variant == 'L') {
+                        if(!excluded)
                             A.GMV(pt + nu * ldv, Ax, mu);
-                            A.template apply<excluded>(Ax, C + nu * ldv, mu);
-                        }
-                        else
-                            A.GMV(pt + nu * ldv, C + nu * ldv, mu);
-                    }
-                    else
                         A.template apply<excluded>(Ax, C + nu * ldv, mu);
+                    }
+                    else if(!excluded)
+                        A.GMV(pt + nu * ldv, C + nu * ldv, mu);
                 }
                 K* work = new K[bK * bK];
                 QR<excluded>(id / 4, n, bK, 1, C, work, bK, comm);

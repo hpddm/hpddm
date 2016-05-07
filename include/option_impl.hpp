@@ -36,9 +36,7 @@ inline Option::Option(Singleton::construct_key<N>) {
 #if HPDDM_FETI || HPDDM_BDD
              { "substructuring_scaling",        0 },
 #endif
-             { "eigensolver_tol",               1.0e-6 },
              { "geneo_nu",                      20 },
-             { "master_p",                      1 },
 #ifdef MUMPSSUB
              { "mumps_icntl_28",                0 },
              { "mumps_icntl_7",                 7 },
@@ -78,11 +76,10 @@ inline Option::Option(Singleton::construct_key<N>) {
              { "master_mkl_pardiso_iparm_11",   1 },
 #endif
 #if defined(DHYPRE) || defined(DPASTIX)
-             { "master_distribution",           2 },
+             { "master_distribution",           2 }
 #else
-             { "master_distribution",           0 },
+             { "master_distribution",           0 }
 #endif
-             { "master_topology",               0 }
 #endif
     };
 }

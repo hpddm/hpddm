@@ -119,8 +119,11 @@ struct Wrapper {
     template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
     static T conj(const T& x) { return std::conj(x); }
     template<char O>
-    static void cycle(const int n, const int m, K* const ab, const int k) {
-        if((O == 'T' || O == 'C') && n != 1 && m != 1) {
+    static void cycle(const int n, const int m, K* const ab, const int k, const int lda = 0, const int ldb = 0) {
+        if((O == 'T' || O == 'C') && (n > 1 || ldb > n) && (m > 1 || lda > m)) {
+            if(lda > m)
+                for(int i = 1; i < n; ++i)
+                    std::copy_n(ab + i * lda * k, m * k, ab + i * m * k);
             const int size = n * m - 1;
             std::vector<char> b((size >> 3) + 1);
             b[0] |= 1;
@@ -135,11 +138,21 @@ struct Wrapper {
                     b[i >> 3] |= 1 << (i & 7);
                     i = next;
                 } while(i != it);
-                if(O == 'C' && is_complex)
-                    ab[i] = conj(ab[i]);
 
                 for(i = 1; i < size && (b[i >> 3] & (1 << (i & 7))) != 0; ++i);
             }
+            if(ldb > n) {
+                if(O == 'C' && is_complex) {
+                    for(int i = m; i > 0; --i)
+                        for(unsigned int j = n * k; j-- > 0; )
+                            ab[(i - 1) * ldb * k + j] = conj(ab[(i - 1) * n * k + j]);
+                }
+                else
+                    for(int i = m; i > 0; --i)
+                        std::copy_backward(ab + (i - 1) * n * k, ab + i * n * k, ab + ((i - 1) * ldb + n) * k);
+            }
+            else if(O == 'C' && is_complex)
+                std::for_each(ab, ab + n * m * k, [](K& x) { x = conj(x); });
         }
     }
     /* Function: imatcopy
@@ -518,28 +531,20 @@ template<char O>
 inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const int lda, const int ldb) {
     static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
     if(O == 'T' || O == 'C') {
-        if(lda == m && ldb == n) {
-            if(n != m)
-                cycle<O>(n, m, ab, 1);
-            else {
-                for(int i = 0; i < n - 1; ++i)
-                    for(int j = i + 1; j < n; ++j) {
-                        if(O == 'C' && is_complex) {
-                            ab[i * n + j] = conj(ab[i * n + j]);
-                            ab[j * n + i] = conj(ab[j * n + i]);
-                            std::swap(ab[i * n + j], ab[j * n + i]);
-                        }
-                        else
-                            std::swap(ab[i * n + j], ab[j * n + i]);
+        if(n == m && lda == ldb) {
+            for(int i = 0; i < n - 1; ++i)
+                for(int j = i + 1; j < n; ++j) {
+                    if(O == 'C' && is_complex) {
+                        ab[i * lda + j] = conj(ab[i * lda + j]);
+                        ab[j * lda + i] = conj(ab[j * lda + i]);
+                        std::swap(ab[i * lda + j], ab[j * lda + i]);
                     }
-            }
+                    else
+                        std::swap(ab[i * lda + j], ab[j * lda + i]);
+                }
         }
-        else {
-            K* tmp = new K[n * m];
-            omatcopy<O>(n, m, ab, lda, tmp, n);
-            Blas<K>::lacpy("A", &n, &m, tmp, &n, ab, &ldb);
-            delete [] tmp;
-        }
+        else
+            cycle<O>(n, m, ab, 1, lda, ldb);
     }
     else if(O == 'R' && is_complex) {
         if(lda == ldb) {
@@ -563,7 +568,7 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
                 std::copy_backward(ab + (i - 1) * lda, ab + (i - 1) * lda + m, ab + (i - 1) * ldb + m);
         else if(lda > ldb)
             for(int i = 1; i < n; ++i)
-                std::copy_n(ab + i * ldb, m, ab + i * lda);
+                std::copy_n(ab + i * lda, m, ab + i * ldb);
     }
 }
 #endif // HPDDM_MKL
