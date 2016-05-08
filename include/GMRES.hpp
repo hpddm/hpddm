@@ -37,26 +37,26 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
+    const char variant = opt.val<char>("variant", 1);
 
-    K** const H = new K*[m * (2 + (variant == 'F')) + 1];
+    K** const H = new K*[m * (2 + (variant == 2)) + 1];
     K** const v = H + m;
-    K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + m * (1 + (variant == 'F'))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
+    K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + m * (1 + (variant == 2))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
     K* const Ax = s + mu * (m + 1);
     *H = Ax + mu * n;
     for(unsigned short i = 1; i < m; ++i)
         H[i] = *H + i * mu * (m + 1);
     *v = *H + m * mu * (m + 1);
-    for(unsigned short i = 1; i < m * (1 + (variant == 'F')) + 1; ++i)
+    for(unsigned short i = 1; i < m * (1 + (variant == 2)) + 1; ++i)
         v[i] = *v + i * mu * n;
-    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m * (1 + (variant == 'F')) + 1) * mu * n);
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m * (1 + (variant == 2)) + 1) * mu * n);
     underlying_type<K>* const sn = norm + mu;
     bool alloc = A.setBuffer(mu);
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m);
 
     A.template start<excluded>(b, x, mu);
-    if(variant == 'L') {
+    if(!variant) {
         A.template apply<excluded>(b, *v, mu, Ax);
         for(unsigned short nu = 0; nu < mu; ++nu)
             norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
@@ -67,9 +67,9 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     unsigned short j = 1;
     while(j <= it) {
         if(!excluded)
-            A.GMV(x, variant == 'L' ? Ax : *v, mu);
-        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
-        if(variant == 'L')
+            A.GMV(x, !variant ? Ax : *v, mu);
+        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !variant ? Ax : *v, 1);
+        if(!variant)
             A.template apply<excluded>(Ax, *v, mu);
         for(unsigned short nu = 0; nu < mu; ++nu)
             sn[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
@@ -91,15 +91,15 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         }
         unsigned short i = 0;
         while(i < m && j <= it) {
-            if(variant == 'L') {
+            if(!variant) {
                 if(!excluded)
                     A.GMV(v[i], Ax, mu);
                 A.template apply<excluded>(Ax, v[i + 1], mu);
             }
             else {
-                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, mu, v[i + 1]);
+                A.template apply<excluded>(v[i], variant == 2 ? v[i + m + 1] : Ax, mu, v[i + 1]);
                 if(!excluded)
-                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], mu);
+                    A.GMV(variant == 2 ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
             Arnoldi<excluded>(opt.val<char>("orthogonalization", 0), m, H, v, s, sn, n, i++, mu, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -137,7 +137,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 ++j;
         }
         if(j != it + 1 && i == m) {
-            updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+            updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 2), hasConverged, mu, Ax);
             if(verbosity > 1)
                 std::cout << "GMRES restart(" << m << ")" << std::endl;
         }
@@ -148,7 +148,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             const int rem = it % m;
             std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
     }
-    updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), hasConverged, mu, Ax);
+    updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 2), hasConverged, mu, Ax);
     if(verbosity) {
         if(j != it + 1)
             std::cout << "GMRES converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
@@ -172,9 +172,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
+    const char variant = opt.val<char>("variant", 1);
 
-    K** const H = new K*[m * (2 + (variant == 'F')) + 1];
+    K** const H = new K*[m * (2 + (variant == 2)) + 1];
     K** const v = H + m;
     int ldh = mu * (m + 1);
     int info;
@@ -182,9 +182,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     char id = opt.val<char>("orthogonalization", 0);
     int lwork = mu * std::max(n, id != 1 ? ldh : mu);
     id += 4 * opt.val<char>("qr", 0);
-    *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 'F')) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+    *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 2)) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m * mu * ldh;
-    K* const s = *v + mu * n * (m * (1 + (variant == 'F')) + 1);
+    K* const s = *v + mu * n * (m * (1 + (variant == 2)) + 1);
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
@@ -192,7 +192,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     bool alloc = A.setBuffer(mu);
 
     A.template start<excluded>(b, x, mu);
-    if(variant == 'L') {
+    if(!variant) {
         A.template apply<excluded>(b, *v, mu, Ax);
         for(unsigned short nu = 0; nu < mu; ++nu)
             norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
@@ -213,9 +213,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int deflated = -1;
     while(j <= it) {
         if(!excluded)
-            A.GMV(x, variant == 'L' ? Ax : *v, mu);
-        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, variant == 'L' ? Ax : *v, 1);
-        if(variant == 'L')
+            A.GMV(x, !variant ? Ax : *v, mu);
+        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !variant ? Ax : *v, 1);
+        if(!variant)
             A.template apply<excluded>(Ax, *v, mu);
         VR<excluded>(n, mu, 1, *v, s, mu, comm);
         if(!opt.set("initial_deflation_tol")) {
@@ -262,7 +262,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             ldh = deflated * (m + 1);
             for(unsigned short i = 1; i < m; ++i)
                 H[i] = *H + i * deflated * ldh;
-            for(unsigned short i = 1; i < m * (1 + (variant == 'F')) + 1; ++i)
+            for(unsigned short i = 1; i < m * (1 + (variant == 2)) + 1; ++i)
                 v[i] = *v + i * deflated * n;
         }
         N *= 2;
@@ -275,15 +275,15 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         std::fill(*H, *v, K());
         unsigned short i = 0;
         while(i < m && j <= it) {
-            if(variant == 'L') {
+            if(!variant) {
                 if(!excluded)
                     A.GMV(v[i], Ax, deflated);
                 A.template apply<excluded>(Ax, v[i + 1], deflated);
             }
             else {
-                A.template apply<excluded>(v[i], variant == 'F' ? v[i + m + 1] : Ax, deflated, v[i + 1]);
+                A.template apply<excluded>(v[i], variant == 2 ? v[i + m + 1] : Ax, deflated, v[i + 1]);
                 if(!excluded)
-                    A.GMV(variant == 'F' ? v[i + m + 1] : Ax, v[i + 1], deflated);
+                    A.GMV(variant == 2 ? v[i + m + 1] : Ax, v[i + 1], deflated);
             }
             if(BlockArnoldi<excluded>(id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
                 dim = deflated * (i - 1);
@@ -303,7 +303,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 else
                     std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " < " << -tol;
                 std::cout << " (rhs #" << std::distance(beta, max) + 1;
-                if(converged > 0)
+                if(converged)
                     std::cout << ", " << converged << " converged rhs";
                 if(deflated != mu)
                     std::cout << ", " << mu - deflated << " deflated rhs";
@@ -320,7 +320,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(opt.set("initial_deflation_tol"))
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
         if(j != it + 1 && i == m) {
-            updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+            updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 2), &dim, mu, Ax, deflated);
             if(opt.set("initial_deflation_tol")) {
                 Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
                 Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
@@ -336,7 +336,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(rem != 0)
             dim = deflated * rem;
     }
-    updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 'F'), &dim, mu, Ax, deflated);
+    updateSol<excluded>(A, variant, n, x, H, s, v + (m + 1) * (variant == 2), &dim, mu, Ax, deflated);
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     delete [] piv;

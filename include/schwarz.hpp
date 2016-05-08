@@ -232,8 +232,12 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             }
             scaledExchange(x, mu);
             if(super::_co) {
-                super::start(mu);
-                if(Option::get()->val<unsigned short>("schwarz_coarse_correction") == 2)
+                unsigned short k = 1;
+                const Option& opt = *Option::get();
+                if(opt.any_of("krylov_method", { 3, 4 }) && !opt.val<unsigned short>("recycle_same_system"))
+                    k = std::max(opt.val<int>("recycle", 1), 1);
+                super::start(mu * k);
+                if(opt.val<char>("schwarz_coarse_correction") == 2)
                     deflation<excluded>(b, x, mu);
             }
         }
@@ -251,7 +255,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    work           - Workspace array. */
         template<bool excluded = false>
         void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
-            const int correction = Option::get()->val("schwarz_coarse_correction", -1);
+            const char correction = Option::get()->val<char>("schwarz_coarse_correction", -1);
             if(!super::_co || correction == -1) {
                 if(_type == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::_dof, out);

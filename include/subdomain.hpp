@@ -74,38 +74,20 @@ class Subdomain {
          * Parameter:
          *    in             - Input vector. */
         void exchange(K* const in, const unsigned short& mu = 1) const {
-            if(!_map.empty() && std::distance(_buff[0], _buff[1]) >= mu * _map[0].second.size()) {
-                for(unsigned short i = 0; i < _map.size(); ++i)
-                    MPI_Irecv(_buff[i], mu * _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                for(unsigned short i = 0, size = _map.size(); i < size; ++i)
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _buff[size + i] + nu * _map[i].second.size(), _map[i].second.data());
-                for(unsigned short i = 0, size = _map.size(); i < size; ++i)
-                    MPI_Isend(_buff[size + i], mu * _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                for(unsigned short i = 0, size = _map.size(); i < size; ++i) {
+                    MPI_Irecv(_buff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
+                    Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _buff[size + i], _map[i].second.data());
+                    MPI_Isend(_buff[size + i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
+                }
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     int index;
                     MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        for(unsigned int j = 0; j < _map[index].second.size(); ++j)
-                            in[_map[index].second[j] + nu * _dof] += _buff[index][j + nu * _map[index].second.size()];
+                    for(unsigned int j = 0; j < _map[index].second.size(); ++j)
+                        in[_map[index].second[j] + nu * _dof] += _buff[index][j];
                 }
                 MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
             }
-            else
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    for(unsigned short i = 0, size = _map.size(); i < size; ++i) {
-                        MPI_Irecv(_buff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                        Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _buff[size + i], _map[i].second.data());
-                        MPI_Isend(_buff[size + i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
-                    }
-                    for(unsigned short i = 0; i < _map.size(); ++i) {
-                        int index;
-                        MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
-                        for(unsigned int j = 0; j < _map[index].second.size(); ++j)
-                            in[_map[index].second[j] + nu * _dof] += _buff[index][j];
-                    }
-                    MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
-                }
         }
         /* Function: recvBuffer
          *
@@ -180,18 +162,18 @@ class Subdomain {
             if(n == 0)
                 return false;
             bool alloc;
-            if(2 * mu * n <= space && wk) {
+            if(2 * n <= space && wk) {
                 *_buff = wk;
                 alloc = false;
             }
             else {
-                *_buff = new K[2 * mu * n];
+                *_buff = new K[2 * n];
                 alloc = true;
             }
-            _buff[_map.size()] = *_buff + mu * n;
+            _buff[_map.size()] = *_buff + n;
             n = 0;
             for(unsigned short i = 1, size = _map.size(); i < size; ++i) {
-                n += mu * _map[i - 1].second.size();
+                n += _map[i - 1].second.size();
                 _buff[i] = *_buff + n;
                 _buff[size + i] = _buff[size] + n;
             }

@@ -97,7 +97,7 @@ class IterativeMethod {
          *    s              - Coefficients in the Krylov subspace.
          *    v              - Basis of the Krylov subspace. */
         template<bool excluded, class Operator, class K, class T>
-        static void updateSol(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+        static void updateSol(const Operator& A, const char variant, const int& n, K* const x, const K* const* const h, K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
             static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
             if(!excluded)
                 computeMin(h, s, hasConverged, mu, deflated);
@@ -114,24 +114,24 @@ class IterativeMethod {
             else
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     int dim = std::abs(hasConverged[nu]);
-                    if(dim != 0)
+                    if(dim)
                         Blas<K>::trsv("U", "N", "N", &(dim -= shift), *h + shift * (1 + ldh) + (ldh / mu) * nu, &ldh, s + nu, &mu);
                 }
         }
         template<bool excluded, class Operator, class K, class T>
-        static void addSol(const Operator& A, char variant, const int& n, K* const x, const int& ldh, const K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
+        static void addSol(const Operator& A, const char variant, const int& n, K* const x, const int& ldh, const K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
             static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
-            K* const correction = (variant == 'R' ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
+            K* const correction = (variant == 1 ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
             if(excluded) {
-                if(variant == 'R')
+                if(variant == 1)
                     A.template apply<true>(work, correction, deflated == -1 ? mu : deflated);
             }
             else {
                 if(deflated == -1) {
                     int ldv = mu * n;
-                    if(variant == 'L') {
+                    if(!variant) {
                         for(unsigned short nu = 0; nu < mu; ++nu)
-                            if(hasConverged[nu] != 0) {
+                            if(hasConverged[nu]) {
                                 int dim = std::abs(hasConverged[nu]);
                                 Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
                             }
@@ -141,28 +141,28 @@ class IterativeMethod {
                             int dim = std::abs(hasConverged[nu]);
                             Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
                         }
-                        if(variant == 'R')
+                        if(variant == 1)
                             A.apply(work, correction, mu);
                         for(unsigned short nu = 0; nu < mu; ++nu)
-                            if(hasConverged[nu] != 0)
+                            if(hasConverged[nu])
                                 Blas<K>::axpy(&n, &(Wrapper<K>::d__1), correction + nu * n, &i__1, x + nu * n, &i__1);
                     }
                 }
                 else {
                     int dim = *hasConverged;
                     if(deflated == mu) {
-                        if(variant == 'L')
+                        if(!variant)
                             Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__1), x, &n);
                         else {
                             Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
-                            if(variant == 'R')
+                            if(variant == 1)
                                 A.apply(work, correction, mu);
                             Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                         }
                     }
                     else {
                         Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
-                        if(variant == 'R')
+                        if(variant == 1)
                             A.apply(work, correction, deflated);
                         Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d__1), x + deflated * n, &n);
                         Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
@@ -171,7 +171,7 @@ class IterativeMethod {
             }
         }
         template<bool excluded, class Operator, class K, class T>
-        static void updateSolRecycling(const Operator& A, char variant, const int& n, K* const x, const K* const* const h, K* const s, K* const* const v, T* const norm, const K* const C, const K* const U, const short* const hasConverged, const int shift, const int mu, K* const work, const MPI_Comm& comm, const int& deflated = -1) {
+        static void updateSolRecycling(const Operator& A, const char variant, const int& n, K* const x, const K* const* const h, K* const s, K* const* const v, T* const norm, const K* const C, const K* const U, const short* const hasConverged, const int shift, const int mu, K* const work, const MPI_Comm& comm, const int& deflated = -1) {
             const Option& opt = *Option::get();
             const int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
             const int dim = ldh / (deflated == -1 ? mu : deflated);
@@ -179,12 +179,12 @@ class IterativeMethod {
                 computeMin(h, s + shift * (deflated == -1 ? mu : deflated), hasConverged, mu, deflated, shift);
                 const int ldv = (deflated == -1 ? mu : deflated) * n;
                 if(deflated == -1) {
-                    if(opt.val<unsigned short>("recycle_same_system") != 0)
+                    if(opt.val<unsigned short>("recycle_same_system"))
                         std::fill_n(s, shift * mu, K());
                     else {
                         if(!excluded)
                             for(unsigned short nu = 0; nu < mu; ++nu) {
-                                if(std::abs(hasConverged[nu]) != 0) {
+                                if(std::abs(hasConverged[nu])) {
                                     K alpha = norm[nu];
                                     Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, v[shift] + nu * n , &i__1, &(Wrapper<K>::d__0), s + nu, &mu);
                                 }
@@ -195,7 +195,7 @@ class IterativeMethod {
                     }
                     if(!excluded)
                         for(unsigned short nu = 0; nu < mu; ++nu) {
-                            if(std::abs(hasConverged[nu]) != 0) {
+                            if(std::abs(hasConverged[nu])) {
                                 int diff = std::abs(hasConverged[nu]) - shift;
                                 Blas<K>::gemv("N", &shift, &diff, &(Wrapper<K>::d__2), h[shift] + nu * dim, &ldh, s + shift * mu + nu, &mu, &(Wrapper<K>::d__1), s + nu, &mu);
                             }
@@ -204,7 +204,7 @@ class IterativeMethod {
                 else {
                     int bK = deflated * shift;
                     K beta;
-                    if(opt.val<unsigned short>("recycle_same_system") != 0)
+                    if(opt.val<unsigned short>("recycle_same_system"))
                         beta = K();
                     else {
                         if(!excluded) {
@@ -224,11 +224,11 @@ class IterativeMethod {
                     int diff = *hasConverged - deflated * shift;
                     Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
                 }
-                std::copy_n(U, shift * ldv, v[dim * (variant == 'F')]);
-                addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K* const* const>(v + dim * (variant == 'F')), hasConverged, mu, work, deflated);
+                std::copy_n(U, shift * ldv, v[dim * (variant == 2)]);
+                addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K* const* const>(v + dim * (variant == 2)), hasConverged, mu, work, deflated);
             }
             else
-                updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K* const* const>(v + dim * (variant == 'F')), hasConverged, mu, work, deflated);
+                updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K* const* const>(v + dim * (variant == 2)), hasConverged, mu, work, deflated);
         }
         template<class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
         static void clean(T* const& pt) {
@@ -542,17 +542,17 @@ class IterativeMethod {
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
             const Option& opt = *Option::get();
-            switch(opt.val<unsigned short>("krylov_method")) {
-                case 4:  return HPDDM::IterativeMethod::template BGCRODR<excluded>(A, b, x, mu, comm); break;
-                case 3:  return HPDDM::IterativeMethod::template GCRODR<excluded>(A, b, x, mu, comm); break;
-                case 2:  return HPDDM::IterativeMethod::template CG<excluded>(A, b, x, comm); break;
-                case 1:  return HPDDM::IterativeMethod::template BGMRES<excluded>(A, b, x, mu, comm); break;
-                default: return HPDDM::IterativeMethod::template GMRES<excluded>(A, b, x, mu, comm);
+            switch(opt.val<char>("krylov_method")) {
+                case 4:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;
+                case 3:  return HPDDM::IterativeMethod::GCRODR<excluded>(A, b, x, mu, comm); break;
+                case 2:  return HPDDM::IterativeMethod::CG<excluded>(A, b, x, comm); break;
+                case 1:  return HPDDM::IterativeMethod::BGMRES<excluded>(A, b, x, mu, comm); break;
+                default: return HPDDM::IterativeMethod::GMRES<excluded>(A, b, x, mu, comm);
             }
         }
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-            return HPDDM::IterativeMethod::template PCG<excluded>(A, b, x, comm);
+            return HPDDM::IterativeMethod::PCG<excluded>(A, b, x, comm);
         }
 };
 } // HPDDM
