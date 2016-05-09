@@ -228,7 +228,7 @@ class MumpsSub {
                 for(int i = 0; i < A->_n; ++i)
                     std::fill(_I + A->_ia[i] - (N == 'F'), _I + A->_ia[i + 1] - (N == 'F'), i + 1);
                 _id->irn = _I;
-                if(schur != nullptr) {
+                if(schur) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
                     std::iota(listvar, listvar + static_cast<int>(std::real(schur[0])), static_cast<int>(std::real(schur[1])));
                     _id->size_schur = _id->schur_lld = static_cast<int>(std::real(schur[0]));

@@ -167,16 +167,14 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 }
                 else if(!excluded)
                     A.GMV(pt, C, mu * k);
-                K* work = new K[k * k * mu];
-                QR<excluded>(id / 4, n, k, mu, C, work, k, comm);
+                QR<excluded>(id / 4, n, k, mu, C, *save, k, comm);
                 if(!excluded) {
                     if(variant == 1)
                         for(unsigned short nu = 0; nu < mu; ++nu)
-                            Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), work + nu * k * k, &k, pt + nu * n, &ldv);
+                            Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, pt + nu * n, &ldv);
                     for(unsigned short nu = 0; nu < mu; ++nu)
-                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), work + nu * k * k, &k, U + nu * n, &ldv);
+                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, U + nu * n, &ldv);
                 }
-                delete [] work;
             }
             orthogonalization<excluded>(id % 4, n, k, mu, C, v[i], H[i], comm);
             if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
@@ -294,6 +292,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));
                 if(j < k || dim < k)
                     k = dim;
+                recycled.setMu(mu);
                 recycled.allocate(n, k);
                 if(!excluded) {
                     U = recycled.storage();
@@ -363,13 +362,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         delete [] w;
                         Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)] + nu * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + nu * n, &ldv);
                         Blas<K>::gemm("N", "N", &row, &k, &dim, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, vr, &dim, &(Wrapper<K>::d__0), *H + nu * (m + 1), &ldh);
-                        delete [] vr;
-                        K* tau = new K[k];
-                        Lapack<K>::geqrf(&row, &k, *H + nu * (m + 1), &ldh, tau, work, &lwork, &info);
-                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m + 1), &ldh, tau, *v + nu * n, &ldv, work, &lwork, &info);
+                        Lapack<K>::geqrf(&row, &k, *H + nu * (m + 1), &ldh, vr, work, &lwork, &info);
+                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m + 1), &ldh, vr, *v + nu * n, &ldv, work, &lwork, &info);
                         Wrapper<K>::template omatcopy<'N'>(k, n, *v + nu * n, ldv, C + nu * n, ldv);
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + nu * (m + 1), &ldh, U + nu * n, &ldv);
-                        delete [] tau;
+                        delete [] vr;
                         delete [] work;
                     }
                 }
@@ -479,11 +476,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, work, perm, &info);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, nullptr, &ldh, nullptr, nullptr, &ldv, work + 1, perm, &info);
                         delete [] perm;
-                        if(std::real(work[0]) > (Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork) || std::real(work[1]) > (Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork)) {
-                            lwork = std::max(std::real(work[0]), std::real(work[1]));
-                            delete [] work;
-                            work = new K[lwork];
-                        }
+                        lwork = std::max(std::real(work[0]), std::real(work[1]));
+                        delete [] work;
+                        work = new K[lwork];
                         Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m + 1), &ldh, tau, work, &lwork, &info);
                         Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[(m + 1) * (variant == 2)] + activeSet[nu] * n, ldv);
                         Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
@@ -619,14 +614,12 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 else if(!excluded)
                     A.GMV(pt, C, bK);
-                K* work = new K[bK * bK];
-                QR<excluded>(id / 4, n, bK, 1, C, work, bK, comm);
+                QR<excluded>(id / 4, n, bK, 1, C, *save, bK, comm);
                 if(!excluded) {
                     if(variant == 1)
-                        Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), work, &bK, pt, &n);
-                    Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), work, &bK, U, &n);
+                        Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
+                    Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, U, &n);
                 }
-                delete [] work;
             }
             blockOrthogonalization<excluded>(id % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
             if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
@@ -787,6 +780,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 int dim = std::min(j, m);
                 if(dim < k)
                     k = dim;
+                recycled.setMu(mu);
                 recycled.allocate(n, k);
                 if(!excluded) {
                     U = recycled.storage();

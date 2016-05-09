@@ -137,7 +137,7 @@ class Arpack : public Eigensolver<K> {
                     ncv = 2 * Eigensolver<K>::_nu + 1;
                 }
             } while(info == -9999 && Eigensolver<K>::_nu > 1);
-            if(s == nullptr)
+            if(!s)
                 delete prec;
             Eigensolver<K>::_nu = iparam[4];
             if(Eigensolver<K>::_nu) {

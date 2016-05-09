@@ -176,7 +176,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
     };
 
     if(reg.size() != 0) {
-        if(_app == nullptr)
+        if(!_app)
             _app = new std::unordered_map<std::string, double>;
         _app->reserve(reg.size());
         for(const auto& x : reg) {

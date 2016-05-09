@@ -182,7 +182,7 @@ class Option : private Singleton {
          * Parameter:
          *    pre            - Prefix to look for. */
         std::string prefix(const std::string& pre, const bool internal = false) const {
-            if(!internal && _app == nullptr)
+            if(!internal && !_app)
                 return std::string();
             std::unordered_map<std::string, double>::const_iterator pIt[2];
             if(internal) {

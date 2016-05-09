@@ -175,7 +175,7 @@ class IterativeMethod {
             const Option& opt = *Option::get();
             const int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
             const int dim = ldh / (deflated == -1 ? mu : deflated);
-            if(C != nullptr && U != nullptr) {
+            if(C && U) {
                 computeMin(h, s + shift * (deflated == -1 ? mu : deflated), hasConverged, mu, deflated, shift);
                 const int ldv = (deflated == -1 ? mu : deflated) * n;
                 if(deflated == -1) {
@@ -377,7 +377,7 @@ class IterativeMethod {
         template<bool excluded, class K>
         static void VR(const int n, const int k, const int mu, const K* const V, K* const R, const int ldr, const MPI_Comm& comm, K* work = nullptr) {
             const int ldv = mu * n;
-            if(work == nullptr)
+            if(!work)
                 work = R;
             if(!excluded)
                 for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -410,7 +410,7 @@ class IterativeMethod {
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), R + k * k * nu, &ldr, Q + nu * n, &ldv);
             }
             else {
-                if(work == nullptr)
+                if(!work)
                     work = R;
                 for(unsigned short xi = 0; xi < k; ++xi) {
                     if(xi > 0)

@@ -78,7 +78,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         template<char N = HPDDM_NUMBERING>
         void callNumfact(MatrixCSR<K>* const& A = nullptr) {
             Option& opt = *Option::get();
-            if(A != nullptr) {
+            if(A) {
                 if(opt["schwarz_method"] == 2)
                     _type = Prcndtnr::OS;
                 else
@@ -362,7 +362,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 iPrev += tmp[k].size();
             }
             int nnz = iPrev;
-            if(B != nullptr)
+            if(B)
                 delete B;
             B = new MatrixCSR<K>(Subdomain<K>::_dof, Subdomain<K>::_dof, nnz, A->_sym);
             nnz = iPrev = k = 0;
@@ -434,12 +434,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             delete [] tmp;
             Subdomain<K>::exchange(out, mu);
 #else
-            if(HPDDM_NUMBERING == Wrapper<K>::I || A != nullptr) {
-                if(A != nullptr)
+            if(A)
                     Wrapper<K>::csrmm(A->_sym, &(A->_n), &mu, A->_a, A->_ia, A->_ja, in, out);
-                else
+            else if(HPDDM_NUMBERING == Wrapper<K>::I)
                     Wrapper<K>::csrmm(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
-            }
             else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
                 Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             else

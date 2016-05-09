@@ -247,7 +247,7 @@ class MklPardisoSub {
                             _mtype = prds<K>::UNS;
                     }
                 }
-                if(schur != nullptr) {
+                if(schur) {
                     _iparm[35] = 2;
                     perm = new int[_n];
                     _partial = static_cast<int>(std::real(schur[1]));

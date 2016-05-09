@@ -186,7 +186,7 @@ constexpr K Wrapper<K>::d__2;
 
 template<class K>
 inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, K* const in, const int& n) {
-    if(d != nullptr)
+    if(d)
         diag(m, d, nullptr, in, n);
 }
 
@@ -295,7 +295,7 @@ inline void Wrapper<T>::omatcopy(const int n, const int m, const T* const a, con
 template<>                                                                                                   \
 inline void Wrapper<T>::diag(const int& m, const T* const d,                                                 \
                              const T* const in, T* const out, const int& n) {                                \
-    if(d != nullptr) {                                                                                       \
+    if(d) {                                                                                                  \
         if(in)                                                                                               \
             for(int i = 0; i < n; ++i)                                                                       \
                 v ## C ## Mul(m, d, in + i * m, out + i * m);                                                \
@@ -575,7 +575,7 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
 
 template<class K>
 inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, const K* const in, K* const out, const int& n) {
-    if(d != nullptr) {
+    if(d) {
         if(in)
             for(int i = 0; i < n; ++i)
                 for(int j = 0; j < m; ++j)

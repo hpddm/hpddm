@@ -333,7 +333,7 @@ class PastixSub {
                 pstx<K>::seq(&_data, MPI_COMM_SELF,
                              _ncol, _colptr, _rows, NULL,
                              NULL, NULL, NULL, 1, _iparm, _dparm);
-                if(schur != nullptr) {
+                if(schur) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
                     std::iota(listvar, listvar + static_cast<int>(std::real(schur[0])), static_cast<int>(std::real(schur[1])));
                     pstx<K>::setSchurUnknownList(_data, static_cast<int>(std::real(schur[0])), listvar);
