@@ -27,6 +27,7 @@
 #define HPDDM_PREFIX "hpddm_"
 #define HPDDM_CONCAT(NAME) "" HPDDM_PREFIX #NAME ""
 
+#include <stdexcept>
 #ifndef HPDDM_NO_REGEX
 #include <regex>
 #endif
@@ -56,7 +57,7 @@ class Option : private Singleton {
         ~Option() {
             std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
             if(show != _opt.cend()) {
-                std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> generate = [](const std::unordered_map<std::string, double>& map, const std::string& header) {
+                std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> generate = [&](const std::unordered_map<std::string, double>& map, const std::string& header) {
                     std::vector<std::string> v;
                     v.reserve(map.size() + 3);
                     v.emplace_back(" ┌");
