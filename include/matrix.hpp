@@ -42,12 +42,14 @@ class MatrixCSR {
 #endif
         template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
         static bool scan(const char* str, int* row, int* col, T* val) {
-            int ret = sscanf(str, "%i %i %le", row, col, val);
+            double x;
+            int ret = sscanf(str, "%i %i %le", row, col, &x);
+            *val = x;
             return ret != 3;
         }
         template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
         static bool scan(const char* str, int* row, int* col, T* val) {
-            HPDDM::underlying_type<T> re, im;
+            double re, im;
             int ret = sscanf(str, "%i %i (%le,%le)", row, col, &re, &im);
             *val = T(re, im);
             return ret != 4;
