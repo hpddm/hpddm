@@ -38,11 +38,6 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 pair = re.compile(r'\(([^,\)]+),([^,\)]+)\)')
-def parse_pair(s):
-    if match is None:
-        return float(s) + 0j
-    else:
-        return complex(*map(float, match.groups()))
 
 with open(sys.argv[2], 'r') as input:
     k = 0

@@ -51,6 +51,41 @@ class DissectionSub {
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
             static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
+            std::vector<unsigned int> missingCoefficients;
+            for(unsigned int i = 0; i < A->_n; ++i)
+                if(A->_ia[i + 1] == A->_ia[i] || (!A->_sym && !std::binary_search(A->_ja + A->_ia[i] - (N == 'F'), A->_ja + A->_ia[i + 1] - (N == 'F'), i + (N == 'F'))) || (A->_sym && A->_ja[A->_ia[i + 1] - (N == 'F') - 1] - (N == 'F') != i)) {
+                    missingCoefficients.emplace_back(i);
+                }
+            int* ja;
+            K* a;
+            if(!missingCoefficients.empty()) {
+                ja = new int[A->_nnz + missingCoefficients.size()]();
+                a = new K[A->_nnz + missingCoefficients.size()]();
+                unsigned int prev = 0;
+                for(unsigned int i = 0; i < missingCoefficients.size(); ++i) {
+                    std::copy(A->_ja + A->_ia[prev] - (N == 'F'), A->_ja + A->_ia[missingCoefficients[i]] - (N == 'F'), ja + A->_ia[prev] - (N == 'F') + i);
+                    std::copy(A->_a + A->_ia[prev] - (N == 'F'), A->_a + A->_ia[missingCoefficients[i]] - (N == 'F'), a + A->_ia[prev] - (N == 'F') + i);
+                    int dist = !A->_sym ? std::distance(A->_ja + A->_ia[missingCoefficients[i]] - (N == 'F'), std::lower_bound(A->_ja + A->_ia[missingCoefficients[i]] - (N == 'F'), A->_ja + A->_ia[missingCoefficients[i] + 1] - (N == 'F'), missingCoefficients[i] + (N == 'F'))) : A->_ia[missingCoefficients[i] + 1] - A->_ia[missingCoefficients[i]];
+                    std::copy_n(A->_ja + A->_ia[missingCoefficients[i]] - (N == 'F'), dist, ja + A->_ia[missingCoefficients[i]] - (N == 'F') + i);
+                    std::copy_n(A->_a + A->_ia[missingCoefficients[i]] - (N == 'F'), dist, a + A->_ia[missingCoefficients[i]] - (N == 'F') + i);
+                    ja[A->_ia[missingCoefficients[i]] - (N == 'F') + i + dist] = missingCoefficients[i] + (N == 'F');
+                    a[A->_ia[missingCoefficients[i]] - (N == 'F') + i + dist] = K();
+                    if(!A->_sym) {
+                        std::copy_n(A->_ja + A->_ia[missingCoefficients[i]] - (N == 'F') + dist, A->_ia[missingCoefficients[i] + 1] - A->_ia[missingCoefficients[i]] - dist, ja + A->_ia[missingCoefficients[i]] - (N == 'F') + i + dist + 1);
+                        std::copy_n(A->_a + A->_ia[missingCoefficients[i]] - (N == 'F') + dist, A->_ia[missingCoefficients[i] + 1] - A->_ia[missingCoefficients[i]] - dist, a + A->_ia[missingCoefficients[i]] - (N == 'F') + i + dist + 1);
+                    }
+                    std::for_each(A->_ia + prev, A->_ia + missingCoefficients[i] + 1, [&](int& j) { j += i; });
+                    prev = missingCoefficients[i] + 1;
+                }
+                std::copy(A->_ja + A->_ia[prev] - (N == 'F'), A->_ja + A->_nnz, ja + A->_ia[prev] - (N == 'F') + missingCoefficients.size());
+                std::copy(A->_a + A->_ia[prev] - (N == 'F'), A->_a + A->_nnz, a + A->_ia[prev] - (N == 'F') + missingCoefficients.size());
+                std::for_each(A->_ia + prev, A->_ia + A->_n + 1, [&](int& j) { j += missingCoefficients.size(); });
+                A->_nnz += missingCoefficients.size();
+            }
+            else {
+                ja = A->_ja;
+                a = A->_a;
+            }
             if(!_dslv) {
 #ifdef _OPENMP
                 int num_threads = omp_get_max_threads();
@@ -60,15 +95,27 @@ class DissectionSub {
                 _dslv = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
                 if(N == 'F') {
                     std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { --i; });
-                    std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
+                    std::for_each(ja, ja + A->_nnz, [](int& i) { --i; });
                 }
-                _dslv->SymbolicFact(A->_n, A->_ia, A->_ja, A->_sym, false);
+                _dslv->SymbolicFact(A->_n, A->_ia, ja, A->_sym, false);
                 if(N == 'F') {
-                    std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
+                    if(missingCoefficients.empty())
+                        std::for_each(ja, ja + A->_nnz, [](int& i) { ++i; });
                     std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { ++i; });
                 }
             }
-            _dslv->NumericFact(0, A->_a, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
+            _dslv->NumericFact(0, a, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
+            if(!missingCoefficients.empty()) {
+                delete [] ja;
+                delete [] a;
+                unsigned int prev = 0;
+                for(unsigned int i = 0; i < missingCoefficients.size(); ++i) {
+                    std::for_each(A->_ia + prev, A->_ia + missingCoefficients[i] + 1, [&](int& j) { j -= i; });
+                    prev = missingCoefficients[i] + 1;
+                }
+                std::for_each(A->_ia + prev, A->_ia + A->_n + 1, [&](int& i) { i -= missingCoefficients.size(); });
+                A->_nnz -= missingCoefficients.size();
+            }
         }
         unsigned short deficiency() const { return _dslv->kern_dimension(); }
         void solve(K* const x, const unsigned short& n = 1) const {

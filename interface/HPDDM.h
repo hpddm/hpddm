@@ -82,7 +82,7 @@ struct HpddmMatrixCSR;
 typedef struct HpddmMatrixCSR HpddmMatrixCSR;
 HpddmMatrixCSR* HpddmMatrixCSRCreate(int, int, int, K*, int*, int*, bool, bool);
 void HpddmMatrixCSRDestroy(HpddmMatrixCSR*);
-void HpddmCsrmm(HpddmMatrixCSR*, const K* const, K*, int);
+void HpddmCSRMM(HpddmMatrixCSR*, const K* const, K*, int);
 
 struct HpddmSubdomain;
 typedef struct HpddmSubdomain HpddmSubdomain;

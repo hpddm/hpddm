@@ -30,9 +30,8 @@ import ctypes
 import numpy
 import hpddm
 
-n, m, nnz, a, ia, ja, sym = hpddm.parse_file(sys.argv[1])
-
-Mat = hpddm.matrixCSRCreate(n, m, nnz, a, ia, ja, sym)
+Mat = hpddm.matrixCSRParseFile(ctypes.create_string_buffer(sys.argv[1].encode('ascii', 'ignore')))
+n = hpddm.matrixCSRnRows(Mat)
 S = ctypes.POINTER(hpddm.Subdomain)()
 hpddm.subdomainNumfact(ctypes.byref(S), Mat)
 f = numpy.empty(n, hpddm.scalar)

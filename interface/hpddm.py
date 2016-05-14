@@ -161,18 +161,24 @@ class MatrixCSR(ctypes.Structure):
 matrixCSRCreate = lib.matrixCSRCreate
 matrixCSRCreate.restype = ctypes.POINTER(MatrixCSR)
 matrixCSRCreate.argtypes = [ ctypes.c_int, ctypes.c_int, ctypes.c_int, numpy.ctypeslib.ndpointer(scalar, ndim = 1, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(ctypes.c_int, ndim = 1, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(ctypes.c_int, ndim = 1, flags = 'F_CONTIGUOUS'), ctypes.c_bool ]
+matrixCSRParseFile = lib.matrixCSRParseFile
+matrixCSRParseFile.restype = ctypes.POINTER(MatrixCSR)
+matrixCSRParseFile.argtypes = [ ctypes.c_char_p ]
+matrixCSRnRows = lib.matrixCSRnRows
+matrixCSRnRows.restype = ctypes.c_int
+matrixCSRnRows.argtypes = [ ctypes.POINTER(MatrixCSR) ]
 matrixCSRDestroy = lib.matrixCSRDestroy
 matrixCSRDestroy.restype = None
 matrixCSRDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(MatrixCSR)) ]
-wrapperCsrmm = lib.csrmm
-wrapperCsrmm.restype = None
-wrapperCsrmm.argtypes = [ ctypes.POINTER(MatrixCSR), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int ]
+wrapperCSRMM = lib.csrmm
+wrapperCSRMM.restype = None
+wrapperCSRMM.argtypes = [ ctypes.POINTER(MatrixCSR), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int ]
 def csrmv(Mat, x, y):
     try:
         m = x.shape[1]
     except IndexError:
         m = 1
-    wrapperCsrmm(Mat, x, y, m)
+    wrapperCSRMM(Mat, x, y, m)
 
 class Subdomain(ctypes.Structure):
     pass

@@ -141,6 +141,13 @@ void* matrixCSRCreate(int n, int m, int nnz, HPDDM::pod_type<K>* a, int* ia, int
     std::copy_n(reinterpret_cast<K*>(a), nnz, acopy);
     return new HPDDM::MatrixCSR<K>(n, m, nnz, acopy, icopy, jcopy, sym, true);
 }
+void* matrixCSRParseFile(char* file) {
+    std::ifstream stream(file);
+    return new HPDDM::MatrixCSR<K>(stream);
+}
+int matrixCSRnRows(void* Mat) {
+    return reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat)->_n;
+}
 void matrixCSRDestroy(void** Mat) {
     if(*Mat != NULL) {
         delete reinterpret_cast<HPDDM::MatrixCSR<K>*>(*Mat);

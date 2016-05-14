@@ -93,7 +93,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    k = std::min(m - 1, k);
+    k = std::min(n, std::min(m - 1, k));
     const char variant = opt.val<char>("variant", 1);
 
     const int ldh = mu * (m + 1);
@@ -403,7 +403,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         int dim = std::abs(hasConverged[activeSet[nu]]);
                         for(i = 0; i < dim; ++i)
                             std::fill_n(save[i] + i + 2 + activeSet[nu] * (m + 1), m - i - 1, K());
-                        K* A = new K[dim * dim];
+                        K* A = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
                         if(strategy != 1)
                             for(i = 0; i < k; ++i) {
                                 Blas<K>::scal(&n, prod + k * active * (m + 1) + k * nu + i, U + activeSet[nu] * n + i * ldv, &i__1);
@@ -444,7 +444,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                             Wrapper<K>::template omatcopy<'C'>(diff, k, H[k] + activeSet[nu] * (m + 1), ldh, B + k, dim);
                             Wrapper<K>::template omatcopy<'C'>(diff, diff, *save + activeSet[nu] * (m + 1), ldh, B + k + k * dim, dim);
                         }
-                        K* alpha = new K[(2 + !Wrapper<K>::is_complex) * dim];
+                        K* alpha = A + dim * dim;
                         int lwork = -1;
                         K* vr = new K[dim * dim];
                         Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, nullptr, &dim, alpha, &lwork, nullptr, &info);
@@ -455,6 +455,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                         q.reserve(dim);
                         selectNu(opt.val<unsigned short>("recycle_target"), q, dim, alpha, alpha + 2 * dim, alpha + dim);
+                        delete [] B;
+                        delete [] A;
                         info = std::accumulate(q.cbegin(), q.cbegin() + k, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                         for(i = k; info != (k * (k - 1)) / 2 && i < dim; ++i)
                             info += q[i].first;
@@ -471,7 +473,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                 Blas<K>::scal(&k, prod + k * active * (m + 1) + k * nu + i, *H + activeSet[nu] * (m + 1) + i, &ldh);
                         Blas<K>::gemm("N", "N", &k, &k, &diff, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m + 1), &ldh);
                         row = dim + 1;
-                        K* tau = new K[k];
                         *perm = -1;
                         Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, work, perm, &info);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, nullptr, &ldh, nullptr, nullptr, &ldv, work + 1, perm, &info);
@@ -479,19 +480,15 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         lwork = std::max(std::real(work[0]), std::real(work[1]));
                         delete [] work;
                         work = new K[lwork];
-                        Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m + 1), &ldh, tau, work, &lwork, &info);
+                        Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m + 1), &ldh, Ax, work, &lwork, &info);
                         Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[(m + 1) * (variant == 2)] + activeSet[nu] * n, ldv);
                         Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m + 1), &ldh, U + activeSet[nu] * n, &ldv);
                         Wrapper<K>::template omatcopy<'N'>(k, n, C + activeSet[nu] * n, ldv, *v + activeSet[nu] * n, ldv);
-                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + activeSet[nu] * (m + 1), &ldh, tau, *v + activeSet[nu] * n, &ldv, work, &lwork, &info);
+                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + activeSet[nu] * (m + 1), &ldh, Ax, *v + activeSet[nu] * n, &ldv, work, &lwork, &info);
                         Wrapper<K>::template omatcopy<'N'>(k, n, *v + activeSet[nu] * n, ldv, C + activeSet[nu] * n, ldv);
-                        delete [] tau;
                         delete [] work;
                         delete [] vr;
-                        delete [] alpha;
-                        delete [] B;
-                        delete [] A;
                     }
                 }
                 delete [] prod;
@@ -536,6 +533,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
+    k = std::min(n, std::min(m - 1, k));
     const char variant = opt.val<char>("variant", 1);
 
     int ldh = mu * (m + 1);
@@ -830,12 +828,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::gemm("N", "N", &row, &bK, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H, &ldh);
                     delete [] vr;
-                    K* tau = new K[bK];
-                    Lapack<K>::geqrf(&row, &bK, *H, &ldh, tau, work, &lwork, &info);
-                    Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, tau, *v, &n, work, &lwork, &info);
+                    Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
+                    Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, Ax, *v, &n, work, &lwork, &info);
                     std::copy_n(*v, k * ldv, C);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &n);
-                    delete [] tau;
                     delete [] work;
                 }
             }
@@ -857,7 +853,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     for(i = 0; i < m - k; ++i)
                         for(unsigned short nu = 0; nu < deflated; ++nu)
                             std::fill(save[i] + nu + 2 + nu * ldh + (i + 1) * deflated, save[i] + (nu + 1) * ldh, K());
-                    K* A = new K[dim * dim];
+                    K* A = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
                     if(strategy != 1) {
                         info = dim + deflated;
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, U, &n, &(Wrapper<K>::d__0), prod, &info);
@@ -901,15 +897,14 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     else {
                         for(i = 0; i < bK; ++i)
                             B[i * (dim + 1)] = 1.0;
-                        int diff = dim - bK;
                         Wrapper<K>::template omatcopy<'C'>(diff, bK, H[k], ldh, B + bK, dim);
                         Wrapper<K>::template omatcopy<'C'>(diff, diff, *save, ldh, B + bK + bK * dim, dim);
                         row = dim;
                     }
-                    int bDim = dim;
-                    K* alpha = new K[(2 + !Wrapper<K>::is_complex) * bDim];
+                    K* alpha = A + dim * dim;
                     int lwork = -1;
-                    K* vr = new K[bDim * bDim];
+                    K* vr = new K[dim * dim];
+                    int bDim = dim;
                     Lapack<K>::ggev("N", "V", &bDim, A, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, nullptr, &bDim, alpha, &lwork, nullptr, &info);
                     lwork = std::real(*alpha);
                     K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork];
@@ -918,6 +913,8 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                     q.reserve(bDim);
                     selectNu(opt.val<unsigned short>("recycle_target"), q, bDim, alpha, alpha + 2 * bDim, alpha + bDim);
+                    delete [] B;
+                    delete [] A;
                     info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                     for(i = bK; info != (bK * (bK - 1)) / 2 && i < bDim; ++i)
                         info += q[i].first;
@@ -934,29 +931,22 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                             Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, *H + i, &ldh);
                     Blas<K>::gemm("N", "N", &bK, &bK, &diff, &(Wrapper<K>::d__1), H[k], &ldh, vr + bK, &bDim, &(Wrapper<K>::d__1), *H, &ldh);
                     row = dim + deflated;
-                    K* tau = new K[bK];
                     *perm = -1;
                     Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, perm, &info);
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, perm, &info);
                     delete [] perm;
-                    if(std::real(work[0]) > (Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork) || std::real(work[1]) > (Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork)) {
-                        lwork = std::max(std::real(work[0]), std::real(work[1]));
-                        delete [] work;
-                        work = new K[lwork];
-                    }
-                    Lapack<K>::geqrf(&row, &bK, *H, &ldh, tau, work, &lwork, &info);
+                    lwork = std::max(std::real(work[0]), std::real(work[1]));
+                    delete [] work;
+                    work = new K[lwork];
+                    Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
                     Wrapper<K>::template omatcopy<'N'>(bK, n, U, n, v[(m + 1) * (variant == 2)], n);
                     Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &n);
                     Wrapper<K>::template omatcopy<'N'>(bK, n, C, n, *v, n);
-                    Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, tau, *v, &n, work, &lwork, &info);
+                    Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, Ax, *v, &n, work, &lwork, &info);
                     Wrapper<K>::template omatcopy<'N'>(bK, n, *v, n, C, n);
-                    delete [] tau;
                     delete [] work;
                     delete [] vr;
-                    delete [] alpha;
-                    delete [] B;
-                    delete [] A;
                 }
                 delete [] prod;
             }

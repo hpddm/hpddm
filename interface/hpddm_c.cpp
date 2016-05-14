@@ -119,7 +119,7 @@ void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
     reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a)->destroy(std::free);
     delete reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
 }
-void HpddmCsrmm(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
+void HpddmCSRMM(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
     HPDDM::MatrixCSR<cpp_type<K>>* A = reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
     HPDDM::Wrapper<cpp_type<K>>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type<K>*>(x), reinterpret_cast<cpp_type<K>*>(prod));
 }

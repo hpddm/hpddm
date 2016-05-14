@@ -28,6 +28,8 @@
 #define MKL_INT               int
 #endif
 #define HPDDM_MINIMAL
+#define HPDDM_FETI            0
+#define HPDDM_BDD             0
 #include <HPDDM.hpp>
 
 
@@ -45,19 +47,6 @@ typedef double K;
 #endif
 #endif
 
-template<class K, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex>::type* = nullptr>
-bool scanLine(const char* str, int* row, int* col, K* val) {
-    int ret = sscanf(str, "%i %i %le", row, col, val);
-    return ret != 3;
-}
-template<class K, typename std::enable_if<HPDDM::Wrapper<K>::is_complex>::type* = nullptr>
-bool scanLine(const char* str, int* row, int* col, K* val) {
-    HPDDM::underlying_type<K> re, im;
-    int ret = sscanf(str, "%i %i (%le,%le)", row, col, &re, &im);
-    *val = (re, im);
-    return ret != 4;
-}
-
 int main(int argc, char **argv) {
     if(argc < 2)
         return 1;
@@ -65,51 +54,11 @@ int main(int argc, char **argv) {
     {
         auto tBegin = std::chrono::steady_clock::now();
         std::ifstream t(argv[1]);
-        if(!t.good())
+        A = new HPDDM::MatrixCSR<K>(t);
+        if(A->_n <= 0) {
+            delete A;
             return 1;
-        std::string line;
-        int n = 0;
-        int nnz = 0;
-        bool sym;
-        while(nnz == 0 && std::getline(t, line)) {
-            if(line[0] != '#' && line[0] != '%') {
-                std::stringstream ss(line);
-                std::istream_iterator<std::string> begin(ss);
-                std::istream_iterator<std::string> end;
-                std::vector<std::string> vstrings(begin, end);
-                if(vstrings.size() == 3) {
-                    n = HPDDM::sto<int>(vstrings[0]);
-                    nnz = HPDDM::sto<int>(vstrings[2]);
-                    sym = false;
-                }
-                else if(vstrings.size() > 3) {
-                    n = HPDDM::sto<int>(vstrings[0]);
-                    sym = HPDDM::sto<int>(vstrings[2]);
-                    nnz = HPDDM::sto<int>(vstrings[3]);
-                }
-                else
-                    return 1;
-            }
         }
-        std::vector<std::string> parsed;
-        A = new HPDDM::MatrixCSR<K>(n, n, nnz, sym);
-        A->_ia[0] = (HPDDM_NUMBERING == 'F');
-        std::fill_n(A->_ia + 1, n, 0);
-        nnz = 0;
-        while(std::getline(t, line)) {
-            int row;
-            if(scanLine(line.c_str(), &row, A->_ja + nnz, A->_a + nnz)) {
-                if(!line.empty() && line[0] != '#' && line[0] != '%') {
-                    delete A;
-                    return 1;
-                }
-            }
-            if(HPDDM_NUMBERING == 'C')
-                A->_ja[nnz]--;
-            ++nnz;
-            A->_ia[row]++;
-        }
-        std::partial_sum(A->_ia, A->_ia + n + 1, A->_ia);
         auto tEnd = std::chrono::steady_clock::now();
         std::cout << "// matrix read from file in " << std::chrono::duration<double, std::ratio<1>>(tEnd - tBegin).count() << " second(s)\n";
     }

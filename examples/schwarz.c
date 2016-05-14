@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
         for(unsigned short nu = 0; nu < mu; ++nu)
             nrmb[nu] = nrm2(&ndof, f + nu * ndof, &one);
         K* tmp = malloc(sizeof(K) * mu * ndof);
-        HpddmCsrmm(Mat, sol, tmp, mu);
+        HpddmCSRMM(Mat, sol, tmp, mu);
         K minus = -1;
         ndof *= mu;
         axpy(&ndof, &minus, f, &one, tmp, &one);

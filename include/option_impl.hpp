@@ -38,13 +38,6 @@ inline Option::Option(Singleton::construct_key<N>) {
 #endif
              { "geneo_nu",                      20 },
 #ifdef MUMPSSUB
-             { "mumps_icntl_28",                0 },
-             { "mumps_icntl_7",                 7 },
-             { "mumps_icntl_29",                0 },
-             { "mumps_icntl_9",                 1 },
-             { "mumps_icntl_11",                0 },
-             { "mumps_icntl_18",                0 },
-             { "mumps_icntl_20",                0 },
              { "mumps_icntl_14",                80 },
 #elif defined(MKL_PARDISOSUB)
              { "mkl_pardiso_iparm_2",           2 },
@@ -52,13 +45,7 @@ inline Option::Option(Singleton::construct_key<N>) {
              { "mkl_pardiso_iparm_21",          1 },
 #endif
 #ifdef DMUMPS
-             { "master_mumps_icntl_28",         0 },
-             { "master_mumps_icntl_7",          7 },
-             { "master_mumps_icntl_29",         0 },
-             { "master_mumps_icntl_9",          1 },
-             { "master_mumps_icntl_11",         0 },
              { "master_mumps_icntl_18",         3 },
-             { "master_mumps_icntl_20",         0 },
              { "master_mumps_icntl_14",         75 },
 #elif defined(DHYPRE)
              { "master_hypre_solver",           0 },

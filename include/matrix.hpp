@@ -40,6 +40,18 @@ class MatrixCSR {
         bool _free;
 #if INTEL_MKL_VERSION > 110299
 #endif
+        template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
+        static bool scan(const char* str, int* row, int* col, T* val) {
+            int ret = sscanf(str, "%i %i %le", row, col, val);
+            return ret != 3;
+        }
+        template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
+        static bool scan(const char* str, int* row, int* col, T* val) {
+            HPDDM::underlying_type<T> re, im;
+            int ret = sscanf(str, "%i %i (%le,%le)", row, col, &re, &im);
+            *val = T(re, im);
+            return ret != 4;
+        }
     public:
         /* Variable: a
          *  Array of data. */
@@ -66,6 +78,72 @@ class MatrixCSR {
         MatrixCSR(const int& n, const int& m, const bool& sym) : _free(true), _a(), _ia(new int[n + 1]), _ja(), _n(n), _m(m), _nnz(0),  _sym(sym) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : _free(true), _a(new K[nnz]), _ia(new int[n + 1]), _ja(new int[nnz]), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : _free(takeOwnership), _a(a), _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
+        MatrixCSR(std::ifstream& file) {
+            _free = true;
+            if(!file.good()) {
+                _a = nullptr;
+                _ia = nullptr;
+                _ja = nullptr;
+                _n = _m = _nnz = 0;
+            }
+            else {
+                std::string line;
+                _n = 0;
+                _nnz = 0;
+                while(_nnz == 0 && std::getline(file, line)) {
+                    if(line[0] != '#' && line[0] != '%') {
+                        std::stringstream ss(line);
+                        std::istream_iterator<std::string> begin(ss);
+                        std::istream_iterator<std::string> end;
+                        std::vector<std::string> vstrings(begin, end);
+                        if(vstrings.size() == 3) {
+                            _n = sto<int>(vstrings[0]);
+                            _nnz = sto<int>(vstrings[2]);
+                            _sym = false;
+                        }
+                        else if(vstrings.size() > 3) {
+                            _n = sto<int>(vstrings[0]);
+                            _sym = sto<int>(vstrings[2]);
+                            _nnz = sto<int>(vstrings[3]);
+                        }
+                        else {
+                            _a = nullptr;
+                            _ia = nullptr;
+                            _ja = nullptr;
+                            _n = _m = _nnz = 0;
+                        }
+                    }
+                }
+                if(_n && _m) {
+                    std::vector<std::string> parsed;
+                    _ia = new int[_n + 1];
+                    _ja = new int[_nnz];
+                    _a = new K[_nnz];
+                    _ia[0] = (HPDDM_NUMBERING == 'F');
+                    std::fill_n(_ia + 1, _n, 0);
+                    _nnz = 0;
+                    while(std::getline(file, line)) {
+                        int row;
+                        if(scan(line.c_str(), &row, _ja + _nnz, _a + _nnz) && !line.empty() && line[0] != '#' && line[0] != '%') {
+                            delete [] _a;
+                            _a = nullptr;
+                            delete [] _ja;
+                            _ia = nullptr;
+                            delete [] _ia;
+                            _ja = nullptr;
+                            _n = _m = _nnz = 0;
+                            break;
+                        }
+                        if(HPDDM_NUMBERING == 'C')
+                            _ja[_nnz]--;
+                        ++_nnz;
+                        _ia[row]++;
+                    }
+                    if(_ia)
+                        std::partial_sum(_ia, _ia + _n + 1, _ia);
+                }
+            }
+        }
         ~MatrixCSR() {
             destroy();
         }
