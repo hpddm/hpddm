@@ -84,34 +84,32 @@ class MatrixCSR {
             _free = true;
             if(!file.good()) {
                 _a = nullptr;
-                _ia = nullptr;
-                _ja = nullptr;
+                _ia = _ja = nullptr;
                 _n = _m = _nnz = 0;
             }
             else {
                 std::string line;
-                _n = 0;
-                _nnz = 0;
+                _n = _m = _nnz = 0;
                 while(_nnz == 0 && std::getline(file, line)) {
                     if(line[0] != '#' && line[0] != '%') {
                         std::stringstream ss(line);
-                        std::istream_iterator<std::string> begin(ss);
-                        std::istream_iterator<std::string> end;
+                        std::istream_iterator<std::string> begin(ss), end;
                         std::vector<std::string> vstrings(begin, end);
                         if(vstrings.size() == 3) {
                             _n = sto<int>(vstrings[0]);
+                            _m = sto<int>(vstrings[1]);
                             _nnz = sto<int>(vstrings[2]);
                             _sym = false;
                         }
                         else if(vstrings.size() > 3) {
                             _n = sto<int>(vstrings[0]);
+                            _m = sto<int>(vstrings[1]);
                             _sym = sto<int>(vstrings[2]);
                             _nnz = sto<int>(vstrings[3]);
                         }
                         else {
                             _a = nullptr;
-                            _ia = nullptr;
-                            _ja = nullptr;
+                            _ia = _ja = nullptr;
                             _n = _m = _nnz = 0;
                         }
                     }
@@ -130,9 +128,8 @@ class MatrixCSR {
                             delete [] _a;
                             _a = nullptr;
                             delete [] _ja;
-                            _ia = nullptr;
                             delete [] _ia;
-                            _ja = nullptr;
+                            _ia = _ja = nullptr;
                             _n = _m = _nnz = 0;
                             break;
                         }
