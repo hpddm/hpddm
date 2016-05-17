@@ -123,7 +123,7 @@ class Preconditioner : public Subdomain<K> {
                     unsigned short p = opt.val<unsigned short>("master_p", 1);
                     std::string line = " --- coarse operator transferred and factorized by " + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
                     std::cout << line << std::endl;
-                    std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[1] == nu && allUniform[2] == static_cast<unsigned short>(~nu) ? nu : (N == 3 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]) ? -_co->getLocal() : 0)) + " -- topology = " + to_string(opt.val<char>("master_topology", 0)) + " -- distribution = " + to_string(opt.val<char>("master_distribution", 1)) + ")" << std::endl;
+                    std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[1] == nu && allUniform[2] == static_cast<unsigned short>(~nu) ? nu : (N == 3 && allUniform[2] == static_cast<unsigned short>(~allUniform[3]) ? -_co->getLocal() : 0)) + " -- topology = " + to_string(opt.val<char>("master_topology", 0)) + " -- distribution = " + to_string(opt.val<char>("master_distribution", 0)) + ")" << std::endl;
                     std::cout.unsetf(std::ios_base::adjustfield);
                 }
             }

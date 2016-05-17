@@ -48,15 +48,8 @@ inline Option::Option(Singleton::construct_key<N>) {
              { "master_mumps_icntl_18",         3 },
              { "master_mumps_icntl_14",         75 },
 #elif defined(DHYPRE)
-             { "master_hypre_solver",           0 },
              { "master_hypre_tol",              1.0e-12 },
              { "master_hypre_max_it",           500 },
-             { "master_hypre_gmres_restart",    100 },
-             { "master_boomeramg_coarsen_type", 6 },
-             { "master_boomeramg_relax_type",   3 },
-             { "master_boomeramg_num_sweeps",   1 },
-             { "master_boomeramg_max_levels",   10 },
-             { "master_boomeramg_interp_type",  0 },
 #elif defined(DMKL_PARDISO)
              { "master_mkl_pardiso_iparm_2",    2 },
              { "master_mkl_pardiso_iparm_10",   13 },
@@ -64,8 +57,6 @@ inline Option::Option(Singleton::construct_key<N>) {
 #endif
 #if defined(DHYPRE) || defined(DPASTIX)
              { "master_distribution",           2 }
-#else
-             { "master_distribution",           0 }
 #endif
 #endif
     };

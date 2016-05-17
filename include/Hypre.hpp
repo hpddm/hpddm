@@ -67,7 +67,7 @@ class Hypre : public DMatrix {
         Hypre() : _A(), _b(), _x(), _solver(), _precond() { }
         ~Hypre() {
             if(DMatrix::_communicator != MPI_COMM_NULL) {
-                const int solverId = (*Option::get())["master_hypre_solver"];
+                const char solverId = Option::get()->val<char>("master_hypre_solver", 0);
                 if(solverId == 2)
                     HYPRE_BoomerAMGDestroy(_solver);
                 else {
@@ -127,13 +127,13 @@ class Hypre : public DMatrix {
             delete [] I;
             delete [] loc2glob;
             const Option& opt = *Option::get();
-            const int solverId = opt["master_hypre_solver"];
+            const char solverId = opt.val<char>("master_hypre_solver", 0) ;
             HYPRE_BoomerAMGCreate(solverId == 2 ? &_solver : &_precond);
-            HYPRE_BoomerAMGSetCoarsenType(solverId == 2 ? _solver : _precond, opt["master_boomeramg_coarsen_type"]);
-            HYPRE_BoomerAMGSetRelaxType(solverId == 2 ? _solver : _precond, opt["master_boomeramg_relax_type"]);
-            HYPRE_BoomerAMGSetNumSweeps(solverId == 2 ? _solver : _precond, opt["master_boomeramg_num_sweeps"]);
-            HYPRE_BoomerAMGSetMaxLevels(solverId == 2 ? _solver : _precond, opt["master_boomeramg_max_levels"]);
-            HYPRE_BoomerAMGSetInterpType(solverId == 2 ? _solver : _precond, opt["master_boomeramg_interp_type"]);
+            HYPRE_BoomerAMGSetCoarsenType(solverId == 2 ? _solver : _precond, opt.val<char>("master_boomeramg_coarsen_type", 6));
+            HYPRE_BoomerAMGSetRelaxType(solverId == 2 ? _solver : _precond, opt.val<char>("master_boomeramg_relax_type", 3));
+            HYPRE_BoomerAMGSetNumSweeps(solverId == 2 ? _solver : _precond, opt.val<char>("master_boomeramg_num_sweeps", 1));
+            HYPRE_BoomerAMGSetMaxLevels(solverId == 2 ? _solver : _precond, opt.val<char>("master_boomeramg_max_levels", 10));
+            HYPRE_BoomerAMGSetInterpType(solverId == 2 ? _solver : _precond, opt.val<char>("master_boomeramg_interp_type", 0));
             HYPRE_ParCSRMatrix parcsr_A;
             HYPRE_IJMatrixGetObject(_A, reinterpret_cast<void**>(&parcsr_A));
             HYPRE_ParVector par_b;
@@ -141,8 +141,8 @@ class Hypre : public DMatrix {
             HYPRE_ParVector par_x;
             HYPRE_IJVectorGetObject(_x, reinterpret_cast<void**>(&par_x));
             if(solverId == 2) {
-                HYPRE_BoomerAMGSetTol(_solver, opt["master_hypre_tol"]);
                 HYPRE_BoomerAMGSetMaxIter(_solver, opt["master_hypre_max_it"]);
+                HYPRE_BoomerAMGSetTol(_solver, opt["master_hypre_tol"]);
                 HYPRE_BoomerAMGSetPrintLevel(_solver, opt.val<char>("verbosity", 0) < 3 ? 0 : 1);
                 HYPRE_BoomerAMGSetup(_solver, parcsr_A, nullptr, nullptr);
                 HYPRE_BoomerAMGSetPrintLevel(_solver, 0);
@@ -162,7 +162,7 @@ class Hypre : public DMatrix {
                 }
                 else {
                     HYPRE_ParCSRFlexGMRESCreate(DMatrix::_communicator, &_solver);
-                    HYPRE_FlexGMRESSetKDim(_solver, opt["master_hypre_gmres_restart"]);
+                    HYPRE_FlexGMRESSetKDim(_solver, opt.val<unsigned short>("master_hypre_gmres_restart", 100));
                     HYPRE_FlexGMRESSetMaxIter(_solver, opt["master_hypre_max_it"]);
                     HYPRE_FlexGMRESSetTol(_solver, opt["master_hypre_tol"]);
                     HYPRE_FlexGMRESSetPrintLevel(_solver, 0);
@@ -193,7 +193,7 @@ class Hypre : public DMatrix {
             HYPRE_IJMatrixGetObject(_A, reinterpret_cast<void**>(&parcsr_A));
             int num_iterations;
             const Option& opt = *Option::get();
-            const int solverId = opt["master_hypre_solver"];
+            const char solverId = opt.val<char>("master_hypre_solver", 0);
             hypre_Vector* loc = hypre_ParVectorLocalVector(reinterpret_cast<hypre_ParVector*>(hypre_IJVectorObject(reinterpret_cast<hypre_IJVector*>(_b))));
             K* b = loc->data;
             for(unsigned short nu = 0; nu < n; ++nu) {

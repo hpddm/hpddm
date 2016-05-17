@@ -370,7 +370,7 @@ class DMatrix {
          *    list           - Supported <DMatrix::Distribution>s. */
         void initialize(char const* solver, std::initializer_list<Distribution> list) {
             Option& opt = *Option::get();
-            _distribution = static_cast<Distribution>(opt["master_distribution"]);
+            _distribution = static_cast<Distribution>(opt.val<char>("master_distribution", 0));
             std::initializer_list<Distribution>::iterator it = std::find(list.begin(), list.end(), _distribution);
             if(it == list.end()) {
                 opt["master_distribution"] = _distribution = *list.begin();
