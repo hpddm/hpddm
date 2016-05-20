@@ -82,11 +82,11 @@ install:
   - mkdir -p $HOME/.cache/pkgs
   - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; export OMPI_FC="gfortran-4.6"; else export OMPI_CC=$CC; export OMPI_CXX=$CXX; fi
   - if [ ! -f ${HOME}/.cache/miniconda${PYTHON_VERSION} ]; then
-        if [ "$PYTHON_VERSION" == "2.7" ]; then
-          wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
-        else
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
-        fi
+      if [ "$PYTHON_VERSION" == "2.7" ]; then
+        wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
+      else
+        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
+      fi
     fi
   - bash ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh -b -p ${HOME}/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
@@ -121,15 +121,13 @@ script:
   - make test_python
   - if [ "$PYTHON_VERSION" == "2.7" ] && [ "$CO" == "GENERAL_CO" ] && [ "$FORCE_SINGLE" == "OFF" ]; then
       make test_bin/schwarzFromFile_cpp;
-      if [ "$?" -ne "0" ]; then
+      if [ "$?" != "0" ]; then
         exit 1;
-      fi
-      if [ "$HPDDM_NUMBERING" == "F" ]; then
+      elif [ "$HPDDM_NUMBERING" == "F" ]; then
         make test_bin/driver;
-        if [ "$?" -ne "0" ]; then
+        if [ "$?" != "0" ]; then
           exit 1;
-        fi
-        if [ "$CXX" = "g++" ]; then
+        elif [ "$CXX" == "g++" ]; then
           make test_fortran;
         fi
       fi
