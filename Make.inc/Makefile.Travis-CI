@@ -17,6 +17,7 @@ LIST_COMPILATION = cpp c python
 
 MUMPS_INCS = -I/usr/include
 PYTHON_INCS = -I${HOME}/miniconda/include/python${PYTHON_VERSION}
+METIS_INCS = -I/usr/include/metis
 
 BLAS_LIBS = -L/usr/lib -lblas -llapack
 ARPACK_LIBS = -L/usr/lib -larpack
@@ -24,3 +25,4 @@ SCALAPACK_LIBS = -L/usr/lib -lscalapack-openmpi
 MUMPS_LIBS = -L/usr/lib -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lmpi_f77
 HYPRE_LIBS = -L/usr/lib -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls
 PYTHON_LIBS = -L${HOME}/miniconda/lib -lpython${PYTHON_VERSION}
+METIS_LIBS = -L/usr/lib -lmetis

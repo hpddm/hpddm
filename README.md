@@ -15,9 +15,9 @@ If you need to generate the documentation, you first have to retrieve [NaturalDo
 &#185;The latest versions of ~~icpc and~~ (this has been fixed since version 16.0.2.181) pgc++ are not able to compile C++11 properly, if you want to use these compilers, please apply the following patch to the headers of HPDDM `sed -i\ '' 's/type\* = nullptr/type* = (void*)0/g; s/static constexpr const char/const char/g' include/*.hpp examples/*.cpp`.  
 
 ##### TL;DR
-Create a `./Makefile.inc` by copying one from the folder `./Make.inc` and adapt it to your platform. Type `make test` to run C++, C, and Python examples (just type `make test_language` with `language = [cpp|c|python|fortran]` if you want to try only one set of examples).
+Create a `./Makefile.inc` by copying one from the folder `./Make.inc` and adapt it to your platform. Type `make test` to run C++, C, Python, and Fortran examples (just type `make test_language` with `language = [cpp|c|python|fortran]` if you want to try only one set of examples).
 
-#### May HPDDM be embedded inside Fortran, C, or Python codes ?
+#### May HPDDM be embedded inside C, Python, or Fortran codes ?
 Yes, as long as you have a modern C++ compiler (cf. the previous paragraph). With Python, [NumPy](http://www.numpy.org/) and [mpi4py](https://bitbucket.org/mpi4py/) must also be available.
 
 #### Who is behind HPDDM ?

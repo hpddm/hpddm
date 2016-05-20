@@ -23,7 +23,6 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <random>
 #define HPDDM_MINIMAL
 #include "schwarz.hpp"
 

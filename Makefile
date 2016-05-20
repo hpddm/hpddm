@@ -123,7 +123,7 @@ endif
 
 LIST_COMPILATION ?= cpp c python fortran
 
-.PHONY: all cpp c python fortran clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_op test_bin/driver force
+.PHONY: all cpp c python fortran clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_op test_bin/schwarzFromFile_cpp test_bin/driver force
 
 all: Makefile.inc ${LIST_COMPILATION}
 
@@ -146,6 +146,14 @@ fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB} ${TOP_DIR}/${BI
 
 Makefile.inc:
 	@echo "No Makefile.inc found, please choose one from directory Make.inc"
+	@echo ""
+	@echo "Be sure to define at least ONE of the following variables, unless you are only building the C/Python/Fortran libraries:"
+	@echo " - SUITESPARSE_INCS and SUITESPARSE_LIBS,"
+	@echo " - MUMPS_INCS and MUMPS_LIBS,"
+	@echo " - MKL_PARDISO_INCS and MKL_PARDISO_LIBS."
+	@echo ""
+	@echo "BLAS_LIBS must always be defined!"
+	@echo ""
 	@if [ -z ${MAKE_OS} ]; then \
 		exit 1; \
 	else \
@@ -158,7 +166,13 @@ clean:
 	find ${TOP_DIR} \( -name "*.o" -o -name "*.${EXTENSION_LIB}" -o -name "*.mod" -o -name "__pycache__" -type d -o -name "*.pyc" -o -name "*.gcov" \) -exec rm -rvf '{}' '+'
 
 ${TOP_DIR}/${BIN_DIR}/%_cpp.o: examples/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
-	${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@
+	@if test $(findstring FromFile, $<); then \
+		echo ${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${METIS_INCS} -DHPDDM_FROMFILE -c $(subst schwarzFromFile,schwarz,$<) -o $@; \
+		${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${METIS_INCS} -DHPDDM_FROMFILE -c $(subst schwarzFromFile,schwarz,$<) -o $@; \
+	else \
+		echo ${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@; \
+		${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} -c $< -o $@; \
+	fi;
 	${POSTCOMPILE}
 
 ${TOP_DIR}/${BIN_DIR}/%_c.o: examples/%.c ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_c
@@ -176,8 +190,14 @@ ${TOP_DIR}/${BIN_DIR}/%_cpp.o: benchmark/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP
 ${TOP_DIR}/${BIN_DIR}/schwarz_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c.o ${TOP_DIR}/${BIN_DIR}/generate_c.o ${TOP_DIR}/${BIN_DIR}/hpddm_c.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
-${TOP_DIR}/${BIN_DIR}/schwarz_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp.o ${TOP_DIR}/${BIN_DIR}/generate_cpp.o
-	${MPICXX} $^ -o $@ ${LIBS}
+${TOP_DIR}/${BIN_DIR}/schwarz%cpp: ${TOP_DIR}/${BIN_DIR}/schwarz%cpp.o ${TOP_DIR}/${BIN_DIR}/generate%cpp.o
+	@if test $(findstring FromFile, $@); then \
+		echo ${MPICXX} $^ -o $@ ${LIBS} ${METIS_LIBS}; \
+		${MPICXX} $^ -o $@ ${LIBS} ${METIS_LIBS}; \
+	else \
+		echo ${MPICXX} $^ -o $@ ${LIBS}; \
+		${MPICXX} $^ -o $@ ${LIBS}; \
+	fi;
 
 ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
@@ -255,10 +275,22 @@ test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10 -hpddm_krylov_method bgmres
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10 ---hpddm_krylov_method bgmres
 
+test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
+	mkdir -p ${TOP_DIR}/${TRASH_DIR}/data
+	tar xzf ./examples/data/mini.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data
+	@for NP in 2 4; do \
+		for OVERLAP in 1 3; do \
+			CMD="${MPIRUN} $${NP} ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp -matrix_filename=${TOP_DIR}/${TRASH_DIR}/data/mini.mtx -hpddm_verbosity 2 -overlap $${OVERLAP}"; \
+			echo "$${CMD}"; \
+			$${CMD}; \
+		done \
+	done
+
+
 test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 	mkdir -p ${TOP_DIR}/${TRASH_DIR}/data
 	tar xzf ./examples/data/40X.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data
-	for SCALING in 0 1; do \
+	@for SCALING in 0 1; do \
 		for VARIANT in left right; do \
 			for MU in 1 3; do \
 				CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT} -mu $${MU}"; \
@@ -273,7 +305,7 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
-SOURCES = schwarz.cpp generate.cpp driver.cpp local_solver.cpp schwarz.c generate.c
+SOURCES = schwarz.cpp schwarzFromFile.cpp generate.cpp generateFromFile.cpp driver.cpp local_solver.cpp schwarz.c generate.c
 INTERFACES = hpddm_c.cpp hpddm_python.cpp hpddm_fortran.cpp
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(subst .,_,${SOURCES}))
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(basename ${INTERFACES}))

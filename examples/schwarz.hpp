@@ -34,6 +34,7 @@
 #define HPDDM_NUMBERING       'C'
 #endif
 #include <HPDDM.hpp>
+#include <random>
 #include <list>
 
 #ifdef FORCE_SINGLE

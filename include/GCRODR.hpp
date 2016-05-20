@@ -618,6 +618,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                         Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, U, &n);
                 }
+                std::fill_n(*save, bK * bK, K());
             }
             blockOrthogonalization<excluded>(id % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
             if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
