@@ -33,10 +33,6 @@ inline Option::Option(Singleton::construct_key<N>) {
 #if HPDDM_SCHWARZ
              { "schwarz_method",                0 },
 #endif
-#if HPDDM_FETI || HPDDM_BDD
-             { "substructuring_scaling",        0 },
-#endif
-             { "geneo_nu",                      20 },
 #ifdef MUMPSSUB
              { "mumps_icntl_14",                80 },
 #elif defined(MKL_PARDISOSUB)

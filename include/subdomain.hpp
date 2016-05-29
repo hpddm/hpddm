@@ -132,7 +132,7 @@ class Subdomain {
                 ++j;
             }
             _rq = new MPI_Request[2 * _map.size()];
-            _buff = new K*[2 * _map.size()];
+            _buff = new K*[2 * _map.size()]();
         }
         void initialize(MatrixCSR<K>* const& a, const int neighbors, const int* const list, const int* const sizes, const int* const* const connectivity, MPI_Comm* const& comm = nullptr) {
             if(comm)

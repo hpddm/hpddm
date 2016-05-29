@@ -36,7 +36,7 @@ void assign(std::mt19937& gen, std::uniform_real_distribution<K>& dis, K& x) {
 }
 template<class K, typename std::enable_if<HPDDM::Wrapper<K>::is_complex>::type* = nullptr>
 void assign(std::mt19937& gen, std::uniform_real_distribution<HPDDM::underlying_type<K>>& dis, K& x) {
-    x = (dis(gen), dis(gen));
+    x = K(dis(gen), dis(gen));
 }
 
 void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::vector<int>>& mapping, int& ndof, HPDDM::MatrixCSR<K>*& Mat, HPDDM::MatrixCSR<K>*& MatNeumann, HPDDM::underlying_type<K>*& d, K*& f, K*& sol) {

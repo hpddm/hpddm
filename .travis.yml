@@ -119,11 +119,11 @@ script:
       make test_cpp test_c;
     fi
   - make test_python
-  - if [ "$PYTHON_VERSION" == "2.7" ] && [ "$CO" == "GENERAL_CO" ] && [ "$FORCE_SINGLE" == "OFF" ]; then
+  - if [ "$PYTHON_VERSION" == "2.7" ] && [ "$CO" == "GENERAL_CO" ]; then
       make test_bin/schwarzFromFile_cpp;
       if [ "$?" != "0" ]; then
         exit 1;
-      elif [ "$HPDDM_NUMBERING" == "F" ]; then
+      elif [ "$HPDDM_NUMBERING" == "F" ] && [ "$FORCE_SINGLE" == "OFF" ]; then
         make test_bin/driver;
         if [ "$?" != "0" ]; then
           exit 1;

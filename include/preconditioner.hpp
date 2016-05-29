@@ -87,7 +87,7 @@ class Preconditioner : public Subdomain<K> {
             unsigned short allUniform[N + 1];
             allUniform[0] = Subdomain<K>::_map.size();
             const Option& opt = *Option::get();
-            unsigned short nu = allUniform[1] = (_co ? _co->getLocal() : static_cast<unsigned short>(opt["geneo_nu"]));
+            unsigned short nu = allUniform[1] = (_co ? _co->getLocal() : opt.val<unsigned short>("geneo_nu", 20));
             allUniform[2] = static_cast<unsigned short>(~nu);
             if(N == 3)
                 allUniform[3] = nu > 0 ? nu : std::numeric_limits<unsigned short>::max();

@@ -73,7 +73,8 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    scaling        - Type of scaling (multiplicity, stiffness or coefficient scaling).
          *    rho            - Physical local coefficients (optional). */
-        void buildScaling(unsigned short& scaling, const K* const& rho = nullptr) {
+        template<class T>
+        void buildScaling(T& scaling, const K* const& rho = nullptr) {
             initialize();
             std::fill_n(_m, Subdomain<K>::_dof, 1.0);
             if((scaling == 2 && rho) || scaling == 1) {
@@ -282,9 +283,6 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * See also: <Feti::buildTwo>, <Schwarz::buildTwo>.*/
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
-            const Option& opt = *Option::get();
-            if(!super::_schur && opt["geneo_nu"])
-                super::_deficiency = opt["geneo_nu"];
             return super::template buildTwo<excluded, BddProjection<Bdd<Solver, CoarseSolver, S, K>, K>>(this, comm);
         }
         /* Function: computeSolution

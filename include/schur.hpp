@@ -235,7 +235,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     }
                     delete [] iblock;
                 }
-                nu = evp._nu;
+                (*Option::get())["geneo_nu"] = nu = evp._nu;
                 if(nu && *(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
                     _deficiency = 1;
                     underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
@@ -260,6 +260,15 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             }
             else
                 nu = 0;
+        }
+        template<unsigned short excluded, class Operator, class Prcndtnr>
+        std::pair<MPI_Request, const K*>* buildTwo(Prcndtnr* B, const MPI_Comm& comm) {
+            if(!Option::get()->set("geneo_nu")) {
+                if(!super::_co)
+                    super::_co = new typename std::remove_reference<decltype(*super::_co)>::type;
+                super::_co->setLocal(_deficiency);
+            }
+            return super::template buildTwo<excluded, Operator>(B, comm);
         }
     public:
         Schur() : _bb(), _ii(), _bi(), _schur(), _work(), _structure(), _pinv(), _mult(), _signed(), _deficiency() { }
@@ -331,15 +340,17 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     delete _ii;
                     _ii = nullptr;
                 }
-                _schur = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
-                _schur[0] = Subdomain<K>::_dof;
+                if(!_schur) {
+                    _schur = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
+                    _schur[0] = Subdomain<K>::_dof;
 #if defined(MKL_PARDISOSUB)
 #pragma message("Consider changing your linear solver if you need to compute solutions of singular systems")
-                _schur[1] = _bi->_m;
+                    _schur[1] = _bi->_m;
 #else
-                _schur[1] = _bi->_m + 1;
+                    _schur[1] = _bi->_m + 1;
 #endif
-                super::_s.numfact(Subdomain<K>::_a, true, _schur);
+                    super::_s.numfact(Subdomain<K>::_a, true, _schur);
+                }
             }
             else
                 std::cerr << "The matrix '_a' has not been allocated => impossible to build the Schur complement" << std::endl;
@@ -693,6 +704,9 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Function: getEliminated
          *  Returns the number of eliminated unknowns of <Subdomain<K>::a>, i.e. the number of columns of <Schur::bi>. */
         unsigned int getEliminated() const { return _bi ? _bi->_m : 0; }
+        /* Function: setDeficiency
+         *  Sets <Schur::deficiency>. */
+        void setDeficiency(unsigned short deficiency) { _deficiency = deficiency; }
         /* Function: condensateEffort
          *
          *  Performs static condensation.
@@ -758,7 +772,18 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         }
         template<char N = HPDDM_NUMBERING>
         void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
-            Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global);
+            Subdomain<K>::template globalMapping<N>(in + _bi->_m, in + Subdomain<K>::_a->_n, first, last, global);
+            unsigned int independent = _bi->_m;
+            MPI_Allreduce(MPI_IN_PLACE, &independent, 1, MPI_UNSIGNED, MPI_SUM, Subdomain<K>::_communicator);
+            global += independent;
+            std::for_each(in + _bi->_m, in + Subdomain<K>::_a->_n, [&](unsigned int& i) { i += independent; });
+            independent = _bi->_m;
+            MPI_Exscan(MPI_IN_PLACE, &independent, 1, MPI_UNSIGNED, MPI_SUM, Subdomain<K>::_communicator);
+            int rank;
+            MPI_Comm_rank(Subdomain<K>::_communicator, &rank);
+            if(!rank)
+                independent = 0;
+            std::iota(in, in + _bi->_m, independent + (N == 'F'));
         }
         bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);

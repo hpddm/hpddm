@@ -226,7 +226,8 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameters:
          *    scaling        - Type of scaling (multiplicity, stiffness or coefficient scaling).
          *    rho            - Physical local coefficients (optional). */
-        void buildScaling(unsigned short& scaling, const K* const& rho = nullptr) {
+        template<class T>
+        void buildScaling(T& scaling, const K* const& rho = nullptr) {
             initialize();
             std::vector<std::pair<unsigned short, unsigned int>>* array = new std::vector<std::pair<unsigned short, unsigned int>>[Subdomain<K>::_dof];
             for(const pairNeighbor& neighbor: Subdomain<K>::_map)
@@ -381,9 +382,6 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * See also: <Bdd::buildTwo>, <Schwarz::buildTwo>.*/
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
-            const Option& opt = *Option::get();
-            if(!super::_schur && opt["geneo_nu"])
-                super::_deficiency = opt["geneo_nu"];
             return super::template buildTwo<excluded, FetiProjection<decltype(*this), P, K>>(this, comm);
         }
         /* Function: computeSolution
