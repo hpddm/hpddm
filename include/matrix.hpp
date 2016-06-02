@@ -25,6 +25,8 @@
 #ifndef _HPDDM_MATRIX_
 #define _HPDDM_MATRIX_
 
+#include <iterator>
+
 namespace HPDDM {
 /* Class: MatrixCSR
  *
