@@ -56,28 +56,55 @@ struct CustomOperator<MatrixCSR<K>, K> : EmptyOperator<K> {
  *  A class that implements various iterative methods. */
 class IterativeMethod {
     private:
+        /* Function: outputResidual
+         *  Prints information about the residual at a given iteration. */
+        template<char T, class K>
+        static void outputResidual(const int& i, const K& tol, const int& mu, const K* const norm, const K* const res, const short* const conv, const short sentinel) {
+            constexpr auto method = (T == 0 ? "GMRES" : (T == 2 ? "CG" : "GCRODR"));
+            int tmp[2] { 0, 0 };
+            K beta = std::abs(res[0]);
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                if(conv[nu] != -sentinel)
+                    ++tmp[0];
+                else if(std::abs(res[nu]) > beta) {
+                    beta = std::abs(res[nu]);
+                    tmp[1] = nu;
+                }
+            }
+            if(tol > 0.0)
+                std::cout << method << ": " << std::setw(3) << i << " " << beta << " " << norm[tmp[1]] << " " << beta / norm[tmp[1]] << " < " << tol;
+            else
+                std::cout << method << ": " << std::setw(3) << i << " " << beta << " < " << -tol;
+            if(mu > 1) {
+                std::cout << " (rhs #" << tmp[1] + 1;
+                if(tmp[0] > 0)
+                    std::cout << ", " << tmp[0] << " converged rhs";
+                std::cout << ")";
+            }
+            std::cout << std::endl;
+        }
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
         template<class K, typename std::enable_if<!Wrapper<K>::is_complex>::type* = nullptr>
-        static void allocate(K*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1) {
+        static void allocate(K*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1, const unsigned short mu = 1) {
             if(extra == 0) {
-                dir = new K[2 + std::max(1, 4 * n)];
-                p = dir + 2;
+                dir = new K[(3 + std::max(1, 4 * n)) * mu];
+                p = dir + 3 * mu;
             }
             else {
-                dir = new K[1 + 2 * it + std::max(1, (4 + extra * it) * n)];
-                p = dir + 1 + 2 * it;
+                dir = new K[(2 + 2 * it + std::max(1, (4 + extra * it) * n)) * mu];
+                p = dir + (2 + 2 * it) * mu;
             }
         }
         template<class K, typename std::enable_if<Wrapper<K>::is_complex>::type* = nullptr>
-        static void allocate(underlying_type<K>*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1) {
+        static void allocate(underlying_type<K>*& dir, K*& p, const int& n, const unsigned short extra = 0, const unsigned short it = 1, const unsigned short mu = 1) {
             if(extra == 0) {
-                dir = new underlying_type<K>[2];
-                p = new K[std::max(1, 4 * n)];
+                dir = new underlying_type<K>[3 * mu];
+                p = new K[std::max(1, 4 * n) * mu];
             }
             else {
-                dir = new underlying_type<K>[1 + 2 * it];
-                p = new K[std::max(1, (4 + extra * it) * n)];
+                dir = new underlying_type<K>[(2 + 2 * it) * mu];
+                p = new K[std::max(1, (4 + extra * it) * n) * mu];
             }
         }
         /* Function: updateSol
@@ -523,7 +550,7 @@ class IterativeMethod {
          *    x              - Solution vector.
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
-        static int CG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm);
+        static int CG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
         /* Function: PCG
          *
          *  Implements the projected CG method.
@@ -545,7 +572,7 @@ class IterativeMethod {
             switch(opt.val<char>("krylov_method")) {
                 case 4:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;
                 case 3:  return HPDDM::IterativeMethod::GCRODR<excluded>(A, b, x, mu, comm); break;
-                case 2:  return HPDDM::IterativeMethod::CG<excluded>(A, b, x, comm); break;
+                case 2:  return HPDDM::IterativeMethod::CG<excluded>(A, b, x, mu, comm); break;
                 case 1:  return HPDDM::IterativeMethod::BGMRES<excluded>(A, b, x, mu, comm); break;
                 default: return HPDDM::IterativeMethod::GMRES<excluded>(A, b, x, mu, comm);
             }

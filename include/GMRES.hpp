@@ -106,29 +106,8 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 if(hasConverged[nu] == -m && ((tol > 0.0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(s[i * mu + nu]) <= -tol)))
                     hasConverged[nu] = i;
             }
-            if(verbosity > 2) {
-                int tmp[2] { 0, 0 };
-                underlying_type<K> beta = std::abs(s[i * mu]);
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    if(hasConverged[nu] != -m)
-                        ++tmp[0];
-                    else if(std::abs(s[i * mu + nu]) > beta) {
-                        beta = std::abs(s[i * mu + nu]);
-                        tmp[1] = nu;
-                    }
-                }
-                if(tol > 0.0)
-                    std::cout << "GMRES: " << std::setw(3) << j << " " << beta << " " <<  norm[tmp[1]] << " " <<  beta / norm[tmp[1]] << " < " << tol;
-                else
-                    std::cout << "GMRES: " << std::setw(3) << j << " " << beta << " < " << -tol;
-                if(mu > 1) {
-                    std::cout << " (rhs #" << tmp[1] + 1;
-                    if(tmp[0] > 0)
-                        std::cout << ", " << tmp[0] << " converged rhs";
-                    std::cout << ")";
-                }
-                std::cout << std::endl;
-            }
+            if(verbosity > 2)
+                outputResidual<0>(i, tol, mu, norm, s + i * mu, hasConverged, m);
             if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
                 i = 0;
                 break;

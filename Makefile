@@ -44,6 +44,15 @@ ifdef SUBSOLVER
     override HPDDMFLAGS += -D${SUBSOLVER}SUB
 endif
 
+ifdef MKL_INCS
+    INCS += ${MKL_INCS}
+    LIBS += ${MKL_LIBS}
+    override HPDDMFLAGS += -DHPDDM_MKL=1
+else
+    LIBS += ${BLAS_LIBS}
+endif
+LIBS += ${ARPACK_LIBS} ${SCALAPACK_LIBS}
+
 ifeq (${SOLVER}, MUMPS)
     INCS += ${MUMPS_INCS}
     LIBS += ${MUMPS_LIBS}
@@ -87,15 +96,6 @@ endif
 ifeq (${SUBSOLVER}, DISSECTION)
     INCS += ${DISSECTION_INCS}
     LIBS += ${DISSECTION_LIBS}
-endif
-
-LIBS += ${ARPACK_LIBS} ${SCALAPACK_LIBS}
-ifdef MKL_INCS
-    INCS += ${MKL_INCS}
-    LIBS += ${MKL_LIBS}
-    override HPDDMFLAGS += -DHPDDM_MKL=1
-else
-    LIBS += ${BLAS_LIBS}
 endif
 
 ifeq (${OS}, Windows_NT)
