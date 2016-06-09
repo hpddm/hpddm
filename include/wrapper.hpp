@@ -47,6 +47,7 @@ namespace HPDDM {
  *    K              - Scalar type. */
 template<class K>
 struct Wrapper {
+#if HPDDM_MPI
     /* Function: mpi_type
      *  Returns the MPI datatype of the template parameter of <Wrapper>. */
     static MPI_Datatype mpi_type();
@@ -55,6 +56,7 @@ struct Wrapper {
     static MPI_Datatype mpi_underlying_type() {
         return Wrapper<underlying_type<K>>::mpi_type();
     }
+#endif
     static constexpr bool is_complex = !std::is_same<typename std::remove_const<K>::type, underlying_type<K>>::value;
     /* Variable: transc
      *  Transposed real operators or Hermitian transposed complex operators. */
@@ -165,6 +167,7 @@ struct Wrapper {
     static void omatcopy(const int, const int, const K* const, const int, K* const, const int);
 };
 
+#if HPDDM_MPI
 template<>
 inline MPI_Datatype Wrapper<float>::mpi_type() { return MPI_FLOAT; }
 template<>
@@ -173,6 +176,7 @@ template<>
 inline MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
 template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
+#endif
 
 template<class K>
 constexpr char Wrapper<K>::transc;

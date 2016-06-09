@@ -401,7 +401,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          * Parameters:
          *    interface      - Numbering of the interface.
          *    f              - Right-hand side to renumber (optional). */
-        template<class Container>
+        template<bool trim = true, class Container = std::vector<int>>
         void renumber(const Container& interface, K* const& f = nullptr) {
             if(!interface.empty()) {
                 if(!_ii) {
@@ -457,9 +457,9 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         if(!Subdomain<K>::_a->_sym) {
                             bool isBoundaryCond = true;
                             for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
-                                if(i != Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS)
+                                if(i != Subdomain<K>::_a->_ja[j] && (!trim || std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS))
                                     isBoundaryCond = false;
-                                else if(i == Subdomain<K>::_a->_ja[j] && std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS)
+                                else if(i == Subdomain<K>::_a->_ja[j] && (!trim || std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS))
                                     isBoundaryCond = false;
                             }
                             if(isBoundaryCond) {
@@ -471,7 +471,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                         }
                         for(j = Subdomain<K>::_a->_ia[i]; j < stop; ++j) {
                             const K val = Subdomain<K>::_a->_a[j];
-                            if(std::abs(val) > HPDDM_EPS) {
+                            if(!trim || std::abs(val) > HPDDM_EPS) {
                                 const int col = vec[Subdomain<K>::_a->_ja[j]];
                                 if(col > 0) {
                                     const bool cond = !std::binary_search(boundaryCond.second.cbegin(), boundaryCond.second.cend(), col);

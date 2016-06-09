@@ -59,10 +59,10 @@ class IterativeMethod {
         /* Function: outputResidual
          *  Prints information about the residual at a given iteration. */
         template<char T, class K>
-        static void outputResidual(const int& i, const K& tol, const int& mu, const K* const norm, const K* const res, const short* const conv, const short sentinel) {
+        static void outputResidual(const int& i, const underlying_type<K>& tol, const int& mu, const underlying_type<K>* const norm, const K* const res, const short* const conv, const short sentinel) {
             constexpr auto method = (T == 0 ? "GMRES" : (T == 2 ? "CG" : "GCRODR"));
             int tmp[2] { 0, 0 };
-            K beta = std::abs(res[0]);
+            underlying_type<K> beta = std::abs(res[0]);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(conv[nu] != -sentinel)
                     ++tmp[0];
@@ -567,7 +567,14 @@ class IterativeMethod {
         template<bool excluded = false, class Operator, class K>
         static int PCG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm);
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
-        static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+        static int solve(const Operator& A, const K* const b, K* const x, const int& mu
+#if HPDDM_MPI
+                                                                        , const MPI_Comm& comm
+#endif
+                                                                                              ) {
+#if !HPDDM_MPI
+            int comm = 0;
+#endif
             const Option& opt = *Option::get();
             switch(opt.val<char>("krylov_method")) {
                 case 4:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;

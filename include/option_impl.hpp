@@ -287,6 +287,7 @@ inline void Option::version() const {
 #else
             "false",
 #endif
+        " │  MPI support? " + std::string(bool(HPDDM_MPI) ? "true" : "false"),
         " │  MKL support? " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
 #ifdef INTEL_MKL_VERSION
         " │  MKL version: " + to_string(INTEL_MKL_VERSION),

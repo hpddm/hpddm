@@ -34,6 +34,7 @@
  *    HPDDM_EPS           - Small positive number used internally for dropping values.
  *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
+ *    HPDDM_MPI           - If not set to zero, MPI is supposed to be activated during compilation and for running the library.
  *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra backend.
  *    HPDDM_NUMBERING     - 0- or 1-based indexing of user-supplied matrices.
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
@@ -51,6 +52,13 @@
 # define HPDDM_NUMBERING      'C'
 #elif defined(__cplusplus)
 static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numbering");
+#endif
+#ifndef HPDDM_MPI
+# define HPDDM_MPI            1
+#elif !HPDDM_MPI && defined(MPI_VERSION)
+# pragma message("You cannot deactivate MPI support and still include MPI headers")
+# undef HPDDM_MPI
+# define HPDDM_MPI            1
 #endif
 #ifndef HPDDM_MKL
 # ifdef INTEL_MKL_VERSION
@@ -75,16 +83,31 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #ifdef __MINGW32__
 # include <inttypes.h>
 #endif
-#ifndef MPI_VERSION
-# include <mpi.h>
-#endif
-#if HPDDM_ICOLLECTIVE
-# if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
-#  pragma message("You cannot use nonblocking MPI collective operations with that MPI implementation")
-#  undef HPDDM_ICOLLECTIVE
-#  define HPDDM_ICOLLECTIVE   0
+#if HPDDM_MPI
+# ifndef MPI_VERSION
+#  include <mpi.h>
 # endif
-#endif // HPDDM_ICOLLECTIVE
+# if HPDDM_ICOLLECTIVE
+#  if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
+#   pragma message("You cannot use nonblocking MPI collective operations with that MPI implementation")
+#   undef HPDDM_ICOLLECTIVE
+#   define HPDDM_ICOLLECTIVE  0
+#  endif
+# endif // HPDDM_ICOLLECTIVE
+#else
+# ifdef HPDDM_SCHWARZ
+#  undef HPDDM_SCHWARZ
+# endif
+# ifdef HPDDM_FETI
+#  undef HPDDM_FETI
+# endif
+# ifdef HPDDM_BDD
+#  undef HPDDM_BDD
+# endif
+# define HPDDM_SCHWARZ        0
+# define HPDDM_FETI           0
+# define HPDDM_BDD            0
+#endif // HPDDM_MPI
 
 #if defined(__powerpc__) || defined(INTEL_MKL_VERSION)
 # define HPDDM_F77(func) func
@@ -292,14 +315,16 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 # ifndef HPDDM_MINIMAL
 #  include "LAPACK.hpp"
 #  include "enum.hpp"
-#  include "eigensolver.hpp"
-#  if HPDDM_SCHWARZ
-#   ifndef EIGENSOLVER
-#    ifdef INTEL_MKL_VERSION
-#     undef HPDDM_F77
-#     define HPDDM_F77(func) func ## _
+#  if HPDDM_MPI
+#   include "eigensolver.hpp"
+#   if HPDDM_SCHWARZ
+#    ifndef EIGENSOLVER
+#     ifdef INTEL_MKL_VERSION
+#      undef HPDDM_F77
+#      define HPDDM_F77(func) func ## _
+#     endif
+#     include "ARPACK.hpp"
 #    endif
-#    include "ARPACK.hpp"
 #   endif
 #  endif
 
@@ -319,9 +344,16 @@ template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #  endif
 
+#  if !HPDDM_MPI
+#   define MPI_Allreduce(a, b, c, d, e, f) (void)f
+typedef int MPI_Comm;
+#  endif
 #  include "GMRES.hpp"
 #  include "GCRODR.hpp"
 #  include "CG.hpp"
+#  if !HPDDM_MPI
+#   undef MPI_Allreduce
+#  endif
 # endif // HPDDM_MINIMAL
 # include "option_impl.hpp"
 #else
