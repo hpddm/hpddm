@@ -77,6 +77,18 @@ HPDDM_GENERATE_EXTERN_DOTC(C, T, U)
 void HPDDM_F77(C ## gemm3m)(const char*, const char*, const int*, const int*, const int*,                    \
                             const T*, const T*, const int*, const T*, const int*,                            \
                             const T*, T*, const int*);
+# if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110300
+#  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)
+# else
+#  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)                                                                  \
+void HPDDM_F77(C ## gemmt)(const char*, const char*, const char*, const int*, const int*,                    \
+                           const T*, const T*, const int*, const T*, const int*,                             \
+                           const T*, T*, const int*);
+# endif
+# define HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(C, T, B, U)                                                    \
+HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                           \
+HPDDM_GENERATE_EXTERN_GEMMT(B, U)                                                                            \
+HPDDM_GENERATE_EXTERN_GEMMT(C, T)
 #endif
 
 #ifndef INTEL_MKL_VERSION
@@ -88,8 +100,8 @@ HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, std::complex<double>, d, double)
 #   if !HPDDM_MKL
 #    define HPDDM_PREFIX_AXPBY(func) catlas_ ## func
 #   else
-HPDDM_GENERATE_EXTERN_GEMM3M(c, std::complex<float>)
-HPDDM_GENERATE_EXTERN_GEMM3M(z, std::complex<double>)
+HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(c, std::complex<float>, s, float)
+HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(z, std::complex<double>, d, double)
 #   endif
 #   ifndef CBLAS_H
 #    define HPDDM_GENERATE_EXTERN_AXPBY(C, T, B, U)                                                          \
@@ -159,6 +171,10 @@ struct Blas {
      *  Computes a scalar-matrix-matrix product. */
     static void gemm(const char* const, const char* const, const int* const, const int* const, const int* const, const K* const, const K* const,
                      const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
+    /* Function: gemmt
+     *  Computes a scalar-matrix-matrix product but updates only one triangular part of the output matrix. */
+    static void gemmt(const char* const, const char* const, const char* const, const int* const, const int* const, const K* const, const K* const,
+                      const int* const, const K* const, const int* const, const K* const, K* const, const int* const);
     /* Function: herk
      *  Computes a Hermitian rank-k update. */
     static void herk(const char* const, const char* const, const int* const, const int* const, const underlying_type<K>* const, const K* const,
@@ -185,6 +201,25 @@ inline void Blas<T>::gemm(const char* const transa, const char* const transb, co
                           T* const c, const int* const ldc) {                                                \
     HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
 }
+# if !HPDDM_MKL || (defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110300)
+#  define HPDDM_GENERATE_GEMMT(C, T)                                                                         \
+template<>                                                                                                   \
+inline void Blas<T>::gemmt(const char* const uplo, const char* const transa, const char* const transb,       \
+                           const int* const n, const int* const k, const T* const alpha, const T* const a,   \
+                           const int* const lda, const T* const b, const int* const ldb, const T* const beta,\
+                           T* const c, const int* const ldc) {                                               \
+    HPDDM_F77(C ## gemm)(transa, transb, n, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
+}
+# else
+#  define HPDDM_GENERATE_GEMMT(C, T)                                                                         \
+template<>                                                                                                   \
+inline void Blas<T>::gemmt(const char* const uplo, const char* const transa, const char* const transb,       \
+                           const int* const n, const int* const k, const T* const alpha, const T* const a,   \
+                           const int* const lda, const T* const b, const int* const ldb, const T* const beta,\
+                           T* const c, const int* const ldc) {                                               \
+    HPDDM_F77(C ## gemmt)(uplo, transa, transb, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                  \
+}
+# endif
 # if !HPDDM_MKL
 #  define HPDDM_GENERATE_GEMM_COMPLEX(C, T) HPDDM_GENERATE_GEMM(C, T)
 # else
@@ -232,6 +267,7 @@ inline void Blas<T>::trsv(const char* const uplo, const char* const trans, const
     HPDDM_F77(C ## trsv)(uplo, trans, diag, n, a, lda, x, incx);                                             \
 }                                                                                                            \
                                                                                                              \
+HPDDM_GENERATE_GEMMT(C, T)                                                                                   \
 template<>                                                                                                   \
 inline void Blas<T>::symm(const char* const side, const char* const uplo, const int* const m,                \
                           const int* const n, const T* const alpha, const T* const a, const int* const lda,  \

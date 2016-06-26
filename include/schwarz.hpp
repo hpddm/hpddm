@@ -234,7 +234,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             if(super::_co) {
                 unsigned short k = 1;
                 const Option& opt = *Option::get();
-                if(opt.any_of("krylov_method", { 3, 4 }) && !opt.val<unsigned short>("recycle_same_system"))
+                if(opt.any_of("krylov_method", { 4, 5 }) && !opt.val<unsigned short>("recycle_same_system"))
                     k = std::max(opt.val<int>("recycle", 1), 1);
                 super::start(mu * k);
                 if(opt.val<char>("schwarz_coarse_correction") == 2)

@@ -337,7 +337,7 @@ class IterativeMethod {
          *    H              - Dot products.
          *    comm           - Global MPI communicator. */
         template<bool excluded, class K>
-        static void orthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm) {
+        static void orthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
             if(excluded) {
                 std::fill_n(H, mu * k, K());
                 if(id == 1)
@@ -349,8 +349,11 @@ class IterativeMethod {
             else {
                 if(id == 1)
                     for(unsigned short i = 0; i < k; ++i) {
+                        K* const pt = d ? scal : v;
+                        if(d)
+                            Wrapper<K>::diag(n, d, v, scal, mu);
                         for(unsigned short nu = 0; nu < mu; ++nu)
-                            H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
+                            H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i__1, pt + nu * n, &i__1);
                         MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                         for(unsigned short nu = 0; nu < mu; ++nu) {
                             K alpha = -H[i * mu + nu];
@@ -359,8 +362,11 @@ class IterativeMethod {
                     }
                 else {
                     int ldb = mu * n;
+                    K* const pt = d ? scal : v;
+                    if(d)
+                        Wrapper<K>::diag(n, d, v, scal, mu);
                     for(unsigned short nu = 0; nu < mu; ++nu)
-                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d__1), B + nu * n, &ldb, v + nu * n, &i__1, &(Wrapper<K>::d__0), H + nu, &mu);
+                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d__1), B + nu * n, &ldb, pt + nu * n, &i__1, &(Wrapper<K>::d__0), H + nu, &mu);
                     MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d__1), v + nu * n, &i__1);
@@ -402,13 +408,23 @@ class IterativeMethod {
         /* Function: VR
          *  Computes the inverse of the upper triangular matrix of a QR decomposition using the Cholesky QR method. */
         template<bool excluded, class K>
-        static void VR(const int n, const int k, const int mu, const K* const V, K* const R, const int ldr, const MPI_Comm& comm, K* work = nullptr) {
+        static void VR(const int n, const int k, const int mu, const K* const V, K* const R, const int ldr, const MPI_Comm& comm, K* work = nullptr, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
             const int ldv = mu * n;
             if(!work)
                 work = R;
             if(!excluded)
                 for(unsigned short nu = 0; nu < mu; ++nu) {
-                    Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d__1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d__0), work + nu * (k * (k + 1)) / 2, &k);
+                    if(!d)
+                        Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d__1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d__0), work + nu * (k * (k + 1)) / 2, &k);
+                    else {
+                        if(mu == 1)
+                            Wrapper<K>::diag(n, d, V, scal, k);
+                        else {
+                            for(unsigned short xi = 0; xi < k; ++xi)
+                                Wrapper<K>::diag(n, d, V + nu * n + xi * ldv, scal + xi * n);
+                        }
+                        Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &k, &n, &(Wrapper<K>::d__1), V + nu * n, &ldv, scal, &n, &(Wrapper<K>::d__0), work + nu * (k * (k + 1)) / 2, &k);
+                    }
                     for(unsigned short xi = 1; xi < k; ++xi)
                         std::copy_n(work + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
                 }
@@ -422,10 +438,10 @@ class IterativeMethod {
         /* Function: QR
          *  Computes a QR decomposition of a distributed matrix. */
         template<bool excluded, class K>
-        static int QR(const char id, const int n, const int k, const int mu, K* const Q, K* const R, const int ldr, const MPI_Comm& comm, K* work = nullptr, bool update = true) {
+        static int QR(const char id, const int n, const int k, const int mu, K* const Q, K* const R, const int ldr, const MPI_Comm& comm, K* work = nullptr, bool update = true, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
             const int ldv = mu * n;
             if(id == 0) {
-                VR<excluded>(n, k, mu, Q, R, ldr, comm, work);
+                VR<excluded>(n, k, mu, Q, R, ldr, comm, work, d, scal);
                 int info;
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     Lapack<K>::potrf("U", &k, R + nu * k * k, &ldr, &info);
@@ -439,11 +455,16 @@ class IterativeMethod {
             else {
                 if(!work)
                     work = R;
+                K* pt = d ? scal : Q;
                 for(unsigned short xi = 0; xi < k; ++xi) {
                     if(xi > 0)
-                        orthogonalization<excluded>(id - 1, n, xi, mu, Q, Q + xi * ldv, work + xi * k * mu, comm);
+                        orthogonalization<excluded>(id - 1, n, xi, mu, Q, Q + xi * ldv, work + xi * k * mu, comm, d, scal);
+                    if(d)
+                        Wrapper<K>::diag(n, d, Q + xi * ldv, scal, mu);
                     for(unsigned short nu = 0; nu < mu; ++nu)
-                        work[xi * (k + 1) * mu + nu] = Blas<K>::dot(&n, Q + xi * ldv + nu * n, &i__1, Q + xi * ldv + nu * n, &i__1);
+                        work[xi * (k + 1) * mu + nu] = Blas<K>::dot(&n, Q + xi * ldv + nu * n, &i__1, pt + nu * n, &i__1);
+                    if(!d)
+                        pt += ldv;
                     MPI_Allreduce(MPI_IN_PLACE, work + xi * (k + 1) * mu, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         work[xi * (k + 1) * mu + nu] = std::sqrt(work[xi * (k + 1) * mu + nu]);
@@ -551,6 +572,8 @@ class IterativeMethod {
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
         static int CG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
+        template<bool excluded = false, class Operator, class K>
+        static int BCG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
         /* Function: PCG
          *
          *  Implements the projected CG method.
@@ -577,8 +600,9 @@ class IterativeMethod {
 #endif
             const Option& opt = *Option::get();
             switch(opt.val<char>("krylov_method")) {
-                case 4:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;
-                case 3:  return HPDDM::IterativeMethod::GCRODR<excluded>(A, b, x, mu, comm); break;
+                case 5:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;
+                case 4:  return HPDDM::IterativeMethod::GCRODR<excluded>(A, b, x, mu, comm); break;
+                case 3:  return HPDDM::IterativeMethod::BCG<excluded>(A, b, x, mu, comm); break;
                 case 2:  return HPDDM::IterativeMethod::CG<excluded>(A, b, x, mu, comm); break;
                 case 1:  return HPDDM::IterativeMethod::BGMRES<excluded>(A, b, x, mu, comm); break;
                 default: return HPDDM::IterativeMethod::GMRES<excluded>(A, b, x, mu, comm);

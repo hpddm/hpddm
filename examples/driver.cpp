@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
     } while(t.open(opt.prefix("path") + "/40" + HPDDM::to_string(no++) + ".txt"), t.good());
     std::cout << "Total number of iterations: " << it << std::endl;
     MPI_Finalize();
-    if(status == 0 && opt.any_of("krylov_method", { 3, 4 })) {
+    if(status == 0 && opt.any_of("krylov_method", { 4, 5 })) {
         const char variant = (!opt.set("variant") ? 'R' : opt["variant"] == 0 ? 'L' : 'F');
         if(opt.app()["diagonal_scaling"] == 0)
             status = !(it > 2346 && it < 2366);

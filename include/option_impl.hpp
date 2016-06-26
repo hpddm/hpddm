@@ -72,7 +72,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("local_operators_not_spd=(0|1)", "Assume local operators are general symmetric (instead of symmetric or Hermitian positive definite).", Arg::argument),
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk.", Arg::argument),
-        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
+        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, (Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
         std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle.", Arg::integer),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning.", Arg::argument),
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),

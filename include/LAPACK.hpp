@@ -41,6 +41,8 @@ void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const 
 void HPDDM_F77(C ## pstrf)(const char*, const int*, T*, const int*, int*, int*, const U*, U*, int*);         \
 void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
                            const int*, T*, const int*, int*);                                                \
+void HPDDM_F77(C ## posv)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*);  \
+void HPDDM_F77(C ## ppsv)(const char*, const int*, const int*, const T*, T*, const int*, int*);              \
 void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, const int*, int*);                \
 void HPDDM_F77(C ## geqrt)(const int*, const int*, const int*, T*, const int*, T*, const int*, T*, int*);    \
 void HPDDM_F77(C ## gemqrt)(const char*, const char*, const int*, const int*, const int*, const int*,        \
@@ -125,6 +127,12 @@ struct Lapack {
     /* Function: trtrs
      *  Solves a system of linear equations with a triangular matrix. */
     static void trtrs(const char*, const char*, const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
+    /* Function: posv
+     *  Solves a system of linear equations with a symmetric or Hermitian positive definite matrix. */
+    static void posv(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
+    /* Function: ppsv
+     *  Solves a system of linear equations with a packed symmetric or Hermitian positive definite matrix. */
+    static void ppsv(const char*, const int*, const int*, const K*, K*, const int*, int*);
     /* Function: geqp3
      *  Computes a QR decomposition of a rectangular matrix with column pivoting. */
     static void geqp3(const int*, const int*, K*, const int*, int*, K*, K*, const int*, underlying_type<K>*, int*);
@@ -327,6 +335,16 @@ template<>                                                                      
 inline void Lapack<T>::trtrs(const char* uplo, const char* trans, const char* diag, const int* n,            \
                              const int* nrhs, const T* a, const int* lda, T* b, const int* ldb, int* info) { \
     HPDDM_F77(C ## trtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info);                                 \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::posv(const char* uplo, const int* n, const int* nrhs, const T* a, const int* lda,     \
+                            T* b, const int* ldb, int* info) {                                               \
+    HPDDM_F77(C ## posv)(uplo, n, nrhs, a, lda, b, ldb, info);                                               \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::ppsv(const char* uplo, const int* n, const int* nrhs, const T* ap, T* b,              \
+                            const int* ldb, int* info) {                                                     \
+    HPDDM_F77(C ## ppsv)(uplo, n, nrhs, ap, b, ldb, info);                                                   \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::geqrf(const int* m, const int* n, T* a, const int* lda, T* tau, T* work,              \
