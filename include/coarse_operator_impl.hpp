@@ -298,7 +298,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             if(S == 'S')
                 v._max = std::min(size - (rank + pow(treeDimension, currentHeight)), full & 4095) * pow(full >> 12, 2);
             for(unsigned short k = 0; k < bound; ++k) {
-                msg->emplace_back(std::array<int, 3>({ static_cast<int>(std::min(pow(treeDimension, currentHeight), static_cast<unsigned short>(_sizeSplit - (rankSplit + pow(treeDimension, currentHeight) * (k + 1)))) * v._max), rankSplit + pow(treeDimension, currentHeight) * (k + 1), accumulate }));
+                msg->emplace_back(std::array<int, 3>({{ static_cast<int>(std::min(pow(treeDimension, currentHeight), static_cast<unsigned short>(_sizeSplit - (rankSplit + pow(treeDimension, currentHeight) * (k + 1)))) * v._max), rankSplit + pow(treeDimension, currentHeight) * (k + 1), accumulate }}));
                 accumulate += msg->back()[0];
             }
             ++currentHeight;
