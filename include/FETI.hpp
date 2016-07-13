@@ -238,12 +238,12 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::stiffnessScaling(_primal);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, _primal);
-                bool alloc = Subdomain<K>::setBuffer(1, super::_work, super::_mult + super::_bi->_m);
+                bool allocate = Subdomain<K>::setBuffer(super::_work, super::_mult + super::_bi->_m);
                 Subdomain<K>::exchange(_primal);
                 for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[i][j] = std::real(Subdomain<K>::_buff[i][j] / _primal[Subdomain<K>::_map[i].second[j]]);
-                Subdomain<K>::clearBuffer(alloc);
+                Subdomain<K>::clearBuffer(allocate);
             }
             else {
                 scaling = 0;

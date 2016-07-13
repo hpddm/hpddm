@@ -51,7 +51,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         v[i] = *v + i * mu * n;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m * (1 + (variant == 2)) + 1) * mu * n);
     underlying_type<K>* const sn = norm + mu;
-    bool alloc = A.setBuffer(mu);
+    bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m);
 
@@ -107,7 +107,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                     hasConverged[nu] = i;
             }
             if(verbosity > 2)
-                outputResidual<0>(i, tol, mu, norm, s + i * mu, hasConverged, m);
+                outputResidual<0>(j, tol, mu, norm, s + i * mu, hasConverged, m);
             if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
                 i = 0;
                 break;
@@ -135,7 +135,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             std::cout << "GMRES does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
     }
     delete [] hasConverged;
-    A.clearBuffer(alloc);
+    A.clearBuffer(allocate);
     delete [] s;
     delete [] H;
     std::cout.unsetf(std::ios_base::scientific);
@@ -168,7 +168,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     K* const Ax = tau + m * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
     underlying_type<K>* const beta = norm - mu;
-    bool alloc = A.setBuffer(mu);
+    bool allocate = A.setBuffer();
 
     A.template start<excluded>(b, x, mu);
     if(!variant) {
@@ -319,7 +319,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     if(opt.set("initial_deflation_tol"))
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     delete [] piv;
-    A.clearBuffer(alloc);
+    A.clearBuffer(allocate);
     delete [] *H;
     delete [] H;
     std::cout.unsetf(std::ios_base::scientific);

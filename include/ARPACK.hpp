@@ -25,8 +25,6 @@
 #ifndef _HPDDM_ARPACK_
 #define _HPDDM_ARPACK_
 
-#define EIGENSOLVER HPDDM::Arpack
-
 #define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U)                                                              \
 void HPDDM_F77(B ## saupd)(int*, const char*, const int*, const char*, const int*, const U*, U*, int*, U*,    \
                            const int*, int*, int*, U*, U*, int*, int*, int, int);                             \
@@ -45,6 +43,12 @@ HPDDM_GENERATE_ARPACK_EXTERN(z, std::complex<double>, d, double)
 }
 
 namespace HPDDM {
+#ifdef MU_ARPACK
+#undef HPDDM_CHECK_COARSEOPERATOR
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_EIGENSOLVER
+#include "preprocessor_check.hpp"
+#define EIGENSOLVER HPDDM::Arpack
 /* Class: Arpack
  *
  *  A class inheriting from <Eigensolver> to use <Arpack> for sparse eigenvalue problems.
@@ -163,6 +167,7 @@ class Arpack : public Eigensolver<K> {
             delete [] rwork;
         }
 };
+#endif // MU_ARPACK
 
 #define HPDDM_GENERATE_ARPACK(C, T, B, U)                                                                    \
 template<>                                                                                                   \

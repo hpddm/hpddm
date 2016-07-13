@@ -1,5 +1,6 @@
 SOLVER ?= MUMPS
 SUBSOLVER ?= MUMPS
+EIGENSOLVER ?= ARPACK
 MPICXX ?= powerpc64-bgq-linux-g++
 MPICC ?= powerpc64-bgq-linux-gcc
 MPIRUN ?= runjob --ranks-per-node 8 --np

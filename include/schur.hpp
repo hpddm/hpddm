@@ -220,6 +220,11 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     underlying_type<K> tol = evp.getTol();
                     Lapack<K>::stebz(&range, "B", &(Subdomain<K>::_dof), &vl, &vu, &i__1, &iu, &tol, d, e, &evp._nu, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K>*>(work), iwork, &info);
                     if(evp._nu) {
+                        if(super::_ev) {
+                            if(*super::_ev)
+                                delete [] *super::_ev;
+                            delete [] super::_ev;
+                        }
                         super::_ev = new K*[evp._nu];
                         *super::_ev = new K[Subdomain<K>::_dof * evp._nu];
                         for(unsigned short i = 1; i < evp._nu; ++i)
@@ -236,6 +241,8 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     delete [] iblock;
                 }
                 (*Option::get())["geneo_nu"] = nu = evp._nu;
+                if(super::_co)
+                    super::_co->setLocal(nu);
                 if(nu && *(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
                     _deficiency = 1;
                     underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
@@ -734,14 +741,14 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             storage[0] = std::real(Blas<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);
-            bool alloc = Subdomain<K>::setBuffer(1);
+            bool allocate = Subdomain<K>::setBuffer();
             Subdomain<K>::exchange(tmp + _bi->_m);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                     storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
             Wrapper<K>::csrmv(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
-            Subdomain<K>::clearBuffer(alloc);
+            Subdomain<K>::clearBuffer(allocate);
             Blas<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
             storage[1] = std::real(Blas<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1));
             std::fill_n(tmp, Subdomain<K>::_dof, K(1.0));

@@ -102,7 +102,7 @@ double HpddmOptionVal(const HpddmOption* const option, const char* str) {
 }
 double* HpddmOptionAddr(const HpddmOption* const option, const char* str) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
-    return &(opt[str]);
+    return &opt[str];
 }
 double HpddmOptionApp(const HpddmOption* const option, const char* str) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
@@ -121,7 +121,7 @@ void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
 }
 void HpddmCSRMM(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
     HPDDM::MatrixCSR<cpp_type<K>>* A = reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
-    HPDDM::Wrapper<cpp_type<K>>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type<K>*>(x), reinterpret_cast<cpp_type<K>*>(prod));
+    HPDDM::Wrapper<cpp_type<K>>::csrmm(A->_sym, &A->_n, &m, A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type<K>*>(x), reinterpret_cast<cpp_type<K>*>(prod));
 }
 
 #if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
@@ -173,7 +173,7 @@ void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->callNumfact();
 }
 void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann, unsigned short* nu, underlying_type threshold) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->solveGEVP<HPDDM::Arpack>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(neumann), *nu, threshold);
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(neumann), *nu, threshold);
 }
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->buildTwo(comm);

@@ -28,7 +28,7 @@
 namespace HPDDM {
 template<class K>
 struct EmptyOperator {
-    bool setBuffer(const int&, K* = nullptr, const int& = 0) const { return false; }
+    bool setBuffer(K* = nullptr, const int& = 0) const { return false; }
     template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
     void clearBuffer(const bool) const { }
     const underlying_type<K>* getScaling() const { return nullptr; }

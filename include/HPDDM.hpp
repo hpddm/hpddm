@@ -77,7 +77,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # define HPDDM_BDD            1
 #endif
 #define HPDDM_QR              2
-#define HPDDM_ICOLLECTIVE     0
+#ifndef HPDDM_ICOLLECTIVE
+# define HPDDM_ICOLLECTIVE    0
+#endif
 #define HPDDM_GMV             0
 
 #ifdef __MINGW32__
@@ -221,6 +223,18 @@ inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, std::
     stm >> cplx;
     return cplx;
 }
+template<class U, class V>
+inline U pow(U x, V y) {
+    static_assert(std::is_integral<U>::value && std::is_integral<V>::value, "Only integral types are supported, consider using std::pow(base, exp)");
+    U temp;
+    if(y == 0)
+        return 1;
+    temp = pow(x, y / 2);
+    if(y % 2)
+        return x * temp * temp;
+    else
+        return temp * temp;
+}
 template<class T>
 using alias = T;
 
@@ -297,7 +311,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  if defined(DHYPRE)
 #   include "Hypre.hpp"
 #  endif
-#  if defined(SUITESPARSESUB) || defined(DSUITESPARSE)
+#  if defined(DSUITESPARSE) || defined(SUITESPARSESUB)
 #   include "SuiteSparse.hpp"
 #  endif
 #  ifdef DISSECTIONSUB
@@ -323,7 +337,11 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #      undef HPDDM_F77
 #      define HPDDM_F77(func) func ## _
 #     endif
-#     include "ARPACK.hpp"
+#     ifdef MU_ARPACK
+#      include "ARPACK.hpp"
+#     elif defined(MU_FEAST)
+#      include "FEAST.hpp"
+#     endif
 #    endif
 #   endif
 #  endif

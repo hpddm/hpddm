@@ -119,7 +119,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Parameter:
          *    d              - Array of values. */
         void multiplicityScaling(underlying_type<K>* const d) const {
-            Subdomain<K>::setBuffer(1);
+            Subdomain<K>::setBuffer();
             for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
                 underlying_type<K>* const recv = reinterpret_cast<underlying_type<K>*>(Subdomain<K>::_buff[i]);
                 underlying_type<K>* const send = reinterpret_cast<underlying_type<K>*>(Subdomain<K>::_buff[size + i]);
@@ -151,7 +151,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         void scaledExchange(K* const x, const unsigned short& mu = 1) const {
             bool free = false;
             if(allocate)
-                free = Subdomain<K>::setBuffer(mu);
+                free = Subdomain<K>::setBuffer();
             Wrapper<K>::diag(Subdomain<K>::_dof, _d, x, mu);
             Subdomain<K>::exchange(x, mu);
             if(allocate)
@@ -194,13 +194,14 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    out            - Output vector.
          *    rq             - MPI request to check completion of the MPI transfers. */
         template<bool excluded>
-        void Ideflation(const K* const in, K* const out, MPI_Request* rq) const {
+        void Ideflation(const K* const in, K* const out, const unsigned short& mu, MPI_Request* rq) const {
             if(excluded)
-                super::_co->template IcallSolver<excluded>(super::_uc, rq);
+                super::_co->template IcallSolver<excluded>(super::_uc, mu, rq);
             else {
                 Wrapper<K>::diag(Subdomain<K>::_dof, _d, in, out, mu);
-                Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), out, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);
-                super::_co->template IcallSolver<excluded>(super::_uc, rq);
+                int tmp = mu;
+                Blas<K>::gemm(&(Wrapper<K>::transc), "N", super::getAddrLocal(), &tmp, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), out, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), super::_uc, super::getAddrLocal());
+                super::_co->template IcallSolver<excluded>(super::_uc, mu, rq);
             }
         }
 #endif // HPDDM_ICOLLECTIVE
@@ -291,8 +292,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     if(!excluded) {
                         super::_s.solve(work, mu);                                                                                                                                                         // out = A \ in
                         MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
-                        for(unsigned short nu = 0; nu < mu; ++nu)
-                            Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc + nu * super::getLocal(), &i__1, &(Wrapper<K>::d__0), out + nu * Subdomain<K>::_dof, &i__1); // out = Z E \ Z^T in
+                        int k = mu;
+                        Blas<K>::gemm("N", "N", &(Subdomain<K>::_dof), &k, super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, super::getAddrLocal(), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));                   // out = _ev E \ _ev^T D in
                         Blas<K>::axpy(&tmp, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
                         scaledExchange(out, mu);                                                                                                                                                                                                              // out = Z E \ Z^T in + A \ in
                     }
@@ -319,7 +320,12 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 else {
                     deflation<excluded>(in, out, mu);                                                                  // out = Z E \ Z^T in
                     if(!excluded) {
-                        Wrapper<K>::csrmm("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &(Subdomain<K>::_dof));
+                        if(HPDDM_NUMBERING == Wrapper<K>::I)
+                            Wrapper<K>::csrmm("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &(Subdomain<K>::_dof));
+                        else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
+                            Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &(Subdomain<K>::_dof));
+                        else
+                            Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &(Subdomain<K>::_dof));
                         scaledExchange(work, mu);                                                                      //  in = (I - A Z E \ Z^T) in
                         if(_type == Prcndtnr::OS)
                             Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
@@ -399,6 +405,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 rhs = B;
             else
                 scaleIntoOverlap(A, rhs);
+            if(super::_ev) {
+                if(*super::_ev)
+                    delete [] *super::_ev;
+                delete [] super::_ev;
+            }
             evp.template solve<Solver>(A, rhs, super::_ev, Subdomain<K>::_communicator, free ? &(super::_s) : nullptr);
             if(rhs != B)
                 delete rhs;
@@ -407,6 +418,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 A->_ja = nullptr;
             }
             (*Option::get())["geneo_nu"] = nu = evp._nu;
+            if(super::_co)
+                super::_co->setLocal(nu);
             const int n = Subdomain<K>::_dof;
             std::for_each(super::_ev, super::_ev + nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
         }
@@ -435,7 +448,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             Subdomain<K>::exchange(out, mu);
 #else
             if(A)
-                    Wrapper<K>::csrmm(A->_sym, &(A->_n), &mu, A->_a, A->_ia, A->_ja, in, out);
+                    Wrapper<K>::csrmm(A->_sym, &A->_n, &mu, A->_a, A->_ia, A->_ja, in, out);
             else if(HPDDM_NUMBERING == Wrapper<K>::I)
                     Wrapper<K>::csrmm(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
@@ -458,9 +471,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         void computeError(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short& mu = 1) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
-            bool alloc = Subdomain<K>::setBuffer(mu);
+            bool allocate = Subdomain<K>::setBuffer();
             GMV(x, tmp, mu);
-            Subdomain<K>::clearBuffer(alloc);
+            Subdomain<K>::clearBuffer(allocate);
             Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
             std::fill_n(storage, 2 * mu, 0.0);
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {

@@ -82,12 +82,12 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                     super::stiffnessScaling(super::_work);
                 else
                     std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, super::_work);
-                bool alloc = Subdomain<K>::setBuffer(1, super::_structure, Subdomain<K>::_a->_n);
+                bool allocate = Subdomain<K>::setBuffer(super::_structure, Subdomain<K>::_a->_n);
                 Subdomain<K>::recvBuffer(super::_work);
                 for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i)
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                         _m[Subdomain<K>::_map[i].second[j]] *= std::real(Subdomain<K>::_buff[size + i][j]) / std::real(Subdomain<K>::_buff[size + i][j] + _m[Subdomain<K>::_map[i].second[j]] * Subdomain<K>::_buff[i][j]);
-                Subdomain<K>::clearBuffer(alloc);
+                Subdomain<K>::clearBuffer(allocate);
             }
             else {
                 scaling = 0;

@@ -43,6 +43,9 @@ endif
 ifdef SUBSOLVER
     override HPDDMFLAGS += -D${SUBSOLVER}SUB
 endif
+ifdef EIGENSOLVER
+    override HPDDMFLAGS += -DMU_${EIGENSOLVER}
+endif
 
 ifdef MKL_INCS
     INCS += ${MKL_INCS}
@@ -51,7 +54,7 @@ ifdef MKL_INCS
 else
     LIBS += ${BLAS_LIBS}
 endif
-LIBS += ${ARPACK_LIBS} ${SCALAPACK_LIBS}
+LIBS += ${SCALAPACK_LIBS}
 
 ifeq (${SOLVER}, MUMPS)
     INCS += ${MUMPS_INCS}
@@ -96,6 +99,13 @@ endif
 ifeq (${SUBSOLVER}, DISSECTION)
     INCS += ${DISSECTION_INCS}
     LIBS += ${DISSECTION_LIBS}
+endif
+ifeq (${EIGENSOLVER}, ARPACK)
+    LIBS += ${ARPACK_LIBS}
+endif
+ifeq (${EIGENSOLVER}, FEAST)
+    INCS += ${FEAST_INCS}
+    LIBS += ${FEAST_LIBS}
 endif
 
 ifeq (${OS}, Windows_NT)
@@ -202,7 +212,7 @@ ${TOP_DIR}/${BIN_DIR}/schwarz%cpp: ${TOP_DIR}/${BIN_DIR}/schwarz%cpp.o ${TOP_DIR
 ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
-${TOP_DIR}/${BIN_DIR}/local_solver: ${TOP_DIR}/${BIN_DIR}/local_solver_cpp.o
+${TOP_DIR}/${BIN_DIR}/local_%: ${TOP_DIR}/${BIN_DIR}/local_%_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
 ${TOP_DIR}/${BIN_DIR}/custom_operator: examples/custom_operator.f90 ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
@@ -305,7 +315,7 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
-SOURCES = schwarz.cpp schwarzFromFile.cpp generate.cpp generateFromFile.cpp driver.cpp local_solver.cpp schwarz.c generate.c
+SOURCES = schwarz.cpp schwarzFromFile.cpp generate.cpp generateFromFile.cpp driver.cpp local_solver.cpp local_eigensolver.cpp schwarz.c generate.c
 INTERFACES = hpddm_c.cpp hpddm_python.cpp hpddm_fortran.cpp
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(subst .,_,${SOURCES}))
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(basename ${INTERFACES}))

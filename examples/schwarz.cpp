@@ -35,7 +35,7 @@ struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
     }
 };
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 #if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
     MPI_Init(&argc, &argv);
 #else
@@ -94,9 +94,9 @@ int main(int argc, char **argv) {
             unsigned short nu = opt["geneo_nu"];
             if(nu > 0) {
                 if(opt.app().find("nonuniform") != opt.app().cend())
-                    nu += std::max(-opt["geneo_nu"] + 1, std::pow(-1, rankWorld) * rankWorld);
+                    nu += std::max(static_cast<int>(-opt["geneo_nu"] + 1), HPDDM::pow(-1, rankWorld) * rankWorld);
                 HPDDM::underlying_type<K> threshold = std::max(0.0, opt.val("geneo_threshold"));
-                A.solveGEVP<HPDDM::Arpack>(MatNeumann, nu, threshold);
+                A.solveGEVP<EIGENSOLVER>(MatNeumann, nu, threshold);
                 opt["geneo_nu"] = nu;
             }
             else {

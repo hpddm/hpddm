@@ -23,7 +23,7 @@
 
 #include "schwarz.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 #if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
     MPI_Init(&argc, &argv);
 #else

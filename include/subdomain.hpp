@@ -155,7 +155,7 @@ class Subdomain {
             _rq = new MPI_Request[2 * _map.size()];
             _buff = new K*[2 * _map.size()];
         }
-        bool setBuffer(const int& mu = 1, K* wk = nullptr, const int& space = 0) const {
+        bool setBuffer(K* wk = nullptr, const int& space = 0) const {
             unsigned int n = 0;
             for(const auto& i : _map)
                 n += i.second.size();
@@ -492,7 +492,7 @@ class Subdomain {
             MPI_Comm_rank(_communicator, &rankWorld);
             MPI_Comm_size(_communicator, &sizeWorld);
             if(sizeWorld > 1) {
-                setBuffer(1);
+                setBuffer();
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
                 unsigned int size = std::ceil(2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) / static_cast<float>(sizeof(K)));

@@ -2,7 +2,7 @@
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
-        Date: 2016-02-28
+        Date: 2016-07-12
 
    Copyright (C) 2016-     Centre National de la Recherche Scientifique
 
@@ -40,6 +40,12 @@
 #elif defined(DISSECTIONSUB)
 # include "Dissection.hpp"
 #endif
+#include "eigensolver.hpp"
+#ifdef MU_ARPACK
+# include "ARPACK.hpp"
+#elif defined(MU_FEAST)
+# include "FEAST.hpp"
+#endif
 
 #ifdef FORCE_SINGLE
 #ifdef FORCE_COMPLEX
@@ -56,7 +62,7 @@ typedef double K;
 #endif
 
 int main(int argc, char** argv) {
-    if(argc < 2)
+    if(argc < 3)
         return 1;
     HPDDM::MatrixCSR<K>* A = nullptr;
     {
@@ -68,16 +74,32 @@ int main(int argc, char** argv) {
             return 1;
         }
         auto tEnd = std::chrono::steady_clock::now();
-        std::cout << "// matrix read from file in " << std::chrono::duration<double, std::ratio<1>>(tEnd - tBegin).count() << " second(s)\n";
+        std::cout << "// left-hand side matrix read from file in " << std::chrono::duration<double, std::ratio<1>>(tEnd - tBegin).count() << " second(s)\n";
+    }
+    HPDDM::MatrixCSR<K>* B = nullptr;
+    {
+        auto tBegin = std::chrono::steady_clock::now();
+        std::ifstream t(argv[2]);
+        B = new HPDDM::MatrixCSR<K>(t);
+        if(B->_n <= 0) {
+            delete B;
+            delete A;
+            return 1;
+        }
+        auto tEnd = std::chrono::steady_clock::now();
+        std::cout << "// right-hand side matrix read from file in " << std::chrono::duration<double, std::ratio<1>>(tEnd - tBegin).count() << " second(s)\n";
+
     }
     {
-#if defined(MUMPSSUB) || defined(PASTIXSUB)
         MPI_Init(&argc, &argv);
         int size;
         MPI_Comm_size(MPI_COMM_WORLD, &size);
-#else
-        int size = 1;
-#endif
+        if(size > 1) {
+            delete B;
+            delete A;
+            MPI_Finalize();
+            return 1;
+        }
 #ifdef _OPENMP
         int th = omp_get_max_threads();
 #else
@@ -89,53 +111,35 @@ int main(int argc, char** argv) {
     opt.parse(argc, argv, false, {
         std::forward_as_tuple("warm_up=<2>", "Number of fake runs to prime the pump.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("trials=<5>", "Number of trial runs to time.", HPDDM::Option::Arg::integer),
-        std::forward_as_tuple("rhs=<1>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::integer),
-        std::forward_as_tuple("solve_phase_only=(0|1)", "Benchmark only the solve phase.", HPDDM::Option::Arg::argument)
     });
-    int mu = opt.app()["rhs"];
-    bool solve = opt.app()["solve_phase_only"];
-    K* rhs = new K[mu * A->_n];
-    std::fill_n(rhs, mu * A->_n, K(1.0));
     std::streamsize old = std::cout.precision();
-    SUBDOMAIN<K>* S = new SUBDOMAIN<K>;
-    if(solve)
-        S->numfact(A);
+    EIGENSOLVER<K>* S = new EIGENSOLVER<K>(A->_n, HPDDM::Option::get()->val("geneo_nu", 20));
     std::cout << std::scientific;
+    K** ev;
     for(unsigned int begin = 0, end = opt.app()["warm_up"]; begin < end; ++begin) {
-        if(!solve)
-            S->numfact(A);
-        S->solve(rhs, mu);
-        if(!solve) {
-            delete S;
-            S = new SUBDOMAIN<K>;
-        }
+        S->template solve<SUBDOMAIN>(A, B, ev, MPI_COMM_SELF);
+        if(*ev)
+            delete [] *ev;
+        delete [] ev;
+        delete S;
+        S = new EIGENSOLVER<K>(A->_n, HPDDM::Option::get()->val("geneo_nu", 20));
     }
     for(unsigned int begin = 0, end = opt.app()["trials"]; begin < end; ++begin) {
-        if(!solve) {
-            auto tBegin = std::chrono::steady_clock::now();
-            S->numfact(A);
-            auto tEnd = std::chrono::steady_clock::now();
-            std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double, std::milli>(tEnd - tBegin).count();
-        }
-        for(unsigned short nu = mu; nu >= 1; nu /= 2) {
-            auto tBegin = std::chrono::steady_clock::now();
-            S->solve(rhs, nu);
-            auto tEnd = std::chrono::steady_clock::now();
-            std::cout << "\t" << std::setw(10) << std::setprecision(5) << std::chrono::duration<double, std::milli>(tEnd - tBegin).count();
-        }
-        std::cout << "\n";
-        if(!solve) {
-            delete S;
-            S = new SUBDOMAIN<K>;
-        }
+        auto tBegin = std::chrono::steady_clock::now();
+        S->template solve<SUBDOMAIN>(A, B, ev, MPI_COMM_SELF);
+        auto tEnd = std::chrono::steady_clock::now();
+        std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double, std::milli>(tEnd - tBegin).count() << "\n";
+        if(*ev)
+            delete [] *ev;
+        delete [] ev;
+        delete S;
+        S = new EIGENSOLVER<K>(A->_n, HPDDM::Option::get()->val("geneo_nu", 20));
     }
     std::cout.unsetf(std::ios_base::scientific);
     std::cout.precision(old);
     delete S;
-    delete [] rhs;
-#if defined(MUMPSSUB) || defined(PASTIXSUB)
     MPI_Finalize();
-#endif
+    delete B;
     delete A;
     return 0;
 }

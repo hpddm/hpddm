@@ -114,7 +114,7 @@ double optionVal(void* option, char* str) {
 }
 double* optionAddr(void* option, char* str) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);
-    return &(opt[str]);
+    return &opt[str];
 }
 double optionApp(void* option, char* str) {
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>(option);
@@ -228,7 +228,7 @@ void schwarzCallNumfact(void* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->callNumfact();
 }
 void schwarzSolveGEVP(void* A, void* neumann, unsigned short* nu, HPDDM::underlying_type<K> threshold) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->solveGEVP<HPDDM::Arpack>(reinterpret_cast<HPDDM::MatrixCSR<K>*>(neumann), *nu, threshold);
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<K>*>(neumann), *nu, threshold);
 }
 void schwarzBuildCoarseOperator(void* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->buildTwo(comm);

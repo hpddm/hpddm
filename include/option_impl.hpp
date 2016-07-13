@@ -141,7 +141,8 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #endif
             std::string("2)"), "Distribution of the master processes.", Arg::integer),
 #endif
-        std::forward_as_tuple("master_filename=<output_file>", "Save the coarse operator to disk.", Arg::argument),
+        std::forward_as_tuple("master_assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator.", Arg::integer),
+        std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk.", Arg::argument),
         std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition.", Arg::argument)
 #if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)
       , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::argument)

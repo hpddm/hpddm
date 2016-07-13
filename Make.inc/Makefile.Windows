@@ -1,5 +1,6 @@
 SOLVER ?= SUITESPARSE
 SUBSOLVER ?= SUITESPARSE
+EIGENSOLVER ?= ARPACK
 MPICXX ?= g++.exe
 MPICC ?= gcc.exe
 MPIRUN ?= mpiexec.exe -np

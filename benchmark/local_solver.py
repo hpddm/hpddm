@@ -76,10 +76,10 @@ with open('Makefile.inc', 'r') as input:
                 else:
                     numbering = "C"
                 print(" --- compiling " + sys.argv[1] + " with solver " + word )
-                process = Popen("make " + sys.argv[1] + " SUBSOLVER=" + word + " HPDDMFLAGS=\"-O3 -DHPDDM_NUMBERING=\\'" + numbering + "\\' -DHPDDM_SCHWARZ=0 -DHPDDM_FETI=0 -DHPDDM_BDD=0 " + (scalar if scalar is not None else "") + "\"", stdout = PIPE, stderr = PIPE, shell = True)
+                process = Popen("make " + sys.argv[1] + " SOLVER="" SUBSOLVER=" + word + " HPDDMFLAGS=\"-O3 -DHPDDM_NUMBERING=\\'" + numbering + "\\' -DHPDDM_SCHWARZ=0 -DHPDDM_FETI=0 -DHPDDM_BDD=0 " + (scalar if scalar is not None else "") + "\"", stdout = PIPE, stderr = PIPE, shell = True)
                 (output, err) = process.communicate()
                 exit_code = process.wait()
-                if err is not "":
+                if exit_code != 0:
                     print(" --- compilation failed with the following message:")
                     print(err)
                     continue

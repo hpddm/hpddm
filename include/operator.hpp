@@ -66,17 +66,18 @@ class OperatorBase : protected Members<P != 's'> {
         std::vector<unsigned short>    _sparsity;
         const int                             _n;
         const int                         _local;
+        unsigned int                        _max;
         unsigned short                   _signed;
         unsigned short             _connectivity;
         template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short& c) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _connectivity(c) {
+        OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max), _connectivity(c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _sparsity.reserve(_map.size());
             for(const pairNeighbor& n : _map)
                 _sparsity.emplace_back(n.first);
         }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
-        OperatorBase(const Preconditioner& p, const unsigned short& c) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _signed(_p.getSigned()), _connectivity(c) {
+        OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max + std::max(1, (c - 1)) * (max & 4095)), _signed(_p.getSigned()), _connectivity(c) {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
@@ -337,7 +338,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        MatrixMultiplication(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
+        MatrixMultiplication(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max), _A(p.getMatrix()), _C(), _D(p.getScaling()) { }
         void initialize(unsigned int k, K*& work, unsigned short s) {
             if(_A->_sym) {
                 std::vector<std::vector<std::pair<unsigned int, K>>> v(_A->_n);
@@ -530,7 +531,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        FetiProjection(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)) { }
+        FetiProjection(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max) { }
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;
@@ -749,7 +750,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         }
     public:
         template<template<class> class Solver, char S, class T> friend class CoarseOperator;
-        BddProjection(const Preconditioner& p, const unsigned short c) : super(p, std::move(c)) { }
+        BddProjection(const Preconditioner& p, const unsigned short& c, const int& max) : super(p, c, max) { }
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
             unsigned short* infoNeighbor;

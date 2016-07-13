@@ -79,7 +79,7 @@ class CoarseOperator : public Solver<K> {
          *    U              - True if the distribution of the coarse operator is uniform, false otherwise.
          *    D              - <DMatrix::Distribution> of right-hand sides and solution vectors.
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise. */
-        template<bool U, typename Solver<K>::Distribution D, bool excluded>
+        template<bool U, typename DMatrix::Distribution D, bool excluded>
         void constructionCollective(const unsigned short* = nullptr, unsigned short = 0, const unsigned short* = nullptr);
         /* Function: constructionMap
          *
@@ -161,6 +161,14 @@ class CoarseOperator : public Solver<K> {
                 std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
                 MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), ab, counts, counts + n, Wrapper<K>::mpi_type(), 0, _gatherComm);
             }
+            permute<T>(counts, n, m, ab);
+            if(T) {
+                MPI_Scatterv(ab, counts, counts + m, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
+            }
+        }
+        template<bool T>
+        void permute(int* const counts, const int n, const int m, K* const ab) const {
             if(n != 1 && m != 1) {
                 int size = T ? m : n;
                 K* ba = new K[counts[size - 1] + counts[2 * size - 1]];
@@ -177,8 +185,16 @@ class CoarseOperator : public Solver<K> {
                 std::copy_n(ba, counts[size - 1] + counts[2 * size - 1], ab);
                 delete [] ba;
             }
+        }
+        template<bool T>
+        void Itransfer(int* const counts, const int n, const int m, K* const ab, MPI_Request* rq) const {
+            if(!T) {
+                std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
+                MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), ab, counts, counts + n, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+            }
+            permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Scatterv(ab, counts, counts + m, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                MPI_Iscatterv(ab, counts, counts + m, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
@@ -192,6 +208,7 @@ class CoarseOperator : public Solver<K> {
                 MPI_Comm_free(&_gatherComm);
             if(_scatterComm != MPI_COMM_NULL)
                 MPI_Comm_free(&_scatterComm);
+            _gatherComm = _scatterComm = MPI_COMM_NULL;
         }
         /* Function: construction
          *  Wrapper function to call all needed subroutines. */
@@ -207,7 +224,7 @@ class CoarseOperator : public Solver<K> {
         void callSolver(K* const, const unsigned short& = 1);
 #if HPDDM_ICOLLECTIVE
         template<bool = false>
-        void IcallSolver(K* const, MPI_Request*);
+        void IcallSolver(K* const, const unsigned short&, MPI_Request*);
 #endif
         /* Function: getRank
          *  Simple accessor that returns <Coarse operator::rankWorld>. */

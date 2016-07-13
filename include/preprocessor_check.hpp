@@ -38,3 +38,9 @@
 #  undef SUBDOMAIN
 # endif
 #endif
+#ifdef HPDDM_CHECK_EIGENSOLVER
+# ifdef EIGENSOLVER
+#  pragma message("EIGENSOLVER macro already set to " HPDDM_STR(EIGENSOLVER) ", it has now been reset")
+#  undef EIGENSOLVER
+# endif
+#endif

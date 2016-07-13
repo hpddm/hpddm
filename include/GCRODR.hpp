@@ -112,7 +112,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     *v = *H + m * ldh;
     for(unsigned short i = 1; i < m * (1 + (variant == 2)) + 1; ++i)
         v[i] = *v + i * ldv;
-    bool alloc = A.setBuffer(mu);
+    bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m);
 
@@ -233,7 +233,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     hasConverged[nu] = i;
             }
             if(verbosity > 2)
-                outputResidual<3>(i, tol, mu, norm, s + i * mu, hasConverged, m);
+                outputResidual<3>(j, tol, mu, norm, s + i * mu, hasConverged, m);
             if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
                 i += (recycling ? m - k : m);
                 break;
@@ -489,7 +489,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             std::cout << "GCRODR does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
     }
     delete [] hasConverged;
-    A.clearBuffer(alloc);
+    A.clearBuffer(allocate);
     delete [] s;
     delete [] *save;
     delete [] H;
@@ -533,7 +533,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     K* const Ax = tau + m * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
     underlying_type<K>* const beta = norm - mu;
-    bool alloc = A.setBuffer(mu);
+    bool allocate = A.setBuffer();
 
     A.template start<excluded>(b, x, mu);
     if(!variant) {
@@ -940,7 +940,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             opt["recycle_same_system"] += 1;
     }
     delete [] piv;
-    A.clearBuffer(alloc);
+    A.clearBuffer(allocate);
     delete [] *H;
     delete [] *save;
     delete [] H;
