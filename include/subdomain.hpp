@@ -161,14 +161,14 @@ class Subdomain {
                 n += i.second.size();
             if(n == 0)
                 return false;
-            bool alloc;
+            bool allocate;
             if(2 * n <= space && wk) {
                 *_buff = wk;
-                alloc = false;
+                allocate = false;
             }
             else {
                 *_buff = new K[2 * n];
-                alloc = true;
+                allocate = true;
             }
             _buff[_map.size()] = *_buff + n;
             n = 0;
@@ -177,7 +177,7 @@ class Subdomain {
                 _buff[i] = *_buff + n;
                 _buff[size + i] = _buff[size] + n;
             }
-            return alloc;
+            return allocate;
         }
         void clearBuffer(const bool free = true) const {
             if(free && !_map.empty())

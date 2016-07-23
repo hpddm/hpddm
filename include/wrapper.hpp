@@ -70,13 +70,13 @@ struct Wrapper {
 #endif
     /* Variable: d__0
      *  Zero. */
-    static constexpr K d__0 = K(0.0);
+    static constexpr K d__0 = std::is_floating_point<K>::value ? K(0.0) : 0;
     /* Variable: d__1
      *  One. */
-    static constexpr K d__1 = K(1.0);
+    static constexpr K d__1 = std::is_floating_point<K>::value ? K(1.0) : 1;
     /* Variable: d__2
      *  Minus one. */
-    static constexpr K d__2 = K(-1.0);
+    static constexpr K d__2 = std::is_floating_point<K>::value ? K(-1.0) : -1;
 
     /* Function: csrmv(square)
      *  Computes a sparse square matrix-vector product. */

@@ -45,7 +45,7 @@ namespace HPDDM {
  *    S              - 'S'ymmetric or 'G'eneral coarse operator.
  *    K              - Scalar type. */
 template<template<class> class Solver, char S, class K>
-class CoarseOperator : public Solver<K> {
+class CoarseOperator : public Solver<downscaled_type<K>> {
     private:
         /* Variable: gatherComm
          *  Communicator used for assembling right-hand sides. */
@@ -121,7 +121,7 @@ class CoarseOperator : public Solver<K> {
                 for(unsigned short i = 1, j = 1, k = 0; j < sizeComm; ++i) {
                     if(pt[i] != 0)
                         array[j++] = i - k;
-                    else if(countMasters && Solver<K>::_ldistribution[k + 1] == i)
+                    else if(countMasters && super::_ldistribution[k + 1] == i)
                         ++k;
                 }
                 MPI_Group_incl(oldComm, sizeComm, array, &newComm);
@@ -156,22 +156,22 @@ class CoarseOperator : public Solver<K> {
          *    m              - Size of the communicator <Coarse operator::gatherComm> for MPI collectives or number of vectors.
          *    ab             - Array to transfer. */
         template<bool T>
-        void transfer(int* const counts, const int n, const int m, K* const ab) const {
+        void transfer(int* const counts, const int n, const int m, downscaled_type<K>* const ab) const {
             if(!T) {
                 std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
-                MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), ab, counts, counts + n, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
             }
             permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Scatterv(ab, counts, counts + m, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                MPI_Scatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
         template<bool T>
-        void permute(int* const counts, const int n, const int m, K* const ab) const {
+        void permute(int* const counts, const int n, const int m, downscaled_type<K>* const ab) const {
             if(n != 1 && m != 1) {
                 int size = T ? m : n;
-                K* ba = new K[counts[size - 1] + counts[2 * size - 1]];
+                downscaled_type<K>* ba = new downscaled_type<K>[counts[size - 1] + counts[2 * size - 1]];
                 if(!T) {
                     for(int i = 0; i < size; ++i)
                         for(int j = 0; j < m; ++j)
@@ -187,14 +187,14 @@ class CoarseOperator : public Solver<K> {
             }
         }
         template<bool T>
-        void Itransfer(int* const counts, const int n, const int m, K* const ab, MPI_Request* rq) const {
+        void Itransfer(int* const counts, const int n, const int m, downscaled_type<K>* const ab, MPI_Request* rq) const {
             if(!T) {
                 std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
-                MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), ab, counts, counts + n, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
             }
             permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Iscatterv(ab, counts, counts + m, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
@@ -210,6 +210,9 @@ class CoarseOperator : public Solver<K> {
                 MPI_Comm_free(&_scatterComm);
             _gatherComm = _scatterComm = MPI_COMM_NULL;
         }
+        /* Typedef: super
+         *  Type of the immediate parent class <Solver>. */
+        typedef Solver<downscaled_type<K>> super;
         /* Function: construction
          *  Wrapper function to call all needed subroutines. */
         template<unsigned short U, unsigned short excluded, class Operator>

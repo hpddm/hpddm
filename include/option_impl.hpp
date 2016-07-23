@@ -298,7 +298,7 @@ inline void Option::version() const {
         " │  BDD module activated? " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
         " │  QR algorithm: " + std::string(HPDDM_STR(HPDDM_QR)),
         " │  asynchronous collectives? " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
-        " │  optimized matrix-vector products? " + std::string(bool(HPDDM_GMV) ? "true" : "false"),
+        " │  mixed precision arithmetic? " + std::string(bool(HPDDM_MIXED_PRECISION) ? "true" : "false"),
         " │  subdomain solver: " + std::string(HPDDM_STR(SUBDOMAIN)),
         " │  coarse operator solver: " + std::string(HPDDM_STR(COARSEOPERATOR)),
         " │  eigensolver: " + std::string(HPDDM_STR(EIGENSOLVER)),

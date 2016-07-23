@@ -42,7 +42,7 @@
  *    HPDDM_BDD           - BDD methods enabled.
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
- *    HPDDM_GMV           - For overlapping Schwarz methods, this can be used to reduce the volume of communication for computing global matrix-vector products. */
+ *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators. */
 #define HPDDM_VERSION         000302
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
@@ -80,7 +80,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #ifndef HPDDM_ICOLLECTIVE
 # define HPDDM_ICOLLECTIVE    0
 #endif
-#define HPDDM_GMV             0
+#ifndef HPDDM_MIXED_PRECISION
+# define HPDDM_MIXED_PRECISION 0
+#endif
 
 #ifdef __MINGW32__
 # include <inttypes.h>
@@ -250,6 +252,8 @@ template<class T>
 using underlying_type = typename underlying_type_spec<T>::type;
 template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
+template<class T>
+using downscaled_type = typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<underlying_type<T>, T>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION, std::complex<float>, T>::type>::type;
 
 template<class>
 struct is_substructuring_method : public std::false_type { };

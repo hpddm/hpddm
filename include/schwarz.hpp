@@ -238,8 +238,16 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 if(opt.any_of("krylov_method", { 4, 5 }) && !opt.val<unsigned short>("recycle_same_system"))
                     k = std::max(opt.val<int>("recycle", 1), 1);
                 super::start(mu * k);
-                if(opt.val<char>("schwarz_coarse_correction") == 2)
-                    deflation<excluded>(b, x, mu);
+                if(opt.val<char>("schwarz_coarse_correction") == 2) {
+                    K* tmp = new K[mu * Subdomain<K>::_dof];
+                    if(!excluded)
+                        GMV(x, tmp, mu);                                              // tmp = A x
+                    Blas<K>::axpby(mu * Subdomain<K>::_dof, 1.0, b, 1, -1.0, tmp, 1); // tmp = b - A x
+                    deflation<excluded>(nullptr, tmp, mu);                            // tmp = Z E \ Z^T (b - A x)
+                    int dim = mu * Subdomain<K>::_dof;
+                    Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), tmp, &i__1, x, &i__1);   //   x = x + Z E \ Z^T (b - A x)
+                    delete [] tmp;
+                }
             }
         }
         /* Function: apply

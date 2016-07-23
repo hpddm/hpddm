@@ -236,7 +236,7 @@ inline void CoarseOperator<Solver, S, K>::constructionMap(unsigned short p, cons
 template<template<class> class Solver, char S, class K>
 template<unsigned short U, unsigned short excluded, class Operator>
 inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construction(Operator&& v, const MPI_Comm& comm) {
-    static_assert(Solver<K>::_numbering == 'C' || Solver<K>::_numbering == 'F', "Unknown numbering");
+    static_assert(super::_numbering == 'C' || super::_numbering == 'F', "Unknown numbering");
     static_assert(Operator::_pattern == 's' || Operator::_pattern == 'c', "Unknown pattern");
     constructionCommunicator<static_cast<bool>(excluded)>(comm);
     if(excluded > 0 && DMatrix::_communicator != MPI_COMM_NULL) {
@@ -247,7 +247,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     if(Operator::_pattern == 'c')
         v.adjustConnectivity(_scatterComm);
-    Solver<K>::initialize();
+    super::initialize();
     if(U == 2 && _local == 0)
         _offset = true;
     switch(Option::get()->val<char>("master_topology", 0)) {
@@ -292,13 +292,13 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         MPI_Comm_size(v._p.getCommunicator(), &size);
         int full = v._max;
         if(S != 'S')
-            v._max = (v._max & 4095) * pow(v._max >> 12, 2);
+            v._max = ((v._max & 4095) + 1) * pow(v._max >> 12, 2);
         for(unsigned short i = rankSplit; (i % treeDimension == 0) && currentHeight < treeHeight; i /= treeDimension) {
             const unsigned short bound = std::min(treeDimension, static_cast<unsigned short>(std::ceil((_sizeSplit - rankSplit) / static_cast<float>(pow(treeDimension, currentHeight))))) - 1;
             if(S == 'S')
                 v._max = std::min(size - (rank + pow(treeDimension, currentHeight)), full & 4095) * pow(full >> 12, 2);
             for(unsigned short k = 0; k < bound; ++k) {
-                msg->emplace_back(std::array<int, 3>({{ static_cast<int>(std::min(pow(treeDimension, currentHeight), static_cast<unsigned short>(_sizeSplit - (rankSplit + pow(treeDimension, currentHeight) * (k + 1)))) * v._max), rankSplit + pow(treeDimension, currentHeight) * (k + 1), accumulate }}));
+                msg->emplace_back(std::array<int, 3>({{ static_cast<int>(std::min(pow(treeDimension, currentHeight), static_cast<unsigned short>(_sizeSplit - (rankSplit + pow(treeDimension, currentHeight) * (k + 1)))) * v._max + (S == 'S' ? ((full >> 12) * ((full >> 12) + 1)) / 2 : 0)), rankSplit + pow(treeDimension, currentHeight) * (k + 1), accumulate }}));
                 accumulate += msg->back()[0];
             }
             ++currentHeight;
@@ -436,7 +436,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
             v._max = std::accumulate(infoWorld, infoWorld + _rankWorld, 0);
             DMatrix::_n = std::accumulate(infoWorld + _rankWorld, infoWorld + _sizeWorld, v._max);
-            if(Solver<K>::_numbering == 'F')
+            if(super::_numbering == 'F')
                 ++v._max;
             unsigned short tmp = 0;
             for(unsigned short i = 0; i < info[0]; ++i) {
@@ -453,7 +453,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
         else {
             DMatrix::_n = (_sizeWorld - (excluded == 2 ? p : 0)) * _local;
-            v._max = (_rankWorld - (excluded == 2 ? rank : 0)) * _local + (Solver<K>::_numbering == 'F');
+            v._max = (_rankWorld - (excluded == 2 ? rank : 0)) * _local + (super::_numbering == 'F');
 #ifdef HPDDM_CSR_CO
             nrow = (_sizeSplit - (excluded == 2)) * _local;
 #endif
@@ -471,7 +471,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
 #ifdef HPDDM_CSR_CO
         I = new int[nrow + 1 + size];
-        I[0] = (Solver<K>::_numbering == 'F');
+        I[0] = super::_numbering == 'F';
         J = I + nrow + 1;
 #ifdef HPDDM_LOC2GLOB
 #ifndef HPDDM_CONTIGUOUS
@@ -484,14 +484,13 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         I = new int[2 * size];
         J = I + size;
 #endif
-        C = new K[size];
+        C = new K[!std::is_same<downscaled_type<K>, K>::value ? static_cast<unsigned int>(std::ceil(size * sizeof(downscaled_type<K>) / (static_cast<float>(sizeof(K))))) : size];
     }
     const vectorNeighbor& M = v._p.getMap();
 
     MPI_Request* rqSend = v._p.getRq();
     MPI_Request* rqRecv;
     MPI_Request* rqTree = treeDimension ? new MPI_Request[rankSplit ? msg->size() : (treeHeight * (treeDimension - 1))] : nullptr;
-    K* sendMaster;
 
     K** sendNeighbor = v._p.getBuffer();
     K** recvNeighbor;
@@ -515,10 +514,11 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 accumulate += _local * M[i].second.size();
         }
         if(rankSplit) {
-            if(!excluded && (treeDimension && !msg->empty() ? (size + msg->back()[0] + msg->back()[2]) : size) <= accumulate)
-                sendMaster = *sendNeighbor;
+            const unsigned int tmp = treeDimension && !msg->empty() ? size + (!std::is_same<downscaled_type<K>, K>::value ? static_cast<unsigned int>(std::ceil((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) / (static_cast<float>(sizeof(K))))) : (msg->back()[0] + msg->back()[2])) : size;
+            if(!excluded && tmp <= accumulate)
+                C = *sendNeighbor;
             else
-                sendMaster = rankSplit ? new K[treeDimension && !msg->empty() ? (size + msg->back()[0] + msg->back()[2]) : size] : nullptr;
+                C = new K[tmp];
         }
         recvNeighbor = (U == 1 || _local ? sendNeighbor + (S != 'S' ? info[0] : first) : nullptr);
         if(U == 1 || _local) {
@@ -539,9 +539,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 unsigned short before = 0;
                 for(unsigned short j = 0; j < info[0] && sparsity[j] < rank; ++j)
                     before += (U == 1 ? _local : infoNeighbor[j]);
-                K* const pt = (rankSplit ? sendMaster + before : C + before);
-                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), pt, &coefficients);
-                Wrapper<K>::template imatcopy<'R'>(_local, _local, pt, coefficients, coefficients);
+                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), C + before, &coefficients);
+                Wrapper<K>::template imatcopy<'R'>(_local, _local, C + before, coefficients, coefficients);
                 if(rankSplit == 0)
                     for(unsigned short j = 0; j < _local; ++j) {
 #ifndef HPDDM_CSR_CO
@@ -553,14 +552,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             else {
                 if(rankSplit)
                     if(coefficients >= _local) {
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), sendMaster, &_local);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), C, &_local);
                         for(unsigned short j = _local; j-- > 0; )
-                            std::copy_backward(sendMaster + j * (_local + 1), sendMaster + (j + 1) * _local, sendMaster - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * _local);
+                            std::copy_backward(C + j * (_local + 1), C + (j + 1) * _local, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * _local);
                     }
                     else
                         for(unsigned short j = 0; j < _local; ++j) {
                             int local = _local - j;
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d__1), EV[j], &n, work + n * j, &i__1, &(Wrapper<K>::d__0), sendMaster - (j * (j - 1)) / 2 + j * (coefficients + _local), &i__1);
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d__1), EV[j], &n, work + n * j, &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + _local), &i__1);
                         }
                 else {
                     if(coefficients >= _local)
@@ -586,15 +585,17 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         recvNeighbor = (U == 1 || _local) ? sendNeighbor + M.size() : nullptr;
         if(excluded < 2)
             v.template applyToNeighbor<S, U == 1>(sendNeighbor, work, rqSend, U == 1 ? nullptr : infoNeighbor, recvNeighbor, rqRecv);
-        sendMaster = rankSplit ? new K[treeDimension && !msg->empty() ? (size + msg->back()[0] + msg->back()[2]) : size] : nullptr;
+        if(rankSplit)
+            C = new K[treeDimension && !msg->empty() ? (size + msg->back()[0] + msg->back()[2]) : size];
     }
     std::pair<MPI_Request, const K*>* ret = nullptr;
     if(rankSplit) {
         if(treeDimension) {
             for(const std::array<int, 3>& m : *msg)
-                MPI_Irecv(sendMaster + size + m[2], m[0], Wrapper<K>::mpi_type(), m[1], 3, _scatterComm, rqTree++);
+                MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + size + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, _scatterComm, rqTree++);
             rqTree -= msg->size();
         }
+        downscaled_type<K>* const pt = reinterpret_cast<downscaled_type<K>*>(C);
         if(U == 1 || _local) {
             if(Operator::_pattern == 's') {
                 unsigned int* offsetArray = new unsigned int[info[0]];
@@ -610,7 +611,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 for(unsigned short k = 0; k < info[0]; ++k) {
                     int index;
                     MPI_Waitany(info[0], rqRecv, &index, MPI_STATUS_IGNORE);
-                    v.template assembleForMaster<S, U == 1>(sendMaster + offsetArray[index], recvNeighbor[index], coefficients + (S == 'S' ? _local - 1 : 0), index + first, work, infoNeighbor + first + index);
+                    v.template assembleForMaster<S, U == 1>(C + offsetArray[index], recvNeighbor[index], coefficients + (S == 'S' ? _local - 1 : 0), index + first, work, infoNeighbor + first + index);
                 }
                 delete [] offsetArray;
             }
@@ -618,16 +619,19 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 for(unsigned short k = 0; k < M.size(); ++k) {
                     int index;
                     MPI_Waitany(M.size(), rqRecv, &index, MPI_STATUS_IGNORE);
-                    v.template assembleForMaster<S, U == 1>(sendMaster, recvNeighbor[index], coefficients, index, work, infoNeighbor);
+                    v.template assembleForMaster<S, U == 1>(C, recvNeighbor[index], coefficients, index, work, infoNeighbor);
                 }
             }
             if(excluded)
-                ret = new std::pair<MPI_Request, const K*>(MPI_REQUEST_NULL, sendMaster);
+                ret = new std::pair<MPI_Request, const K*>(MPI_REQUEST_NULL, C);
+            if(!std::is_same<downscaled_type<K>, K>::value)
+                for(unsigned int i = 0; i < size; ++i)
+                    pt[i] = C[i];
             if(!treeDimension) {
                 if(excluded)
-                    MPI_Isend(sendMaster, size, Wrapper<K>::mpi_type(), 0, 3, _scatterComm, &ret->first);
+                    MPI_Isend(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), 0, 3, _scatterComm, &ret->first);
                 else
-                    MPI_Send(sendMaster, size, Wrapper<K>::mpi_type(), 0, 3, _scatterComm);
+                    MPI_Send(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), 0, 3, _scatterComm);
             }
         }
         if(treeDimension) {
@@ -636,12 +640,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     MPI_Status st;
                     int idx;
                     MPI_Waitany(msg->size(), rqTree, &idx, &st);
-                    MPI_Get_count(&st, Wrapper<K>::mpi_type(), &((*msg)[idx][1]));
+                    MPI_Get_count(&st, Wrapper<downscaled_type<K>>::mpi_type(), &((*msg)[idx][1]));
                 }
                 (*msg)[0][0] = (*msg)[0][1];
                 for(unsigned short i = 1; i < msg->size(); ++i) {
                     if((*msg)[i][2] != (*msg)[i - 1][0])
-                        std::copy(sendMaster + size + (*msg)[i][2], sendMaster + size + (*msg)[i][2] + (*msg)[i][1], sendMaster + size + (*msg)[i - 1][0]);
+                        std::copy(pt + size + (*msg)[i][2], pt + size + (*msg)[i][2] + (*msg)[i][1], pt + size + (*msg)[i - 1][0]);
                     (*msg)[i][0] = (*msg)[i - 1][0] + (*msg)[i][1];
                 }
                 size += msg->back()[0];
@@ -649,14 +653,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             delete [] rqTree;
             if(size) {
                 if(excluded)
-                    MPI_Isend(sendMaster, size, Wrapper<K>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, _scatterComm, &ret->first);
+                    MPI_Isend(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, _scatterComm, &ret->first);
                 else
-                    MPI_Send(sendMaster, size, Wrapper<K>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, _scatterComm);
+                    MPI_Send(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, _scatterComm);
             }
             delete msg;
         }
-        if(!excluded && sendMaster != *sendNeighbor)
-            delete [] sendMaster;
+        if(!excluded && C != *sendNeighbor)
+            delete [] C;
         delete [] info;
         _sizeRHS = _local;
         if(U != 1)
@@ -672,6 +676,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         unsigned int* offsetPosition;
         if(excluded < 2)
             std::for_each(offsetIdx, offsetIdx + _sizeSplit - 1, [&](unsigned int& i) { i += coefficients * _local + (S == 'S' ? (_local * (_local + 1)) / 2 : 0); });
+        K* const backup = std::is_same<downscaled_type<K>, K>::value ? C : new K[offsetIdx[0]];
+        if(!std::is_same<downscaled_type<K>, K>::value)
+            std::copy_n(C, offsetIdx[0], backup);
         if(!treeDimension) {
             if(excluded < 2)
                 treeHeight = Operator::_pattern == 's' ? info[0] : M.size();
@@ -680,12 +687,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             for(unsigned short k = 1; k < _sizeSplit; ++k) {
                 if(U != 1) {
                     if(infoSplit[k][2])
-                        MPI_Irecv(C + offsetIdx[k - 1], infoSplit[k][2], Wrapper<K>::mpi_type(), k, 3, _scatterComm, rqRecv + treeHeight + k - 1);
+                        MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[k - 1], infoSplit[k][2], Wrapper<downscaled_type<K>>::mpi_type(), k, 3, _scatterComm, rqRecv + treeHeight + k - 1);
                     else
                         rqRecv[treeHeight + k - 1] = MPI_REQUEST_NULL;
                 }
                 else
-                    MPI_Irecv(C + offsetIdx[k - 1], _local * _local * infoSplit[k][0] + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local), Wrapper<K>::mpi_type(), k, 3, _scatterComm, rqRecv + treeHeight + k - 1);
+                    MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[k - 1], _local * _local * infoSplit[k][0] + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local), Wrapper<downscaled_type<K>>::mpi_type(), k, 3, _scatterComm, rqRecv + treeHeight + k - 1);
             }
         }
         else {
@@ -700,16 +707,16 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                         nnz += infoSplit[j][U != 1 ? 2 : 0];
                     if(U != 1) {
                         if(nnz)
-                            MPI_Irecv(C + offsetIdx[leaf * (k + 1) - 1], infoSplit[leaf * (k + 1)][2], Wrapper<K>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
+                            MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[leaf * (k + 1) - 1], infoSplit[leaf * (k + 1)][2], Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
                     }
                     else
-                        MPI_Irecv(C + offsetIdx[leaf * (k + 1) - 1], _local * _local * nnz + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local) * (nextLeaf - leaf), Wrapper<K>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
+                        MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[leaf * (k + 1) - 1], _local * _local * nnz + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local) * (nextLeaf - leaf), Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
                 }
             }
         }
         if(U != 1) {
             offsetPosition = new unsigned int[_sizeSplit];
-            offsetPosition[0] = std::accumulate(infoWorld, infoWorld + rankRelative, static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
+            offsetPosition[0] = std::accumulate(infoWorld, infoWorld + rankRelative, static_cast<unsigned int>(super::_numbering == 'F'));
             if(T == 0 || T == 2)
                 for(unsigned int k = 1; k < _sizeSplit; ++k)
                     offsetPosition[k] = offsetPosition[k - 1] + infoSplit[k - 1][1];
@@ -722,8 +729,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
         for(unsigned int k = 1; k < _sizeSplit; ++k) {
             if(U == 1 || infoSplit[k][2]) {
-                unsigned int tmp = U == 1 ? (rankRelative + k - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * _local + (Solver<K>::_numbering == 'F') : offsetPosition[k];
-                unsigned int offsetSlave = static_cast<unsigned int>(Solver<K>::_numbering == 'F');
+                unsigned int tmp = U == 1 ? (rankRelative + k - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * _local + (super::_numbering == 'F') : offsetPosition[k];
+                unsigned int offsetSlave = static_cast<unsigned int>(super::_numbering == 'F');
                 if(U != 1 && infoSplit[k][0])
                     offsetSlave = std::accumulate(infoWorld, infoWorld + infoSplit[k][3], offsetSlave);
                 unsigned short i = 0;
@@ -735,7 +742,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                                 offsetSlave = std::accumulate(infoWorld + infoSplit[k][2 + i], infoWorld + infoSplit[k][3 + i], offsetSlave);
                         }
                         else
-                            offsetSlave = infoSplit[k][1 + i] * _local + (Solver<K>::_numbering == 'F');
+                            offsetSlave = infoSplit[k][1 + i] * _local + (super::_numbering == 'F');
                         std::iota(colIdx, colIdx + (U == 1 ? _local : infoWorld[infoSplit[k][3 + i]]), offsetSlave);
                         colIdx += (U == 1 ? _local : infoWorld[infoSplit[k][3 + i]]);
                         ++i;
@@ -748,7 +755,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                             offsetSlave = std::accumulate(infoWorld + infoSplit[k][2 + i], infoWorld + infoSplit[k][3 + i], offsetSlave);
                     }
                     else
-                        offsetSlave = infoSplit[k][1 + i] * _local + (Solver<K>::_numbering == 'F');
+                        offsetSlave = infoSplit[k][1 + i] * _local + (super::_numbering == 'F');
                     std::iota(colIdx, colIdx + (U == 1 ? _local : infoWorld[infoSplit[k][3 + i]]), offsetSlave);
                     colIdx += (U == 1 ? _local : infoWorld[infoSplit[k][3 + i]]);
                     ++i;
@@ -787,7 +794,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
             }
         }
-        delete [] offsetIdx;
+        if(std::is_same<downscaled_type<K>, K>::value)
+            delete [] offsetIdx;
         if(excluded < 2) {
 #ifdef HPDDM_CSR_CO
             for(unsigned short k = 0; k < _local; ++k) {
@@ -802,19 +810,19 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 loc2glob[1] = v._max + _local - 1;
 #endif
 #endif
-            unsigned int **offsetArray = new unsigned int*[info[0]];
+            unsigned int** offsetArray = new unsigned int*[info[0]];
             *offsetArray = new unsigned int[info[0] * ((Operator::_pattern == 's') + (U != 1))];
             if(Operator::_pattern == 's') {
                 if(S != 'S') {
                     offsetArray[0][0] = sparsity[0] > _rankWorld ? _local : 0;
                     if(U != 1)
-                        offsetArray[0][1] = std::accumulate(infoWorld, infoWorld + sparsity[0], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
+                        offsetArray[0][1] = std::accumulate(infoWorld, infoWorld + sparsity[0], static_cast<unsigned int>(super::_numbering == 'F'));
                 }
                 else {
                     if(info[0] > 0) {
                         offsetArray[0][0] = _local;
                         if(U != 1)
-                            offsetArray[0][1] = std::accumulate(infoWorld, infoWorld + sparsity[first], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
+                            offsetArray[0][1] = std::accumulate(infoWorld, infoWorld + sparsity[first], static_cast<unsigned int>(super::_numbering == 'F'));
                     }
                 }
                 for(unsigned short k = 1; k < info[0]; ++k) {
@@ -834,9 +842,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             else {
                 if(U != 1) {
                     if(S != 'S')
-                        offsetArray[0][0] = std::accumulate(infoWorld, infoWorld + sparsity[0], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
+                        offsetArray[0][0] = std::accumulate(infoWorld, infoWorld + sparsity[0], static_cast<unsigned int>(super::_numbering == 'F'));
                     else if(info[0] > 0)
-                        offsetArray[0][0] = std::accumulate(infoWorld, infoWorld + sparsity[first], static_cast<unsigned int>(Solver<K>::_numbering == 'F'));
+                        offsetArray[0][0] = std::accumulate(infoWorld, infoWorld + sparsity[first], static_cast<unsigned int>(super::_numbering == 'F'));
                     for(unsigned short k = 1; k < info[0]; ++k) {
                         offsetArray[k] = *offsetArray + k;
                         offsetArray[k][0] = std::accumulate(infoWorld + sparsity[first + k - 1], infoWorld + sparsity[first + k], offsetArray[k - 1][0]);
@@ -844,18 +852,27 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 }
                 info[0] = M.size();
             }
-            if(U == 1 || _local)
+            if(U == 1 || _local) {
                 for(unsigned int k = 0; k < info[0]; ++k) {
                     int index;
                     MPI_Waitany(info[0], rqRecv, &index, MPI_STATUS_IGNORE);
                     if(Operator::_pattern == 's')
-                        v.template applyFromNeighborMaster<S, Solver<K>::_numbering, U == 1>(recvNeighbor[index], index + first, I + offsetArray[index][0], J + offsetArray[index][0], C + offsetArray[index][0], coefficients + (S == 'S') * (_local - 1), v._max, U == 1 ? nullptr : (offsetArray[index] + 1), work, U == 1 ? nullptr : infoNeighbor + first + index);
+                        v.template applyFromNeighborMaster<S, super::_numbering, U == 1>(recvNeighbor[index], index + first, I + offsetArray[index][0], J + offsetArray[index][0], backup + offsetArray[index][0], coefficients + (S == 'S') * (_local - 1), v._max, U == 1 ? nullptr : (offsetArray[index] + 1), work, U == 1 ? nullptr : infoNeighbor + first + index);
                     else
-                        v.template applyFromNeighborMaster<S, Solver<K>::_numbering, U == 1>(recvNeighbor[index], index, I, J, C, coefficients, v._max, U == 1 ? nullptr : *offsetArray, work, U == 1 ? nullptr : infoNeighbor);
+                        v.template applyFromNeighborMaster<S, super::_numbering, U == 1>(recvNeighbor[index], index, I, J, backup, coefficients, v._max, U == 1 ? nullptr : *offsetArray, work, U == 1 ? nullptr : infoNeighbor);
                 }
+                if(!std::is_same<downscaled_type<K>, K>::value) {
+                    downscaled_type<K>* pt = reinterpret_cast<downscaled_type<K>*>(C);
+                    for(unsigned int i = 0; i < offsetIdx[0]; ++i)
+                        pt[i] = backup[i];
+                    delete [] backup;
+                }
+            }
             delete [] *offsetArray;
             delete [] offsetArray;
         }
+        if(!std::is_same<downscaled_type<K>, K>::value)
+            delete [] offsetIdx;
         delete [] info;
         if(!treeDimension)
             MPI_Waitall(_sizeSplit - 1, rqRecv + treeHeight, MPI_STATUSES_IGNORE);
@@ -868,14 +885,15 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             delete [] offsetPosition;
         }
         delete [] work;
-        std::string filename = opt.prefix("master_filename", true);
+        downscaled_type<K>* pt = reinterpret_cast<downscaled_type<K>*>(C);
+        std::string filename = opt.prefix("master_dump_matrix", true);
         if(filename.size() > 0) {
             if(excluded == 2)
                 filename += "_excluded";
-            std::ofstream output { filename + "_" + S + "_" + Solver<K>::_numbering + "_" + to_string(T) + "_" + to_string(DMatrix::_rank) + ".txt" };
+            std::ofstream output { filename + "_" + S + "_" + super::_numbering + "_" + to_string(T) + "_" + to_string(DMatrix::_rank) + ".txt" };
 #ifndef HPDDM_CSR_CO
             for(unsigned int i = 0; i < size; ++i)
-                output << std::setw(9) << I[i] + (Solver<K>::_numbering == 'C') << std::setw(9) << J[i] + (Solver<K>::_numbering == 'C') << " " << std::scientific << C[i] << std::endl;
+                output << std::setw(9) << I[i] + (super::_numbering == 'C') << std::setw(9) << J[i] + (super::_numbering == 'C') << " " << std::scientific << pt[i] << std::endl;
 #else
             unsigned int accumulate = 0;
             for(unsigned int i = 0; i < nrow; ++i) {
@@ -885,11 +903,11 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #ifndef HPDDM_LOC2GLOB
                     i + 1 <<
 #elif !defined(HPDDM_CONTIGUOUS)
-                    loc2glob[i] + (Solver<K>::_numbering == 'C') <<
+                    loc2glob[i] + (super::_numbering == 'C') <<
 #else
-                    loc2glob[0] + i + (Solver<K>::_numbering == 'C') <<
+                    loc2glob[0] + i + (super::_numbering == 'C') <<
 #endif
-                    std::setw(9) << J[accumulate + j - (Solver<K>::_numbering == 'F')] + (Solver<K>::_numbering == 'C') << " " << std::scientific << C[accumulate + j - (Solver<K>::_numbering == 'F')] << std::endl;
+                    std::setw(9) << J[accumulate + j - (super::_numbering == 'F')] + (super::_numbering == 'C') << " " << std::scientific << pt[accumulate + j - (super::_numbering == 'F')] << std::endl;
             }
 #endif
         }
@@ -898,12 +916,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         std::partial_sum(I, I + nrow + 1, I);
 #endif
 #ifndef HPDDM_LOC2GLOB
-        Solver<K>::template numfact<S>(nrow, I, J, C);
+        super::template numfact<S>(nrow, I, J, pt);
 #else
-        Solver<K>::template numfact<S>(nrow, I, loc2glob, J, C);
+        super::template numfact<S>(nrow, I, loc2glob, J, pt);
 #endif
 #else
-        Solver<K>::template numfact<S>(size, I, J, C);
+        super::template numfact<S>(size, I, J, pt);
 #endif
 
 #ifdef DMKL_PARDISO
@@ -1041,7 +1059,11 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 
 template<template<class> class Solver, char S, class K>
 template<bool excluded>
-inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const unsigned short& mu) {
+inline void CoarseOperator<Solver, S, K>::callSolver(K* const pt, const unsigned short& mu) {
+    downscaled_type<K>* rhs = reinterpret_cast<downscaled_type<K>*>(pt);
+    if(!std::is_same<downscaled_type<K>, K>::value)
+        for(unsigned int i = 0; i < mu * _local; ++i)
+            rhs[i] = pt[i];
     if(_scatterComm != MPI_COMM_NULL) {
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL) {
             if(DMatrix::_displs) {
@@ -1050,32 +1072,32 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const unsigne
                     std::for_each(DMatrix::_gatherCounts, DMatrix::_displs + _sizeWorld, [&](int& i) { i /= mu; });
                 }
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Gatherv(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    MPI_Gatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
                     std::for_each(DMatrix::_gatherSplitCounts, DMatrix::_displsSplit + _sizeSplit, [&](int& i) { i *= mu; });
                     transfer<true>(DMatrix::_gatherSplitCounts, mu, _sizeSplit, rhs);
                 }
                 else
-                    MPI_Scatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
             }
             else {
                 if(_rankWorld == 0) {
-                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
                     int p = 0;
                     if(_offset || excluded)
                         MPI_Comm_size(DMatrix::_communicator, &p);
-                    Wrapper<K>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
                 }
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Gather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+                    MPI_Gather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), mu);
-                    Wrapper<K>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), mu);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
                 }
                 else
-                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
             }
         }
         else if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
@@ -1083,74 +1105,81 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const rhs, const unsigne
                 if(_rankWorld == 0)
                     transfer<false>(DMatrix::_gatherCounts, _sizeWorld, mu, rhs);
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Gatherv(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    MPI_Gatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
                 if(DMatrix::_communicator != MPI_COMM_NULL)
-                    Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs, mu);
+                    super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
                 if(_rankWorld == 0)
                     transfer<true>(DMatrix::_gatherCounts, mu, _sizeWorld, rhs);
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Scatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _gatherComm);
+                    MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
             }
             else {
                 int p = 0;
                 if(_rankWorld == 0) {
                     if(_offset || excluded)
                         MPI_Comm_size(DMatrix::_communicator, &p);
-                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
-                    Wrapper<K>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
                 }
                 else
-                    MPI_Gather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+                    MPI_Gather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
                 if(DMatrix::_communicator != MPI_COMM_NULL)
-                    Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs + (_offset || excluded ? mu * _local : 0), mu);
+                    super::template solve<DMatrix::CENTRALIZED>(rhs + (_offset || excluded ? mu * _local : 0), mu);
                 if(_rankWorld == 0) {
-                    Wrapper<K>::template cycle<'T'>(mu, _sizeWorld - p, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, _sizeWorld - p, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
                 }
                 else
-                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
             }
         }
         else if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL_AND_RHS) {
             if(DMatrix::_displs) {
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     transfer<false>(DMatrix::_gatherSplitCounts, _sizeSplit, mu, rhs);
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu);
                     transfer<true>(DMatrix::_gatherSplitCounts, mu, _sizeSplit, rhs);
                 }
                 else {
-                    MPI_Gatherv(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm);
-                    MPI_Scatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Gatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
+                    MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
                 }
             }
             else {
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
-                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm);
-                    Wrapper<K>::template cycle<'T'>(_sizeSplit - (_offset || excluded), mu, rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), mu);
-                    Wrapper<K>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+                    MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeSplit - (_offset || excluded), mu, rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), mu);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
                 }
                 else {
-                    MPI_Gather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
-                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm);
+                    MPI_Gather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
                 }
             }
         }
     }
     else if(DMatrix::_communicator != MPI_COMM_NULL) {
         switch(DMatrix::_distribution) {
-            case DMatrix::CENTRALIZED:             Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs, mu); break;
-            case DMatrix::DISTRIBUTED_SOL:         Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu); break;
-            case DMatrix::DISTRIBUTED_SOL_AND_RHS: Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu); break;
+            case DMatrix::CENTRALIZED:             super::template solve<DMatrix::CENTRALIZED>(rhs, mu); break;
+            case DMatrix::DISTRIBUTED_SOL:         super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu); break;
+            case DMatrix::DISTRIBUTED_SOL_AND_RHS: super::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu); break;
         }
     }
+    if(!std::is_same<downscaled_type<K>, K>::value)
+        for(unsigned int i = mu * _local; i-- > 0; )
+            pt[i] = rhs[i];
 }
 
 #if HPDDM_ICOLLECTIVE
 template<template<class> class Solver, char S, class K>
 template<bool excluded>
-inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const rhs, const unsigned short& mu, MPI_Request* rq) {
+inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigned short& mu, MPI_Request* rq) {
+    downscaled_type<K>* rhs = reinterpret_cast<downscaled_type<K>*>(pt);
+    if(!std::is_same<downscaled_type<K>, K>::value)
+        for(unsigned int i = 0; i < mu * _local; ++i)
+            rhs[i] = pt[i];
     if(_scatterComm != MPI_COMM_NULL) {
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL) {
             if(DMatrix::_displs) {
@@ -1159,36 +1188,36 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const rhs, const unsign
                     std::for_each(DMatrix::_gatherCounts, DMatrix::_displs + _sizeWorld, [&](int& i) { i /= mu; });
                 }
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Igatherv(rhs, _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Igatherv(rhs, _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
                     std::for_each(DMatrix::_gatherSplitCounts, DMatrix::_displsSplit + _sizeSplit, [&](int& i) { i *= mu; });
                     Itransfer<true>(DMatrix::_gatherSplitCounts, mu, _sizeSplit, rhs, rq + 1);
                 }
                 else
-                    MPI_Iscatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
+                    MPI_Iscatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq + 1);
             }
             else {
                 if(_rankWorld == 0) {
-                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                     int p = 0;
                     if(_offset || excluded)
                         MPI_Comm_size(DMatrix::_communicator, &p);
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     *rq = MPI_REQUEST_NULL;
-                    Wrapper<K>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
                 }
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Igather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
+                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (_offset || excluded ? *DMatrix::_gatherCounts : 0), mu);
-                    Wrapper<K>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (_offset || excluded ? *DMatrix::_gatherCounts : 0), mu);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
                 }
                 else
-                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
+                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq + 1);
             }
         }
         else if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
@@ -1196,38 +1225,38 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const rhs, const unsign
                 if(_rankWorld == 0)
                     Itransfer<false>(DMatrix::_gatherCounts, _sizeWorld, mu, rhs, rq);
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Igatherv(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Igatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs, mu);
+                    super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
                 }
                 if(_rankWorld == 0)
                     Itransfer<true>(DMatrix::_gatherCounts, mu, _sizeWorld, rhs, rq + 1);
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Iscatterv(NULL, 0, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _gatherComm, rq + 1);
+                    MPI_Iscatterv(NULL, 0, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq + 1);
             }
             else {
                 int p = 0;
                 if(_rankWorld == 0) {
                     if(_offset || excluded)
                         MPI_Comm_size(DMatrix::_communicator, &p);
-                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     *rq = MPI_REQUEST_NULL;
-                    Wrapper<K>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
                 }
                 else
-                    MPI_Igather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
+                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs + (_offset || excluded ? _local : 0), mu);
+                    super::template solve<DMatrix::CENTRALIZED>(rhs + (_offset || excluded ? _local : 0), mu);
                 }
                 if(_rankWorld == 0) {
-                    Wrapper<K>::template cycle<'T'>(mu, _sizeWorld - p, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, _sizeWorld - p, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
                 }
                 else
-                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
+                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq + 1);
             }
         }
         else if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL_AND_RHS) {
@@ -1235,37 +1264,40 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const rhs, const unsign
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     Itransfer<false>(DMatrix::_gatherSplitCounts, _sizeSplit, mu, rhs, rq);
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu);
                     Itransfer<true>(DMatrix::_gatherSplitCounts, mu, _sizeSplit, rhs, rq + 1);
                 }
                 else {
-                    MPI_Igatherv(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, 0, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
-                    MPI_Iscatterv(NULL, 0, 0, Wrapper<K>::mpi_type(), rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
+                    MPI_Igatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Iscatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq + 1);
                 }
             }
             else {
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
-                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), 0, _gatherComm, rq);
+                    MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    Wrapper<K>::template cycle<'T'>(_sizeSplit - (_offset || excluded), mu, rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? *DMatrix::_gatherCounts : 0), mu);
-                    Wrapper<K>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
-                    MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<K>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeSplit - (_offset || excluded), mu, rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    super::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs + (_offset || excluded ? *DMatrix::_gatherCounts : 0), mu);
+                    Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, _sizeSplit - (_offset || excluded), rhs + (_offset || excluded ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
+                    MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
                 }
                 else {
-                    MPI_Igather(rhs, mu * _local, Wrapper<K>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
-                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<K>::mpi_type(), 0, _scatterComm, rq + 1);
+                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
+                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq + 1);
                 }
             }
         }
     }
     else if(DMatrix::_communicator != MPI_COMM_NULL) {
         switch(DMatrix::_distribution) {
-            case DMatrix::CENTRALIZED:             Solver<K>::template solve<DMatrix::CENTRALIZED>(rhs, mu); break;
-            case DMatrix::DISTRIBUTED_SOL:         Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu); break;
-            case DMatrix::DISTRIBUTED_SOL_AND_RHS: Solver<K>::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu); break;
+            case DMatrix::CENTRALIZED:             super::template solve<DMatrix::CENTRALIZED>(rhs, mu); break;
+            case DMatrix::DISTRIBUTED_SOL:         super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu); break;
+            case DMatrix::DISTRIBUTED_SOL_AND_RHS: super::template solve<DMatrix::DISTRIBUTED_SOL_AND_RHS>(rhs, mu); break;
         }
     }
+    if(!std::is_same<downscaled_type<K>, K>::value)
+        for(unsigned int i = mu * _local; i-- > 0; )
+            pt[i] = rhs[i];
 }
 #endif // HPDDM_ICOLLECTIVE
 } // HPDDM
