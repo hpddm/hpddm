@@ -484,7 +484,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         I = new int[2 * size];
         J = I + size;
 #endif
-        C = new K[!std::is_same<downscaled_type<K>, K>::value ? static_cast<unsigned int>(std::ceil(size * sizeof(downscaled_type<K>) / (static_cast<float>(sizeof(K))))) : size];
+        C = new K[!std::is_same<downscaled_type<K>, K>::value ? std::max(static_cast<unsigned int>((info[0] + 1) * _local * _local), static_cast<unsigned int>(std::ceil(size * sizeof(downscaled_type<K>) / (static_cast<float>(sizeof(K)))))) : size];
     }
     const vectorNeighbor& M = v._p.getMap();
 
