@@ -598,7 +598,10 @@ class IterativeMethod {
 #if !HPDDM_MPI
             int comm = 0;
 #endif
-            const Option& opt = *Option::get();
+            Option& opt = *Option::get();
+#if HPDDM_MIXED_PRECISION
+            opt["variant"] = 2;
+#endif
             switch(opt.val<char>("krylov_method")) {
                 case 5:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;
                 case 4:  return HPDDM::IterativeMethod::GCRODR<excluded>(A, b, x, mu, comm); break;

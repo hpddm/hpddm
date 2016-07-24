@@ -41,7 +41,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     epsilon(tol, verbosity);
     underlying_type<K>* res;
     K* trash;
-    allocate(res, trash, n, opt.val<unsigned short>("variant") == 2 ? 2 : 1, it, mu);
+    allocate(res, trash, n, opt.val<char>("variant", 0) == 2 ? 2 : 1, it, mu);
     bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -it);
@@ -70,7 +70,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     while(i <= it && std::find(hasConverged, hasConverged + mu, -it) != hasConverged + mu) {
         for(unsigned short nu = 0; nu < mu; ++nu)
             dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
-        if(opt.val<unsigned short>("variant") == 2 && i) {
+        if(opt.val<char>("variant", 0) == 2 && i) {
             for(unsigned short k = 0; k < i; ++k)
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
@@ -108,7 +108,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         ++i;
         std::copy_n(dir + mu, mu, dir + (it + i) * mu);
         std::copy_n(p, dim, p + i * dim);
-        if(opt.val<unsigned short>("variant") == 2)
+        if(opt.val<char>("variant", 0) == 2)
             std::copy_n(z, dim, p + (it + i) * dim);
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] == -it) {
@@ -125,7 +125,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             dir[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
         }
         MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        if(opt.val<unsigned short>("variant") != 2)
+        if(opt.val<char>("variant", 0) != 2)
             for(unsigned short nu = 0; nu < mu; ++nu)
                 Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
         std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
@@ -155,7 +155,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     const Option& opt = *Option::get();
     if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
         return GMRES(A, b, x, mu, comm);
-    if(opt.val<unsigned short>("variant") == 2)
+    if(opt.val<char>("variant", 0) == 2)
         return CG(A, b, x, mu, comm);
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
