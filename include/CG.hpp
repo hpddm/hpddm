@@ -75,7 +75,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
             MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-            if(!excluded) {
+            if(!excluded && n) {
                 std::copy_n(z, dim, p);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     for(unsigned short k = 0; k < i; ++k)
@@ -93,11 +93,12 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                     dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
             MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
             if(!excluded) {
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    for(unsigned short k = 0; k < i; ++k)
-                        trash[k] = dir[mu + k * mu + nu];
-                    Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
-                }
+                if(n)
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        for(unsigned short k = 0; k < i; ++k)
+                            trash[k] = dir[mu + k * mu + nu];
+                        Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
+                    }
                 A.GMV(p, z, mu);
             }
         }
@@ -182,7 +183,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
 
     A.template apply<excluded>(r, p, mu, z);
     Wrapper<K>::diag(n, d, p, trash, mu);
-    if(!excluded) {
+    if(!excluded && n) {
         Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), r, &n, trash, &n, &(Wrapper<K>::d__0), rho, &mu);
         for(unsigned short nu = 1; nu < mu; ++nu)
             std::copy_n(rho + nu * mu, nu + 1, rho + (nu * (nu + 1)) / 2);
@@ -215,7 +216,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             Blas<K>::trsm("L", "U", &(Wrapper<K>::transc), "N", &mu, &mu, &(Wrapper<K>::d__1), gamma, &mu, rho + mu * mu, &mu);
         }
         Wrapper<K>::diag(n, d, z, trash, mu);
-        if(!excluded) {
+        if(!excluded && n) {
             Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), p, &n, trash, &n, &(Wrapper<K>::d__0), rhs, &mu);
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs + nu * mu, nu + 1, rhs + (nu * (nu + 1)) / 2);
@@ -230,13 +231,13 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             A.clearBuffer(allocate);
             return CG<excluded>(A, b, x, mu, comm);
         }
-        if(!excluded) {
+        if(!excluded && n) {
             Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__1), p, &n, rho + mu * mu, &mu, &(Wrapper<K>::d__1), x, &n);
             Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__2), z, &n, rho + mu * mu, &mu, &(Wrapper<K>::d__1), r, &n);
         }
         A.template apply<excluded>(r, z, mu, trash);
         Wrapper<K>::diag(n, d, z, trash, mu);
-        if(!excluded) {
+        if(!excluded && n) {
             Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), r, &n, trash, &n, &(Wrapper<K>::d__0), rhs, &mu);
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs + nu * mu, nu + 1, rhs + (nu * (nu + 1)) / 2);
@@ -277,7 +278,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             A.clearBuffer(allocate);
             return CG<excluded>(A, b, x, mu, comm);
         }
-        if(!excluded) {
+        if(!excluded && n) {
             Blas<K>::trmm("L", "U", "N", "N", &mu, &mu, &(Wrapper<K>::d__1), gamma, &mu, rhs, &mu);
             std::copy(p, r, trash);
             Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__1), trash, &n, rhs, &mu, &(Wrapper<K>::d__1), p, &n);

@@ -141,7 +141,7 @@ ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp: force
 	@echo "${CXXFLAGS} ${HPDDMFLAGS}" | cmp -s - $@ || echo "${CXXFLAGS} ${HPDDMFLAGS}" > $@
 
 ${TOP_DIR}/${TRASH_DIR}/compiler_flags_c: force
-	@echo "${CCFLAGS} ${HPDDMFLAGS}" | cmp -s - $@ || echo "${CCFLAGS} ${HPDDMFLAGS}" > $@
+	@echo "${CFLAGS} ${HPDDMFLAGS}" | cmp -s - $@ || echo "${CFLAGS} ${HPDDMFLAGS}" > $@
 
 cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 c: ${TOP_DIR}/${BIN_DIR}/schwarz_c ${TOP_DIR}/${LIB_DIR}/libhpddm_c.${EXTENSION_LIB}

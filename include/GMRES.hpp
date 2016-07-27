@@ -247,7 +247,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         N *= 2;
         std::fill_n(tau, m * N, K());
         Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
-        if(!excluded)
+        if(!excluded && n)
             Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, *v, &n);
         for(unsigned short nu = 0; nu < deflated; ++nu)
             std::fill(s + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());

@@ -36,12 +36,15 @@ class Recycling : private Singleton {
         template<int N>
         Recycling(Singleton::construct_key<N>, unsigned short mu) : _storage(), _mu(mu) { }
         ~Recycling() {
+            destroy();
+        }
+        void destroy() {
             delete [] _storage;
             _storage = nullptr;
         }
         void setMu(const unsigned short mu) { _mu = mu; };
         bool recycling() const {
-            return _storage != nullptr;
+            return _storage;
         }
         void allocate(int n, unsigned short k) {
             _k = k;
@@ -93,7 +96,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    k = std::min(n, std::min(m - 1, k));
+    k = std::min(m - 1, k);
     const char variant = opt.val<char>("variant", 1);
 
     const int ldh = mu * (m + 1);
@@ -168,7 +171,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 else if(!excluded)
                     A.GMV(pt, C, mu * k);
                 QR<excluded>(id / 4, n, k, mu, C, *save, k, comm);
-                if(!excluded) {
+                if(!excluded && n) {
                     if(variant == 1)
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, pt + nu * n, &ldv);
@@ -178,12 +181,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
             orthogonalization<excluded>(id % 4, n, k, mu, C, v[i], H[i], comm);
             if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
-                if(!excluded)
+                if(!excluded && n)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), pt + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
             }
             else {
-                if(!excluded)
+                if(!excluded && n)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), U + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__0), *v + nu * n, &i__1);
                 A.template apply<excluded>(*v, Ax, mu);
@@ -273,9 +276,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     k = dim;
                 recycled.setMu(mu);
                 recycled.allocate(n, k);
-                if(!excluded) {
-                    U = recycled.storage();
-                    C = U + k * ldv;
+                U = recycled.storage();
+                C = U + k * ldv;
+                if(!excluded && n) {
                     std::fill_n(s, dim * mu, K());
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         K h = H[dim - 1][(m + 1) * nu + dim] / H[dim - 1][(m + 1) * nu + dim - 1];
@@ -358,7 +361,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         activeSet[nu++] = curr;
                 const unsigned short strategy = opt.val<unsigned short>("recycle_strategy");
                 K* prod = (strategy == 1 ? nullptr : new K[k * active * (m + 2)]);
-                if(excluded) {
+                if(excluded || !n) {
                     if(strategy != 1) {
                         std::fill_n(prod, k * active * (m + 2), K());
                         MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
@@ -512,7 +515,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     std::cout << std::scientific;
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    k = std::min(n, std::min(m - 1, k));
+    k = std::min(m - 1, k);
     const char variant = opt.val<char>("variant", 1);
 
     int ldh = mu * (m + 1);
@@ -592,7 +595,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 else if(!excluded)
                     A.GMV(pt, C, bK);
                 QR<excluded>(id / 4, n, bK, 1, C, *save, bK, comm);
-                if(!excluded) {
+                if(!excluded && n) {
                     if(variant == 1)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, U, &n);
@@ -601,11 +604,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             }
             blockOrthogonalization<excluded>(id % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
             if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
-                if(!excluded)
+                if(!excluded && n)
                     Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), pt, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
             }
             else {
-                if(!excluded)
+                if(!excluded && n)
                     Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), U, &n, *H, &ldh, &(Wrapper<K>::d__0), Ax, &n);
                 A.template apply<excluded>(Ax, pt, mu);
                 Blas<K>::axpy(&ldv, &(Wrapper<K>::d__1), pt, &i__1, x, &i__1);
@@ -672,7 +675,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             std::copy_n(*v, ldv, v[k]);
         }
         unsigned short i = (recycling ? k : 0);
-        if(!excluded)
+        if(!excluded && n)
             Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, v[i], &n);
         for(unsigned short nu = 0; nu < deflated; ++nu)
             std::fill(s + i * deflated + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
@@ -749,7 +752,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(i == m && id / 4 == 0) {
             if(recycling)
                 i -= k;
-            if(!excluded)
+            if(!excluded && n)
                 Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), save[i - 1] + i * deflated, &ldh, v[m], &n);
         }
         if(opt.val<unsigned short>("recycle_same_system") <= 1) {
@@ -760,9 +763,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     k = dim;
                 recycled.setMu(mu);
                 recycled.allocate(n, k);
-                if(!excluded) {
-                    U = recycled.storage();
-                    C = U + k * ldv;
+                U = recycled.storage();
+                C = U + k * ldv;
+                if(!excluded && n) {
                     std::fill_n(s, deflated * ldh, K());
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &deflated, &(Wrapper<K>::d__1), save[dim - 1] + dim * deflated, &ldh, save[m - 1] + dim * deflated, &ldh, &(Wrapper<K>::d__0), s + (dim - 1) * deflated, &ldh);
                     dim *= deflated;
@@ -820,7 +823,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 int bK = deflated * k;
                 int diff = dim - bK;
                 K* prod = (strategy == 1 ? nullptr : new K[bK * (dim + deflated + 1)]);
-                if(excluded) {
+                if(excluded || !n) {
                     if(strategy != 1) {
                         std::fill_n(prod, bK * (dim + deflated + 1), K());
                         MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);

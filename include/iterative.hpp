@@ -149,9 +149,9 @@ class IterativeMethod {
         static void addSol(const Operator& A, const char variant, const int& n, K* const x, const int& ldh, const K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
             static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
             K* const correction = (variant == 1 ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
-            if(excluded) {
+            if(excluded || !n) {
                 if(variant == 1)
-                    A.template apply<true>(work, correction, deflated == -1 ? mu : deflated);
+                    A.template apply<excluded>(work, correction, deflated == -1 ? mu : deflated);
             }
             else {
                 if(deflated == -1) {
@@ -209,7 +209,7 @@ class IterativeMethod {
                     if(opt.val<unsigned short>("recycle_same_system"))
                         std::fill_n(s, shift * mu, K());
                     else {
-                        if(!excluded)
+                        if(!excluded && n)
                             for(unsigned short nu = 0; nu < mu; ++nu) {
                                 if(std::abs(hasConverged[nu])) {
                                     K alpha = norm[nu];
@@ -220,7 +220,7 @@ class IterativeMethod {
                             std::fill_n(s, shift * mu, K());
                         MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     }
-                    if(!excluded)
+                    if(!excluded && n)
                         for(unsigned short nu = 0; nu < mu; ++nu) {
                             if(std::abs(hasConverged[nu])) {
                                 int diff = std::abs(hasConverged[nu]) - shift;
@@ -234,7 +234,7 @@ class IterativeMethod {
                     if(opt.val<unsigned short>("recycle_same_system"))
                         beta = K();
                     else {
-                        if(!excluded) {
+                        if(!excluded && n) {
                             std::copy_n(v[shift], deflated * n, work);
                             Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K*>(norm), &ldh, work, &n);
                             Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
@@ -338,7 +338,7 @@ class IterativeMethod {
          *    comm           - Global MPI communicator. */
         template<bool excluded, class K>
         static void orthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
-            if(excluded) {
+            if(excluded || !n) {
                 std::fill_n(H, mu * k, K());
                 if(id == 1)
                     for(unsigned short i = 0; i < k; ++i)
@@ -375,7 +375,7 @@ class IterativeMethod {
         }
         template<bool excluded, class K>
         static void blockOrthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const int ldh, K* const work, const MPI_Comm& comm) {
-            if(excluded) {
+            if(excluded || !n) {
                 std::fill_n(work, mu * mu * k, K());
                 if(id == 1)
                     for(unsigned short i = 0; i < k; ++i) {
@@ -412,7 +412,7 @@ class IterativeMethod {
             const int ldv = mu * n;
             if(!work)
                 work = R;
-            if(!excluded)
+            if(!excluded && n)
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     if(!d)
                         Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d__1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d__0), work + nu * (k * (k + 1)) / 2, &k);
@@ -448,7 +448,7 @@ class IterativeMethod {
                     if(info > 0)
                         return info;
                 }
-                if(!excluded && update)
+                if(!excluded && n && update)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), R + k * k * nu, &ldr, Q + nu * n, &ldv);
             }
