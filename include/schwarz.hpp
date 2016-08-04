@@ -507,5 +507,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, Subdomain<K>::_a);
         }
 };
+
+template<template<class> class Solver, template<class> class CoarseSolver, char S, class K>
+struct hpddm_method_id<Schwarz<Solver, CoarseSolver, S, K>> { static constexpr char value = 1; };
 } // HPDDM
 #endif // _HPDDM_SCHWARZ_

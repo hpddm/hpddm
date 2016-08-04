@@ -73,6 +73,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk.", Arg::argument),
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, (Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
+        std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors.", Arg::integer),
         std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle.", Arg::integer),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning.", Arg::argument),
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
@@ -90,10 +91,12 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Substructuring methods options:"; return true; }),
         std::forward_as_tuple("substructuring_scaling=(multiplicity|stiffness|coefficient)", "Type of scaling used for the preconditioner.", Arg::argument),
 #endif
+#if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
         std::forward_as_tuple("eigensolver_tol=<1.0e-6>", "Tolerance for computing eigenvectors by ARPACK or LAPACK.", Arg::numeric),
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Number of local eigenvectors to compute for adaptive methods.", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Threshold for selecting local eigenvectors for adaptive methods.", Arg::numeric),
+#endif
 #if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
 #if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),

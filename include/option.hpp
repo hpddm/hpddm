@@ -117,14 +117,14 @@ class Option : private Singleton {
          *  Removes a key from the unordered map <Option::opt>.
          *
          * Parameter:
-         *    key            - Key to remove for <Option::opt>. */
-        void remove(const std::string& key) { _opt.erase(key); }
+         *    key            - Key to remove from <Option::opt>. */
+        void remove(const std::string& key) {
+            std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
+            if(it != _opt.cend())
+                _opt.erase(it);
+        }
         /* Function: val
-         *
-         *  Returns the value of the key given as an argument, or use a default value if the key is not in <Option::opt>.
-         *
-         * Parameter:
-         *    key            - Key to remove for <Option::opt>. */
+         *  Returns the value of the key given as an argument, or use a default value if the key is not in <Option::opt>. */
         template<class T = double>
         T val(const std::string& key, T d = std::numeric_limits<T>::lowest()) const {
             std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);

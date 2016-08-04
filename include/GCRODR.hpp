@@ -41,6 +41,10 @@ class Recycling : private Singleton {
         void destroy() {
             delete [] _storage;
             _storage = nullptr;
+            Option& opt = *Option::get();
+            unsigned short k = opt.val<unsigned short>("recycle_same_system");
+            if(k > 1)
+                opt["recycle_same_system"] = 1;
         }
         void setMu(const unsigned short mu) { _mu = mu; };
         bool recycling() const {
@@ -118,7 +122,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m);
-
     int info;
     unsigned short j = 1;
     bool recycling;
@@ -132,18 +135,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     }
     else
         recycling = false;
-
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m * (1 + (variant == 2)) + 1) * ldv);
     underlying_type<K>* const sn = norm + mu;
-    A.template start<excluded>(b, x, mu);
-    if(!variant) {
-        A.template apply<excluded>(b, *v, mu, Ax);
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
-    }
-    else
-        localSquaredNorm(b, n, norm, mu);
-
+    initializeNorm<excluded>(A, variant, b, x, *v, n, Ax, norm, mu, 1);
     const char id = opt.val<char>("orthogonalization", 0) + 4 * opt.val<char>("qr", 0);
     while(j <= it) {
         unsigned short i = (recycling ? k : 0);
@@ -231,12 +225,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             if(recycling)
                 orthogonalization<excluded>(id % 4, n, k, mu, C, v[i + 1], H[i], comm);
             Arnoldi<excluded>(id % 4, m, H, v, s, sn, n, i++, mu, comm, save, recycling ? k : 0);
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                if(hasConverged[nu] == -m && ((tol > 0.0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(s[i * mu + nu]) <= -tol)))
-                    hasConverged[nu] = i;
-            }
-            if(verbosity > 2)
-                outputResidual<3>(j, tol, mu, norm, s + i * mu, hasConverged, m);
+            checkConvergence<4>(verbosity, j, i, tol, mu, norm, s + i * mu, hasConverged, m);
             if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
                 i += (recycling ? m - k : m);
                 break;
@@ -535,24 +524,15 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
-    underlying_type<K>* const beta = norm - mu;
     bool allocate = A.setBuffer();
-
-    A.template start<excluded>(b, x, mu);
-    if(!variant) {
-        A.template apply<excluded>(b, *v, mu, Ax);
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
-    }
-    else
-        localSquaredNorm(b, n, norm, mu);
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-    for(unsigned short nu = 0; nu < mu; ++nu) {
+    const unsigned short t = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
+    initializeNorm<excluded>(A, variant, b, x, *v, n, Ax, norm, mu, t);
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu / t, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    for(unsigned short nu = 0; nu < mu / t; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
         if(norm[nu] < HPDDM_EPS)
             norm[nu] = 1.0;
     }
-
     unsigned short j = 1;
     bool recycling;
     K* U, *C = nullptr;
@@ -699,26 +679,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 i = j = 0;
                 break;
             }
-            unsigned short converged = 0;
-            for(unsigned short nu = 0; nu < deflated; ++nu) {
-                beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * i + nu * ldh, &i__1);
-                if(((tol > 0.0 && beta[nu] / norm[nu] <= tol) || (tol < 0.0 && beta[nu] <= -tol)))
-                    ++converged;
-            }
-            if(verbosity > 2) {
-                underlying_type<K>* max = std::max_element(beta, beta + deflated);
-                if(tol > 0.0)
-                    std::cout << "BGCRODR: " << std::setw(3) << j << " " << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
-                else
-                    std::cout << "BGCRODR: " << std::setw(3) << j << " " << *max << " < " << -tol;
-                std::cout << " (rhs #" << std::distance(beta, max) + 1;
-                if(converged)
-                    std::cout << ", " << converged << " converged rhs";
-                if(deflated != mu)
-                    std::cout << ", " << mu - deflated << " deflated rhs";
-                std::cout << ")" << std::endl;
-            }
-            if(converged == deflated) {
+            if(deflated == checkBlockConvergence<5>(verbosity, j, tol, mu, deflated, norm, s + deflated * i, ldh, Ax, t)) {
                 dim = deflated * i;
                 i = 0;
                 break;

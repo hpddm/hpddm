@@ -38,7 +38,6 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     epsilon(tol, verbosity);
     const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
     const char variant = opt.val<char>("variant", 1);
-
     K** const H = new K*[m * (2 + (variant == 2)) + 1];
     K** const v = H + m;
     K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + m * (1 + (variant == 2))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
@@ -54,16 +53,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m);
-
-    A.template start<excluded>(b, x, mu);
-    if(!variant) {
-        A.template apply<excluded>(b, *v, mu, Ax);
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
-    }
-    else
-        localSquaredNorm(b, n, norm, mu);
-
+    initializeNorm<excluded>(A, variant, b, x, *v, n, Ax, norm, mu, 1);
     unsigned short j = 1;
     while(j <= it) {
         if(!excluded)
@@ -102,12 +92,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                     A.GMV(variant == 2 ? v[i + m + 1] : Ax, v[i + 1], mu);
             }
             Arnoldi<excluded>(opt.val<char>("orthogonalization", 0), m, H, v, s, sn, n, i++, mu, comm);
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                if(hasConverged[nu] == -m && ((tol > 0.0 && std::abs(s[i * mu + nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(s[i * mu + nu]) <= -tol)))
-                    hasConverged[nu] = i;
-            }
-            if(verbosity > 2)
-                outputResidual<0>(j, tol, mu, norm, s + i * mu, hasConverged, m);
+            checkConvergence<0>(verbosity, j, i, tol, mu, norm, s + i * mu, hasConverged, m);
             if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
                 i = 0;
                 break;
@@ -167,24 +152,15 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
-    underlying_type<K>* const beta = norm - mu;
     bool allocate = A.setBuffer();
-
-    A.template start<excluded>(b, x, mu);
-    if(!variant) {
-        A.template apply<excluded>(b, *v, mu, Ax);
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            norm[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
-    }
-    else
-        localSquaredNorm(b, n, norm, mu);
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-    for(unsigned short nu = 0; nu < mu; ++nu) {
+    const unsigned short t = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
+    initializeNorm<excluded>(A, variant, b, x, *v, n, Ax, norm, mu, t);
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu / t, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    for(unsigned short nu = 0; nu < mu / t; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
         if(norm[nu] < HPDDM_EPS)
             norm[nu] = 1.0;
     }
-
     unsigned short j = 1;
     short dim = mu * m;
     int* const piv = new int[mu];
@@ -269,26 +245,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 i = j = 0;
                 break;
             }
-            unsigned short converged = 0;
-            for(unsigned short nu = 0; nu < deflated; ++nu) {
-                beta[nu] = Blas<K>::nrm2(&deflated, s + deflated * i + nu * ldh, &i__1);
-                if(((tol > 0.0 && beta[nu] / norm[nu] <= tol) || (tol < 0.0 && beta[nu] <= -tol)))
-                    ++converged;
-            }
-            if(verbosity > 2) {
-                underlying_type<K>* max = std::max_element(beta, beta + deflated);
-                if(tol > 0.0)
-                    std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " " <<  norm[std::distance(beta, max)] << " " <<  *max / norm[std::distance(beta, max)] << " < " << tol;
-                else
-                    std::cout << "BGMRES: " << std::setw(3) << j << " " << *max << " < " << -tol;
-                std::cout << " (rhs #" << std::distance(beta, max) + 1;
-                if(converged)
-                    std::cout << ", " << converged << " converged rhs";
-                if(deflated != mu)
-                    std::cout << ", " << mu - deflated << " deflated rhs";
-                std::cout << ")" << std::endl;
-            }
-            if(converged == deflated) {
+            if(deflated == checkBlockConvergence<1>(verbosity, j, tol, mu, deflated, norm, s + deflated * i, ldh, Ax, t)) {
                 dim = deflated * i;
                 i = 0;
                 break;

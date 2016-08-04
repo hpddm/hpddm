@@ -266,6 +266,54 @@ class Subdomain {
         /* Function: getBuffer
          *  Returns a pointer to <Subdomain::buff>. */
         K** getBuffer() const { return _buff; }
+        void scatter(const K* const x, K*& s, const unsigned short mu, unsigned short& k) const {
+            int size;
+            MPI_Comm_size(_communicator, &size);
+            if(k < 2 || size == 1)
+                k = 1;
+            else {
+                int rank;
+                MPI_Comm_rank(_communicator, &rank);
+                k = std::min(k, static_cast<unsigned short>(size));
+                s = new K[k * mu * _dof]();
+                unsigned int n = 0;
+                for(const auto& i : _map)
+                    n += i.second.size();
+                unsigned short* idx = new unsigned short[_dof + n];
+                unsigned short* buff = idx + _dof;
+                int div = size / k;
+                std::fill_n(idx, _dof + n, std::min(rank / div, k - 1) + 1);
+                unsigned short i = 0;
+                n = 0;
+                for(unsigned short slice = 0; slice < k; ++slice) {
+                    unsigned int low = div * slice;
+                    unsigned int up = div * (slice + 1);
+                    while(i < _map.size() && low < _map[i].first && _map[i].first <= up) {
+                        std::fill_n(buff + n, _map[i].second.size(), (rank < _map[i].first ? std::min(_map[i].first / div, k - 1) : slice) + 1);
+                        n += _map[i++].second.size();
+                    }
+                }
+                n = 0;
+                for(i = 0; i < _map.size(); ++i) {
+                    Wrapper<unsigned short>::sctr(_map[i].second.size(), buff + n, _map[i].second.data(), idx);
+                    n += _map[i].second.size();
+                }
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    for(i = 0; i < _dof; ++i) {
+                        s[k * nu * _dof + i + (idx[i] - 1) * _dof] = x[nu * _dof + i];
+                    }
+                delete [] idx;
+            }
+        }
+        void gather(K*& s, K* x, const unsigned short mu, const unsigned short k) const {
+            std::fill_n(x, mu * _dof, K());
+            for(unsigned int i = 0; i < _dof; ++i) {
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    for(unsigned short j = 0; j < k; ++j)
+                        x[nu * _dof + i] += s[k * nu * _dof + i + j * _dof];
+            }
+            delete [] s;
+        }
         /* Function: interaction
          *
          *  Builds a vector of matrices to store interactions with neighboring subdomains.
@@ -676,5 +724,35 @@ class Subdomain {
             }
         }
 };
+
+template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
+inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
+    A.Subdomain<K>::scatter(x, sx, mu, k);
+    if(sx != nullptr) {
+        std::copy_n(b, mu * A.getDof(), x);
+        A.Subdomain<K>::scatter(x, sb, mu, k);
+        Option& opt = *Option::get();
+        opt["enlarge_krylov_subspace"] = k;
+        if(mu > 1)
+            opt.remove("initial_deflation_tol");
+        if(!opt.any_of("krylov_method", { 1, 3, 5 })) {
+            opt["krylov_method"] = 1;
+            if(opt.val<char>("verbosity", 0))
+                std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
+        }
+    }
+    else {
+        sx = x;
+        sb = const_cast<K*>(b);
+        Option::get()->remove("enlarge_krylov_subspace");
+    }
+}
+template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
+inline void IterativeMethod::postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
+    if(sb != b) {
+        A.Subdomain<K>::gather(sx, x, mu, k);
+        delete [] sb;
+    }
+}
 } // HPDDM
 #endif // _HPDDM_SUBDOMAIN_

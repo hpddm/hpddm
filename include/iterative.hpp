@@ -59,29 +59,78 @@ class IterativeMethod {
         /* Function: outputResidual
          *  Prints information about the residual at a given iteration. */
         template<char T, class K>
-        static void outputResidual(const int& i, const underlying_type<K>& tol, const int& mu, const underlying_type<K>* const norm, const K* const res, const short* const conv, const short sentinel) {
-            constexpr auto method = (T == 0 ? "GMRES" : (T == 2 ? "CG" : "GCRODR"));
-            int tmp[2] { 0, 0 };
-            underlying_type<K> beta = std::abs(res[0]);
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                if(conv[nu] != -sentinel)
-                    ++tmp[0];
-                else if(std::abs(res[nu]) > beta) {
-                    beta = std::abs(res[nu]);
-                    tmp[1] = nu;
+        static void checkConvergence(const char verbosity, const unsigned short j, const unsigned short i, const underlying_type<K>& tol, const int& mu, const underlying_type<K>* const norm, const K* const res, short* const conv, const short sentinel) {
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                if(conv[nu] == -sentinel && ((tol > 0.0 && std::abs(res[nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(res[nu]) <= -tol)))
+                    conv[nu] = i;
+            if(verbosity > 2) {
+                constexpr auto method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : "GMRES"));
+                int tmp[2] { 0, 0 };
+                underlying_type<K> beta = std::abs(res[0]);
+                for(unsigned short nu = 0; nu < mu; ++nu) {
+                    if(conv[nu] != -sentinel)
+                        ++tmp[0];
+                    else if(std::abs(res[nu]) > beta) {
+                        beta = std::abs(res[nu]);
+                        tmp[1] = nu;
+                    }
+                }
+                if(tol > 0.0)
+                    std::cout << method << ": " << std::setw(3) << j << " " << beta << " " << norm[tmp[1]] << " " << beta / norm[tmp[1]] << " < " << tol;
+                else
+                    std::cout << method << ": " << std::setw(3) << j << " " << beta << " < " << -tol;
+                if(mu > 1) {
+                    std::cout << " (rhs #" << tmp[1] + 1;
+                    if(tmp[0] > 0)
+                        std::cout << ", " << tmp[0] << " converged rhs";
+                    std::cout << ")";
+                }
+                std::cout << std::endl;
+            }
+        }
+        template<char T, class K>
+        static unsigned short checkBlockConvergence(const char verbosity, const int& i, const underlying_type<K>& tol, const int& mu, const int& d, const underlying_type<K>* const norm, const K* const res, const int ldh, K* const work, const unsigned short t) {
+            underlying_type<K>* pt = reinterpret_cast<underlying_type<K>*>(work);
+            unsigned short conv = 0;
+            if(T == 3) {
+                for(unsigned short nu = 0; nu < mu / t; ++nu) {
+                    pt[nu] = std::sqrt(std::real(res[nu]));
+                    if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
+                        conv += t;
                 }
             }
-            if(tol > 0.0)
-                std::cout << method << ": " << std::setw(3) << i << " " << beta << " " << norm[tmp[1]] << " " << beta / norm[tmp[1]] << " < " << tol;
-            else
-                std::cout << method << ": " << std::setw(3) << i << " " << beta << " < " << -tol;
-            if(mu > 1) {
-                std::cout << " (rhs #" << tmp[1] + 1;
-                if(tmp[0] > 0)
-                    std::cout << ", " << tmp[0] << " converged rhs";
-                std::cout << ")";
+            else if(t <= 1)
+                for(unsigned short nu = 0; nu < d; ++nu) {
+                    pt[nu] = Blas<K>::nrm2(&d, res + nu * ldh, &i__1);
+                    if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
+                        ++conv;
+                }
+            else {
+                std::fill_n(work, d, K());
+                for(unsigned short nu = 0; nu < t; ++nu)
+                    Blas<K>::axpy(&d, &(Wrapper<K>::d__1), res + nu * ldh, &i__1, work, &i__1);
+                *pt = Blas<K>::nrm2(&d, work, &i__1);
+                if(((tol > 0.0 && *pt / *norm <= tol) || (tol < 0.0 && *pt <= -tol)))
+                    conv += t;
             }
-            std::cout << std::endl;
+            if(verbosity > 2) {
+                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : "BGMRES"));
+                underlying_type<K>* max = std::max_element(pt, pt + d / t);
+                if(tol > 0.0)
+                    std::cout << method << ": " << std::setw(3) << i << " " << *max << " " <<  norm[std::distance(pt, max)] << " " <<  *max / norm[std::distance(pt, max)] << " < " << tol;
+                else
+                    std::cout << method << ": " << std::setw(3) << i << " " << *max << " < " << -tol;
+                if(d != t) {
+                    std::cout << " (rhs #" << std::distance(pt, max) + 1;
+                    if(conv)
+                        std::cout << ", " << conv / t << " converged rhs";
+                    if(d != mu)
+                        std::cout << ", " << mu - d << " deflated rhs";
+                    std::cout << ")";
+                }
+                std::cout <<  std::endl;
+            }
+            return conv;
         }
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
@@ -295,15 +344,37 @@ class IterativeMethod {
             else
                 Wrapper<T>::diag(n, d, in);
         }
-        template<class K>
-        static void localSquaredNorm(const K* const b, const unsigned int n, underlying_type<K>* const norm, const unsigned short mu = 1) {
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                norm[nu] = 0.0;
-                for(unsigned int i = 0; i < n; ++i) {
-                    if(std::abs(b[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
-                        norm[nu] += std::norm(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
-                    else
-                        norm[nu] += std::norm(b[nu * n + i]);
+        template<bool excluded, class Operator, class K>
+        static void initializeNorm(const Operator& A, const char variant, const K* const b, K* const x, K* const v, const int n, K* work, underlying_type<K>* const norm, const unsigned short mu, const unsigned short k) {
+            A.template start<excluded>(b, x, mu);
+            if(!variant) {
+                A.template apply<excluded>(b, v, mu, work);
+                if(k <= 1)
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        norm[nu] = std::real(Blas<K>::dot(&n, v + nu * n, &i__1, v + nu * n, &i__1));
+                else {
+                    std::fill_n(work, n, K());
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), v + nu * n, &i__1, work, &i__1);
+                    *norm = std::real(Blas<K>::dot(&n, work, &i__1, work, &i__1));
+                }
+            }
+            else {
+                if(k <= 1)
+                    work = const_cast<K*>(b);
+                else {
+                    std::fill_n(work, n, K());
+                    for(unsigned short nu = 0; nu < k; ++nu)
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), b + nu * n, &i__1, work, &i__1);
+                }
+                for(unsigned short nu = 0; nu < mu / k; ++nu) {
+                    norm[nu] = 0.0;
+                    for(unsigned int i = 0; i < n; ++i) {
+                        if(std::abs(work[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
+                            norm[nu] += std::norm(work[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+                        else
+                            norm[nu] += std::norm(work[nu * n + i]);
+                    }
                 }
             }
         }
@@ -534,6 +605,18 @@ class IterativeMethod {
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
             return false;
         }
+        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
+        static void preprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
+        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
+        static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
+        template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
+        static void preprocess(const Operator&, const K* const b, K*& sb, K* const x, K*& sx, const int&, unsigned short&) {
+            sx = x;
+            sb = const_cast<K*>(b);
+            Option::get()->remove("enlarge_krylov_subspace");
+        }
+        template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
+        static void postprocess(const Operator&, const K* const b, K*& sb, K* const x, K*& sx, const int&, unsigned short&) { }
     public:
         /* Function: GMRES
          *
@@ -602,14 +685,21 @@ class IterativeMethod {
 #if HPDDM_MIXED_PRECISION
             opt["variant"] = 2;
 #endif
+            unsigned short k = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
+            K* sx = nullptr;
+            K* sb = nullptr;
+            preprocess(A, b, sb, x, sx, mu, k);
+            int it;
             switch(opt.val<char>("krylov_method")) {
-                case 5:  return HPDDM::IterativeMethod::BGCRODR<excluded>(A, b, x, mu, comm); break;
-                case 4:  return HPDDM::IterativeMethod::GCRODR<excluded>(A, b, x, mu, comm); break;
-                case 3:  return HPDDM::IterativeMethod::BCG<excluded>(A, b, x, mu, comm); break;
-                case 2:  return HPDDM::IterativeMethod::CG<excluded>(A, b, x, mu, comm); break;
-                case 1:  return HPDDM::IterativeMethod::BGMRES<excluded>(A, b, x, mu, comm); break;
-                default: return HPDDM::IterativeMethod::GMRES<excluded>(A, b, x, mu, comm);
+                case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
+                case 4:  it = HPDDM::IterativeMethod::GCRODR<excluded>(A, sb, sx, k * mu, comm); break;
+                case 3:  it = HPDDM::IterativeMethod::BCG<excluded>(A, sb, sx, k * mu, comm); break;
+                case 2:  it = HPDDM::IterativeMethod::CG<excluded>(A, sb, sx, k * mu, comm); break;
+                case 1:  it = HPDDM::IterativeMethod::BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
+                default: it = HPDDM::IterativeMethod::GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
+            postprocess(A, b, sb, x, sx, mu, k);
+            return it;
         }
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {

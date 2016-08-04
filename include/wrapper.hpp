@@ -193,6 +193,11 @@ inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, K*
     if(d)
         diag(m, d, nullptr, in, n);
 }
+template<class K>
+inline void Wrapper<K>::sctr(const int& n, const K* const x, const int* const indx, K* const y) {
+    for(int i = 0; i < n; ++i)
+        y[indx[i]] = x[i];
+}
 
 #if HPDDM_MKL
 template<char N>
@@ -505,11 +510,6 @@ template<class K>
 inline void Wrapper<K>::gthr(const int& n, const K* const y, K* const x, const int* const indx) {
     for(int i = 0; i < n; ++i)
         x[i] = y[indx[i]];
-}
-template<class K>
-inline void Wrapper<K>::sctr(const int& n, const K* const x, const int* const indx, K* const y) {
-    for(int i = 0; i < n; ++i)
-        y[indx[i]] = x[i];
 }
 template<class K>
 template<char O>

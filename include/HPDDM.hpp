@@ -256,7 +256,9 @@ template<class T>
 using downscaled_type = typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<underlying_type<T>, T>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION, std::complex<float>, T>::type>::type;
 
 template<class>
-struct is_substructuring_method : public std::false_type { };
+struct hpddm_method_id { static constexpr char value = 0; };
+template<class T>
+struct is_substructuring_method { static constexpr bool value = (hpddm_method_id<T>::value == 2 || hpddm_method_id<T>::value == 3); };
 
 template<class T>
 inline void hash_range(std::size_t& seed, T begin, T end) {
@@ -350,6 +352,17 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   endif
 #  endif
 
+#  if !HPDDM_MPI
+#   define MPI_Allreduce(a, b, c, d, e, f) (void)f
+typedef int MPI_Comm;
+#  endif
+#  include "GMRES.hpp"
+#  include "GCRODR.hpp"
+#  include "CG.hpp"
+#  if !HPDDM_MPI
+#   undef MPI_Allreduce
+#  endif
+
 #  if HPDDM_SCHWARZ
 #   include "schwarz.hpp"
 template<class K = double, char S = 'S'>
@@ -364,17 +377,6 @@ using HpFeti = HPDDM::Feti<SUBDOMAIN, COARSEOPERATOR, S, K, P>;
 #   include "BDD.hpp"
 template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
-#  endif
-
-#  if !HPDDM_MPI
-#   define MPI_Allreduce(a, b, c, d, e, f) (void)f
-typedef int MPI_Comm;
-#  endif
-#  include "GMRES.hpp"
-#  include "GCRODR.hpp"
-#  include "CG.hpp"
-#  if !HPDDM_MPI
-#   undef MPI_Allreduce
 #  endif
 # endif // HPDDM_MINIMAL
 # include "option_impl.hpp"

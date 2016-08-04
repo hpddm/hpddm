@@ -67,7 +67,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     std::transform(dir, dir + mu, res, [](const underlying_type<K>& d) { return std::sqrt(d); });
 
     int i = 0;
-    while(i <= it && std::find(hasConverged, hasConverged + mu, -it) != hasConverged + mu) {
+    while(i < it) {
         for(unsigned short nu = 0; nu < mu; ++nu)
             dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
         if(opt.val<char>("variant", 0) == 2 && i) {
@@ -106,11 +106,10 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         for(unsigned short nu = 0; nu < mu; ++nu)
             dir[mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
         MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        ++i;
-        std::copy_n(dir + mu, mu, dir + (it + i) * mu);
-        std::copy_n(p, dim, p + i * dim);
+        std::copy_n(dir + mu, mu, dir + (it + i + 1) * mu);
+        std::copy_n(p, dim, p + (i + 1) * dim);
         if(opt.val<char>("variant", 0) == 2)
-            std::copy_n(z, dim, p + (it + i) * dim);
+            std::copy_n(z, dim, p + (it + i + 1) * dim);
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] == -it) {
                 trash[nu] = dir[nu] / dir[mu + nu];
@@ -130,16 +129,15 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             for(unsigned short nu = 0; nu < mu; ++nu)
                 Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
         std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            if(hasConverged[nu] == -it && ((tol > 0.0 && dir[nu] / res[nu] <= tol) || (tol < 0.0 && dir[nu] <= -tol)))
-                hasConverged[nu] = i;
-        }
-        if(verbosity > 2)
-            outputResidual<2>(i, tol, mu, res, dir, hasConverged, it);
+        checkConvergence<2>(verbosity, i + 1, i + 1, tol, mu, res, dir, hasConverged, it);
+        if(std::find(hasConverged, hasConverged + mu, -it) == hasConverged + mu)
+            break;
+        else
+            ++i;
     }
     if(verbosity) {
-        if(i != it + 1)
-            std::cout << "CG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
+        if(i != it)
+            std::cout << "CG converges after " << (i + 1) << " iteration" << (i > 0 ? "s" : "") << std::endl;
         else
             std::cout << "CG does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
     }
@@ -174,13 +172,12 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     K* const rhs = rho + 2 * mu * mu;
     K* const gamma = rhs + mu * mu;
     const underlying_type<K>* const d = A.getScaling();
-
+    const unsigned short t = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
     A.template start<excluded>(b, x, mu);
     if(!excluded)
         A.GMV(x, z, mu);
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
-
     A.template apply<excluded>(r, p, mu, z);
     Wrapper<K>::diag(n, d, p, trash, mu);
     if(!excluded && n) {
@@ -197,7 +194,6 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         for(unsigned short j = 0; j < i; ++j)
             rho[i + j * mu] = Wrapper<K>::conj(rho[j + i * mu]);
     std::copy_n(rho, mu * mu, rho + mu * mu);
-
     const char id = opt.val<char>("qr", 0);
     int info = QR<excluded>(id, n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
     if(info) {
@@ -206,9 +202,15 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         return CG<excluded>(A, b, x, mu, comm);
     }
     underlying_type<K>* const norm = new underlying_type<K>[mu];
-    for(unsigned short nu = 0; nu < mu; ++nu)
-        norm[nu] = std::sqrt(std::real(gamma[(mu + 1) * nu]));
-
+    if(t <= 1)
+        for(unsigned short nu = 0; nu < mu; ++nu)
+            norm[nu] = Blas<K>::nrm2(&(info = nu + 1), gamma + mu * nu, &i__1);
+    else {
+        std::fill_n(z, t, K());
+        for(unsigned short nu = 0; nu < t; ++nu)
+            Blas<K>::axpy(&(info = nu + 1), &(Wrapper<K>::d__1), gamma + mu * nu, &i__1, z, &i__1);
+        *norm = Blas<K>::nrm2(&(info = t), z, &i__1);
+    }
     unsigned short i = 1;
     while(i <= it) {
         if(!excluded) {
@@ -241,27 +243,23 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), r, &n, trash, &n, &(Wrapper<K>::d__0), rhs, &mu);
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs + nu * mu, nu + 1, rhs + (nu * (nu + 1)) / 2);
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                rho[(2 * mu - 1) * mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
+            if(t <= 1)
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    rho[(2 * mu - 1) * mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
+            else
+                for(unsigned short nu = 0; nu < mu / t; ++nu) {
+                    for(unsigned short xi = 1; xi < t; ++xi)
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), trash + (t * nu + xi) * n, &i__1, trash + t * nu * n, &i__1);
+                    std::copy_n(z + t * nu * n, n, trash + (t * nu + 1) * n);
+                    for(unsigned short xi = 1; xi < t; ++xi)
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), z + (t * nu + xi) * n, &i__1, trash + (t * nu + 1) * n, &i__1);
+                    rho[2 * mu * mu - mu / t + nu] = std::real(Blas<K>::dot(&n, trash + t * nu * n, &i__1, trash + (t * nu + 1) * n, &i__1));
+                }
         }
         else
-            std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
-        MPI_Allreduce(MPI_IN_PLACE, rhs - mu, mu + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        info = 0;
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            underlying_type<K> beta = std::sqrt(std::real(rho[(2 * mu - 1) * mu + nu]));
-            if(((tol > 0.0 && beta / norm[nu] <= tol) || (tol < 0.0 && beta <= -tol)))
-                ++info;
-        }
-        if(verbosity > 2) {
-            K* max = std::max_element(rho + (2 * mu - 1) * mu, rhs, [](const K& lhs, const K& rhs) { return std::sqrt(std::real(lhs)) < std::sqrt(std::real(rhs)); });
-            if(tol > 0.0)
-                std::cout << "BCG: " << std::setw(3) << i << " " << std::sqrt(std::real(*max)) << " " <<  norm[std::distance(rho + (2 * mu - 1) * mu, max)] << " " <<  std::sqrt(std::real(*max)) / norm[std::distance(rho + (2 * mu - 1) * mu, max)] << " < " << tol;
-            else
-                std::cout << "BCG: " << std::setw(3) << i << " " << std::sqrt(std::real(*max)) << " < " << -tol;
-            std::cout << " (rhs #" << std::distance(rho + (2 * mu - 1) * mu, max) + 1 << ")" << std::endl;;
-        }
-        if(info == mu)
+            std::fill_n(rho + 2 * mu * mu - mu / t, mu / t + (mu * (mu + 1)) / 2, K());
+        MPI_Allreduce(MPI_IN_PLACE, rhs - mu / t, mu / t + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+        if(mu == checkBlockConvergence<3>(verbosity, i, tol, mu, mu, norm, rho + 2 * mu * mu - mu / t, 0, trash, t))
             break;
         else
             ++i;

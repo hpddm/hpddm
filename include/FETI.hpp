@@ -479,6 +479,6 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
 };
 
 template<template<class> class Solver, template<class> class CoarseSolver, char S, class K, FetiPrcndtnr P>
-struct is_substructuring_method<Feti<Solver, CoarseSolver, S, K, P>> : public std::true_type { };
+struct hpddm_method_id<Feti<Solver, CoarseSolver, S, K, P>> { static constexpr char value = 2; };
 } // HPDDM
 #endif // _HPDDM_FETI_
