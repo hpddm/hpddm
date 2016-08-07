@@ -31,7 +31,7 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
     if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
-        return GMRES(A, b, x, mu, comm);
+        return GMRES<excluded>(A, b, x, mu, comm);
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     const unsigned short it = std::min(opt.val<short>("max_it", 100), std::numeric_limits<short>::max());
@@ -153,9 +153,9 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     const Option& opt = *Option::get();
     if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
-        return GMRES(A, b, x, mu, comm);
+        return GMRES<excluded>(A, b, x, mu, comm);
     if(opt.val<char>("variant", 0) == 2)
-        return CG(A, b, x, mu, comm);
+        return CG<excluded>(A, b, x, mu, comm);
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     const unsigned short it = std::min(opt.val<short>("max_it", 100), std::numeric_limits<short>::max());
@@ -246,15 +246,14 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             if(t <= 1)
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     rho[(2 * mu - 1) * mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
-            else
-                for(unsigned short nu = 0; nu < mu / t; ++nu) {
-                    for(unsigned short xi = 1; xi < t; ++xi)
-                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), trash + (t * nu + xi) * n, &i__1, trash + t * nu * n, &i__1);
-                    std::copy_n(z + t * nu * n, n, trash + (t * nu + 1) * n);
-                    for(unsigned short xi = 1; xi < t; ++xi)
-                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), z + (t * nu + xi) * n, &i__1, trash + (t * nu + 1) * n, &i__1);
-                    rho[2 * mu * mu - mu / t + nu] = std::real(Blas<K>::dot(&n, trash + t * nu * n, &i__1, trash + (t * nu + 1) * n, &i__1));
-                }
+            else {
+                for(unsigned short nu = 1; nu < t; ++nu)
+                    Blas<K>::axpy(&n, &(Wrapper<K>::d__1), trash + nu * n, &i__1, trash, &i__1);
+                std::copy_n(z, n, trash + n);
+                for(unsigned short nu = 1; nu < t; ++nu)
+                    Blas<K>::axpy(&n, &(Wrapper<K>::d__1), z + nu * n, &i__1, trash + n, &i__1);
+                rho[2 * mu * mu - 1] = std::real(Blas<K>::dot(&n, trash, &i__1, trash + n, &i__1));
+            }
         }
         else
             std::fill_n(rho + 2 * mu * mu - mu / t, mu / t + (mu * (mu + 1)) / 2, K());

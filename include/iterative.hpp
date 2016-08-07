@@ -101,14 +101,17 @@ class IterativeMethod {
             }
             else if(t <= 1)
                 for(unsigned short nu = 0; nu < d; ++nu) {
-                    pt[nu] = Blas<K>::nrm2(&d, res + nu * ldh, &i__1);
+                    int dim = nu + 1;
+                    pt[nu] = Blas<K>::nrm2(&dim, res + nu * ldh, &i__1);
                     if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
                         ++conv;
                 }
             else {
                 std::fill_n(work, d, K());
-                for(unsigned short nu = 0; nu < t; ++nu)
-                    Blas<K>::axpy(&d, &(Wrapper<K>::d__1), res + nu * ldh, &i__1, work, &i__1);
+                for(unsigned short nu = 0; nu < t; ++nu) {
+                    int dim = nu + 1;
+                    Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), res + nu * ldh, &i__1, work, &i__1);
+                }
                 *pt = Blas<K>::nrm2(&d, work, &i__1);
                 if(((tol > 0.0 && *pt / *norm <= tol) || (tol < 0.0 && *pt <= -tol)))
                     conv += t;
@@ -632,13 +635,13 @@ class IterativeMethod {
          *    x              - Solution vector(s).
          *    mu             - Number of right-hand sides.
          *    comm           - Global MPI communicator. */
-        template<bool excluded = false, class Operator = void, class K = double>
+        template<bool, class Operator, class K>
         static int GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm);
-        template<bool excluded = false, class Operator = void, class K = double>
+        template<bool, class Operator, class K>
         static int BGMRES(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
-        template<bool excluded = false, class Operator = void, class K = double>
+        template<bool, class Operator, class K>
         static int GCRODR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
-        template<bool excluded = false, class Operator = void, class K = double>
+        template<bool, class Operator, class K>
         static int BGCRODR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         /* Function: CG
          *
@@ -653,9 +656,9 @@ class IterativeMethod {
          *    b              - Right-hand side.
          *    x              - Solution vector.
          *    comm           - Global MPI communicator. */
-        template<bool excluded = false, class Operator, class K>
+        template<bool, class Operator, class K>
         static int CG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
-        template<bool excluded = false, class Operator, class K>
+        template<bool, class Operator, class K>
         static int BCG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
         /* Function: PCG
          *

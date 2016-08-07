@@ -283,35 +283,28 @@ class Subdomain {
                 unsigned short* buff = idx + _dof;
                 int div = size / k;
                 std::fill_n(idx, _dof + n, std::min(rank / div, k - 1) + 1);
-                unsigned short i = 0;
                 n = 0;
-                for(unsigned short slice = 0; slice < k; ++slice) {
-                    unsigned int low = div * slice;
-                    unsigned int up = div * (slice + 1);
-                    while(i < _map.size() && low < _map[i].first && _map[i].first <= up) {
-                        std::fill_n(buff + n, _map[i].second.size(), (rank < _map[i].first ? std::min(_map[i].first / div, k - 1) : slice) + 1);
-                        n += _map[i++].second.size();
-                    }
+                for(unsigned short i = 0; i < _map.size(); ++i) {
+                    if(rank < _map[i].first)
+                        std::fill_n(buff + n, _map[i].second.size(), std::min(_map[i].first / div, k - 1) + 1);
+                    n += _map[i].second.size();
                 }
                 n = 0;
-                for(i = 0; i < _map.size(); ++i) {
+                for(unsigned short i = 0; i < _map.size(); ++i) {
                     Wrapper<unsigned short>::sctr(_map[i].second.size(), buff + n, _map[i].second.data(), idx);
                     n += _map[i].second.size();
                 }
                 for(unsigned short nu = 0; nu < mu; ++nu)
-                    for(i = 0; i < _dof; ++i) {
+                    for(unsigned int i = 0; i < _dof; ++i)
                         s[k * nu * _dof + i + (idx[i] - 1) * _dof] = x[nu * _dof + i];
-                    }
                 delete [] idx;
             }
         }
         void gather(K*& s, K* x, const unsigned short mu, const unsigned short k) const {
             std::fill_n(x, mu * _dof, K());
-            for(unsigned int i = 0; i < _dof; ++i) {
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    for(unsigned short j = 0; j < k; ++j)
-                        x[nu * _dof + i] += s[k * nu * _dof + i + j * _dof];
-            }
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                for(unsigned short j = 0; j < k; ++j)
+                    Blas<K>::axpy(&_dof, &(Wrapper<K>::d__1), s + k * nu * _dof + j * _dof, &i__1, x + nu * _dof, &i__1);
             delete [] s;
         }
         /* Function: interaction
