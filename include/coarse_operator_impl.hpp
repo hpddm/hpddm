@@ -63,6 +63,12 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
         unsigned int tmp;
         DMatrix::_ldistribution = new int[p];
         char T = opt.val<char>("master_topology", 0);
+#ifdef HPDDM_CONTIGUOUS
+        if(T == 1) {
+            T += 1;
+            opt["master_topology"] = 2;
+        }
+#endif
         if(T == 2) {
             // Here, it is assumed that all subdomains have the same number of coarse degrees of freedom as the rank 0 ! (only true when the distribution is uniform)
             float area = _sizeWorld *_sizeWorld / (2.0 * p);
@@ -238,7 +244,7 @@ template<unsigned short U, unsigned short excluded, class Operator>
 inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construction(Operator&& v, const MPI_Comm& comm) {
     static_assert(super::_numbering == 'C' || super::_numbering == 'F', "Unknown numbering");
     static_assert(Operator::_pattern == 's' || Operator::_pattern == 'c', "Unknown pattern");
-    constructionCommunicator<static_cast<bool>(excluded)>(comm);
+    constructionCommunicator<excluded>(comm);
     if(excluded > 0 && DMatrix::_communicator != MPI_COMM_NULL) {
         int result;
         MPI_Comm_compare(v._p.getCommunicator(), DMatrix::_communicator, &result);
@@ -471,8 +477,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
 #ifdef HPDDM_CSR_CO
         I = new int[nrow + 1 + size];
-        I[0] = super::_numbering == 'F';
         J = I + nrow + 1;
+        I[0] = super::_numbering == 'F';
 #ifdef HPDDM_LOC2GLOB
 #ifndef HPDDM_CONTIGUOUS
         loc2glob = new int[nrow];
@@ -550,33 +556,23 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     }
             }
             else {
-                if(rankSplit)
-                    if(coefficients >= _local) {
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), C, &_local);
-                        for(unsigned short j = _local; j-- > 0; )
-                            std::copy_backward(C + j * (_local + 1), C + (j + 1) * _local, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * _local);
+                if(coefficients >= _local) {
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), C, &_local);
+                    for(unsigned short j = _local; j-- > 0; )
+                        std::copy_backward(C + j * (_local + 1), C + (j + 1) * _local, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * _local);
+                }
+                else
+                    for(unsigned short j = 0; j < _local; ++j) {
+                        int local = _local - j;
+                        Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d__1), EV[j], &n, work + n * j, &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + _local), &i__1);
                     }
-                    else
-                        for(unsigned short j = 0; j < _local; ++j) {
-                            int local = _local - j;
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d__1), EV[j], &n, work + n * j, &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + _local), &i__1);
-                        }
-                else {
-                    if(coefficients >= _local)
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), C, &_local);
+                if(rankSplit == 0)
                     for(unsigned short j = _local; j-- > 0; ) {
 #ifndef HPDDM_CSR_CO
                         std::fill_n(I + j * (coefficients + _local) - (j * (j - 1)) / 2, _local - j, v._max + j);
 #endif
                         std::iota(J + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + j, J + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + _local, v._max + j);
-                        if(coefficients >= _local)
-                            std::copy_backward(C + j * (_local + 1), C + (j + 1) * _local, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * _local);
-                        else {
-                            int local = _local - j;
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d__1), EV[j], &n, work + n * j, &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + _local), &i__1);
-                        }
                     }
-                }
             }
         }
     }

@@ -65,7 +65,7 @@ class IterativeMethod {
                     conv[nu] = i;
             if(verbosity > 2) {
                 constexpr auto method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : "GMRES"));
-                int tmp[2] { 0, 0 };
+                unsigned short tmp[2] { 0, 0 };
                 underlying_type<K> beta = std::abs(res[0]);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     if(conv[nu] != -sentinel)
@@ -81,7 +81,7 @@ class IterativeMethod {
                     std::cout << method << ": " << std::setw(3) << j << " " << beta << " < " << -tol;
                 if(mu > 1) {
                     std::cout << " (rhs #" << tmp[1] + 1;
-                    if(tmp[0] > 0)
+                    if(tmp[0])
                         std::cout << ", " << tmp[0] << " converged rhs";
                     std::cout << ")";
                 }
@@ -413,12 +413,12 @@ class IterativeMethod {
         template<bool excluded, class K>
         static void orthogonalization(const char id, const int n, const int k, const int mu, const K* const B, K* const v, K* const H, const MPI_Comm& comm, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
             if(excluded || !n) {
-                std::fill_n(H, mu * k, K());
+                std::fill_n(H, k * mu, K());
                 if(id == 1)
                     for(unsigned short i = 0; i < k; ++i)
-                        MPI_Allreduce(MPI_IN_PLACE, H + mu * i, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
                 else
-                    MPI_Allreduce(MPI_IN_PLACE, H, mu * k, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), MPI_SUM, comm);
             }
             else {
                 if(id == 1)
