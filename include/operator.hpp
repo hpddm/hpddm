@@ -327,13 +327,13 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         MatrixCSR<K>*                                   _C;
         const underlying_type<K>* const                 _D;
         K*                                           _work;
-        template<char S, bool U>
+        template<bool U>
         void applyFromNeighbor(const K* in, unsigned short index, K*& work, unsigned short* infoNeighbor) {
             int m = U ? super::_local : *infoNeighbor;
-            std::fill_n(work, m * super::_n, K());
+            std::fill_n(_work, m * super::_n, K());
             for(unsigned short i = 0; i < m; ++i)
-                Wrapper<K>::sctr(super::_map[index].second.size(), in + i * super::_map[index].second.size(), super::_map[index].second.data(), work + i * super::_n);
-            Wrapper<K>::diag(super::_n, _D, work, _work, m);
+                for(int j = 0; j < super::_map[index].second.size(); ++j)
+                    _work[i * super::_n + super::_map[index].second[j]] = _D[super::_map[index].second[j]] * in[i * super::_map[index].second.size() + j];
             Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::_local), &m, &(super::_n), &(Wrapper<K>::d__1), *super::_deflation, &(super::_n), _work, &(super::_n), &(Wrapper<K>::d__0), work, &(super::_local));
         }
     public:
@@ -419,27 +419,34 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         }
         template<char S, bool U>
         void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
-            applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
-            for(unsigned short j = 0; j < (U ? super::_local : *infoNeighbor); ++j) {
-                K* pt = C + j;
-                for(unsigned short i = 0; i < super::_local; pt += coefficients - (S == 'S') * i++)
-                    *pt = arrayC[j * super::_local + i];
-            }
+            applyFromNeighbor<U>(in, index, arrayC, infoNeighbor);
+            if(S != 'B')
+                for(unsigned short j = 0; j < (U ? super::_local : *infoNeighbor); ++j) {
+                    K* pt = C + j;
+                    for(unsigned short i = 0; i < super::_local; pt += coefficients - (S == 'S') * i++)
+                        *pt = arrayC[j * super::_local + i];
+                }
         }
         template<char S, char N, bool U>
         void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
-            applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
-            unsigned int offset = U ? super::_map[index].first * super::_local + (N == 'F') : *offsetJ;
-            for(unsigned short i = 0; i < super::_local; ++i) {
-                unsigned int l = coefficients * i - (S == 'S') * (i * (i - 1)) / 2;
-                for(unsigned short j = 0; j < (U ? super::_local : *infoNeighbor); ++j) {
-#ifndef HPDDM_CSR_CO
-                    I[l + j] = offsetI + i;
-#endif
-                    J[l + j] = offset + j;
-                    C[l + j] = arrayC[j * super::_local + i];
-                }
+            applyFromNeighbor<U>(in, index, S == 'B' && N == 'F' ? C : arrayC, infoNeighbor);
+            unsigned int offset = (S == 'B' ? super::_map[index].first + (N == 'F') : (U ? super::_map[index].first * super::_local + (N == 'F') : *offsetJ));
+            if(S == 'B') {
+                *J = offset;
+                if(N == 'C')
+                    Wrapper<K>::template omatcopy<'T'>(super::_local, super::_local, arrayC, super::_local, C, super::_local);
             }
+            else
+                for(unsigned short i = 0; i < super::_local; ++i) {
+                    unsigned int l = coefficients * i - (S == 'S') * (i * (i - 1)) / 2;
+                    for(unsigned short j = 0; j < (U ? super::_local : *infoNeighbor); ++j) {
+#ifndef HPDDM_CSR_CO
+                        I[l + j] = offsetI + i;
+#endif
+                        J[l + j] = offset + j;
+                        C[l + j] = arrayC[j * super::_local + i];
+                    }
+                }
         }
 };
 #endif // HPDDM_SCHWARZ

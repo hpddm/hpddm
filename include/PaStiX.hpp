@@ -25,9 +25,17 @@
 #ifndef _HPDDM_PASTIX_
 #define _HPDDM_PASTIX_
 
+#define HPDDM_GENERATE_PASTIX_EXTERN(C, T)                                                                   \
+int C ## _cscd_redispatch(pastix_int_t, pastix_int_t*, pastix_int_t*, T*, T*, pastix_int_t, pastix_int_t*,   \
+                          pastix_int_t, pastix_int_t**, pastix_int_t**, T**, T**, pastix_int_t*, MPI_Comm,   \
+                          pastix_int_t);
+
 extern "C" {
 #include <pastix.h>
-#include <cscd_utils.h>
+HPDDM_GENERATE_PASTIX_EXTERN(s, float)
+HPDDM_GENERATE_PASTIX_EXTERN(d, double)
+HPDDM_GENERATE_PASTIX_EXTERN(c, std::complex<float>)
+HPDDM_GENERATE_PASTIX_EXTERN(z, std::complex<double>)
 }
 
 #define HPDDM_GENERATE_PASTIX(C, T)                                                                          \
@@ -44,10 +52,10 @@ struct pstx<T> {                                                                
                     pastix_int_t rhs, pastix_int_t* iparm, double* dparm) {                                  \
         C ## _pastix(pastix_data, pastix_comm, n, colptr, row, avals, perm, invp, b, rhs, iparm, dparm);     \
     }                                                                                                        \
-    static pastix_int_t cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, T* a, T* rhs,    \
-                                        pastix_int_t nrhs, pastix_int_t* l2g, pastix_int_t dn,               \
-                                        pastix_int_t** dia, pastix_int_t** dja, T** da, T** drhs,            \
-                                        pastix_int_t* dl2g, MPI_Comm comm, pastix_int_t dof) {               \
+    static int cscd_redispatch(pastix_int_t n, pastix_int_t* ia, pastix_int_t* ja, T* a, T* rhs,             \
+                               pastix_int_t nrhs, pastix_int_t* l2g, pastix_int_t dn,                        \
+                               pastix_int_t** dia, pastix_int_t** dja, T** da, T** drhs,                     \
+                               pastix_int_t* dl2g, MPI_Comm comm, pastix_int_t dof) {                        \
         return C ## _cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia, dja, da, drhs, dl2g, comm, dof); \
     }                                                                                                        \
     static void initParam(pastix_int_t* iparm, double* dparm) {                                              \
@@ -72,10 +80,8 @@ template<class>
 struct pstx { };
 HPDDM_GENERATE_PASTIX(s, float)
 HPDDM_GENERATE_PASTIX(d, double)
-#ifdef PASTIX_HAS_COMPLEX
 HPDDM_GENERATE_PASTIX(c, std::complex<float>)
 HPDDM_GENERATE_PASTIX(z, std::complex<double>)
-#endif
 
 #ifdef DPASTIX
 #undef HPDDM_CHECK_SUBDOMAIN

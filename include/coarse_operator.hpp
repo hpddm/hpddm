@@ -69,7 +69,7 @@ class CoarseOperator : public Solver<downscaled_type<K>> {
         bool                       _offset;
         /* Function: constructionCommunicator
          *  Builds both <Coarse operator::scatterComm> and <DMatrix::communicator>. */
-        template<bool exclude>
+        template<bool>
         void constructionCommunicator(const MPI_Comm&);
         /* Function: constructionCollective
          *
@@ -215,7 +215,7 @@ class CoarseOperator : public Solver<downscaled_type<K>> {
         typedef Solver<downscaled_type<K>> super;
         /* Function: construction
          *  Wrapper function to call all needed subroutines. */
-        template<unsigned short U, unsigned short excluded, class Operator>
+        template<unsigned short, unsigned short, class Operator>
         std::pair<MPI_Request, const K*>* construction(Operator&&, const MPI_Comm&);
         /* Function: callSolver
          *

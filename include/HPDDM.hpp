@@ -43,7 +43,7 @@
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators. */
-#define HPDDM_VERSION         000302
+#define HPDDM_VERSION         000400
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000

@@ -82,7 +82,7 @@ class MklPardiso : public DMatrix {
     protected:
         /* Variable: numbering
          *  0-based indexing. */
-        static constexpr char _numbering = 'C';
+        static constexpr char _numbering = 'F';
     public:
         MklPardiso() : _pt(), _C(), _I(), _J(), _w(), _comm(-1) { }
         ~MklPardiso() {
@@ -94,8 +94,7 @@ class MklPardiso : public DMatrix {
             if(_comm != -1)
                 CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), &ddum, &idum, &idum, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, &ddum, const_cast<int*>(&_comm), &error);
             delete [] _I;
-            if(DMatrix::_communicator != MPI_COMM_NULL && DMatrix::_n == _iparm[41] - _iparm[40] + 1 && _mtype != prds<K>::SPD)
-                delete [] _C;
+            delete [] _C;
         }
         /* Function: numfact
          *
@@ -111,7 +110,7 @@ class MklPardiso : public DMatrix {
          *    J              - Array of column indices.
          *    C              - Array of data. */
         template<char S>
-        void numfact(unsigned int ncol, int* I, int* loc2glob, int* J, K* C) {
+        void numfact(unsigned int ncol, unsigned short bs, int* I, int* loc2glob, int* J, K* C) {
             _I = I;
             _J = J;
             _C = C;
@@ -132,16 +131,20 @@ class MklPardiso : public DMatrix {
             _iparm[5] = 1;
             _iparm[27] = std::is_same<double, underlying_type<K>>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
+            _iparm[36] = bs;
             _iparm[39] = 2;
             _iparm[40] = loc2glob[0];
             _iparm[41] = loc2glob[1];
-            delete [] loc2glob;
             phase = 12;
-            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+            *loc2glob = DMatrix::_n / bs;
+            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, loc2glob, C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
             phase = opt.val<int>("master_mkl_pardiso_iparm_8");
             if(phase != std::numeric_limits<int>::lowest())
                 _iparm[7] = phase;
-            _w = new K[_iparm[41] - _iparm[40] + 1];
+            _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
+            if(S == 'S' || *loc2glob != _iparm[41] - _iparm[40] + 1)
+                _C = nullptr;
+            delete [] loc2glob;
         }
         /* Function: solve
          *

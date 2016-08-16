@@ -223,12 +223,9 @@ class MatrixCSR {
             f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}\n";
             f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << "\n";
             unsigned int k = _ia[0] - (N == 'F');
-            std::streamsize old = f.precision();
-            f << std::setprecision(20);
             for(unsigned int i = 0; i < _n; ++i)
                 for(unsigned int ke = _ia[i + 1] - (N == 'F'); k < ke; ++k)
-                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << _a[k] << "\n";
-            f.precision(old);
+                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setw(13) << std::scientific << _a[k] << "\n";
             return f;
         }
 };
