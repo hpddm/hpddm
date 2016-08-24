@@ -30,9 +30,6 @@ inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
     _opt = {
 #if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
-#if HPDDM_SCHWARZ
-             { "schwarz_method",                0 },
-#endif
 #ifdef MUMPSSUB
              { "mumps_icntl_14",                80 },
 #elif defined(MKL_PARDISOSUB)
@@ -180,22 +177,24 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         if(n == std::string::npos) {
             if(reg.size() != 0) {
                 n = itArg->find_first_not_of("-");
-                if(n != std::string::npos) {
+                if(n != 0 && n != std::string::npos) {
                     std::string opt = itArg->substr(n);
-                    insert(*_app, reg, opt, itArg + 1 != args.cend() ? *(itArg + 1) : "");
+                    if(insert<false>(reg, opt, itArg + 1 != args.cend() ? *(itArg + 1) : ""))
+                        ++itArg;
                 }
             }
         }
         else if(itArg->substr(0, n).find_first_not_of("-") == std::string::npos) {
             std::string opt = itArg->substr(n + 1 + std::string(HPDDM_PREFIX).size());
-            insert(_opt, option, opt, itArg + 1 != args.cend() ? *(itArg + 1) : "");
+            if(insert<true>(option, opt, itArg + 1 != args.cend() ? *(itArg + 1) : ""))
+                ++itArg;
         }
     }
     if(!recursive)
         for(const auto& x : _opt) {
             const std::string key = x.first;
             const double val = x.second;
-            if(val < -10000000 && key[-val - 10000000] == '_' && key.substr(0, -val - 10000000) == "config_file") {
+            if(val < -10000000 && key[-val - 10000000] == '_' && hasEnding(key.substr(0, -val - 10000000), "config_file")) {
                 std::ifstream cfg(key.substr(-val - 10000000 + 1));
                 parse(cfg, display);
             }

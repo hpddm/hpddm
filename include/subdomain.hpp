@@ -34,11 +34,16 @@ namespace HPDDM {
  * Template Parameter:
  *    K              - Scalar type. */
 template<class K>
-class Subdomain {
+class Subdomain : public OptionsPrefix {
     protected:
+        /* Variable: a
+         *  Local matrix. */
+        MatrixCSR<K>*                _a;
         /* Variable : buff
          *  Array used as the receiving and receiving buffer for point-to-point communications with neighboring subdomains. */
         K**                       _buff;
+        /* Variable: map */
+        vectorNeighbor             _map;
         /* Variable: rq
          *  Array of MPI requests to check completion of the MPI transfers with neighboring subdomains. */
         MPI_Request*                _rq;
@@ -48,18 +53,13 @@ class Subdomain {
         /* Variable: dof
          *  Number of degrees of freedom in the current subdomain. */
         int                        _dof;
-        /* Variable: map */
-        vectorNeighbor             _map;
-        /* Variable: a
-         *  Local matrix. */
-        MatrixCSR<K>*                _a;
     public:
-        Subdomain() : _buff(), _rq(), _map(), _a() { }
+        Subdomain() : OptionsPrefix(), _a(), _buff(), _map(), _rq() { }
         ~Subdomain() {
-            destroyMatrix(nullptr);
-            vectorNeighbor().swap(_map);
             delete [] _rq;
+            vectorNeighbor().swap(_map);
             delete [] _buff;
+            destroyMatrix(nullptr);
         }
         /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
@@ -721,23 +721,24 @@ class Subdomain {
 template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
 inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
     A.Subdomain<K>::scatter(x, sx, mu, k);
+    const std::string prefix = A.prefix();
     if(sx != nullptr) {
         std::copy_n(b, mu * A.getDof(), x);
         A.Subdomain<K>::scatter(x, sb, mu, k);
         Option& opt = *Option::get();
-        opt["enlarge_krylov_subspace"] = k;
+        opt[prefix + "enlarge_krylov_subspace"] = k;
         if(mu > 1)
-            opt.remove("initial_deflation_tol");
-        if(!opt.any_of("krylov_method", { 1, 3, 5 })) {
-            opt["krylov_method"] = 1;
-            if(opt.val<char>("verbosity", 0))
+            opt.remove(prefix + "initial_deflation_tol");
+        if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5 })) {
+            opt[prefix + "krylov_method"] = 1;
+            if(opt.val<char>(prefix + "verbosity", 0))
                 std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
         }
     }
     else {
         sx = x;
         sb = const_cast<K*>(b);
-        Option::get()->remove("enlarge_krylov_subspace");
+        Option::get()->remove(prefix + "enlarge_krylov_subspace");
     }
 }
 template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
@@ -747,5 +748,8 @@ inline void IterativeMethod::postprocess(const Operator& A, const K* const b, K*
         delete [] sb;
     }
 }
+
+template<class K>
+struct hpddm_method_id<Subdomain<K>> { static constexpr char value = 10; };
 } // HPDDM
 #endif // _HPDDM_SUBDOMAIN_

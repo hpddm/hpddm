@@ -87,8 +87,9 @@ class Preconditioner : public Subdomain<K> {
             constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value ? 3 : 4;
             unsigned short allUniform[N + 1];
             allUniform[0] = Subdomain<K>::_map.size();
+            const std::string prefix = super::prefix();
             const Option& opt = *Option::get();
-            unsigned short nu = allUniform[1] = allUniform[2] = (_co ? _co->getLocal() : opt.val<unsigned short>("geneo_nu", 20));
+            unsigned short nu = allUniform[1] = allUniform[2] = (_co ? _co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", 20));
             allUniform[3] = static_cast<unsigned short>(~nu);
             if(N == 4)
                 allUniform[4] = nu > 0 ? nu : std::numeric_limits<unsigned short>::max();
@@ -120,7 +121,7 @@ class Preconditioner : public Subdomain<K> {
                 else
                     ret = _co->template construction<0, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
                 construction = MPI_Wtime() - construction;
-                if(_co->getRank() == 0 && opt.val<char>("verbosity", 0) > 1) {
+                if(_co->getRank() == 0 && opt.val<char>(prefix + "verbosity", 0) > 1) {
                     std::stringstream ss;
                     ss << std::setprecision(2) << construction;
                     unsigned short p = opt.val<unsigned short>("master_p", 1);
@@ -175,9 +176,10 @@ class Preconditioner : public Subdomain<K> {
         void destroySolver() {
             using type = alias<Solver<K>>;
             _s.~type();
+            const std::string prefix = super::prefix();
             Option& opt = *Option::get();
-            if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
-                opt["reuse_preconditioner"] = 1;
+            if(opt.val<unsigned short>(prefix + "reuse_preconditioner") >= 1)
+                opt[prefix + "reuse_preconditioner"] = 1;
         }
         /* Function: callSolve
          *

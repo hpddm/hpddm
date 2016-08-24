@@ -29,23 +29,24 @@
 namespace HPDDM {
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-    const Option& opt = *Option::get();
-    if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
-        return GMRES<excluded>(A, b, x, mu, comm);
+    underlying_type<K> tol;
+    unsigned short it;
+    char id[2];
+    {
+        const std::string prefix = A.prefix();
+        const Option& opt = *Option::get();
+        if(opt.any_of(prefix + "schwarz_method", { 0, 1, 4 }) || opt.any_of(prefix + "schwarz_coarse_correction", { 0 }))
+            return GMRES<excluded>(A, b, x, mu, comm);
+        options<2>(prefix, &tol, nullptr, &it, id);
+    }
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
-    const unsigned short it = std::min(opt.val<short>("max_it", 100), std::numeric_limits<short>::max());
-    underlying_type<K> tol = opt.val("tol", 1.0e-6);
-    const char verbosity = opt.val<char>("verbosity", 0);
-    std::cout << std::scientific;
-    epsilon(tol, verbosity);
     underlying_type<K>* res;
     K* trash;
-    allocate(res, trash, n, opt.val<char>("variant", 0) == 2 ? 2 : 1, it, mu);
+    allocate(res, trash, n, id[1] == 2 ? 2 : 1, it, mu);
     bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -it);
-
     underlying_type<K>* const dir = res + mu;
     K* const z = trash + dim;
     K* const r = z + dim;
@@ -70,7 +71,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     while(i < it) {
         for(unsigned short nu = 0; nu < mu; ++nu)
             dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
-        if(opt.val<char>("variant", 0) == 2 && i) {
+        if(id[1] == 2 && i) {
             for(unsigned short k = 0; k < i; ++k)
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
@@ -108,7 +109,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
         std::copy_n(dir + mu, mu, dir + (it + i + 1) * mu);
         std::copy_n(p, dim, p + (i + 1) * dim);
-        if(opt.val<char>("variant", 0) == 2)
+        if(id[1] == 2)
             std::copy_n(z, dim, p + (it + i + 1) * dim);
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] == -it) {
@@ -125,22 +126,17 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             dir[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
         }
         MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        if(opt.val<char>("variant", 0) != 2)
+        if(id[1] != 2)
             for(unsigned short nu = 0; nu < mu; ++nu)
                 Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
         std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
-        checkConvergence<2>(verbosity, i + 1, i + 1, tol, mu, res, dir, hasConverged, it);
+        checkConvergence<2>(id[0], i + 1, i + 1, tol, mu, res, dir, hasConverged, it);
         if(std::find(hasConverged, hasConverged + mu, -it) == hasConverged + mu)
             break;
         else
             ++i;
     }
-    if(verbosity) {
-        if(i != it)
-            std::cout << "CG converges after " << (i + 1) << " iteration" << (i > 0 ? "s" : "") << std::endl;
-        else
-            std::cout << "CG does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
-    }
+    convergence<2>(id[0], i, it);
     delete [] res;
     if(Wrapper<K>::is_complex)
         delete [] trash;
@@ -151,19 +147,22 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-    const Option& opt = *Option::get();
-    if(opt.any_of("schwarz_method", { 0, 1, 4 }) || opt.any_of("schwarz_coarse_correction", { 0 }))
-        return GMRES<excluded>(A, b, x, mu, comm);
-    if(opt.val<char>("variant", 0) == 2)
-        return CG<excluded>(A, b, x, mu, comm);
+    underlying_type<K> tol;
+    unsigned short m[2];
+    char id[2];
+    {
+        const std::string prefix = A.prefix();
+        const Option& opt = *Option::get();
+        if(opt.any_of(prefix + "schwarz_method", { 0, 1, 4 }) || opt.any_of(prefix + "schwarz_coarse_correction", { 0 }))
+            return GMRES<excluded>(A, b, x, mu, comm);
+        options<3>(prefix, &tol, nullptr, m, id);
+        if(opt.val<char>(prefix + "variant", 0) == 2)
+            return CG<excluded>(A, b, x, mu, comm);
+        m[1] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
+    }
+    bool allocate = A.setBuffer();
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
-    const unsigned short it = std::min(opt.val<short>("max_it", 100), std::numeric_limits<short>::max());
-    underlying_type<K> tol = opt.val("tol", 1.0e-6);
-    const char verbosity = opt.val<char>("verbosity", 0);
-    std::cout << std::scientific;
-    epsilon(tol, verbosity);
-    bool allocate = A.setBuffer();
     K* const trash = new K[4 * (dim + mu * mu)];
     K* const p = trash + dim;
     K* const z = p + dim;
@@ -172,7 +171,6 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     K* const rhs = rho + 2 * mu * mu;
     K* const gamma = rhs + mu * mu;
     const underlying_type<K>* const d = A.getScaling();
-    const unsigned short t = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
     A.template start<excluded>(b, x, mu);
     if(!excluded)
         A.GMV(x, z, mu);
@@ -194,25 +192,24 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         for(unsigned short j = 0; j < i; ++j)
             rho[i + j * mu] = Wrapper<K>::conj(rho[j + i * mu]);
     std::copy_n(rho, mu * mu, rho + mu * mu);
-    const char id = opt.val<char>("qr", 0);
-    int info = QR<excluded>(id, n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
+    int info = QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
     if(info) {
         delete [] trash;
         A.clearBuffer(allocate);
         return CG<excluded>(A, b, x, mu, comm);
     }
     underlying_type<K>* const norm = new underlying_type<K>[mu];
-    if(t <= 1)
+    if(m[1] <= 1)
         for(unsigned short nu = 0; nu < mu; ++nu)
             norm[nu] = Blas<K>::nrm2(&(info = nu + 1), gamma + mu * nu, &i__1);
     else {
-        std::fill_n(z, t, K());
-        for(unsigned short nu = 0; nu < t; ++nu)
+        std::fill_n(z, m[1], K());
+        for(unsigned short nu = 0; nu < m[1]; ++nu)
             Blas<K>::axpy(&(info = nu + 1), &(Wrapper<K>::d__1), gamma + mu * nu, &i__1, z, &i__1);
-        *norm = Blas<K>::nrm2(&(info = t), z, &i__1);
+        *norm = Blas<K>::nrm2(&(info = m[1]), z, &i__1);
     }
     unsigned short i = 1;
-    while(i <= it) {
+    while(i <= m[0]) {
         if(!excluded) {
             A.GMV(p, z, mu);
             Blas<K>::trsm("L", "U", &(Wrapper<K>::transc), "N", &mu, &mu, &(Wrapper<K>::d__1), gamma, &mu, rho + mu * mu, &mu);
@@ -243,22 +240,22 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), r, &n, trash, &n, &(Wrapper<K>::d__0), rhs, &mu);
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs + nu * mu, nu + 1, rhs + (nu * (nu + 1)) / 2);
-            if(t <= 1)
+            if(m[1] <= 1)
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     rho[(2 * mu - 1) * mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
             else {
-                for(unsigned short nu = 1; nu < t; ++nu)
+                for(unsigned short nu = 1; nu < m[1]; ++nu)
                     Blas<K>::axpy(&n, &(Wrapper<K>::d__1), trash + nu * n, &i__1, trash, &i__1);
                 std::copy_n(z, n, trash + n);
-                for(unsigned short nu = 1; nu < t; ++nu)
+                for(unsigned short nu = 1; nu < m[1]; ++nu)
                     Blas<K>::axpy(&n, &(Wrapper<K>::d__1), z + nu * n, &i__1, trash + n, &i__1);
                 rho[2 * mu * mu - 1] = std::real(Blas<K>::dot(&n, trash, &i__1, trash + n, &i__1));
             }
         }
         else
-            std::fill_n(rho + 2 * mu * mu - mu / t, mu / t + (mu * (mu + 1)) / 2, K());
-        MPI_Allreduce(MPI_IN_PLACE, rhs - mu / t, mu / t + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        if(mu == checkBlockConvergence<3>(verbosity, i, tol, mu, mu, norm, rho + 2 * mu * mu - mu / t, 0, trash, t))
+            std::fill_n(rho + 2 * mu * mu - mu / m[1], mu / m[1] + (mu * (mu + 1)) / 2, K());
+        MPI_Allreduce(MPI_IN_PLACE, rhs - mu / m[1], mu / m[1] + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+        if(mu == checkBlockConvergence<3>(id[0], i, tol, mu, mu, norm, rho + 2 * mu * mu - mu / m[1], 0, trash, m[1]))
             break;
         else
             ++i;
@@ -280,7 +277,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             std::copy(p, r, trash);
             Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__1), trash, &n, rhs, &mu, &(Wrapper<K>::d__1), p, &n);
         }
-        info = QR<excluded>(id, n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
+        info = QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
         if(info) {
             delete [] norm;
             delete [] trash;
@@ -289,28 +286,21 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         }
         std::copy_n(rho + mu * mu, mu * mu, rho);
     }
-    if(verbosity) {
-        if(i != it + 1)
-            std::cout << "BCG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
-        else
-            std::cout << "BCG does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
-    }
+    convergence<3>(id[0], i, m[0]);
     delete [] norm;
     delete [] trash;
     A.clearBuffer(allocate);
     std::cout.unsetf(std::ios_base::scientific);
-    return std::min(i, it);
+    return std::min(i, m[0]);
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x, const MPI_Comm& comm) {
+    underlying_type<K> tol;
+    unsigned short it;
+    char verbosity;
+    options<6>(A.prefix(), &tol, nullptr, &it, &verbosity);
     typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K**, K*>::type ptr_type;
-    const Option& opt = *Option::get();
     const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
-    const unsigned short it = opt.val<unsigned short>("max_it", 100);
-    underlying_type<K> tol = opt.val("tol", 1.0e-6);
-    const char verbosity = opt.val<char>("verbosity", 0);
-    std::cout << std::scientific;
-    epsilon(tol, verbosity);
     const int offset = std::is_same<ptr_type, K*>::value ? A.getEliminated() : 0;
     ptr_type storage[std::is_same<ptr_type, K*>::value ? 1 : 2];
     // storage[0] = r
@@ -401,12 +391,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
             diag(n, m, z[i - 2]);
         }
     }
-    if(verbosity) {
-        if(i != it + 1)
-            std::cout << "PCG converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
-        else
-            std::cout << "PCG does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
-    }
+    convergence<6>(verbosity, i, it);
     if(std::is_same<ptr_type, K*>::value)
         A.template computeSolution<excluded>(f, x);
     else

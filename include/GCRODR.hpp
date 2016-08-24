@@ -36,15 +36,18 @@ class Recycling : private Singleton {
         template<int N>
         Recycling(Singleton::construct_key<N>, unsigned short mu) : _storage(), _mu(mu) { }
         ~Recycling() {
-            destroy();
+            destroy<false>();
         }
+        template<bool reset = true>
         void destroy() {
             delete [] _storage;
             _storage = nullptr;
-            Option& opt = *Option::get();
-            unsigned short k = opt.val<unsigned short>("recycle_same_system");
-            if(k > 1)
-                opt["recycle_same_system"] = 1;
+            if(reset) {
+                Option& opt = *Option::get();
+                unsigned short k = opt.val<unsigned short>("recycle_same_system");
+                if(k > 1)
+                    opt["recycle_same_system"] = 1;
+            }
         }
         void setMu(const unsigned short mu) { _mu = mu; };
         bool recycling() const {
@@ -86,42 +89,36 @@ inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short
 
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-    Option& opt = *Option::get();
-    int k = opt.val<int>("recycle", 0);
-    const char verbosity = opt.val<char>("verbosity", 0);
+    underlying_type<K> tol;
+    int k;
+    unsigned short m[2];
+    char id[5];
+    options<4>(A.prefix(), &tol, &k, m, id);
     if(k <= 0) {
-        if(verbosity)
+        if(id[0])
             std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to GMRES" << std::endl;
         return GMRES<excluded>(A, b, x, mu, comm);
     }
     const int n = excluded ? 0 : A.getDof();
-    const unsigned short it = opt.val<unsigned short>("max_it", 100);
-    underlying_type<K> tol = opt.val("tol", 1.0e-6);
-    std::cout << std::scientific;
-    epsilon(tol, verbosity);
-    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    k = std::min(m - 1, k);
-    const char variant = opt.val<char>("variant", 1);
-
-    const int ldh = mu * (m + 1);
-    K** const H = new K*[m * (3 + (variant == 2)) + 1];
-    K** const save = H + m;
-    *save = new K[ldh * m];
-    K** const v = save + m;
-    K* const s = new K[mu * ((m + 1) * (m + 1) + n * (2 + (variant == 1) + m * (1 + (variant == 2))) + (!Wrapper<K>::is_complex ? m + 1 : (m + 2) / 2))];
+    const int ldh = mu * (m[1] + 1);
+    K** const H = new K*[m[1] * (3 + (id[1] == 2)) + 1];
+    K** const save = H + m[1];
+    *save = new K[ldh * m[1]];
+    K** const v = save + m[1];
+    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * (2 + (id[1] == 1) + m[1] * (1 + (id[1] == 2))) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2))];
     K* const Ax = s + ldh;
     const int ldv = mu * n;
-    *H = Ax + (1 + (variant == 1)) * ldv;
-    for(unsigned short i = 1; i < m; ++i) {
+    *H = Ax + (1 + (id[1] == 1)) * ldv;
+    for(unsigned short i = 1; i < m[1]; ++i) {
         H[i] = *H + i * ldh;
         save[i] = *save + i * ldh;
     }
-    *v = *H + m * ldh;
-    for(unsigned short i = 1; i < m * (1 + (variant == 2)) + 1; ++i)
+    *v = *H + m[1] * ldh;
+    for(unsigned short i = 1; i < m[1] * (1 + (id[1] == 2)) + 1; ++i)
         v[i] = *v + i * ldv;
     bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
-    std::fill_n(hasConverged, mu, -m);
+    std::fill_n(hasConverged, mu, -m[1]);
     int info;
     unsigned short j = 1;
     bool recycling;
@@ -135,46 +132,45 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     }
     else
         recycling = false;
-    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m * (1 + (variant == 2)) + 1) * ldv);
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (1 + (id[1] == 2)) + 1) * ldv);
     underlying_type<K>* const sn = norm + mu;
-    initializeNorm<excluded>(A, variant, b, x, *v, n, Ax, norm, mu, 1);
-    const char id = opt.val<char>("orthogonalization", 0) + 4 * opt.val<char>("qr", 0);
-    while(j <= it) {
+    initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
+    while(j <= m[0]) {
         unsigned short i = (recycling ? k : 0);
         if(!excluded) {
-            A.GMV(x, !variant ? Ax : v[i], mu);
-            Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, !variant ? Ax : v[i], 1);
+            A.GMV(x, !id[1] ? Ax : v[i], mu);
+            Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, !id[1] ? Ax : v[i], 1);
         }
-        if(!variant)
+        if(!id[1])
             A.template apply<excluded>(Ax, v[i], mu);
         if(j == 1 && recycling) {
             K* pt;
-            if(variant == 1) {
+            if(id[1] == 1) {
                 pt = *v;
-                if(!opt.val<unsigned short>("recycle_same_system"))
+                if(id[4] / 4 == 0)
                     A.template apply<excluded>(U, pt, mu * k, C);
             }
             else
                 pt = U;
-            if(!opt.val<unsigned short>("recycle_same_system")) {
-                if(!variant) {
+            if(id[4] / 4 == 0) {
+                if(!id[1]) {
                     if(!excluded)
                         A.GMV(pt, *v, mu * k);
                     A.template apply<excluded>(*v, C, mu * k);
                 }
                 else if(!excluded)
                     A.GMV(pt, C, mu * k);
-                QR<excluded>(id / 4, n, k, mu, C, *save, k, comm);
+                QR<excluded>(id[2] / 4, n, k, mu, C, *save, k, comm);
                 if(!excluded && n) {
-                    if(variant == 1)
+                    if(id[1] == 1)
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, pt + nu * n, &ldv);
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, U + nu * n, &ldv);
                 }
             }
-            orthogonalization<excluded>(id % 4, n, k, mu, C, v[i], H[i], comm);
-            if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
+            orthogonalization<excluded>(id[2] % 4, n, k, mu, C, v[i], H[i], comm);
+            if(id[1] != 1 || id[4] / 4 == 0) {
                 if(!excluded && n)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), pt + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
@@ -211,38 +207,38 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
             std::for_each(v[i] + nu * n, v[i] + (nu + 1) * n, [&](K& y) { y /= s[mu * i + nu]; });
         }
-        while(i < m && j <= it) {
-            if(!variant) {
+        while(i < m[1] && j <= m[0]) {
+            if(!id[1]) {
                 if(!excluded)
                     A.GMV(v[i], Ax, mu);
                 A.template apply<excluded>(Ax, v[i + 1], mu);
             }
             else {
-                A.template apply<excluded>(v[i], variant == 2 ? v[i + m + 1] : Ax, mu, v[i + 1]);
+                A.template apply<excluded>(v[i], id[1] == 2 ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);
                 if(!excluded)
-                    A.GMV(variant == 2 ? v[i + m + 1] : Ax, v[i + 1], mu);
+                    A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
             }
             if(recycling)
-                orthogonalization<excluded>(id % 4, n, k, mu, C, v[i + 1], H[i], comm);
-            Arnoldi<excluded>(id % 4, m, H, v, s, sn, n, i++, mu, comm, save, recycling ? k : 0);
-            checkConvergence<4>(verbosity, j, i, tol, mu, norm, s + i * mu, hasConverged, m);
-            if(std::find(hasConverged, hasConverged + mu, -m) == hasConverged + mu) {
-                i += (recycling ? m - k : m);
+                orthogonalization<excluded>(id[2] % 4, n, k, mu, C, v[i + 1], H[i], comm);
+            Arnoldi<excluded>(id[2] % 4, m[1], H, v, s, sn, n, i++, mu, comm, save, recycling ? k : 0);
+            checkConvergence<4>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
+            if(std::find(hasConverged, hasConverged + mu, -m[1]) == hasConverged + mu) {
+                i += (recycling ? m[1] - k : m[1]);
                 break;
             }
             else
                 ++j;
         }
         bool converged;
-        if(j != it + 1 && i == m) {
+        if(j != m[0] + 1 && i == m[1]) {
             converged = false;
-            if(verbosity > 1)
-                std::cout << "GCRODR restart(" << m << ", " << k << ")" << std::endl;
+            if(id[0] > 1)
+                std::cout << "GCRODR restart(" << m[1] << ", " << k << ")" << std::endl;
         }
         else {
             converged = true;
-            if(!excluded && j == it + 1) {
-                int rem = (recycling ? (it - m) % (m - k) : it % m);
+            if(!excluded && j == m[0] + 1) {
+                int rem = (recycling ? (m[0] - m[1]) % (m[1] - k) : m[0] % m[1]);
                 if(rem) {
                     if(recycling)
                         rem += k;
@@ -250,14 +246,14 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 }
             }
         }
-        updateSolRecycling<excluded>(A, variant, n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);
-        if(i == m) {
+        updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);
+        if(i == m[1]) {
             if(recycling)
                 i -= k;
             for(unsigned short nu = 0; nu < mu; ++nu)
-                std::for_each(v[m] + nu * n, v[m] + (nu + 1) * n, [&](K& y) { y /= save[i - 1][i + nu * (m + 1)]; });
+                std::for_each(v[m[1]] + nu * n, v[m[1]] + (nu + 1) * n, [&](K& y) { y /= save[i - 1][i + nu * (m[1] + 1)]; });
         }
-        if(opt.val<unsigned short>("recycle_same_system") <= 1) {
+        if(id[4] / 4 <= 1) {
             if(!recycling) {
                 recycling = true;
                 int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));
@@ -270,18 +266,18 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 if(!excluded && n) {
                     std::fill_n(s, dim * mu, K());
                     for(unsigned short nu = 0; nu < mu; ++nu) {
-                        K h = H[dim - 1][(m + 1) * nu + dim] / H[dim - 1][(m + 1) * nu + dim - 1];
+                        K h = H[dim - 1][(m[1] + 1) * nu + dim] / H[dim - 1][(m[1] + 1) * nu + dim - 1];
                         for(i = dim; i-- > 1; ) {
-                            s[i + dim * nu] = H[i - 1][(m + 1) * nu + i] * h;
+                            s[i + dim * nu] = H[i - 1][(m[1] + 1) * nu + i] * h;
                             h *= -sn[(i - 1) * mu + nu];
                         }
                         s[dim * nu] = h;
                         for(i = 0; i < dim; ++i) {
-                            std::fill_n(save[i] + i + 2 + nu * (m + 1), m - i - 1, K());
-                            std::copy_n(save[i] + nu * (m + 1), m + 1, H[i] + nu * (m + 1));
+                            std::fill_n(save[i] + i + 2 + nu * (m[1] + 1), m[1] - i - 1, K());
+                            std::copy_n(save[i] + nu * (m[1] + 1), m[1] + 1, H[i] + nu * (m[1] + 1));
                         }
-                        h = save[dim - 1][dim + nu * (m + 1)] * save[dim - 1][dim + nu * (m + 1)];
-                        Blas<K>::axpy(&dim, &h, s + dim * nu, &i__1, H[dim - 1] + nu * (m + 1), &i__1);
+                        h = save[dim - 1][dim + nu * (m[1] + 1)] * save[dim - 1][dim + nu * (m[1] + 1)];
+                        Blas<K>::axpy(&dim, &h, s + dim * nu, &i__1, H[dim - 1] + nu * (m[1] + 1), &i__1);
                         int* select = new int[dim]();
                         int row = dim + 1;
                         int lwork = -1;
@@ -296,12 +292,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         K* work = new K[lwork];
                         K* w = new K[Wrapper<K>::is_complex ? dim : (2 * dim)];
                         K* backup = new K[dim * dim]();
-                        Wrapper<K>::template omatcopy<'N'>(dim, dim, *H + nu * (m + 1), ldh, backup, dim);
+                        Wrapper<K>::template omatcopy<'N'>(dim, dim, *H + nu * (m[1] + 1), ldh, backup, dim);
                         Lapack<K>::hseqr("E", "N", &dim, &i__1, &dim, backup, &dim, w, w + dim, nullptr, &i__1, work, &lwork, &info);
                         delete [] backup;
                         std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                         q.reserve(dim);
-                        selectNu(opt.val<unsigned short>("recycle_target"), q, dim, w, w + dim);
+                        selectNu(id[3], q, dim, w, w + dim);
                         q.resize(k);
                         int mm = Wrapper<K>::is_complex ? k : 0;
                         for(typename decltype(q)::const_iterator it = q.cbegin(); it < q.cend(); ++it) {
@@ -326,60 +322,59 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         K* vr = new K[mm * dim];
                         int* ifailr = new int[mm];
                         int col;
-                        Lapack<K>::hsein("R", "Q", "N", select, &dim, *H + nu * (m + 1), &ldh, w, w + dim, nullptr, &i__1, vr, &dim, &mm, &col, work, rwork, nullptr, ifailr, &info);
+                        Lapack<K>::hsein("R", "Q", "N", select, &dim, *H + nu * (m[1] + 1), &ldh, w, w + dim, nullptr, &i__1, vr, &dim, &mm, &col, work, rwork, nullptr, ifailr, &info);
                         delete [] ifailr;
                         delete [] select;
                         delete [] rwork;
                         delete [] w;
-                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)] + nu * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + nu * n, &ldv);
-                        Blas<K>::gemm("N", "N", &row, &k, &dim, &(Wrapper<K>::d__1), *save + nu * (m + 1), &ldh, vr, &dim, &(Wrapper<K>::d__0), *H + nu * (m + 1), &ldh);
-                        Lapack<K>::geqrf(&row, &k, *H + nu * (m + 1), &ldh, vr, work, &lwork, &info);
-                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m + 1), &ldh, vr, *v + nu * n, &ldv, work, &lwork, &info);
+                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m[1] + 1) * (id[1] == 2)] + nu * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + nu * n, &ldv);
+                        Blas<K>::gemm("N", "N", &row, &k, &dim, &(Wrapper<K>::d__1), *save + nu * (m[1] + 1), &ldh, vr, &dim, &(Wrapper<K>::d__0), *H + nu * (m[1] + 1), &ldh);
+                        Lapack<K>::geqrf(&row, &k, *H + nu * (m[1] + 1), &ldh, vr, work, &lwork, &info);
+                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m[1] + 1), &ldh, vr, *v + nu * n, &ldv, work, &lwork, &info);
                         Wrapper<K>::template omatcopy<'N'>(k, n, *v + nu * n, ldv, C + nu * n, ldv);
-                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + nu * (m + 1), &ldh, U + nu * n, &ldv);
+                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + nu * (m[1] + 1), &ldh, U + nu * n, &ldv);
                         delete [] vr;
                         delete [] work;
                     }
                 }
             }
-            else if(j > m - k) {
+            else if(j > m[1] - k) {
                 const unsigned short active = std::count_if(hasConverged, hasConverged + mu, [](short nu) { return nu != 0; });
                 unsigned short* const activeSet = new unsigned short[active];
                 for(unsigned short nu = 0, curr = 0; nu < active; ++curr)
                     if(hasConverged[curr])
                         activeSet[nu++] = curr;
-                const unsigned short strategy = opt.val<unsigned short>("recycle_strategy");
-                K* prod = (strategy == 1 ? nullptr : new K[k * active * (m + 2)]);
+                K* prod = (id[4] % 4 == 1 ? nullptr : new K[k * active * (m[1] + 2)]);
                 if(excluded || !n) {
-                    if(strategy != 1) {
-                        std::fill_n(prod, k * active * (m + 2), K());
-                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    if(id[4] % 4 != 1) {
+                        std::fill_n(prod, k * active * (m[1] + 2), K());
+                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[1] + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     }
                 }
                 else {
                     std::copy_n(C, k * ldv, *v);
-                    if(variant == 2)
-                        std::copy_n(v[m + 1], k * ldv, U);
-                    if(strategy != 1) {
-                        info = m + 1;
+                    if(id[1] == 2)
+                        std::copy_n(v[m[1] + 1], k * ldv, U);
+                    if(id[4] % 4 != 1) {
+                        info = m[1] + 1;
                         for(unsigned short nu = 0; nu < active; ++nu) {
                             Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &k, &n, &(Wrapper<K>::d__1), *v + activeSet[nu] * n, &ldv, U + activeSet[nu] * n, &ldv, &(Wrapper<K>::d__0), prod + k * nu * info, &info);
                             for(i = 0; i < k; ++i)
                                 prod[k * active * info + k * nu + i] = Blas<K>::dot(&n, U + activeSet[nu] * n + i * ldv, &i__1, U + activeSet[nu] * n + i * ldv, &i__1);
                         }
-                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                        std::for_each(prod + k * active * (m + 1), prod + k * active * (m + 2), [](K& u) { u = 1.0 / std::sqrt(std::real(u)); });
+                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[1] + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        std::for_each(prod + k * active * (m[1] + 1), prod + k * active * (m[1] + 2), [](K& u) { u = 1.0 / std::sqrt(std::real(u)); });
                     }
                     for(unsigned short nu = 0; nu < active; ++nu) {
                         int dim = std::abs(hasConverged[activeSet[nu]]);
                         for(i = 0; i < dim; ++i)
-                            std::fill_n(save[i] + i + 2 + activeSet[nu] * (m + 1), m - i - 1, K());
+                            std::fill_n(save[i] + i + 2 + activeSet[nu] * (m[1] + 1), m[1] - i - 1, K());
                         K* A = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
-                        if(strategy != 1)
+                        if(id[4] % 4 != 1)
                             for(i = 0; i < k; ++i) {
-                                Blas<K>::scal(&n, prod + k * active * (m + 1) + k * nu + i, U + activeSet[nu] * n + i * ldv, &i__1);
+                                Blas<K>::scal(&n, prod + k * active * (m[1] + 1) + k * nu + i, U + activeSet[nu] * n + i * ldv, &i__1);
                                 for(unsigned short j = 0; j < k; ++j)
-                                    A[j + i * dim] = (i == j ? prod[k * active * (m + 1) + k * nu + i] * prod[k * active * (m + 1) + k * nu + i] : Wrapper<K>::d__0);
+                                    A[j + i * dim] = (i == j ? prod[k * active * (m[1] + 1) + k * nu + i] * prod[k * active * (m[1] + 1) + k * nu + i] : Wrapper<K>::d__0);
                             }
                         else {
                             std::fill_n(A, dim * k, K());
@@ -387,33 +382,33 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                 A[i * (dim + 1)] = 1.0;
                         }
                         int diff = dim - k;
-                        Wrapper<K>::template omatcopy<'N'>(diff, k, H[k] + activeSet[nu] * (m + 1), ldh, A + k * dim, dim);
-                        if(strategy != 1)
+                        Wrapper<K>::template omatcopy<'N'>(diff, k, H[k] + activeSet[nu] * (m[1] + 1), ldh, A + k * dim, dim);
+                        if(id[4] % 4 != 1)
                             for(i = 0; i < k; ++i)
-                                Blas<K>::scal(&diff, prod + k * active * (m + 1) + k * nu + i, A + k * dim + i, &dim);
+                                Blas<K>::scal(&diff, prod + k * active * (m[1] + 1) + k * nu + i, A + k * dim + i, &dim);
                         Wrapper<K>::template omatcopy<'C'>(diff, k, A + k * dim, dim, A + k, dim);
                         int row = diff + 1;
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m + 1), &ldh, H[k] + activeSet[nu] * (m + 1), &ldh, &(Wrapper<K>::d__0), A + k * dim + k, &dim);
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m + 1), &ldh, *save + activeSet[nu] * (m + 1), &ldh, &(Wrapper<K>::d__1), A + k * dim + k, &dim);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m[1] + 1), &ldh, H[k] + activeSet[nu] * (m[1] + 1), &ldh, &(Wrapper<K>::d__0), A + k * dim + k, &dim);
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m[1] + 1), &ldh, *save + activeSet[nu] * (m[1] + 1), &ldh, &(Wrapper<K>::d__1), A + k * dim + k, &dim);
                         K* B = new K[dim * (dim + 1)]();
-                        if(strategy != 1) {
+                        if(id[4] % 4 != 1) {
                             row = dim + 1;
                             for(i = 0; i < k; ++i)
-                                std::transform(prod + k * nu * (m + 1) + i * (m + 1), prod + k * nu * (m + 1) + i * (m + 1) + dim + 1, B + i * (dim + 1), [&](const K& u) { return prod[k * active * (m + 1) + k * nu + i] * u; });
-                            Wrapper<K>::template omatcopy<'C'>(diff, diff, *save + activeSet[nu] * (m + 1), ldh, B + k + k * (dim + 1), dim + 1);
-                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &row, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m + 1), &ldh, B + k, &row, &(Wrapper<K>::d__0), *H + k + 1 + activeSet[nu] * (m + 1), &ldh);
-                            Wrapper<K>::template omatcopy<'N'>(k, diff, *H + k + 1 + activeSet[nu] * (m + 1), ldh, B + k, dim + 1);
-                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &k, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m + 1), &ldh, B, &row, &(Wrapper<K>::d__1), B + k, &row);
+                                std::transform(prod + k * nu * (m[1] + 1) + i * (m[1] + 1), prod + k * nu * (m[1] + 1) + i * (m[1] + 1) + dim + 1, B + i * (dim + 1), [&](const K& u) { return prod[k * active * (m[1] + 1) + k * nu + i] * u; });
+                            Wrapper<K>::template omatcopy<'C'>(diff, diff, *save + activeSet[nu] * (m[1] + 1), ldh, B + k + k * (dim + 1), dim + 1);
+                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &row, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m[1] + 1), &ldh, B + k, &row, &(Wrapper<K>::d__0), *H + k + 1 + activeSet[nu] * (m[1] + 1), &ldh);
+                            Wrapper<K>::template omatcopy<'N'>(k, diff, *H + k + 1 + activeSet[nu] * (m[1] + 1), ldh, B + k, dim + 1);
+                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &k, &k, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m[1] + 1), &ldh, B, &row, &(Wrapper<K>::d__1), B + k, &row);
                             for(i = 0; i < k; ++i)
-                                Blas<K>::scal(&k, prod + k * active * (m + 1) + k * nu + i, B + i, &row);
+                                Blas<K>::scal(&k, prod + k * active * (m[1] + 1) + k * nu + i, B + i, &row);
                         }
                         else {
                             row = dim;
                             for(i = 0; i < k; ++i)
                                 B[i * (dim + 1)] = 1.0;
                             int diff = dim - k;
-                            Wrapper<K>::template omatcopy<'C'>(diff, k, H[k] + activeSet[nu] * (m + 1), ldh, B + k, dim);
-                            Wrapper<K>::template omatcopy<'C'>(diff, diff, *save + activeSet[nu] * (m + 1), ldh, B + k + k * dim, dim);
+                            Wrapper<K>::template omatcopy<'C'>(diff, k, H[k] + activeSet[nu] * (m[1] + 1), ldh, B + k, dim);
+                            Wrapper<K>::template omatcopy<'C'>(diff, diff, *save + activeSet[nu] * (m[1] + 1), ldh, B + k + k * dim, dim);
                         }
                         K* alpha = A + dim * dim;
                         int lwork = -1;
@@ -425,7 +420,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
                         std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                         q.reserve(dim);
-                        selectNu(opt.val<unsigned short>("recycle_target"), q, dim, alpha, alpha + 2 * dim, alpha + dim);
+                        selectNu(id[3], q, dim, alpha, alpha + 2 * dim, alpha + dim);
                         delete [] B;
                         delete [] A;
                         info = std::accumulate(q.cbegin(), q.cbegin() + k, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
@@ -437,12 +432,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         decltype(q)().swap(q);
                         Lapack<K>::lapmt(&i__1, &dim, &(info = i), vr, &dim, perm);
                         row = diff + 1;
-                        Blas<K>::gemm("N", "N", &row, &k, &diff, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__0), *H + k + activeSet[nu] * (m + 1), &ldh);
-                        Wrapper<K>::template omatcopy<'N'>(k, k, vr, dim, *H + activeSet[nu] * (m + 1), ldh);
-                        if(strategy != 1)
+                        Blas<K>::gemm("N", "N", &row, &k, &diff, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m[1] + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__0), *H + k + activeSet[nu] * (m[1] + 1), &ldh);
+                        Wrapper<K>::template omatcopy<'N'>(k, k, vr, dim, *H + activeSet[nu] * (m[1] + 1), ldh);
+                        if(id[4] % 4 != 1)
                             for(i = 0; i < k; ++i)
-                                Blas<K>::scal(&k, prod + k * active * (m + 1) + k * nu + i, *H + activeSet[nu] * (m + 1) + i, &ldh);
-                        Blas<K>::gemm("N", "N", &k, &k, &diff, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m + 1), &ldh);
+                                Blas<K>::scal(&k, prod + k * active * (m[1] + 1) + k * nu + i, *H + activeSet[nu] * (m[1] + 1) + i, &ldh);
+                        Blas<K>::gemm("N", "N", &k, &k, &diff, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m[1] + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m[1] + 1), &ldh);
                         row = dim + 1;
                         *perm = -1;
                         Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, work, perm, &info);
@@ -451,12 +446,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         lwork = std::max(std::real(work[0]), std::real(work[1]));
                         delete [] work;
                         work = new K[lwork];
-                        Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m + 1), &ldh, Ax, work, &lwork, &info);
-                        Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[(m + 1) * (variant == 2)] + activeSet[nu] * n, ldv);
-                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
-                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m + 1), &ldh, U + activeSet[nu] * n, &ldv);
+                        Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m[1] + 1), &ldh, Ax, work, &lwork, &info);
+                        Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[(m[1] + 1) * (id[1] == 2)] + activeSet[nu] * n, ldv);
+                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[(m[1] + 1) * (id[1] == 2)] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
+                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m[1] + 1), &ldh, U + activeSet[nu] * n, &ldv);
                         Wrapper<K>::template omatcopy<'N'>(k, n, C + activeSet[nu] * n, ldv, *v + activeSet[nu] * n, ldv);
-                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + activeSet[nu] * (m + 1), &ldh, Ax, *v + activeSet[nu] * n, &ldv, work, &lwork, &info);
+                        Lapack<K>::mqr("R", "N", &n, &row, &k, *H + activeSet[nu] * (m[1] + 1), &ldh, Ax, *v + activeSet[nu] * n, &ldv, work, &lwork, &info);
                         Wrapper<K>::template omatcopy<'N'>(k, n, *v + activeSet[nu] * n, ldv, C + activeSet[nu] * n, ldv);
                         delete [] work;
                         delete [] vr;
@@ -469,66 +464,49 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         if(converged)
             break;
     }
-    if(j != it + 1) {
-        unsigned short same = opt.val<unsigned short>("recycle_same_system");
-        if(same)
-            opt["recycle_same_system"] += 1;
-    }
-    if(verbosity) {
-        if(j != it + 1)
-            std::cout << "GCRODR converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
-        else
-            std::cout << "GCRODR does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
-    }
+    if(j != m[0] + 1 && id[4] / 4)
+        (*Option::get())[A.prefix("recycle_same_system")] += 1;
+    convergence<4>(id[0], j, m[0]);
     delete [] hasConverged;
     A.clearBuffer(allocate);
     delete [] s;
     delete [] *save;
     delete [] H;
     std::cout.unsetf(std::ios_base::scientific);
-    return std::min(j, it);
+    return std::min(j, m[0]);
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-    Option& opt = *Option::get();
-    int k = opt.val<int>("recycle", 0);
-    const char verbosity = opt.val<char>("verbosity", 0);
+    underlying_type<K> tol[2];
+    int k;
+    unsigned short m[3];
+    char id[5];
+    options<5>(A.prefix(), tol, &k, m, id);
     if(k <= 0) {
-        if(verbosity)
+        if(id[0])
             std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to BGMRES" << std::endl;
         return BGMRES<excluded>(A, b, x, mu, comm);
     }
     const int n = excluded ? 0 : A.getDof();
-    const unsigned short it = opt.val<unsigned short>("max_it", 100);
-    underlying_type<K> tol = opt.val("tol", 1.0e-6);
-    std::cout << std::scientific;
-    epsilon(tol, verbosity);
-    const unsigned short m = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>("gmres_restart", 40), it));
-    k = std::min(m - 1, k);
-    const char variant = opt.val<char>("variant", 1);
-
-    int ldh = mu * (m + 1);
-    K** const H = new K*[m * (3 + (variant == 2)) + 1];
-    K** const save = H + m;
-    *save = new K[ldh * mu * m]();
-    K** const v = save + m;
+    int ldh = mu * (m[1] + 1);
+    K** const H = new K*[m[1] * (3 + (id[1] == 2)) + 1];
+    K** const save = H + m[1];
+    *save = new K[ldh * mu * m[1]]();
+    K** const v = save + m[1];
     int info;
     int N = 2 * mu;
-    char id = opt.val<char>("orthogonalization", 0);
-    int lwork = mu * std::max((1 + (variant == 1)) * n, id != 1 ? ldh : mu);
-    id += 4 * opt.val<char>("qr", 0);
-    *H = new K[lwork + mu * ((m + 1) * ldh + n * (m * (1 + (variant == 2)) + 1) + 2 * m) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
-    *v = *H + m * mu * ldh;
+    int lwork = mu * std::max((1 + (id[1] == 1)) * n, (id[2] % 4) == 1 ? mu : ldh);
+    *H = new K[lwork + mu * ((m[1] + 1) * ldh + n * (m[1] * (1 + (id[1] == 2)) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+    *v = *H + m[1] * mu * ldh;
     int ldv = mu * n;
-    K* const s = *v + ldv * (m * (1 + (variant == 2)) + 1);
+    K* const s = *v + ldv * (m[1] * (1 + (id[1] == 2)) + 1);
     K* const tau = s + mu * ldh;
-    K* const Ax = tau + m * N;
+    K* const Ax = tau + m[1] * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
     bool allocate = A.setBuffer();
-    const unsigned short t = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
-    initializeNorm<excluded>(A, variant, b, x, *v, n, Ax, norm, mu, t);
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu / t, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-    for(unsigned short nu = 0; nu < mu / t; ++nu) {
+    initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[2], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    for(unsigned short nu = 0; nu < mu / m[2]; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
         if(norm[nu] < HPDDM_EPS)
             norm[nu] = 1.0;
@@ -545,45 +523,45 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     }
     else
         recycling = false;
-    short dim = mu * m;
+    short dim = mu * m[1];
     int* const piv = new int[mu];
     underlying_type<K>* workpiv = norm - 2 * mu;
     int deflated = -1;
-    while(j <= it) {
+    while(j <= m[0]) {
         if(!excluded) {
-            A.GMV(x, !variant ? Ax : *v, mu);
-            Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !variant ? Ax : *v, 1);
+            A.GMV(x, !id[1] ? Ax : *v, mu);
+            Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
         }
-        if(!variant)
+        if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
         if(j == 1 && recycling) {
             K* pt;
             int bK = mu * k;
-            if(variant == 1) {
+            if(id[1] == 1) {
                 pt = *v + ldv;
-                if(!opt.val<unsigned short>("recycle_same_system"))
+                if(id[4] / 4 == 0)
                     A.template apply<excluded>(U, pt, bK, C);
             }
             else
                 pt = U;
-            if(!opt.val<unsigned short>("recycle_same_system")) {
-                if(!variant) {
+            if(id[4] / 4 == 0) {
+                if(!id[1]) {
                     if(!excluded)
                         A.GMV(pt, *v + ldv, bK);
                     A.template apply<excluded>(*v + ldv, C, bK);
                 }
                 else if(!excluded)
                     A.GMV(pt, C, bK);
-                QR<excluded>(id / 4, n, bK, 1, C, *save, bK, comm);
+                QR<excluded>(id[2] / 4, n, bK, 1, C, *save, bK, comm);
                 if(!excluded && n) {
-                    if(variant == 1)
+                    if(id[1] == 1)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, U, &n);
                 }
                 std::fill_n(*save, bK * bK, K());
             }
-            blockOrthogonalization<excluded>(id % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
-            if(!opt.val<unsigned short>("recycle_same_system") || variant != 1) {
+            blockOrthogonalization<excluded>(id[2] % 4, n, k, mu, C, *v, *H, ldh, Ax, comm);
+            if(id[1] != 1 || id[4] / 4 == 0) {
                 if(!excluded && n)
                     Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), pt, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
             }
@@ -595,9 +573,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             }
         }
         VR<excluded>(n, mu, 1, v[0], s, mu, comm);
-        if(!opt.set("initial_deflation_tol")) {
+        if(tol[1] < -0.9) {
             Lapack<K>::potrf("U", &mu, s, &mu, &info);
-            if(verbosity > 3) {
+            if(id[0] > 3) {
                 std::cout << "BGCRODR diag(R), QR = block residual: ";
                 std::cout << s[0];
                 if(mu > 1) {
@@ -611,7 +589,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         }
         else {
             Lapack<K>::pstrf("U", &mu, s, &mu, piv, &N, &(Wrapper<underlying_type<K>>::d__0), workpiv, &info);
-            if(verbosity > 3) {
+            if(id[0] > 3) {
                 std::cout << "BGCRODR diag(R), QR = block residual, with pivoting: ";
                 std::cout << s[0] << " (" << piv[0] << ")";
                 if(mu > 1) {
@@ -623,7 +601,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             }
             if(info == 0) {
                 N = mu;
-                while(N > 1 && std::abs(s[(N - 1) * (mu + 1)] / s[0]) <= opt.val("initial_deflation_tol"))
+                while(N > 1 && std::abs(s[(N - 1) * (mu + 1)] / s[0]) <= tol[1])
                     --N;
             }
             Lapack<K>::lapmt(&i__1, &n, &mu, v[0], &n, piv);
@@ -635,18 +613,18 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         }
         if(N != deflated) {
             deflated = N;
-            dim = deflated * (j - 1 + m > it ? it - j + 1 : m);
-            ldh = deflated * (m + 1);
+            dim = deflated * (j - 1 + m[1] > m[0] ? m[0] - j + 1 : m[1]);
+            ldh = deflated * (m[1] + 1);
             ldv = deflated * n;
-            for(unsigned short i = 1; i < m; ++i) {
+            for(unsigned short i = 1; i < m[1]; ++i) {
                 H[i] = *H + i * deflated * ldh;
                 save[i] = *save + i * deflated * ldh;
             }
-            for(unsigned short i = 1; i < m * (1 + (variant == 2)) + 1; ++i)
+            for(unsigned short i = 1; i < m[1] * (1 + (id[1] == 2)) + 1; ++i)
                 v[i] = *v + i * ldv;
         }
         N *= 2;
-        std::fill_n(tau, m * N, K());
+        std::fill_n(tau, m[1] * N, K());
         Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
         std::fill(*H, *v, K());
         if(recycling) {
@@ -661,25 +639,25 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             std::fill(s + i * deflated + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
         if(j == 1 && recycling)
             std::copy_n(C, k * ldv, *v);
-        while(i < m && j <= it) {
-            if(!variant) {
+        while(i < m[1] && j <= m[0]) {
+            if(!id[1]) {
                 if(!excluded)
                     A.GMV(v[i], Ax, deflated);
                 A.template apply<excluded>(Ax, v[i + 1], deflated);
             }
             else {
-                A.template apply<excluded>(v[i], variant == 2 ? v[i + m + 1] : Ax, deflated, v[i + 1]);
+                A.template apply<excluded>(v[i], id[1] == 2 ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);
                 if(!excluded)
-                    A.GMV(variant == 2 ? v[i + m + 1] : Ax, v[i + 1], deflated);
+                    A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
             }
             if(recycling)
-                blockOrthogonalization<excluded>(id % 4, n, k, deflated, C, v[i + 1], H[i], ldh, Ax, comm);
-            if(BlockArnoldi<excluded>(id, m, H, v, tau, s, lwork, n, i++, deflated, Ax, comm, save, recycling ? k : 0)) {
+                blockOrthogonalization<excluded>(id[2] % 4, n, k, deflated, C, v[i + 1], H[i], ldh, Ax, comm);
+            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, Ax, comm, save, recycling ? k : 0)) {
                 dim = deflated * (i - 1);
                 i = j = 0;
                 break;
             }
-            if(deflated == checkBlockConvergence<5>(verbosity, j, tol, mu, deflated, norm, s + deflated * i, ldh, Ax, t)) {
+            if(deflated == checkBlockConvergence<5>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2])) {
                 dim = deflated * i;
                 i = 0;
                 break;
@@ -688,38 +666,38 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 ++j;
         }
         bool converged;
-        if(opt.set("initial_deflation_tol"))
+        if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
-        if(j != it + 1 && i == m) {
+        if(j != m[0] + 1 && i == m[1]) {
             converged = false;
-            if(opt.set("initial_deflation_tol"))
+            if(tol[1] > -0.9)
                 Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
-            if(verbosity > 1)
-                std::cout << "BGCRODR restart(" << m << ", " << k << ")" << std::endl;
+            if(id[0] > 1)
+                std::cout << "BGCRODR restart(" << m[1] << ", " << k << ")" << std::endl;
         }
         else {
             if(i == 0 && j == 0)
                 break;
             converged = true;
-            if(!excluded && j != 0 && j == it + 1) {
-                const int rem = (recycling ? (it - m) % (m - k) : it % m);
+            if(!excluded && j != 0 && j == m[0] + 1) {
+                const int rem = (recycling ? (m[0] - m[1]) % (m[1] - k) : m[0] % m[1]);
                 if(rem)
                     dim = deflated * (rem + recycling * k);
             }
         }
-        updateSolRecycling<excluded>(A, variant, n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);
-        if(opt.set("initial_deflation_tol"))
+        updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);
+        if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
-        if(i == m && id / 4 == 0) {
+        if(i == m[1] && id[2] / 4 == 0) {
             if(recycling)
                 i -= k;
             if(!excluded && n)
-                Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), save[i - 1] + i * deflated, &ldh, v[m], &n);
+                Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), save[i - 1] + i * deflated, &ldh, v[m[1]], &n);
         }
-        if(opt.val<unsigned short>("recycle_same_system") <= 1) {
+        if(id[4] / 4 <= 1) {
             if(!recycling) {
                 recycling = true;
-                int dim = std::min(j, m);
+                int dim = std::min(j, m[1]);
                 if(dim < k)
                     k = dim;
                 recycled.setMu(mu);
@@ -728,7 +706,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 C = U + k * ldv;
                 if(!excluded && n) {
                     std::fill_n(s, deflated * ldh, K());
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &deflated, &(Wrapper<K>::d__1), save[dim - 1] + dim * deflated, &ldh, save[m - 1] + dim * deflated, &ldh, &(Wrapper<K>::d__0), s + (dim - 1) * deflated, &ldh);
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &deflated, &(Wrapper<K>::d__1), save[dim - 1] + dim * deflated, &ldh, save[m[1] - 1] + dim * deflated, &ldh, &(Wrapper<K>::d__0), s + (dim - 1) * deflated, &ldh);
                     dim *= deflated;
                     Lapack<K>::trtrs("U", &(Wrapper<K>::transc), "N", &dim, &deflated, *H, &ldh, s, &ldh, &info);
                     for(i = dim / deflated; i-- > 0; )
@@ -736,7 +714,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     for(i = 0; i < dim / deflated; ++i)
                         for(unsigned short nu = 0; nu < deflated; ++nu)
                             std::fill(save[i] + nu * ldh + (i + 1) * deflated + nu + 1, save[i] + (nu + 1) * ldh, K());
-                    std::copy_n(*save, deflated * ldh * m, *H);
+                    std::copy_n(*save, deflated * ldh * m[1], *H);
                     for(i = 0; i < deflated; ++i)
                         Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), s + i * ldh, &i__1, H[dim / deflated - 1] + i * ldh, &i__1);
                     int lwork = -1;
@@ -757,7 +735,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Lapack<K>::geev("N", "V", &dim, *H, &ldh, w, w + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
                     std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                     q.reserve(dim);
-                    selectNu(opt.val<unsigned short>("recycle_target"), q, dim, w, w + dim);
+                    selectNu(id[3], q, dim, w, w + dim);
                     info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                     for(i = bK; info != (bK * (bK - 1)) / 2 && i < dim; ++i)
                         info += q[i].first;
@@ -769,7 +747,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     delete [] perm;
                     delete [] rwork;
                     delete [] w;
-                    Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
+                    Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[(m[1] + 1) * (id[1] == 2)], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::gemm("N", "N", &row, &bK, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H, &ldh);
                     delete [] vr;
                     Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
@@ -779,26 +757,25 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     delete [] work;
                 }
             }
-            else if(j > m - k) {
-                const unsigned short strategy = opt.val<unsigned short>("recycle_strategy");
+            else if(j > m[1] - k) {
                 int bK = deflated * k;
                 int diff = dim - bK;
-                K* prod = (strategy == 1 ? nullptr : new K[bK * (dim + deflated + 1)]);
+                K* prod = (id[4] % 4 == 1 ? nullptr : new K[bK * (dim + deflated + 1)]);
                 if(excluded || !n) {
-                    if(strategy != 1) {
+                    if(id[4] % 4 != 1) {
                         std::fill_n(prod, bK * (dim + deflated + 1), K());
                         MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     }
                 }
                 else {
                     std::copy_n(C, k * ldv, *v);
-                    if(variant == 2)
-                        std::copy_n(v[m + 1], k * ldv, U);
-                    for(i = 0; i < m - k; ++i)
+                    if(id[1] == 2)
+                        std::copy_n(v[m[1] + 1], k * ldv, U);
+                    for(i = 0; i < m[1] - k; ++i)
                         for(unsigned short nu = 0; nu < deflated; ++nu)
                             std::fill(save[i] + nu + 2 + nu * ldh + (i + 1) * deflated, save[i] + (nu + 1) * ldh, K());
                     K* A = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
-                    if(strategy != 1) {
+                    if(id[4] % 4 != 1) {
                         info = dim + deflated;
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, U, &n, &(Wrapper<K>::d__0), prod, &info);
                         for(unsigned short nu = 0; nu < bK; ++nu)
@@ -819,15 +796,15 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     }
                     Wrapper<K>::template omatcopy<'N'>(diff, bK, H[k], ldh, A + bK * dim, dim);
                     info = dim;
-                    if(strategy != 1)
+                    if(id[4] % 4 != 1)
                         for(unsigned short nu = 0; nu < bK; ++nu)
                             Blas<K>::scal(&diff, prod + bK * (dim + deflated) + nu, A + bK * dim + nu, &info);
                     Wrapper<K>::template omatcopy<'C'>(diff, bK, A + bK * dim, info, A + bK, info);
                     int row = diff + deflated;
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &bK, &(Wrapper<K>::d__1), H[k], &ldh, H[k], &ldh, &(Wrapper<K>::d__0), A + bK * dim + bK, &info);
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save, &ldh, *save, &ldh, &(Wrapper<K>::d__1), A + bK * dim + bK, &info);
-                    K* B = new K[deflated * m * (dim + deflated)]();
-                    if(strategy != 1) {
+                    K* B = new K[deflated * m[1] * (dim + deflated)]();
+                    if(id[4] % 4 != 1) {
                         row = dim + deflated;
                         for(i = 0; i < bK; ++i)
                             std::transform(prod + i * (dim + deflated), prod + (i + 1) * (dim + deflated), B + i * (dim + deflated), [&](const K& u) { return prod[bK * (dim + deflated) + i] * u; });
@@ -856,7 +833,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Lapack<K>::ggev("N", "V", &bDim, A, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, vr, &bDim, work, &lwork, rwork, &info);
                     std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                     q.reserve(bDim);
-                    selectNu(opt.val<unsigned short>("recycle_target"), q, bDim, alpha, alpha + 2 * bDim, alpha + bDim);
+                    selectNu(id[3], q, bDim, alpha, alpha + 2 * bDim, alpha + bDim);
                     delete [] B;
                     delete [] A;
                     info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
@@ -870,7 +847,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     row = diff + deflated;
                     Blas<K>::gemm("N", "N", &row, &bK, &diff, &(Wrapper<K>::d__1), *save, &ldh, vr + bK, &bDim, &(Wrapper<K>::d__0), *H + bK, &ldh);
                     Wrapper<K>::template omatcopy<'N'>(bK, bK, vr, bDim, *H, ldh);
-                    if(strategy != 1)
+                    if(id[4] % 4 != 1)
                         for(i = 0; i < bK; ++i)
                             Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, *H + i, &ldh);
                     Blas<K>::gemm("N", "N", &bK, &bK, &diff, &(Wrapper<K>::d__1), H[k], &ldh, vr + bK, &bDim, &(Wrapper<K>::d__1), *H, &ldh);
@@ -883,8 +860,8 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     delete [] work;
                     work = new K[lwork];
                     Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
-                    Wrapper<K>::template omatcopy<'N'>(bK, n, U, n, v[(m + 1) * (variant == 2)], n);
-                    Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[(m + 1) * (variant == 2)], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
+                    Wrapper<K>::template omatcopy<'N'>(bK, n, U, n, v[(m[1] + 1) * (id[1] == 2)], n);
+                    Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[(m[1] + 1) * (id[1] == 2)], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &n);
                     Wrapper<K>::template omatcopy<'N'>(bK, n, C, n, *v, n);
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, Ax, *v, &n, work, &lwork, &info);
@@ -898,11 +875,8 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(converged)
             break;
     }
-    if(j != 0 && j != it + 1) {
-        unsigned short same = opt.val<unsigned short>("recycle_same_system");
-        if(same)
-            opt["recycle_same_system"] += 1;
-    }
+    if(j != 0 && j != m[0] + 1 && id[4] / 4)
+        (*Option::get())[A.prefix("recycle_same_system")] += 1;
     delete [] piv;
     A.clearBuffer(allocate);
     delete [] *H;
@@ -910,13 +884,8 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     delete [] H;
     std::cout.unsetf(std::ios_base::scientific);
     if(j != 0) {
-        if(verbosity) {
-            if(j != it + 1)
-                std::cout << "BGCRODR converges after " << j << " iteration" << (j > 1 ? "s" : "") << std::endl;
-            else
-                std::cout << "BGCRODR does not converges after " << it << " iteration" << (it > 1 ? "s" : "") << std::endl;
-        }
-        return std::min(j, it);
+        convergence<5>(id[0], j, m[0]);
+        return std::min(j, m[0]);
     }
     else
         return GCRODR<excluded>(A, b, x, mu, comm);

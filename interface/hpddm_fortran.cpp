@@ -62,13 +62,13 @@ struct CustomOperator : public HPDDM::EmptyOperator<K> {
 };
 
 extern "C" {
-int HPDDM_F77(hpddmparseconfig) (const char* str) {
+int HPDDM_F77(hpddmparseconfig)(const char* str) {
     std::string cfg(str);
     std::shared_ptr<HPDDM::Option> opt = HPDDM::Option::get();
     std::ifstream stream(cfg);
     return opt->parse(stream);
 }
-void HPDDM_F77(hpddmoptionremove) (const char* str) {
+void HPDDM_F77(hpddmoptionremove)(const char* str) {
     HPDDM::Option::get()->remove(str);
 }
 int HPDDM_F77(hpddmcustomoperatorsolve)(const int* n, void (**mv)(const int*, const K*, K*, const int*), void (**precond)(const int*, const K*, K*, const int*), const K* const b, K* const sol, const int* mu, const int* comm) {

@@ -27,6 +27,8 @@
 #define HPDDM_PREFIX "hpddm_"
 #define HPDDM_CONCAT(NAME) "" HPDDM_PREFIX #NAME ""
 
+#include <stdlib.h>
+#include <string.h>
 #include <stdexcept>
 #ifndef HPDDM_NO_REGEX
 #include <regex>
@@ -50,6 +52,9 @@ class Option : private Singleton {
                 std::cout << std::left << std::setfill(' ') << std::setw(width + 2) << *it << "│" << std::endl;
             std::cout << list.back() << std::setfill('-') << std::setw(width + 1) << std::right << "┘" << std::endl;
             std::cout << std::setfill(' ');
+        }
+        static bool hasEnding(const std::string& str, const std::string& ending) {
+            return str.length() >= ending.length() ? str.compare(str.length() - ending.length(), ending.length(), ending) == 0 : false;
         }
     public:
         template<int N>
@@ -242,13 +247,14 @@ class Option : private Singleton {
                 std::stringstream ss(buffer);
                 std::string item;
                 while(std::getline(ss, item, '\n')) {
-                    size = item.find("//");
-                    size = std::min(size, item.find("-hpddm_config_file"));
-                    item = item.substr(0, size);
-                    if(size > 0) {
+                    size = std::min(item.find("//"), item.find("#"));
+                    if(size > 1 + std::string(HPDDM_PREFIX).size()) {
+                        item = item.substr(0, size);
                         std::stringstream ws(item);
-                        while(ws >> item)
-                            s.emplace_back(item);
+                        while(ws >> item) {
+                            if(item.find("config_file") == std::string::npos)
+                                s.emplace_back(item);
+                        }
                     }
                 }
                 return parse<true>(s, display);
@@ -256,8 +262,8 @@ class Option : private Singleton {
         }
         template<bool = false, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>>
         int parse(std::vector<std::string>&, bool display = true, const Container& reg = { });
-        template<class T>
-        void insert(std::unordered_map<std::string, double>& map, const T& option, std::string& str, const std::string& arg) {
+        template<bool internal, class T>
+        bool insert(const T& option, std::string& str, const std::string& arg) {
             std::string::size_type n = str.find("=");
             bool sep = true;
             std::string val;
@@ -269,13 +275,13 @@ class Option : private Singleton {
             typename T::const_iterator it = std::find_if(option.begin(), option.end(), [&](typename T::const_reference tuple) {
                 if(std::get<0>(tuple).empty())
                     return false;
-                if(std::get<0>(tuple) == str)
+                if(hasEnding(std::get<0>(tuple), str))
                     return true;
                 else {
                     std::string::size_type del = std::get<0>(tuple).find_first_of("=");
                     if(del != std::string::npos && del > 0 && std::get<0>(tuple)[del - 1] == '(')
                         --del;
-                    if(std::get<0>(tuple).substr(0, del) == str)
+                    if(hasEnding(str, std::get<0>(tuple).substr(0, del)))
                         return true;
                     else {
 #ifndef HPDDM_NO_REGEX
@@ -288,6 +294,7 @@ class Option : private Singleton {
                 }
             });
             if(it != option.end()) {
+                std::unordered_map<std::string, double>& map = (internal ? _opt : *_app);
                 bool boolean = (std::get<0>(*it).size() > 6 && std::get<0>(*it).substr(std::get<0>(*it).size() - 6) == "=(0|1)");
                 std::string empty;
                 bool optional = std::get<0>(*it).find("(=") != std::string::npos;
@@ -302,8 +309,10 @@ class Option : private Singleton {
                             success = false;
                         }
                         else if(optional) {
-                            if(Arg::numeric(str, arg, false))
+                            if(Arg::numeric(str, arg, false)) {
                                 map[str] = sto<double>(arg);
+                                return true;
+                            }
                             else
                                 map[str] = 1;
                             success = false;
@@ -338,12 +347,18 @@ class Option : private Singleton {
 #ifndef HPDDM_NO_REGEX
                         std::regex words_regex("^" + empty + "$", std::regex_constants::icase);
                         auto words_begin = std::sregex_iterator(val.cbegin(), val.cend(), words_regex);
-                        if(std::distance(words_begin, std::sregex_iterator()) == 1)
+                        if(std::distance(words_begin, std::sregex_iterator()) == 1) {
                             map[str] = std::count(empty.cbegin(), empty.cbegin() + empty.find(val), '|');
+                            if(sep)
+                                return true;
+                        }
 #else
                         std::string::size_type found = empty.find(val);
-                        if(found != std::string::npos)
+                        if(found != std::string::npos) {
                             map[str] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
+                            if(sep)
+                                return true;
+                        }
 #endif
                         else {
                             if(boolean && (val.compare("true") == 0 || val.compare("yes") == 0))
@@ -367,9 +382,13 @@ class Option : private Singleton {
                                 }
                             map[str + "_" + val] = -static_cast<int>(str.size()) - 10000000;
                         }
+                        if(sep)
+                            return true;
 #else
                         try {
                             map[str] = sto<double>(val);
+                            if(sep)
+                                return true;
                         }
                         catch(const std::invalid_argument& ia) {
                             std::cerr << "invalid_argument error: " << ia.what() << " (key: " << str << ", value: " << val << ")" << std::endl;
@@ -380,6 +399,35 @@ class Option : private Singleton {
                 else
                     map[str] = 1;
             }
+            else if(internal)
+                std::cout << "WARNING -- '-hpddm_" << str << "' is not a registered HPDDM option" << std::endl;
+            return false;
+        }
+};
+
+class OptionsPrefix {
+    protected:
+        char* _prefix;
+    public:
+        OptionsPrefix() : _prefix() { };
+        ~OptionsPrefix() {
+            free(_prefix);
+        }
+        void setPrefix(const char* prefix) {
+            if(_prefix)
+                free(_prefix);
+            _prefix = (char*)malloc(strlen(prefix) + 1);
+            strcpy(_prefix, prefix);
+        }
+        void setPrefix(const std::string& prefix) {
+            if(prefix.size())
+                setPrefix(prefix.c_str());
+        }
+        std::string prefix() const {
+            return std::string(!_prefix ? "" : _prefix);
+        }
+        std::string prefix(const std::string& opt) const {
+            return !_prefix ? opt : std::string(_prefix) + opt;
         }
 };
 } // HPDDM

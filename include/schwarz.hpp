@@ -58,10 +58,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         /* Variable: d
          *  Local partition of unity. */
         const underlying_type<K>* _d;
+        std::size_t            _hash;
         /* Variable: type
          *  Type of <Prcndtnr> used in <Schwarz::apply> and <Schwarz::deflation>. */
         Prcndtnr               _type;
-        std::size_t            _hash;
     public:
         Schwarz() : _d(), _hash() { }
         ~Schwarz() { _d = nullptr; }
@@ -77,33 +77,28 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *  Factorizes <Subdomain::a> or another user-supplied matrix, useful for <Prcndtnr::OS> and <Prcndtnr::OG>. */
         template<char N = HPDDM_NUMBERING>
         void callNumfact(MatrixCSR<K>* const& A = nullptr) {
+            const std::string prefix = super::prefix();
             Option& opt = *Option::get();
+            unsigned short m = opt.val<unsigned short>(prefix + "schwarz_method");
             if(A) {
-                if(opt["schwarz_method"] == 2)
-                    _type = Prcndtnr::OS;
-                else
-                    _type = Prcndtnr::OG;
                 std::size_t hash = A->hashIndices();
                 if(_hash != hash) {
                     _hash = hash;
                     super::destroySolver();
                 }
+                _type = (m == 2 ? Prcndtnr::OS : Prcndtnr::OG);
             }
-            else {
-                if(opt["schwarz_method"] == 3)
-                    _type = Prcndtnr::SY;
-                else if(opt["schwarz_method"] == 5)
-                    _type = Prcndtnr::NO;
-                else {
-                    _type = Prcndtnr::GE;
-                    opt["schwarz_method"] = 0;
+            else
+                switch(m) {
+                    case 3:  _type = Prcndtnr::SY; break;
+                    case 5:  _type = Prcndtnr::NO; break;
+                    default: _type = Prcndtnr::GE;
                 }
-            }
-            unsigned short reuse = opt.val<unsigned short>("reuse_preconditioner");
-            if(reuse <= 1)
+            m = opt.val<unsigned short>(prefix + "reuse_preconditioner");
+            if(m <= 1)
                 super::_s.template numfact<N>(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a);
-            if(reuse >= 1)
-                opt["reuse_preconditioner"] += 1;
+            if(m >= 1)
+                opt[prefix + "reuse_preconditioner"] += 1;
         }
         void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a) && _type != Prcndtnr::OS && _type != Prcndtnr::OG;
@@ -234,11 +229,12 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             scaledExchange(x, mu);
             if(super::_co) {
                 unsigned short k = 1;
+                const std::string prefix = super::prefix();
                 const Option& opt = *Option::get();
-                if(opt.any_of("krylov_method", { 4, 5 }) && !opt.val<unsigned short>("recycle_same_system"))
-                    k = std::max(opt.val<int>("recycle", 1), 1);
+                if(opt.any_of(prefix + "krylov_method", { 4, 5 }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
+                    k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
                 super::start(mu * k);
-                if(opt.val<char>("schwarz_coarse_correction") == 2) {
+                if(opt.val<char>(prefix + "schwarz_coarse_correction") == 2) {
                     if(!excluded) {
                         K* tmp = new K[mu * Subdomain<K>::_dof];
                         GMV(x, tmp, mu);                                                  // tmp = A x
@@ -267,7 +263,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    work           - Workspace array. */
         template<bool excluded = false>
         void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
-            const char correction = Option::get()->val<char>("schwarz_coarse_correction", -1);
+            const char correction = Option::get()->val<char>(super::prefix("schwarz_coarse_correction"), -1);
             if(!super::_co || correction == -1) {
                 if(_type == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::_dof, out);

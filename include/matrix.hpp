@@ -37,9 +37,6 @@ namespace HPDDM {
 template<class K>
 class MatrixCSR {
     private:
-        /* Variable: free
-         *  Sentinel value for knowing if the pointers <MatrixCSR::a>, <MatrixCSR::ia>, <MatrixCSR::ja> have to be freed. */
-        bool _free;
 #if INTEL_MKL_VERSION > 110299
 #endif
         template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
@@ -78,12 +75,16 @@ class MatrixCSR {
         /* Variable: sym
          *  Symmetry of the matrix. */
         bool  _sym;
-        MatrixCSR() : _free(true), _a(), _ia(), _ja(), _n(0), _m(0), _nnz(0), _sym(true) { }
-        MatrixCSR(const int& n, const int& m, const bool& sym) : _free(true), _a(), _ia(new int[n + 1]), _ja(), _n(n), _m(m), _nnz(0),  _sym(sym) { }
-        MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : _free(true), _a(new K[nnz]), _ia(new int[n + 1]), _ja(new int[nnz]), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
-        MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : _free(takeOwnership), _a(a), _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym) { }
+    private:
+        /* Variable: free
+         *  Sentinel value for knowing if the pointers <MatrixCSR::a>, <MatrixCSR::ia>, <MatrixCSR::ja> have to be freed. */
+        bool _free;
+    public:
+        MatrixCSR() : _a(), _ia(), _ja(), _n(0), _m(0), _nnz(0), _sym(true), _free(true) { }
+        MatrixCSR(const int& n, const int& m, const bool& sym) : _a(), _ia(new int[n + 1]), _ja(), _n(n), _m(m), _nnz(0),  _sym(sym), _free(true) { }
+        MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : _a(new K[nnz]), _ia(new int[n + 1]), _ja(new int[nnz]), _n(n), _m(m), _nnz(nnz), _sym(sym), _free(true) { }
+        MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : _a(a), _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym), _free(takeOwnership) { }
         MatrixCSR(std::ifstream& file) {
-            _free = true;
             if(!file.good()) {
                 _a = nullptr;
                 _ia = _ja = nullptr;
@@ -144,6 +145,7 @@ class MatrixCSR {
                         std::partial_sum(_ia, _ia + _n + 1, _ia);
                 }
             }
+            _free = true;
         }
         ~MatrixCSR() {
             destroy();
@@ -201,8 +203,7 @@ class MatrixCSR {
                     return same;
                 }
             }
-            else
-                return false;
+            return false;
         }
         std::size_t hashIndices() const {
             std::size_t seed = 0;

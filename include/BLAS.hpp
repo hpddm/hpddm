@@ -204,7 +204,7 @@ inline void Blas<T>::gemm(const char* const transa, const char* const transb, co
 # if !HPDDM_MKL || (defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110300)
 #  define HPDDM_GENERATE_GEMMT(C, T)                                                                         \
 template<>                                                                                                   \
-inline void Blas<T>::gemmt(const char* const uplo, const char* const transa, const char* const transb,       \
+inline void Blas<T>::gemmt(const char* const, const char* const transa, const char* const transb,            \
                            const int* const n, const int* const k, const T* const alpha, const T* const a,   \
                            const int* const lda, const T* const b, const int* const ldb, const T* const beta,\
                            T* const c, const int* const ldc) {                                               \

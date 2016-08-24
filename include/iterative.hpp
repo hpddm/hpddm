@@ -27,14 +27,14 @@
 
 namespace HPDDM {
 template<class K>
-struct EmptyOperator {
+struct EmptyOperator : OptionsPrefix {
     bool setBuffer(K* = nullptr, const int& = 0) const { return false; }
     template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
     void clearBuffer(const bool) const { }
     const underlying_type<K>* getScaling() const { return nullptr; }
 
-    int _n;
-    EmptyOperator(int n) : _n(n) { }
+    const int _n;
+    EmptyOperator(int n) : OptionsPrefix(), _n(n) { }
     int getDof() const { return _n; }
 };
 template<class Operator, class K>
@@ -134,6 +134,50 @@ class IterativeMethod {
                 std::cout <<  std::endl;
             }
             return conv;
+        }
+        template<char T>
+        static void convergence(const char verbosity, const unsigned short i, const unsigned short m) {
+            if(verbosity) {
+                constexpr auto method = (T == 1 ? "BGMRES" : (T == 2 ? "CG" : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "PCG" : "GMRES"))))));
+                if(i != m + 1)
+                    std::cout << method << " converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
+                else
+                    std::cout << method << " does not converges after " << m << " iteration" << (m > 1 ? "s" : "") << std::endl;
+            }
+        }
+        template<char T, class K>
+        static void options(const std::string& prefix, K* const d, int* const i, unsigned short* const m, char* const id) {
+            const Option& opt = *Option::get();
+            d[0] = opt.val(prefix + "tol", 1.0e-6);
+            m[0] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
+            id[0] = opt.val<char>(prefix + "verbosity", 0);
+            if(T == 1 || T == 5) {
+                d[1] = opt.val(prefix + "initial_deflation_tol", -1.0);
+                m[2] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
+            }
+            if(T == 0 || T == 1 || T == 4 || T == 5)
+                m[1] = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[0]));
+            if(T == 0 || T == 1 || T == 2 || T == 4 || T == 5)
+                id[1] = opt.val<char>(prefix + "variant", 1);
+            if(T == 0 || T == 3)
+                id[1 + (T == 0)] = opt.val<char>(prefix + (T == 0 ? "orthogonalization" : "qr"), 0);
+            if(T == 1 || T == 4 || T == 5)
+                id[2] = opt.val<char>(prefix + "orthogonalization", 0) + 4 * opt.val<char>(prefix + "qr", 0);
+            if(T == 4 || T == 5) {
+                *i = std::min(m[1] - 1, opt.val<int>(prefix + "recycle", 0));
+                id[3] = opt.val<char>(prefix + "recycle_target", 0);
+                id[4] = opt.val<char>(prefix + "recycle_strategy", 0) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
+            }
+            std::cout << std::scientific;
+            if(std::abs(d[0]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
+                if(id[0])
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << d[0]
+#if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
+                     << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name())
+#endif
+                     << ", forcing the tolerance to " << 4 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
+                d[0] = 4 * std::numeric_limits<underlying_type<K>>::epsilon();
+            }
         }
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
@@ -258,7 +302,7 @@ class IterativeMethod {
                 computeMin(h, s + shift * (deflated == -1 ? mu : deflated), hasConverged, mu, deflated, shift);
                 const int ldv = (deflated == -1 ? mu : deflated) * n;
                 if(deflated == -1) {
-                    if(opt.val<unsigned short>("recycle_same_system"))
+                    if(opt.val<unsigned short>(A.prefix("recycle_same_system")))
                         std::fill_n(s, shift * mu, K());
                     else {
                         if(!excluded && n)
@@ -283,7 +327,7 @@ class IterativeMethod {
                 else {
                     int bK = deflated * shift;
                     K beta;
-                    if(opt.val<unsigned short>("recycle_same_system"))
+                    if(opt.val<unsigned short>(A.prefix("recycle_same_system")))
                         beta = K();
                     else {
                         if(!excluded && n) {
@@ -379,18 +423,6 @@ class IterativeMethod {
                             norm[nu] += std::norm(work[nu * n + i]);
                     }
                 }
-            }
-        }
-        template<class K>
-        static void epsilon(K& tol, const char verbosity = 0) {
-            if(std::abs(tol) < std::numeric_limits<underlying_type<K>>::epsilon()) {
-                if(verbosity)
-                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << tol
-#if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
-                     << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name())
-#endif
-                     << ", forcing the tolerance to " << 2 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
-                tol = 2 * std::numeric_limits<underlying_type<K>>::epsilon();
             }
         }
         /* Function: orthogonalization
@@ -619,7 +651,7 @@ class IterativeMethod {
             Option::get()->remove("enlarge_krylov_subspace");
         }
         template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void postprocess(const Operator&, const K* const b, K*& sb, K* const x, K*& sx, const int&, unsigned short&) { }
+        static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&) { }
     public:
         /* Function: GMRES
          *
@@ -684,16 +716,17 @@ class IterativeMethod {
 #if !HPDDM_MPI
             int comm = 0;
 #endif
+            const std::string prefix = A.prefix();
             Option& opt = *Option::get();
 #if HPDDM_MIXED_PRECISION
-            opt["variant"] = 2;
+            opt[prefix + "variant"] = 2;
 #endif
-            unsigned short k = opt.val<unsigned short>("enlarge_krylov_subspace", 1);
+            unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
             K* sx = nullptr;
             K* sb = nullptr;
             preprocess(A, b, sb, x, sx, mu, k);
             int it;
-            switch(opt.val<char>("krylov_method")) {
+            switch(opt.val<char>(prefix + "krylov_method")) {
                 case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
                 case 4:  it = HPDDM::IterativeMethod::GCRODR<excluded>(A, sb, sx, k * mu, comm); break;
                 case 3:  it = HPDDM::IterativeMethod::BCG<excluded>(A, sb, sx, k * mu, comm); break;
@@ -705,7 +738,7 @@ class IterativeMethod {
             return it;
         }
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
-        static int solve(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+        static int solve(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm) {
             return HPDDM::IterativeMethod::PCG<excluded>(A, b, x, comm);
         }
 };
