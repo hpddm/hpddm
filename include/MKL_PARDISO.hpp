@@ -122,13 +122,14 @@ class MklPardiso : public DMatrix {
             int phase, error;
             K ddum;
             std::fill_n(_iparm, 64, 0);
-            for(unsigned short i : { 1, 9, 10, 12, 20, 26 }) {
-                phase = opt.val<int>("master_mkl_pardiso_iparm_" + to_string(i + 1));
-                if(phase != std::numeric_limits<int>::lowest())
-                    _iparm[i] = phase;
-            }
-            _iparm[0] = 1;
-            _iparm[5] = 1;
+            _iparm[0]  = 1;
+            _iparm[1]  = opt.val<int>("master_mkl_pardiso_iparm_2", 2);
+            _iparm[5]  = 1;
+            _iparm[9]  = opt.val<int>("master_mkl_pardiso_iparm_10", S != 'S' ? 13 : 8);
+            _iparm[10] = opt.val<int>("master_mkl_pardiso_iparm_11", S != 'S' ? 1 : 0);
+            _iparm[12] = opt.val<int>("master_mkl_pardiso_iparm_13", S != 'S' ? 1 : 0);
+            _iparm[20] = opt.val<int>("master_mkl_pardiso_iparm_21", 1);
+            _iparm[26] = opt.val<int>("master_mkl_pardiso_iparm_27", 0);
             _iparm[27] = std::is_same<double, underlying_type<K>>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
             _iparm[36] = bs;
@@ -138,9 +139,6 @@ class MklPardiso : public DMatrix {
             phase = 12;
             *loc2glob = DMatrix::_n / bs;
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, loc2glob, C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
-            phase = opt.val<int>("master_mkl_pardiso_iparm_8");
-            if(phase != std::numeric_limits<int>::lowest())
-                _iparm[7] = phase;
             _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
             if(S == 'S' || *loc2glob != _iparm[41] - _iparm[40] + 1)
                 _C = nullptr;
@@ -218,12 +216,16 @@ class MklPardisoSub {
             if(!_w) {
                 _n = A->_n;
                 std::fill_n(_iparm, 64, 0);
-                _iparm[0] = 1;
-                for(unsigned short i : { 1, 9, 10, 12, 20, 23, 26 }) {
-                    phase = opt.val<int>("mkl_pardiso_iparm_" + to_string(i + 1));
-                    if(phase != std::numeric_limits<int>::lowest())
-                        _iparm[i] = phase;
-                }
+                _iparm[0]  = 1;
+                _iparm[1]  = opt.val<int>("mkl_pardiso_iparm_2", 2);
+                _iparm[5]  = 1;
+                _iparm[9]  = opt.val<int>("mkl_pardiso_iparm_10", !A->_sym ? 13 : 8);
+                _iparm[10] = opt.val<int>("mkl_pardiso_iparm_11", !A->_sym ? 1 : 0);
+                _iparm[12] = opt.val<int>("mkl_pardiso_iparm_13", !A->_sym ? 1 : 0);
+                _iparm[20] = opt.val<int>("mkl_pardiso_iparm_21", 1);
+                _iparm[23] = opt.val<int>("mkl_pardiso_iparm_24", 0);
+                _iparm[24] = opt.val<int>("mkl_pardiso_iparm_25", 0);
+                _iparm[26] = opt.val<int>("mkl_pardiso_iparm_27", 0);
                 _iparm[27] = std::is_same<double, underlying_type<K>>::value ? 0 : 1;
                 _iparm[34] = (N == 'C');
                 phase = 12;

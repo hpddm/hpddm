@@ -106,8 +106,10 @@ class Mumps : public DMatrix {
             _id->jcn_loc = J;
             _id->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
             _id->nrhs = 1;
-            _id->icntl[4] = 0;
-            for(unsigned short i = 5; i < 40; ++i) {
+            _id->icntl[4]  = 0;
+            _id->icntl[13] = opt.val<int>("master_mumps_icntl_14", 80);
+            _id->icntl[17] = 3;
+            for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28 }) {
                 int val = opt.val<int>("master_mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
                     _id->icntl[i] = val;
@@ -217,7 +219,8 @@ class MumpsSub {
                 _id->nrhs = 1;
                 std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
-                for(unsigned short i = 5; i < 40; ++i) {
+                _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
+                for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28 }) {
                     int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                     if(val != std::numeric_limits<int>::lowest())
                         _id->icntl[i] = val;

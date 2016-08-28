@@ -141,8 +141,8 @@ class Hypre : public DMatrix {
             HYPRE_ParVector par_x;
             HYPRE_IJVectorGetObject(_x, reinterpret_cast<void**>(&par_x));
             if(solverId == 2) {
-                HYPRE_BoomerAMGSetMaxIter(_solver, opt["master_hypre_max_it"]);
-                HYPRE_BoomerAMGSetTol(_solver, opt["master_hypre_tol"]);
+                HYPRE_BoomerAMGSetMaxIter(_solver, opt.val<unsigned int>("master_hypre_max_it", 500));
+                HYPRE_BoomerAMGSetTol(_solver, opt.val("master_hypre_tol", 1.0e-12));
                 HYPRE_BoomerAMGSetPrintLevel(_solver, opt.val<char>("verbosity", 0) < 3 ? 0 : 1);
                 HYPRE_BoomerAMGSetup(_solver, parcsr_A, nullptr, nullptr);
                 HYPRE_BoomerAMGSetPrintLevel(_solver, 0);
@@ -153,8 +153,8 @@ class Hypre : public DMatrix {
                 HYPRE_BoomerAMGSetPrintLevel(_precond, opt.val<char>("verbosity", 0) < 3 ? 0 : 1);
                 if(solverId == 1) {
                     HYPRE_ParCSRPCGCreate(DMatrix::_communicator, &_solver);
-                    HYPRE_PCGSetMaxIter(_solver, opt["master_hypre_max_it"]);
-                    HYPRE_PCGSetTol(_solver, opt["master_hypre_tol"]);
+                    HYPRE_PCGSetMaxIter(_solver, opt.val<unsigned int>("master_hypre_max_it", 500));
+                    HYPRE_PCGSetTol(_solver, opt.val("master_hypre_tol", 1.0e-12));
                     HYPRE_PCGSetPrintLevel(_solver, 0);
                     HYPRE_PCGSetLogging(_solver, 0);
                     HYPRE_PCGSetPrecond(_solver, reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSolve), reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSetup), _precond);
@@ -163,8 +163,8 @@ class Hypre : public DMatrix {
                 else {
                     HYPRE_ParCSRFlexGMRESCreate(DMatrix::_communicator, &_solver);
                     HYPRE_FlexGMRESSetKDim(_solver, opt.val<unsigned short>("master_hypre_gmres_restart", 100));
-                    HYPRE_FlexGMRESSetMaxIter(_solver, opt["master_hypre_max_it"]);
-                    HYPRE_FlexGMRESSetTol(_solver, opt["master_hypre_tol"]);
+                    HYPRE_FlexGMRESSetMaxIter(_solver, opt.val<unsigned int>("master_hypre_max_it", 500));
+                    HYPRE_FlexGMRESSetTol(_solver, opt.val("master_hypre_tol", 1.0e-12));
                     HYPRE_FlexGMRESSetPrintLevel(_solver, 0);
                     HYPRE_FlexGMRESSetLogging(_solver, 0);
                     HYPRE_FlexGMRESSetPrecond(_solver, reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSolve), reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSetup), _precond);

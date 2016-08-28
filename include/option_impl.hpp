@@ -28,31 +28,9 @@ namespace HPDDM {
 template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
-    _opt = {
-#if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
-#ifdef MUMPSSUB
-             { "mumps_icntl_14",                80 },
-#elif defined(MKL_PARDISOSUB)
-             { "mkl_pardiso_iparm_2",           2 },
-             { "mkl_pardiso_iparm_10",          13 },
-             { "mkl_pardiso_iparm_21",          1 },
+#if (defined(SUBDOMAIN) || defined(COARSEOPERATOR)) && (defined(DHYPRE) || defined(DPASTIX))
+    _opt = { { "master_distribution",           2 } };
 #endif
-#ifdef DMUMPS
-             { "master_mumps_icntl_18",         3 },
-             { "master_mumps_icntl_14",         75 },
-#elif defined(DHYPRE)
-             { "master_hypre_tol",              1.0e-12 },
-             { "master_hypre_max_it",           500 },
-#elif defined(DMKL_PARDISO)
-             { "master_mkl_pardiso_iparm_2",    2 },
-             { "master_mkl_pardiso_iparm_10",   13 },
-             { "master_mkl_pardiso_iparm_11",   1 },
-#endif
-#if defined(DHYPRE) || defined(DPASTIX)
-             { "master_distribution",           2 }
-#endif
-#endif
-    };
 }
 template<bool recursive, class Container>
 inline int Option::parse(std::vector<std::string>& args, bool display, const Container& reg) {
@@ -99,7 +77,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
 #endif
 #ifdef MKL_PARDISOSUB
-        std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[147])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers.", Arg::integer),
+        std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[1457])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers.", Arg::integer),
 #endif
 #ifdef DMKL_PARDISO
         std::forward_as_tuple("master_mkl_pardiso_iparm_(2|1[013]|2[17])=<val>", "Integer control parameters of MKL PARDISO for the coarse operator solver.", Arg::integer),
@@ -108,10 +86,10 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
 #endif
 #ifdef MUMPSSUB
-        std::forward_as_tuple("mumps_icntl_([6-9]|[1-3][0-9]|40)=<val>", "Integer control parameters of MUMPS for the subdomain solvers.", Arg::integer),
+        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the subdomain solvers.", Arg::integer),
 #endif
 #ifdef DMUMPS
-        std::forward_as_tuple("master_mumps_icntl_([6-9]|[1-3][0-9]|40)=<val>", "Integer control parameters of MUMPS for the coarse operator solver.", Arg::integer),
+        std::forward_as_tuple("master_mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the coarse operator solver.", Arg::integer),
 #elif defined(DHYPRE)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Hypre-specific options:"; return true; }),
         std::forward_as_tuple("master_hypre_solver=(fgmres|pcg|amg)", "Solver used by Hypre to solve coarse systems.", Arg::argument),
