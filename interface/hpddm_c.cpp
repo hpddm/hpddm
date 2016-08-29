@@ -190,8 +190,8 @@ int HpddmSolve(HpddmSchwarz* A, const K* const b, K* const sol, int mu, const MP
     return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)), reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(sol), mu, *comm);
 }
 #endif
-void HpddmDestroyRecycling(const int mu) {
-    HPDDM::Recycling<K>::get(mu)->destroy();
+void HpddmDestroyRecycling() {
+    HPDDM::Recycling<K>::get()->destroy();
 }
 int HpddmCustomOperatorSolve(const HpddmCustomOperator* const A, int n, void (*mv)(const HpddmCustomOperator* const, const K*, K*, int), void (*precond)(const HpddmCustomOperator* const, const K*, K*, int), const K* const b, K* const sol, int mu, const MPI_Comm* comm) {
     return HPDDM::IterativeMethod::solve(CustomOperator<HpddmCustomOperator, K>(A, n, mv, precond), reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(sol), mu, *comm);

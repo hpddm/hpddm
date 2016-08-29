@@ -343,7 +343,7 @@ class SuiteSparseSub {
                 }
                 else {
                     std::vector<std::vector<std::pair<unsigned int, K>>> v(A->_n);
-                    unsigned int nnz = std::floor((A->_nnz + A->_n - 1) / A->_n) * 2;
+                    unsigned int nnz = ((A->_nnz + A->_n - 1) / A->_n) * 2;
                     for(unsigned int i = 0; i < A->_n; ++i)
                         v[i].reserve(nnz);
                     nnz = 0;

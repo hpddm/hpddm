@@ -306,7 +306,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(S != 'S')
             v._max = ((v._max & 4095) + 1) * pow(v._max >> 12, 2);
         for(unsigned short i = rankSplit; (i % treeDimension == 0) && currentHeight < treeHeight; i /= treeDimension) {
-            const unsigned short bound = std::min(treeDimension, static_cast<unsigned short>(std::ceil((_sizeSplit - rankSplit) / static_cast<float>(pow(treeDimension, currentHeight))))) - 1;
+            const unsigned short bound = std::min(treeDimension, static_cast<unsigned short>(1 + ((_sizeSplit - rankSplit - 1) / pow(treeDimension, currentHeight)))) - 1;
             if(S == 'S')
                 v._max = std::min(size - (rank + pow(treeDimension, currentHeight)), full & 4095) * pow(full >> 12, 2);
             for(unsigned short k = 0; k < bound; ++k) {
@@ -496,7 +496,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         I = new int[2 * size];
         J = I + size;
 #endif
-        C = new K[!std::is_same<downscaled_type<K>, K>::value ? std::max(static_cast<unsigned int>((info[0] + 1) * _local * _local), static_cast<unsigned int>(std::ceil(size * sizeof(downscaled_type<K>) / (static_cast<float>(sizeof(K)))))) : size];
+        C = new K[!std::is_same<downscaled_type<K>, K>::value ? std::max((info[0] + 1) * _local * _local, static_cast<int>(1 + ((size * sizeof(downscaled_type<K>) - 1) / sizeof(K)))) : size];
     }
     const vectorNeighbor& M = v._p.getMap();
 
@@ -526,7 +526,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 accumulate += _local * M[i].second.size();
         }
         if(rankSplit) {
-            const unsigned int tmp = treeDimension && !msg->empty() ? size + (!std::is_same<downscaled_type<K>, K>::value ? static_cast<unsigned int>(std::ceil((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) / (static_cast<float>(sizeof(K))))) : (msg->back()[0] + msg->back()[2])) : size;
+            const unsigned int tmp = treeDimension && !msg->empty() ? size + (!std::is_same<downscaled_type<K>, K>::value ? 1 + (((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) - 1) / sizeof(K)) : (msg->back()[0] + msg->back()[2])) : size;
             if(!excluded && tmp <= accumulate)
                 C = *sendNeighbor;
             else
@@ -712,7 +712,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             std::fill_n(rqTree, treeHeight * (treeDimension - 1), MPI_REQUEST_NULL);
             for(unsigned short i = 0; i < treeHeight; ++i) {
                 const unsigned short leaf = pow(treeDimension, i);
-                const unsigned short bound = std::min(treeDimension, static_cast<unsigned short>(std::ceil(_sizeSplit / static_cast<float>(leaf)))) - 1;
+                const unsigned short bound = std::min(treeDimension, static_cast<unsigned short>(1 + ((_sizeSplit - 1) / leaf))) - 1;
                 for(unsigned short k = 0; k < bound; ++k) {
                     const unsigned short nextLeaf = std::min(leaf * (k + 1) * treeDimension, _sizeSplit);
                     int nnz = 0;

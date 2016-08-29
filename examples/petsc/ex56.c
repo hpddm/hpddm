@@ -314,7 +314,7 @@ int main(int argc, char** argv)
             }
             VecRestoreArray(x, &pt_x);
             VecRestoreArray(rhs, &pt_rhs);
-            HpddmDestroyRecycling(1);
+            HpddmDestroyRecycling();
             ierr = KSPReset(ksp);
             CHKERRQ(ierr);
             ierr = KSPSetOperators(ksp, A, A);

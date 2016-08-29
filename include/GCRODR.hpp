@@ -29,43 +29,64 @@ namespace HPDDM {
 template<class K>
 class Recycling : private Singleton {
     private:
-        K*              _storage;
-        unsigned short       _mu;
-        unsigned short        _k;
+        std::unordered_map<std::string, K*> _storage;
     public:
         template<int N>
-        Recycling(Singleton::construct_key<N>, unsigned short mu) : _storage(), _mu(mu) { }
+        Recycling(Singleton::construct_key<N>) { }
         ~Recycling() {
-            destroy<false>();
+            for(std::pair<std::string, K*> const& p : _storage)
+                delete [] p.second;
+            _storage.clear();
         }
         template<bool reset = true>
-        void destroy() {
-            delete [] _storage;
-            _storage = nullptr;
-            if(reset) {
-                Option& opt = *Option::get();
-                unsigned short k = opt.val<unsigned short>("recycle_same_system");
-                if(k > 1)
-                    opt["recycle_same_system"] = 1;
+        void destroy(const std::string& key = "") {
+            try {
+                K* pt = _storage.at(key);
+                delete [] pt;
+                _storage.erase(key);
+                if(reset) {
+                    Option& opt = *Option::get();
+                    unsigned short k = opt.val<unsigned short>(key + "recycle_same_system");
+                    if(k > 1)
+                        opt[key + "recycle_same_system"] = 1;
+                }
+            }
+            catch(const std::out_of_range& oor) {
+                std::cerr << "out_of_range error: " << oor.what() << " (key: " << key << ")" << std::endl;
             }
         }
-        void setMu(const unsigned short mu) { _mu = mu; };
-        bool recycling() const {
-            return _storage;
+        bool recycling(const std::string& key = "") const {
+            return _storage.find(key) != _storage.cend();
         }
-        void allocate(int n, unsigned short k) {
-            _k = k;
-            _storage = new K[2 * _mu * _k * n];
+        K* allocate(int n, unsigned short mu, unsigned short k, const std::string& key = "") {
+            typename std::unordered_map<std::string, K*>::iterator it = _storage.find(key);
+            if(it == _storage.end())
+                it = _storage.emplace(key, nullptr).first;
+            else
+                delete [] it->second;
+            it->second = new K[2 * mu * k * n + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K))];
+            unsigned short* pt = reinterpret_cast<unsigned short*>(it->second);
+            pt[0] = mu;
+            pt[1] = k;
+            return it->second + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K));
         }
-        K* storage() const {
-            return _storage;
+        K* storage(const std::string& key = "") const {
+            typename std::unordered_map<std::string, K*>::const_iterator it = _storage.find(key);
+            return it != _storage.cend() ? it->second + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K)) : nullptr;
         }
-        unsigned short k() const {
-            return _k;
+        unsigned short k(const std::string& key = "") const {
+            try {
+                unsigned short* pt = reinterpret_cast<unsigned short*>(_storage.at(key));
+                return pt[1];
+            }
+            catch(const std::out_of_range& oor) {
+                std::cerr << "out_of_range error: " << oor.what() << " (key: " << key << ")" << std::endl;
+                return 0;
+            }
         }
         template<int N = 0>
-        static std::shared_ptr<Recycling> get(unsigned short mu) {
-            return Singleton::get<Recycling, N>(mu);
+        static std::shared_ptr<Recycling> get() {
+            return Singleton::get<Recycling, N>();
         }
 };
 template<class K>
@@ -121,29 +142,24 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     std::fill_n(hasConverged, mu, -m[1]);
     int info;
     unsigned short j = 1;
-    bool recycling;
-    K* U, *C = nullptr;
-    Recycling<K>& recycled = *Recycling<K>::get(mu);
-    if(recycled.recycling()) {
-        recycling = true;
-        k = recycled.k();
-        U = recycled.storage();
+    Recycling<K>& recycled = *Recycling<K>::get();
+    K* U = recycled.storage(A.prefix()), *C = nullptr;
+    if(U) {
+        k = recycled.k(A.prefix());
         C = U + k * ldv;
     }
-    else
-        recycling = false;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (1 + (id[1] == 2)) + 1) * ldv);
     underlying_type<K>* const sn = norm + mu;
     initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
     while(j <= m[0]) {
-        unsigned short i = (recycling ? k : 0);
+        unsigned short i = (U ? k : 0);
         if(!excluded) {
             A.GMV(x, !id[1] ? Ax : v[i], mu);
             Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, !id[1] ? Ax : v[i], 1);
         }
         if(!id[1])
             A.template apply<excluded>(Ax, v[i], mu);
-        if(j == 1 && recycling) {
+        if(j == 1 && U) {
             K* pt;
             if(id[1] == 1) {
                 pt = *v;
@@ -201,7 +217,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             if(hasConverged[nu] > 0)
                 hasConverged[nu] = 0;
             s[mu * i + nu] = std::sqrt(sn[nu]);
-            if(recycling) {
+            if(U) {
                 sn[mu * i + nu] = sn[nu];
                 sn[nu] = std::real(s[mu * i + nu]);
             }
@@ -218,12 +234,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
             }
-            if(recycling)
+            if(U)
                 orthogonalization<excluded>(id[2] % 4, n, k, mu, C, v[i + 1], H[i], comm);
-            Arnoldi<excluded>(id[2] % 4, m[1], H, v, s, sn, n, i++, mu, comm, save, recycling ? k : 0);
+            Arnoldi<excluded>(id[2] % 4, m[1], H, v, s, sn, n, i++, mu, comm, save, U ? k : 0);
             checkConvergence<4>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
             if(std::find(hasConverged, hasConverged + mu, -m[1]) == hasConverged + mu) {
-                i += (recycling ? m[1] - k : m[1]);
+                i += (U ? m[1] - k : m[1]);
                 break;
             }
             else
@@ -238,9 +254,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         else {
             converged = true;
             if(!excluded && j == m[0] + 1) {
-                int rem = (recycling ? (m[0] - m[1]) % (m[1] - k) : m[0] % m[1]);
+                int rem = (U ? (m[0] - m[1]) % (m[1] - k) : m[0] % m[1]);
                 if(rem) {
-                    if(recycling)
+                    if(U)
                         rem += k;
                     std::for_each(hasConverged, hasConverged + mu, [&](short& dim) { if(dim < 0) dim = rem; });
                 }
@@ -248,20 +264,17 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         }
         updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);
         if(i == m[1]) {
-            if(recycling)
+            if(U)
                 i -= k;
             for(unsigned short nu = 0; nu < mu; ++nu)
                 std::for_each(v[m[1]] + nu * n, v[m[1]] + (nu + 1) * n, [&](K& y) { y /= save[i - 1][i + nu * (m[1] + 1)]; });
         }
         if(id[4] / 4 <= 1) {
-            if(!recycling) {
-                recycling = true;
+            if(!U) {
                 int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));
                 if(j < k || dim < k)
                     k = dim;
-                recycled.setMu(mu);
-                recycled.allocate(n, k);
-                U = recycled.storage();
+                U = recycled.allocate(n, mu, k, A.prefix());
                 C = U + k * ldv;
                 if(!excluded && n) {
                     std::fill_n(s, dim * mu, K());
@@ -512,17 +525,12 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             norm[nu] = 1.0;
     }
     unsigned short j = 1;
-    bool recycling;
-    K* U, *C = nullptr;
-    Recycling<K>& recycled = *Recycling<K>::get(mu);
-    if(recycled.recycling()) {
-        recycling = true;
-        k = recycled.k();
-        U = recycled.storage();
+    Recycling<K>& recycled = *Recycling<K>::get();
+    K* U = recycled.storage(A.prefix()), *C = nullptr;
+    if(U) {
+        k = recycled.k(A.prefix());
         C = U + k * ldv;
     }
-    else
-        recycling = false;
     short dim = mu * m[1];
     int* const piv = new int[mu];
     underlying_type<K>* workpiv = norm - 2 * mu;
@@ -534,7 +542,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         }
         if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
-        if(j == 1 && recycling) {
+        if(j == 1 && U) {
             K* pt;
             int bK = mu * k;
             if(id[1] == 1) {
@@ -627,17 +635,17 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         std::fill_n(tau, m[1] * N, K());
         Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
         std::fill(*H, *v, K());
-        if(recycling) {
+        if(U) {
             for(unsigned short i = 0; i < mu; ++i)
                 std::copy_n(s + i * ldh, deflated, s + i * ldh + deflated * k);
             std::copy_n(*v, ldv, v[k]);
         }
-        unsigned short i = (recycling ? k : 0);
+        unsigned short i = (U ? k : 0);
         if(!excluded && n)
             Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, v[i], &n);
         for(unsigned short nu = 0; nu < deflated; ++nu)
             std::fill(s + i * deflated + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
-        if(j == 1 && recycling)
+        if(j == 1 && U)
             std::copy_n(C, k * ldv, *v);
         while(i < m[1] && j <= m[0]) {
             if(!id[1]) {
@@ -650,9 +658,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 if(!excluded)
                     A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
             }
-            if(recycling)
+            if(U)
                 blockOrthogonalization<excluded>(id[2] % 4, n, k, deflated, C, v[i + 1], H[i], ldh, Ax, comm);
-            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, Ax, comm, save, recycling ? k : 0)) {
+            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, Ax, comm, save, U ? k : 0)) {
                 dim = deflated * (i - 1);
                 i = j = 0;
                 break;
@@ -680,29 +688,26 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 break;
             converged = true;
             if(!excluded && j != 0 && j == m[0] + 1) {
-                const int rem = (recycling ? (m[0] - m[1]) % (m[1] - k) : m[0] % m[1]);
+                const int rem = (U ? (m[0] - m[1]) % (m[1] - k) : m[0] % m[1]);
                 if(rem)
-                    dim = deflated * (rem + recycling * k);
+                    dim = deflated * (rem + (U ? k : 0));
             }
         }
         updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);
         if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
         if(i == m[1] && id[2] / 4 == 0) {
-            if(recycling)
+            if(U)
                 i -= k;
             if(!excluded && n)
                 Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), save[i - 1] + i * deflated, &ldh, v[m[1]], &n);
         }
         if(id[4] / 4 <= 1) {
-            if(!recycling) {
-                recycling = true;
+            if(!U) {
                 int dim = std::min(j, m[1]);
                 if(dim < k)
                     k = dim;
-                recycled.setMu(mu);
-                recycled.allocate(n, k);
-                U = recycled.storage();
+                U = recycled.allocate(n, mu, k, A.prefix());
                 C = U + k * ldv;
                 if(!excluded && n) {
                     std::fill_n(s, deflated * ldh, K());

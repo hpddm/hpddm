@@ -342,7 +342,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         void initialize(unsigned int k, K*& work, unsigned short s) {
             if(_A->_sym) {
                 std::vector<std::vector<std::pair<unsigned int, K>>> v(_A->_n);
-                unsigned int nnz = std::floor((_A->_nnz + _A->_n - 1) / _A->_n) * 2;
+                unsigned int nnz = ((_A->_nnz + _A->_n - 1) / _A->_n) * 2;
                 std::for_each(v.begin(), v.end(), [&](std::vector<std::pair<unsigned int, K>>& r) { r.reserve(nnz); });
                 nnz = 0;
                 for(unsigned int i = 0; i < _A->_n; ++i) {

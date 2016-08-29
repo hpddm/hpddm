@@ -366,8 +366,8 @@ class Subdomain : public OptionsPrefix {
                 for(unsigned int i = 1; i < send[k].size(); ++i)
                     if(std::get<0>(send[k][i]) != std::get<0>(send[k][i - 1]))
                         ++sendSize[2 * k];
-                sendSize[2 * k + 1] = std::ceil((sendSize[2 * k] * sizeof(unsigned short)
-                                    + (sendSize[2 * k] + 1 + send[k].size()) * sizeof(unsigned int)) / static_cast<float>(sizeof(K)))
+                sendSize[2 * k + 1] = 1 + ((sendSize[2 * k] * sizeof(unsigned short)
+                                    + (sendSize[2 * k] + 1 + send[k].size()) * sizeof(unsigned int) - 1) / sizeof(K))
                                     + send[k].size();
                 MPI_Isend(sendSize + 2 * k, 2, MPI_UNSIGNED, _map[k].first, 10, _communicator, _rq + _map.size() + k);
             }
@@ -536,7 +536,7 @@ class Subdomain : public OptionsPrefix {
                 setBuffer();
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
-                unsigned int size = std::ceil(2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) / static_cast<float>(sizeof(K)));
+                unsigned int size = 1 + ((2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) - 1) / sizeof(K));
                 unsigned int* rbuff = (size < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size() ? reinterpret_cast<unsigned int*>(_buff[0]) : new unsigned int[2 * (std::distance(_buff[0], _buff[_map.size()]) + 1)]);
                 unsigned int* sbuff = rbuff + std::distance(_buff[0], _buff[_map.size()]) + 1;
                 size = 0;

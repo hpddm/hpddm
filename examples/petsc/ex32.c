@@ -198,7 +198,7 @@ int main(int argc, char** argv)
             }
             VecRestoreArray(x, &pt_x);
             VecRestoreArray(rhs, &pt_rhs);
-            HpddmDestroyRecycling(1);
+            HpddmDestroyRecycling();
         }
         for (i = 0; i < SIZE_ARRAY_NU; ++i) {
             ierr = VecZeroEntries(x);
