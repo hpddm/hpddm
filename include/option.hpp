@@ -149,12 +149,22 @@ class Option : private Singleton {
         }
         double& operator[](const std::string& key) { return _opt[key]; }
         struct Arg {
-            static bool integer(const std::string& opt, const std::string& s, bool verbose) {
-                char* endptr = nullptr;
-                auto inter = std::bind(strtol, std::placeholders::_1, std::placeholders::_2, 10);
+            static bool positive(const std::string& opt, const std::string& s, bool verbose) {
                 if(!s.empty()) {
-                    inter(s.c_str(), &endptr);
-                    if(endptr != s.c_str() && *endptr == 0)
+                    char* endptr = nullptr;
+                    int val = strtol(s.c_str(), &endptr, 10);
+                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(val) && val > 0)
+                        return true;
+                }
+                if(verbose)
+                    std::cerr << "'" << opt << "' requires a positive integer argument ('" << s << "' was supplied)" << std::endl;
+                return false;
+            }
+            static bool integer(const std::string& opt, const std::string& s, bool verbose) {
+                if(!s.empty()) {
+                    char* endptr = nullptr;
+                    int val = strtol(s.c_str(), &endptr, 10);
+                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(val))
                         return true;
                 }
                 if(verbose)
@@ -162,8 +172,8 @@ class Option : private Singleton {
                 return false;
             }
             static bool numeric(const std::string& opt, const std::string& s, bool verbose) {
-                char* endptr = nullptr;
                 if(!s.empty()) {
+                    char* endptr = nullptr;
                     double val = strtod(s.c_str(), &endptr);
                     if(endptr != s.c_str() && *endptr == 0 && !std::isnan(val))
                         return true;

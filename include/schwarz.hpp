@@ -114,7 +114,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          * Parameter:
          *    d              - Array of values. */
         void multiplicityScaling(underlying_type<K>* const d) const {
-            Subdomain<K>::setBuffer();
+            bool allocate = Subdomain<K>::setBuffer();
             for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
                 underlying_type<K>* const recv = reinterpret_cast<underlying_type<K>*>(Subdomain<K>::_buff[i]);
                 underlying_type<K>* const send = reinterpret_cast<underlying_type<K>*>(Subdomain<K>::_buff[size + i]);
@@ -136,7 +136,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 }
             }
             MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
-            delete [] *Subdomain<K>::_buff;
+            Subdomain<K>::clearBuffer(allocate);
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Schwarz::d>. */
