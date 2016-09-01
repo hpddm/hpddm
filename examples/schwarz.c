@@ -24,11 +24,7 @@
 #include "schwarz.h"
 
 int main(int argc, char** argv) {
-#if !((OMPI_MAJOR_VERSION > 1 || (OMPI_MAJOR_VERSION == 1 && OMPI_MINOR_VERSION >= 7)) || MPICH_NUMVERSION >= 30000000)
     MPI_Init(&argc, &argv);
-#else
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, NULL);
-#endif
     /*# Init #*/
     int rankWorld, sizeWorld;
     MPI_Comm_size(MPI_COMM_WORLD, &sizeWorld);
