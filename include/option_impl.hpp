@@ -37,93 +37,103 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
     if(args.size() == 0 && reg.size() == 0)
         return 0;
     std::vector<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> option {
-        std::forward_as_tuple("help", "Display available options.", Arg::anything),
-        std::forward_as_tuple("version", "Display information about HPDDM.", Arg::anything),
-        std::forward_as_tuple("config_file=<input_file>", "Load options from a file saved on disk.", Arg::argument),
-        std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm.", Arg::numeric),
-        std::forward_as_tuple("max_it=<100>", "Maximum number of iterations.", Arg::positive),
-        std::forward_as_tuple("verbosity(=<integer>)", "Level of output (higher means more displayed information).", Arg::anything),
-        std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems.", Arg::argument),
-        std::forward_as_tuple("local_operators_not_spd=(0|1)", "Assume local operators are general symmetric (instead of symmetric or Hermitian positive definite).", Arg::argument),
-        std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process.", Arg::argument),
-        std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk.", Arg::argument),
-        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, (Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting.", Arg::argument),
-        std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors.", Arg::positive),
-        std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle.", Arg::positive),
-        std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning.", Arg::argument),
-        std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process.", Arg::argument),
-        std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance when deflating right-hand sides inside Block GMRES or Block GCRODR.", Arg::numeric),
-        std::forward_as_tuple("recycle=<val>", "Number of harmonic Ritz vectors to compute.", Arg::positive),
-        std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed.", Arg::argument),
-        std::forward_as_tuple("recycle_strategy=(A|B)", "Generalized eigenvalue problem to solve for recycling.", Arg::argument),
-        std::forward_as_tuple("recycle_target=(SM|LM|SR|LR|SI|LI)", "Criterion to select harmonic Ritz vectors.", Arg::argument),
+        std::forward_as_tuple("help", "Display available options", Arg::anything),
+        std::forward_as_tuple("version", "Display information about HPDDM", Arg::anything),
+        std::forward_as_tuple("config_file=<input_file>", "Load options from a file saved on disk", Arg::argument),
+        std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm", Arg::numeric),
+        std::forward_as_tuple("max_it=<100>", "Maximum number of iterations", Arg::positive),
+        std::forward_as_tuple("verbosity(=<integer>)", "Level of output (higher means more displayed information)", Arg::anything),
+        std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems", Arg::argument),
+        std::forward_as_tuple("local_operators_not_spd=(0|1)", "Assume local operators are not positive definite", Arg::argument),
+        std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
+#ifndef HPDDM_NO_REGEX
+        std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),
+#else
+        std::forward_as_tuple("dump_local_matrices=<output_file>", "Save all local matrices to disk", Arg::argument),
+#endif
+        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, (Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting", Arg::argument),
+        std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors", Arg::positive),
+        std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle", Arg::positive),
+        std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning", Arg::argument),
+        std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process", Arg::argument),
+        std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance when deflating right-hand sides inside Block GMRES or Block GCRODR", Arg::numeric),
+        std::forward_as_tuple("recycle=<val>", "Number of harmonic Ritz vectors to compute", Arg::positive),
+        std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed", Arg::argument),
+        std::forward_as_tuple("recycle_strategy=(A|B)", "Generalized eigenvalue problem to solve for recycling", Arg::argument),
+        std::forward_as_tuple("recycle_target=(SM|LM|SR|LR|SI|LI)", "Criterion to select harmonic Ritz vectors", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
-        std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not.", Arg::argument),
-        std::forward_as_tuple("schwarz_coarse_correction=(deflated|additive|balanced)", "Switch to a multilevel preconditioner.", Arg::argument),
+        std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not", Arg::argument),
+        std::forward_as_tuple("schwarz_coarse_correction=(deflated|additive|balanced)", "Switch to a multilevel preconditioner", Arg::argument),
 #endif
 #if HPDDM_FETI || HPDDM_BDD
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Substructuring methods options:"; return true; }),
-        std::forward_as_tuple("substructuring_scaling=(multiplicity|stiffness|coefficient)", "Type of scaling used for the preconditioner.", Arg::argument),
+        std::forward_as_tuple("substructuring_scaling=(multiplicity|stiffness|coefficient)", "Type of scaling used for the preconditioner", Arg::argument),
 #endif
 #if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
-        std::forward_as_tuple("eigensolver_tol=<1.0e-6>", "Tolerance for computing eigenvectors by ARPACK or LAPACK.", Arg::numeric),
+        std::forward_as_tuple("eigensolver_tol=<1.0e-6>", "Tolerance for computing eigenvectors by ARPACK or LAPACK", Arg::numeric),
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
-        std::forward_as_tuple("geneo_nu=<20>", "Number of local eigenvectors to compute for adaptive methods.", Arg::positive),
-        std::forward_as_tuple("geneo_threshold=<eps>", "Threshold for selecting local eigenvectors for adaptive methods.", Arg::numeric),
+        std::forward_as_tuple("geneo_nu=<20>", "Number of local eigenvectors to compute for adaptive methods", Arg::integer),
+        std::forward_as_tuple("geneo_threshold=<eps>", "Threshold for selecting local eigenvectors for adaptive methods", Arg::numeric),
+        std::forward_as_tuple("geneo_force_uniformity=(0|1)", "Ensure that the number of local eigenvectors is the same for all subdomains", Arg::argument),
 #endif
 #if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
+#ifndef HPDDM_NO_REGEX
 #if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
 #endif
 #ifdef MKL_PARDISOSUB
-        std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[1457])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers.", Arg::integer),
+        std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[1457])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers", Arg::integer),
 #endif
 #ifdef DMKL_PARDISO
-        std::forward_as_tuple("master_mkl_pardiso_iparm_(2|1[013]|2[17])=<val>", "Integer control parameters of MKL PARDISO for the coarse operator solver.", Arg::integer),
+        std::forward_as_tuple("master_mkl_pardiso_iparm_(2|1[013]|2[17])=<val>", "Integer control parameters of MKL PARDISO for the coarse operator solver", Arg::integer),
 #endif
 #if defined(DMUMPS) || defined(MUMPSSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
 #endif
 #ifdef MUMPSSUB
-        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the subdomain solvers.", Arg::integer),
+        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the subdomain solvers", Arg::integer),
 #endif
 #ifdef DMUMPS
-        std::forward_as_tuple("master_mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the coarse operator solver.", Arg::integer),
-#elif defined(DHYPRE)
+        std::forward_as_tuple("master_mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the coarse operator solver", Arg::integer),
+#endif
+#endif
+#ifdef DHYPRE
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Hypre-specific options:"; return true; }),
-        std::forward_as_tuple("master_hypre_solver=(fgmres|pcg|amg)", "Solver used by Hypre to solve coarse systems.", Arg::argument),
-        std::forward_as_tuple("master_hypre_tol=<1.0e-12>", "Relative convergence tolerance.", Arg::numeric),
-        std::forward_as_tuple("master_hypre_max_it=<500>", "Maximum number of iterations.", Arg::positive),
-        std::forward_as_tuple("master_hypre_gmres_restart=<100>", "Maximum size of the Krylov subspace when using FlexGMRES.", Arg::positive),
-        std::forward_as_tuple("master_boomeramg_coarsen_type=<6>", "Parallel coarsening algorithm.", Arg::integer),
-        std::forward_as_tuple("master_boomeramg_relax_type=<3>", "Smoother.", Arg::integer),
-        std::forward_as_tuple("master_boomeramg_num_sweeps=<1>", "Number of sweeps.", Arg::integer),
-        std::forward_as_tuple("master_boomeramg_max_levels=<10>", "Maximum number of multigrid levels.", Arg::integer),
-        std::forward_as_tuple("master_boomeramg_interp_type=<0>", "Parallel interpolation operator.", Arg::integer),
+        std::forward_as_tuple("master_hypre_solver=(fgmres|pcg|amg)", "Solver used by Hypre to solve coarse systems", Arg::argument),
+        std::forward_as_tuple("master_hypre_tol=<1.0e-12>", "Relative convergence tolerance", Arg::numeric),
+        std::forward_as_tuple("master_hypre_max_it=<500>", "Maximum number of iterations", Arg::positive),
+        std::forward_as_tuple("master_hypre_gmres_restart=<100>", "Maximum size of the Krylov subspace when using FlexGMRES", Arg::positive),
+        std::forward_as_tuple("master_boomeramg_num_sweeps=<1>", "Number of sweeps", Arg::positive),
+        std::forward_as_tuple("master_boomeramg_max_levels=<10>", "Maximum number of multigrid levels", Arg::positive),
+#ifndef HPDDM_NO_REGEX
+        std::forward_as_tuple("master_boomeramg_coarsen_type=([0136-9]|1[01]|2[12])", "Parallel coarsening algorithm", Arg::integer),
+        std::forward_as_tuple("master_boomeramg_relax_type=([0-9]|1[5-8])", "Smoother", Arg::integer),
+        std::forward_as_tuple("master_boomeramg_interp_type=([0-9]|1[0-4])", "Parallel interpolation operator", Arg::integer),
+#endif
 #endif
 #ifdef DISSECTIONSUB
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Dissection-specific options:"; return true; }),
-        std::forward_as_tuple("dissection_pivot_tol=<val>", "Tolerance for choosing when to pivot during numerical factorizations.", Arg::numeric),
-        std::forward_as_tuple("dissection_kkt_scaling=(0|1)", "Turn on KKT scaling instead of the default diagonal scaling.", Arg::argument),
+        std::forward_as_tuple("dissection_pivot_tol=<val>", "Tolerance for choosing when to pivot during numerical factorizations", Arg::numeric),
+        std::forward_as_tuple("dissection_kkt_scaling=(0|1)", "Turn on KKT scaling instead of the default diagonal scaling", Arg::argument),
 #endif
         std::forward_as_tuple("", "", Arg::anything),
 #if !defined(DSUITESPARSE)
-        std::forward_as_tuple("master_p=<1>", "Number of master processes.", Arg::positive),
+        std::forward_as_tuple("master_p=<1>", "Number of master processes", Arg::positive),
 #if !defined(DHYPRE)
-        std::forward_as_tuple("master_distribution=(centralized|sol|sol_and_rhs)", "Distribution of coarse right-hand sides and solution vectors.", Arg::argument),
+        std::forward_as_tuple("master_distribution=(centralized|sol|sol_and_rhs)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
 #endif
         std::forward_as_tuple("master_topology=(0|" +
 #if !defined(HPDDM_CONTIGUOUS)
             std::string("1|") +
 #endif
-            std::string("2)"), "Distribution of the master processes.", Arg::integer),
+            std::string("2)"), "Distribution of the master processes", Arg::integer),
 #endif
-        std::forward_as_tuple("master_assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator.", Arg::positive),
-        std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk.", Arg::argument),
-        std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition.", Arg::argument)
+        std::forward_as_tuple("master_assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator", Arg::positive),
+        std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
+        std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
 #if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)
-      , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is general symmetric (instead of symmetric positive definite).", Arg::argument)
+      , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is just symmetric (instead of symmetric positive definite)", Arg::argument)
 #endif
 #endif
     };

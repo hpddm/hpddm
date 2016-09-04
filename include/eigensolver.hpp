@@ -63,7 +63,8 @@ class Eigensolver {
         void selectNu(const T* const eigenvalues, const MPI_Comm& communicator) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, underlying_type<K>>::value, "Wrong types");
             unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
-            MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
+            if(Option::get()->val<char>("geneo_force_uniformity", 0))
+                MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
             _nu = std::min(_nu, static_cast<int>(nev));
         }
         /* Function: getTol

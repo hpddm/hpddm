@@ -358,18 +358,28 @@ class Option : private Singleton {
                         std::regex words_regex("^" + empty + "$", std::regex_constants::icase);
                         auto words_begin = std::sregex_iterator(val.cbegin(), val.cend(), words_regex);
                         if(std::distance(words_begin, std::sregex_iterator()) == 1) {
-                            map[str] = std::count(empty.cbegin(), empty.cbegin() + empty.find(val), '|');
-                            if(sep)
-                                return true;
-                        }
 #else
                         std::string::size_type found = empty.find(val);
                         if(found != std::string::npos) {
-                            map[str] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
+#endif
+                            char* endptr = nullptr;
+                            double number = strtod(val.c_str(), &endptr);
+                            if(endptr != empty.c_str() && *endptr == 0 && !std::isnan(number))
+                                map[str] = number;
+                            else {
+#ifndef HPDDM_NO_REGEX
+                                std::string::size_type found = empty.find(val);
+                                if(found != std::string::npos)
+#endif
+                                    map[str] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
+#ifndef HPDDM_NO_REGEX
+                                else
+                                    std::cout << "WARNING -- something is wrong with this regular expression" << std::endl;
+#endif
+                            }
                             if(sep)
                                 return true;
                         }
-#endif
                         else {
                             if(boolean && (val.compare("true") == 0 || val.compare("yes") == 0))
                                 map[str] = 1;

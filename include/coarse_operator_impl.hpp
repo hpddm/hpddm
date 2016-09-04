@@ -62,13 +62,7 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
         int* ps;
         unsigned int tmp;
         DMatrix::_ldistribution = new int[p];
-        char T = opt.val<char>("master_topology", 0);
-#ifdef HPDDM_CONTIGUOUS
-        if(T == 1) {
-            T += 1;
-            opt["master_topology"] = 2;
-        }
-#endif
+        const char T = opt.val<char>("master_topology", 0);
         if(T == 2) {
             // Here, it is assumed that all subdomains have the same number of coarse degrees of freedom as the rank 0 ! (only true when the distribution is uniform)
             float area = _sizeWorld *_sizeWorld / (2.0 * p);
@@ -685,7 +679,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         delete [] work;
     }
     else {
-        unsigned short rankRelative = (T == 0 || T == 2) ? _rankWorld : p + _rankWorld * ((_sizeWorld / p) - 1) - 1;
+        const unsigned short relative = (T == 0 || T == 2) ? _rankWorld : p + _rankWorld * ((_sizeWorld / p) - 1) - 1;
         unsigned int* offsetPosition;
         if(excluded < 2)
             std::for_each(offsetIdx, offsetIdx + _sizeSplit - 1, [&](unsigned int& i) { i += coefficients * _local + (S == 'S' && !blocked) * (_local * (_local + 1)) / 2; });
@@ -729,18 +723,18 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
         if(U != 1) {
             offsetPosition = new unsigned int[_sizeSplit];
-            offsetPosition[0] = std::accumulate(infoWorld, infoWorld + rankRelative, static_cast<unsigned int>(super::_numbering == 'F'));
+            offsetPosition[0] = std::accumulate(infoWorld, infoWorld + relative, static_cast<unsigned int>(super::_numbering == 'F'));
             if(T == 0 || T == 2)
                 for(unsigned int k = 1; k < _sizeSplit; ++k)
                     offsetPosition[k] = offsetPosition[k - 1] + infoSplit[k - 1][1];
             else if(T == 1)
                 for(unsigned int k = 1; k < _sizeSplit; ++k)
-                    offsetPosition[k] = offsetPosition[k - 1] + infoWorld[rankRelative + k - 1];
+                    offsetPosition[k] = offsetPosition[k - 1] + infoWorld[relative + k - 1];
         }
         if(blocked)
             std::for_each(offsetIdx, offsetIdx + _sizeSplit - 1, [&](unsigned int& i) { i /= _local * _local; });
 #ifdef _OPENMP
-#pragma omp parallel for shared(I, J, infoWorld, infoSplit, rankRelative, offsetIdx, offsetPosition) schedule(dynamic, 64)
+#pragma omp parallel for shared(I, J, infoWorld, infoSplit, relative, offsetIdx, offsetPosition) schedule(dynamic, 64)
 #endif
         for(unsigned int k = 1; k < _sizeSplit; ++k) {
             if(U == 1 || infoSplit[k][2]) {
@@ -750,7 +744,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 unsigned short i = 0;
                 int* colIdx = J + offsetIdx[k - 1];
                 if(S != 'S')
-                    while(i < infoSplit[k][0] && infoSplit[k][(U != 1 ? 3 : 1) + i] < rankRelative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) {
+                    while(i < infoSplit[k][0] && infoSplit[k][(U != 1 ? 3 : 1) + i] < relative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) {
                         if(!blocked) {
                             if(U != 1) {
                                 if(i > 0)
@@ -765,7 +759,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                             *colIdx++ = infoSplit[k][1 + i] + (super::_numbering == 'F');
                         ++i;
                     }
-                unsigned int tmp = (U == 1 ? (rankRelative + k - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[k]);
+                const unsigned int tmp = (U == 1 ? (relative + k - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[k]);
                 if(!blocked) {
                     std::iota(colIdx, colIdx + (U == 1 ? _local : infoSplit[k][1]), tmp);
                     colIdx += (U == 1 ? _local : infoSplit[k][1]);
