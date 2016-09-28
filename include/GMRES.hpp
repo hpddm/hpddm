@@ -46,10 +46,9 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         v[i] = *v + i * mu * n;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (1 + (id[1] == 2)) + 1) * mu * n);
     underlying_type<K>* const sn = norm + mu;
-    bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m[1]);
-    initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
+    bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
     unsigned short j = 1;
     while(j <= m[0]) {
         if(!excluded)
@@ -111,10 +110,9 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     updateSol<excluded>(A, id[1], n, x, H, s, v + (m[1] + 1) * (id[1] == 2), hasConverged, mu, Ax);
     convergence<0>(id[0], j, m[0]);
     delete [] hasConverged;
-    A.clearBuffer(allocate);
+    A.end(allocate);
     delete [] s;
     delete [] H;
-    std::cout.unsetf(std::ios_base::scientific);
     return std::min(j, m[0]);
 }
 template<bool excluded, class Operator, class K>
@@ -136,8 +134,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m[1] * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
-    bool allocate = A.setBuffer();
-    initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
+    bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
     MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[2], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     for(unsigned short nu = 0; nu < mu / m[2]; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
@@ -259,10 +256,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     if(tol[1] > -0.9)
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     delete [] piv;
-    A.clearBuffer(allocate);
+    A.end(allocate);
     delete [] *H;
     delete [] H;
-    std::cout.unsetf(std::ios_base::scientific);
     if(j != 0) {
         convergence<1>(id[0], j, m[0]);
         return std::min(j, m[0]);

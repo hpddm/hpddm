@@ -137,7 +137,6 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     *v = *H + m[1] * ldh;
     for(unsigned short i = 1; i < m[1] * (1 + (id[1] == 2)) + 1; ++i)
         v[i] = *v + i * ldv;
-    bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m[1]);
     int info;
@@ -150,7 +149,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     }
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (1 + (id[1] == 2)) + 1) * ldv);
     underlying_type<K>* const sn = norm + mu;
-    initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
+    bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
     while(j <= m[0]) {
         unsigned short i = (U ? k : 0);
         if(!excluded) {
@@ -481,11 +480,10 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         (*Option::get())[A.prefix("recycle_same_system")] += 1;
     convergence<4>(id[0], j, m[0]);
     delete [] hasConverged;
-    A.clearBuffer(allocate);
+    A.end(allocate);
     delete [] s;
     delete [] *save;
     delete [] H;
-    std::cout.unsetf(std::ios_base::scientific);
     return std::min(j, m[0]);
 }
 template<bool excluded, class Operator, class K>
@@ -516,8 +514,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m[1] * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
-    bool allocate = A.setBuffer();
-    initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
+    bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
     MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[2], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     for(unsigned short nu = 0; nu < mu / m[2]; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
@@ -883,11 +880,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     if(j != 0 && j != m[0] + 1 && id[4] / 4)
         (*Option::get())[A.prefix("recycle_same_system")] += 1;
     delete [] piv;
-    A.clearBuffer(allocate);
+    A.end(allocate);
     delete [] *H;
     delete [] *save;
     delete [] H;
-    std::cout.unsetf(std::ios_base::scientific);
     if(j != 0) {
         convergence<5>(id[0], j, m[0]);
         return std::min(j, m[0]);

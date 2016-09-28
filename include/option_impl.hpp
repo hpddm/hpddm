@@ -40,7 +40,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("help", "Display available options", Arg::anything),
         std::forward_as_tuple("version", "Display information about HPDDM", Arg::anything),
         std::forward_as_tuple("config_file=<input_file>", "Load options from a file saved on disk", Arg::argument),
-        std::forward_as_tuple("tol=<1.0e-8>", "Relative decrease in residual norm", Arg::numeric),
+        std::forward_as_tuple("tol=<1.0e-6>", "Relative decrease in residual norm", Arg::numeric),
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations", Arg::positive),
         std::forward_as_tuple("verbosity(=<integer>)", "Level of output (higher means more displayed information)", Arg::anything),
         std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems", Arg::argument),
@@ -120,7 +120,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", Arg::anything),
 #if !defined(DSUITESPARSE)
         std::forward_as_tuple("master_p=<1>", "Number of master processes", Arg::positive),
-#if !defined(DHYPRE)
+#if defined(DMUMPS)
         std::forward_as_tuple("master_distribution=(centralized|sol|sol_and_rhs)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
 #endif
         std::forward_as_tuple("master_topology=(0|" +

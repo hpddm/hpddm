@@ -43,13 +43,13 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
     HPDDM::Option& opt = *HPDDM::Option::get();
     opt.parse(argc, argv, rankWorld == 0, {
-        std::forward_as_tuple("overlap=<1>", "Number of grid points in the overlap.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("overlap=<1>", "Number of grid points in the overlap.", HPDDM::Option::Arg::positive),
 #ifdef HPDDM_FROMFILE
         std::forward_as_tuple("matrix_filename=<input_file>", "Name of the file in which the matrix is stored.", HPDDM::Option::Arg::argument),
         std::forward_as_tuple("rhs_filename=<input_file>", "Name of the file in which the RHS is stored.", HPDDM::Option::Arg::argument),
 #else
-        std::forward_as_tuple("Nx=<100>", "Number of grid points in the x-direction.", HPDDM::Option::Arg::integer),
-        std::forward_as_tuple("Ny=<100>", "Number of grid points in the y-direction.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("Nx=<100>", "Number of grid points in the x-direction.", HPDDM::Option::Arg::positive),
+        std::forward_as_tuple("Ny=<100>", "Number of grid points in the y-direction.", HPDDM::Option::Arg::positive),
         std::forward_as_tuple("generate_random_rhs=<0>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("symmetric_csr=(0|1)", "Assemble symmetric matrices.", HPDDM::Option::Arg::argument),
         std::forward_as_tuple("nonuniform=(0|1)", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::argument)

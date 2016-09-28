@@ -75,10 +75,6 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
         K* val = new K[Mat->_nnz]();
         std::fill_n(val, Mat->_nnz, 1.0);
         overlap = opt.app()["overlap"];
-        if(overlap <= 0) {
-            std::cout << "WARNING -- -overlap should be a positive integer" << std::endl;
-            overlap = 1;
-        }
         K* z = new K[Mat->_n * sizeWorld];
         for(unsigned short i = 0; i < overlap; ++i) {
             HPDDM::Wrapper<K>::csrmm(Mat->_sym , &Mat->_n, &sizeWorld, val, Mat->_ia, Mat->_ja, indicator, z);

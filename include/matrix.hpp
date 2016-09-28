@@ -223,10 +223,13 @@ class MatrixCSR {
             f << "# First line: n m (is symmetric) nnz indexing\n";
             f << "# For each nonzero coefficient: i j a_ij such that (i, j) \\in  {1, ..., n} x {1, ..., m}\n";
             f << _n << " " << _m << " " << _sym << "  " << _nnz << " " << N << "\n";
+            std::ios_base::fmtflags ff(f.flags());
+            f << std::scientific;
             unsigned int k = _ia[0] - (N == 'F');
             for(unsigned int i = 0; i < _n; ++i)
                 for(unsigned int ke = _ia[i + 1] - (N == 'F'); k < ke; ++k)
-                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setw(13) << std::scientific << _a[k] << "\n";
+                    f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setw(13) << _a[k] << "\n";
+            f.flags(ff);
             return f;
         }
 };

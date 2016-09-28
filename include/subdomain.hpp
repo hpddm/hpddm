@@ -183,6 +183,7 @@ class Subdomain : public OptionsPrefix {
             if(free && !_map.empty())
                 delete [] *_buff;
         }
+        void end(const bool free = true) const { clearBuffer(free); }
         /* Function: initialize(dummy)
          *  Dummy function for masters excluded from the domain decomposition. */
         void initialize(MPI_Comm* const& comm = nullptr) {
@@ -304,7 +305,7 @@ class Subdomain : public OptionsPrefix {
             std::fill_n(x, mu * _dof, K());
             for(unsigned short nu = 0; nu < mu; ++nu)
                 for(unsigned short j = 0; j < k; ++j)
-                    Blas<K>::axpy(&_dof, &(Wrapper<K>::d__1), s + k * nu * _dof + j * _dof, &i__1, x + nu * _dof, &i__1);
+                    Blas<K>::axpy(&_dof, &(Wrapper<K>::d__1), s + (j + k * nu) * _dof, &i__1, x + nu * _dof, &i__1);
             delete [] s;
         }
         /* Function: interaction
@@ -719,7 +720,7 @@ class Subdomain : public OptionsPrefix {
 };
 
 template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
-inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
+inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm&) {
     A.Subdomain<K>::scatter(x, sx, mu, k);
     const std::string prefix = A.prefix();
     if(sx != nullptr) {

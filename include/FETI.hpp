@@ -141,7 +141,8 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    b              - Condensed right-hand side.
          *    r              - First residual. */
         template<bool excluded>
-        void start(const K* const f, K* const x, K* const* const l, K* const* const r) const {
+        bool start(const K* const f, K* const x, K* const* const l, K* const* const r) const {
+            bool allocate = Subdomain<K>::setBuffer();
             Solver<K>* p = static_cast<Solver<K>*>(super::_pinv);
             if(super::_co) {
                 super::start();
@@ -186,6 +187,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
             }
             else if(super::_co)
                 project<excluded, 'T'>(r);
+            return allocate;
         }
         /* Function: allocateSingle
          *

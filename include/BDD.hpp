@@ -109,7 +109,8 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    b              - Condensed right-hand side.
          *    r              - First residual. */
         template<bool excluded>
-        void start(const K* const f, K* const x, K* const b, K* r) const {
+        bool start(const K* const f, K* const x, K* const b, K* r) const {
+            bool allocate = Subdomain<K>::setBuffer();
             if(super::_co) {
                 super::start();
                 if(!excluded) {
@@ -147,6 +148,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 Subdomain<K>::exchange(r);
                 std::fill_n(x, Subdomain<K>::_dof, K());
             }
+            return allocate;
         }
         /* Function: apply
          *

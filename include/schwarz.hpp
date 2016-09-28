@@ -216,7 +216,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             return super::template buildTwo<excluded, MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm);
         }
         template<bool excluded = false>
-        void start(const K* const b, K* const x, const unsigned short& mu = 1) const {
+        bool start(const K* const b, K* const x, const unsigned short& mu = 1) const {
+            bool allocate = Subdomain<K>::setBuffer();
             if(!excluded) {
                 for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
                     K boundary = Subdomain<K>::boundaryCond(i);
@@ -248,6 +249,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                         deflation<excluded>(nullptr, nullptr, mu);
                 }
             }
+            return allocate;
         }
         /* Function: apply
          *

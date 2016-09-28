@@ -431,13 +431,13 @@ class OptionsPrefix {
     public:
         OptionsPrefix() : _prefix() { };
         ~OptionsPrefix() {
-            free(_prefix);
+            delete [] _prefix;
         }
         void setPrefix(const char* prefix) {
             if(_prefix)
-                free(_prefix);
-            _prefix = (char*)malloc(strlen(prefix) + 1);
-            strcpy(_prefix, prefix);
+                delete [] _prefix;
+            _prefix = new char[std::strlen(prefix) + 1];
+            std::strcpy(_prefix, prefix);
         }
         void setPrefix(const std::string& prefix) {
             if(prefix.size())

@@ -44,7 +44,6 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     underlying_type<K>* res;
     K* trash;
     allocate(res, trash, n, id[1] == 2 ? 2 : 1, it, mu);
-    bool allocate = A.setBuffer();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -it);
     underlying_type<K>* const dir = res + mu;
@@ -52,8 +51,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     K* const r = z + dim;
     K* const p = r + dim;
     const underlying_type<K>* const d = A.getScaling();
-
-    A.template start<excluded>(b, x, mu);
+    bool allocate = A.template start<excluded>(b, x, mu);
     if(!excluded)
         A.GMV(x, z, mu);
     std::copy_n(b, dim, r);
@@ -107,10 +105,11 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         for(unsigned short nu = 0; nu < mu; ++nu)
             dir[mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
         MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        std::copy_n(dir + mu, mu, dir + (it + i + 1) * mu);
-        std::copy_n(p, dim, p + (i + 1) * dim);
+        ++i;
+        std::copy_n(dir + mu, mu, dir + (it + i) * mu);
+        std::copy_n(p, dim, p + i * dim);
         if(id[1] == 2)
-            std::copy_n(z, dim, p + (it + i + 1) * dim);
+            std::copy_n(z, dim, p + (it + i) * dim);
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] == -it) {
                 trash[nu] = dir[nu] / dir[mu + nu];
@@ -130,19 +129,18 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             for(unsigned short nu = 0; nu < mu; ++nu)
                 Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
         std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
-        checkConvergence<2>(id[0], i + 1, i + 1, tol, mu, res, dir, hasConverged, it);
-        if(std::find(hasConverged, hasConverged + mu, -it) == hasConverged + mu)
+        checkConvergence<2>(id[0], i, i, tol, mu, res, dir, hasConverged, it);
+        if(std::find(hasConverged, hasConverged + mu, -it) == hasConverged + mu) {
+            --i;
             break;
-        else
-            ++i;
+        }
     }
-    convergence<2>(id[0], i, it);
+    convergence<2>(id[0], i + 1, it);
     delete [] res;
     if(Wrapper<K>::is_complex)
         delete [] trash;
     delete [] hasConverged;
-    A.clearBuffer(allocate);
-    std::cout.unsetf(std::ios_base::scientific);
+    A.end(allocate);
     return std::min(static_cast<unsigned short>(i), it);
 }
 template<bool excluded, class Operator, class K>
@@ -160,7 +158,6 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             return CG<excluded>(A, b, x, mu, comm);
         m[1] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
     }
-    bool allocate = A.setBuffer();
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[4 * (dim + mu * mu)];
@@ -171,7 +168,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     K* const rhs = rho + 2 * mu * mu;
     K* const gamma = rhs + mu * mu;
     const underlying_type<K>* const d = A.getScaling();
-    A.template start<excluded>(b, x, mu);
+    bool allocate = A.template start<excluded>(b, x, mu);
     if(!excluded)
         A.GMV(x, z, mu);
     std::copy_n(b, dim, r);
@@ -195,7 +192,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     int info = QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
     if(info) {
         delete [] trash;
-        A.clearBuffer(allocate);
+        A.end(allocate);
         return CG<excluded>(A, b, x, mu, comm);
     }
     underlying_type<K>* const norm = new underlying_type<K>[mu];
@@ -227,7 +224,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         if(info) {
             delete [] norm;
             delete [] trash;
-            A.clearBuffer(allocate);
+            A.end(allocate);
             return CG<excluded>(A, b, x, mu, comm);
         }
         if(!excluded && n) {
@@ -269,7 +266,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         if(info) {
             delete [] norm;
             delete [] trash;
-            A.clearBuffer(allocate);
+            A.end(allocate);
             return CG<excluded>(A, b, x, mu, comm);
         }
         if(!excluded && n) {
@@ -281,7 +278,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         if(info) {
             delete [] norm;
             delete [] trash;
-            A.clearBuffer(allocate);
+            A.end(allocate);
             return CG<excluded>(A, b, x, mu, comm);
         }
         std::copy_n(rho + mu * mu, mu * mu, rho);
@@ -289,8 +286,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     convergence<3>(id[0], i, m[0]);
     delete [] norm;
     delete [] trash;
-    A.clearBuffer(allocate);
-    std::cout.unsetf(std::ios_base::scientific);
+    A.end(allocate);
     return std::min(i, m[0]);
 }
 template<bool excluded, class Operator, class K>
@@ -306,13 +302,8 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     // storage[0] = r
     // storage[1] = lambda
     A.allocateArray(storage);
-    bool allocate = A.setBuffer();
     auto m = A.getScaling();
-    if(std::is_same<ptr_type, K*>::value)
-        A.template start<excluded>(f, x + offset, nullptr, storage[0]);
-    else
-        A.template start<excluded>(f, x, storage[1], storage[0]);
-
+    bool allocate = std::is_same<ptr_type, K*>::value ? A.template start<excluded>(f, x + offset, nullptr, storage[0]) : A.template start<excluded>(f, x, storage[1], storage[0]);
     std::vector<ptr_type> z;
     z.reserve(it);
     ptr_type zCurr;
@@ -402,8 +393,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     for(auto pCurr : p)
         clean(pCurr);
     clean(storage[0]);
-    A.clearBuffer(allocate);
-    std::cout.unsetf(std::ios_base::scientific);
+    A.end(allocate);
     return std::min(i, it);
 }
 } // HPDDM

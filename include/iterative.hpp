@@ -28,14 +28,12 @@
 namespace HPDDM {
 template<class K>
 struct EmptyOperator : OptionsPrefix {
-    bool setBuffer(K* = nullptr, const int& = 0) const { return false; }
-    template<bool = true> void start(const K* const, K* const, const unsigned short& = 1) const { }
-    void clearBuffer(const bool) const { }
     const underlying_type<K>* getScaling() const { return nullptr; }
-
     const int _n;
     EmptyOperator(int n) : OptionsPrefix(), _n(n) { }
     int getDof() const { return _n; }
+    template<bool = true> bool start(const K* const, K* const, const unsigned short& = 1) const { return false; }
+    void end(const bool) const { }
 };
 template<class Operator, class K>
 struct CustomOperator : EmptyOperator<K> {
@@ -168,7 +166,6 @@ class IterativeMethod {
                 id[3] = opt.val<char>(prefix + "recycle_target", 0);
                 id[4] = opt.val<char>(prefix + "recycle_strategy", 0) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
             }
-            std::cout << std::scientific;
             if(std::abs(d[0]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
                 if(id[0])
                     std::cout << "WARNING -- the tolerance of the iterative method was set to " << d[0]
@@ -265,7 +262,7 @@ class IterativeMethod {
                             Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
                         }
                         if(variant == 1)
-                            A.apply(work, correction, mu);
+                            A.template apply<excluded>(work, correction, mu);
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             if(hasConverged[nu])
                                 Blas<K>::axpy(&n, &(Wrapper<K>::d__1), correction + nu * n, &i__1, x + nu * n, &i__1);
@@ -279,14 +276,14 @@ class IterativeMethod {
                         else {
                             Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
                             if(variant == 1)
-                                A.apply(work, correction, mu);
+                                A.template apply<excluded>(work, correction, mu);
                             Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                         }
                     }
                     else {
                         Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
                         if(variant == 1)
-                            A.apply(work, correction, deflated);
+                            A.template apply<excluded>(work, correction, deflated);
                         Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d__1), x + deflated * n, &n);
                         Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                     }
@@ -392,8 +389,8 @@ class IterativeMethod {
                 Wrapper<T>::diag(n, d, in);
         }
         template<bool excluded, class Operator, class K>
-        static void initializeNorm(const Operator& A, const char variant, const K* const b, K* const x, K* const v, const int n, K* work, underlying_type<K>* const norm, const unsigned short mu, const unsigned short k) {
-            A.template start<excluded>(b, x, mu);
+        static bool initializeNorm(const Operator& A, const char variant, const K* const b, K* const x, K* const v, const int n, K* work, underlying_type<K>* const norm, const unsigned short mu, const unsigned short k) {
+            bool allocate = A.template start<excluded>(b, x, mu);
             if(!variant) {
                 A.template apply<excluded>(b, v, mu, work);
                 if(k <= 1)
@@ -424,6 +421,7 @@ class IterativeMethod {
                     }
                 }
             }
+            return allocate;
         }
         /* Function: orthogonalization
          *
@@ -641,17 +639,56 @@ class IterativeMethod {
             return false;
         }
         template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void preprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
+        static void preprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&, const MPI_Comm&);
         template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
         static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
         template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void preprocess(const Operator&, const K* const b, K*& sb, K* const x, K*& sx, const int&, unsigned short&) {
-            sx = x;
-            sb = const_cast<K*>(b);
-            Option::get()->remove("enlarge_krylov_subspace");
+        static void preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
+            int size;
+            MPI_Comm_size(comm, &size);
+            const std::string prefix = A.prefix();
+            if(k < 2 || size == 1) {
+                sx = x;
+                sb = const_cast<K*>(b);
+                Option::get()->remove(prefix + "enlarge_krylov_subspace");
+            }
+            else {
+                int rank;
+                MPI_Comm_rank(comm, &rank);
+                k = std::min(k, static_cast<unsigned short>(size));
+                const int n = A.getDof();
+                sb = new K[k * mu * n]();
+                sx = new K[k * mu * n]();
+                const unsigned short j = std::min(k - 1, rank / (size / k));
+                if(j >= k)
+                    std::cout << "PANIC" << std::endl;
+                for(unsigned short nu = 0; nu < mu; ++nu) {
+                    std::copy_n(x + nu * n, n, sx + (j + k * nu) * n);
+                    std::copy_n(b + nu * n, n, sb + (j + k * nu) * n);
+                }
+                Option& opt = *Option::get();
+                opt[prefix + "enlarge_krylov_subspace"] = k;
+                if(mu > 1)
+                    opt.remove(prefix + "initial_deflation_tol");
+                if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5 })) {
+                    opt[prefix + "krylov_method"] = 1;
+                    if(opt.val<char>(prefix + "verbosity", 0))
+                        std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
+                }
+            }
         }
         template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&) { }
+        static void postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
+            if(sb != b) {
+                const int n = A.getDof();
+                std::fill_n(x, mu * n, K());
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    for(unsigned short j = 0; j < k; ++j)
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), sx + (j + k * nu) * n, &i__1, x + nu * n, &i__1);
+                delete [] sx;
+                delete [] sb;
+            }
+        }
     public:
         /* Function: GMRES
          *
@@ -710,12 +747,13 @@ class IterativeMethod {
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int& mu
 #if HPDDM_MPI
-                                                                        , const MPI_Comm& comm
-#endif
+                                                                        , const MPI_Comm& comm) {
+#else
                                                                                               ) {
-#if !HPDDM_MPI
             int comm = 0;
 #endif
+            std::ios_base::fmtflags ff(std::cout.flags());
+            std::cout << std::scientific;
             const std::string prefix = A.prefix();
             Option& opt = *Option::get();
 #if HPDDM_MIXED_PRECISION
@@ -724,7 +762,7 @@ class IterativeMethod {
             unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
             K* sx = nullptr;
             K* sb = nullptr;
-            preprocess(A, b, sb, x, sx, mu, k);
+            preprocess(A, b, sb, x, sx, mu, k, comm);
             int it;
             switch(opt.val<char>(prefix + "krylov_method")) {
                 case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
@@ -735,6 +773,7 @@ class IterativeMethod {
                 default: it = HPDDM::IterativeMethod::GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
             postprocess(A, b, sb, x, sx, mu, k);
+            std::cout.flags(ff);
             return it;
         }
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>

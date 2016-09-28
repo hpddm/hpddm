@@ -16,12 +16,12 @@ LIBS =
 
 # MKL_INCS = -I/opt/intel/mkl/include
 MUMPS_INCS = -I${PETSC_DIR}/${PETSC_ARCH}/include
-PYTHON_INCS = -I/usr/local/Cellar/python/2.7.10_2/Frameworks/Python.framework/Versions/2.7/include/python2.7
+PYTHON_INCS = -I/usr/local/Cellar/python/2.7.12/Frameworks/Python.framework/Versions/2.7/include/python2.7
 
 BLAS_LIBS = ${HOME}/accwrp/libaccwrp.a -framework Accelerate
 # MKL_LIBS = -L/opt/intel/mkl/lib -L/opt/intel/lib -lmkl_intel_thread -lmkl_core -lmkl_intel_lp64 -lc++
 ARPACK_LIBS = ${HOME}/ARPACK/lib/libarpack.a
 SCALAPACK_LIBS = ${HOME}/scalapack-2.0.2/libscalapack.a
-MUMPS_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lmumps_common -lsmumps -ldmumps -lcmumps -lzmumps -lpord -lptscotch -lptscotcherr -lscotch -lptesmumps -lparmetis -lmpifort
+MUMPS_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lmumps_common -lsmumps -ldmumps -lcmumps -lzmumps -lpord -lmpifort # -lptscotch -lptscotcherr -lscotch -lptesmumps -lparmetis
 HYPRE_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lHYPRE
-PYTHON_LIBS = /usr/local/Cellar/python/2.7.10_2/Frameworks/Python.framework/Versions/2.7/lib/libpython2.7.dylib
+PYTHON_LIBS = /usr/local/Cellar/python/2.7.12/Frameworks/Python.framework/Versions/2.7/lib/libpython2.7.dylib
