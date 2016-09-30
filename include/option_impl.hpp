@@ -28,9 +28,6 @@ namespace HPDDM {
 template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
-#if (defined(SUBDOMAIN) || defined(COARSEOPERATOR)) && (defined(DHYPRE) || defined(DPASTIX))
-    _opt = { { "master_distribution",           2 } };
-#endif
 }
 template<bool recursive, class Container>
 inline int Option::parse(std::vector<std::string>& args, bool display, const Container& reg) {
@@ -121,7 +118,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #if !defined(DSUITESPARSE)
         std::forward_as_tuple("master_p=<1>", "Number of master processes", Arg::positive),
 #if defined(DMUMPS)
-        std::forward_as_tuple("master_distribution=(centralized|sol|sol_and_rhs)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
+        std::forward_as_tuple("master_distribution=(centralized|sol)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
 #endif
         std::forward_as_tuple("master_topology=(0|" +
 #if !defined(HPDDM_CONTIGUOUS)
@@ -130,6 +127,9 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
             std::string("2)"), "Distribution of the master processes", Arg::integer),
 #endif
         std::forward_as_tuple("master_assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator", Arg::positive),
+#if HPDDM_INEXACT_COARSE_OPERATOR
+        std::forward_as_tuple("master_aggregate_sizes=<val>", "Number of master processes per MPI sub-communicators", Arg::positive),
+#endif
         std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
         std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
 #if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)

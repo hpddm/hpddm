@@ -167,9 +167,6 @@ class Mumps : public DMatrix {
                 MUMPS_STRUC_C<K>::mumps_c(_id);
             }
         }
-        void initialize() {
-            DMatrix::initialize("MUMPS", { CENTRALIZED, DISTRIBUTED_SOL });
-        }
 };
 #endif // DMUMPS
 

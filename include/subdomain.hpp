@@ -267,45 +267,58 @@ class Subdomain : public OptionsPrefix {
         /* Function: getBuffer
          *  Returns a pointer to <Subdomain::buff>. */
         K** getBuffer() const { return _buff; }
-        void scatter(const K* const x, K*& s, const unsigned short mu, unsigned short& k) const {
+        template<bool excluded>
+        void scatter(const K* const x, K*& s, const unsigned short mu, unsigned short& k, const MPI_Comm& comm) const {
             int size;
-            MPI_Comm_size(_communicator, &size);
+            if(excluded) {
+                MPI_Comm_size(comm, &size);
+                int master;
+                MPI_Comm_size(_communicator, &master);
+                size -= master;
+            }
+            else
+                MPI_Comm_size(_communicator, &size);
             if(k < 2 || size == 1)
                 k = 1;
             else {
-                int rank;
-                MPI_Comm_rank(_communicator, &rank);
                 k = std::min(k, static_cast<unsigned short>(size));
                 s = new K[k * mu * _dof]();
-                unsigned int n = 0;
-                for(const auto& i : _map)
-                    n += i.second.size();
-                unsigned short* idx = new unsigned short[_dof + n];
-                unsigned short* buff = idx + _dof;
-                int div = size / k;
-                std::fill_n(idx, _dof + n, std::min(rank / div, k - 1) + 1);
-                n = 0;
-                for(unsigned short i = 0; i < _map.size(); ++i) {
-                    if(rank < _map[i].first)
-                        std::fill_n(buff + n, _map[i].second.size(), std::min(_map[i].first / div, k - 1) + 1);
-                    n += _map[i].second.size();
+                if(!excluded) {
+                    int rank;
+                    MPI_Comm_rank(_communicator, &rank);
+                    unsigned int n = 0;
+                    for(const auto& i : _map)
+                        n += i.second.size();
+                    unsigned short* idx = new unsigned short[_dof + n];
+                    unsigned short* buff = idx + _dof;
+                    int div = size / k;
+                    std::fill_n(idx, _dof + n, std::min(rank / div, k - 1) + 1);
+                    n = 0;
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        if(rank < _map[i].first)
+                            std::fill_n(buff + n, _map[i].second.size(), std::min(_map[i].first / div, k - 1) + 1);
+                        n += _map[i].second.size();
+                    }
+                    n = 0;
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        Wrapper<unsigned short>::sctr(_map[i].second.size(), buff + n, _map[i].second.data(), idx);
+                        n += _map[i].second.size();
+                    }
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        for(unsigned int i = 0; i < _dof; ++i)
+                            s[k * nu * _dof + i + (idx[i] - 1) * _dof] = x[nu * _dof + i];
+                    delete [] idx;
                 }
-                n = 0;
-                for(unsigned short i = 0; i < _map.size(); ++i) {
-                    Wrapper<unsigned short>::sctr(_map[i].second.size(), buff + n, _map[i].second.data(), idx);
-                    n += _map[i].second.size();
-                }
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    for(unsigned int i = 0; i < _dof; ++i)
-                        s[k * nu * _dof + i + (idx[i] - 1) * _dof] = x[nu * _dof + i];
-                delete [] idx;
             }
         }
+        template<bool excluded>
         void gather(K*& s, K* x, const unsigned short mu, const unsigned short k) const {
-            std::fill_n(x, mu * _dof, K());
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                for(unsigned short j = 0; j < k; ++j)
-                    Blas<K>::axpy(&_dof, &(Wrapper<K>::d__1), s + (j + k * nu) * _dof, &i__1, x + nu * _dof, &i__1);
+            if(!excluded) {
+                std::fill_n(x, mu * _dof, K());
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    for(unsigned short j = 0; j < k; ++j)
+                        Blas<K>::axpy(&_dof, &(Wrapper<K>::d__1), s + (j + k * nu) * _dof, &i__1, x + nu * _dof, &i__1);
+            }
             delete [] s;
         }
         /* Function: interaction
@@ -719,13 +732,14 @@ class Subdomain : public OptionsPrefix {
         }
 };
 
-template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
-inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm&) {
-    A.Subdomain<K>::scatter(x, sx, mu, k);
+template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
+inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
+    A.Subdomain<K>::template scatter<excluded>(x, sx, mu, k, comm);
     const std::string prefix = A.prefix();
     if(sx != nullptr) {
-        std::copy_n(b, mu * A.getDof(), x);
-        A.Subdomain<K>::scatter(x, sb, mu, k);
+        if(!excluded)
+            std::copy_n(b, mu * A.getDof(), x);
+        A.Subdomain<K>::template scatter<excluded>(x, sb, mu, k, comm);
         Option& opt = *Option::get();
         opt[prefix + "enlarge_krylov_subspace"] = k;
         if(mu > 1)
@@ -742,10 +756,10 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
         Option::get()->remove(prefix + "enlarge_krylov_subspace");
     }
 }
-template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
+template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
 inline void IterativeMethod::postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
     if(sb != b) {
-        A.Subdomain<K>::gather(sx, x, mu, k);
+        A.Subdomain<K>::template gather<excluded>(sx, x, mu, k);
         delete [] sb;
     }
 }

@@ -82,19 +82,30 @@ struct Wrapper {
      *  Computes a sparse square matrix-vector product. */
     template<char N = HPDDM_NUMBERING>
     static void csrmv(bool, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
+    template<char N = HPDDM_NUMBERING>
+    static void bsrmv(bool, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
     /* Function: csrmv
      *  Computes a scalar-sparse matrix-vector product. */
     template<char N = HPDDM_NUMBERING>
     static void csrmv(const char* const, const int* const, const int* const, const K* const, bool,
                       const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
+    template<char N = HPDDM_NUMBERING>
+    static void bsrmv(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
+                      const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
     /* Function: csrmm(square)
      *  Computes a sparse square matrix-matrix product. */
     template<char N = HPDDM_NUMBERING>
     static void csrmm(bool, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
+    template<char N = HPDDM_NUMBERING>
+    static void bsrmm(bool, const int* const, const int* const, const int* const, const K* const, const int* const, const int* const, const K* const, K* const);
     /* Function: csrmm
      *  Computes a scalar-sparse matrix-matrix product. */
     template<char N = HPDDM_NUMBERING>
     static void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
+                      const K* const, const int* const, const int* const, const K* const, const int* const,
+                      const K* const, K* const, const int* const);
+    template<char N = HPDDM_NUMBERING>
+    static void bsrmm(const char* const, const int* const, const int* const, const int* const, const int* const, const K* const, bool,
                       const K* const, const int* const, const int* const, const K* const, const int* const,
                       const K* const, K* const, const int* const);
 
@@ -200,16 +211,16 @@ inline void Wrapper<K>::sctr(const int& n, const K* const x, const int* const in
 }
 
 #if HPDDM_MKL
-template<char N>
+template<char N, char M = 'L'>
 struct matdescr {
     static const char a[];
     static const char b[];
 };
 
-template<char N>
-const char matdescr<N>::a[6] { 'G', '0', '0', N, '0', '0' };
-template<char N>
-const char matdescr<N>::b[6] { 'S', 'L', 'N', N, '0', '0' };
+template<char N, char M>
+const char matdescr<N, M>::a[4] { 'G', '0', '0', N };
+template<char N, char M>
+const char matdescr<N, M>::b[4] { 'S',  M , 'N', N };
 
 #define HPDDM_GENERATE_MKL(C, T)                                                                             \
 template<>                                                                                                   \
@@ -235,6 +246,27 @@ inline void Wrapper<T>::csrmv(bool sym, const int* const n, const T* const a, co
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
+inline void Wrapper<T>::bsrmv(bool sym, const int* const n, const int* const bs, const T* const a,           \
+                              const int* const ia, const int* const ja, const T* const x, T* const y) {      \
+    if(N == 'C') {                                                                                           \
+        if(sym)                                                                                              \
+            mkl_cspblas_ ## C ## bsrsymv("U", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a),  \
+                                         HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);  \
+        else                                                                                                 \
+            mkl_cspblas_ ## C ## bsrgemv("N", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a),  \
+                                         HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);  \
+    }                                                                                                        \
+    else {                                                                                                   \
+        if(sym)                                                                                              \
+            mkl_ ## C ## bsrsymv("U", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a),          \
+                                 HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);          \
+        else                                                                                                 \
+            mkl_ ## C ## bsrgemv("N", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a),          \
+                                 HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y);          \
+    }                                                                                                        \
+}                                                                                                            \
+template<>                                                                                                   \
+template<char N>                                                                                             \
 inline void Wrapper<T>::csrmv(const char* const trans, const int* const m, const int* const k,               \
                               const T* const alpha, bool sym, const T* const a, const int* const ia,         \
                               const int* const ja, const T* const x, const T* const beta, T* const y) {      \
@@ -242,6 +274,18 @@ inline void Wrapper<T>::csrmv(const char* const trans, const int* const m, const
                        HPDDM_CONST(T, alpha), HPDDM_CONST(char, sym ? matdescr<N>::b : matdescr<N>::a),      \
                        HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia),                        \
                        HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y);                \
+}                                                                                                            \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::bsrmv(const char* const trans, const int* const m, const int* const k,               \
+                              const int* const bs, const T* const alpha, bool sym, const T* const a,         \
+                              const int* const ia, const int* const ja, const T* const x,                    \
+                              const T* const beta, T* const y) {                                             \
+    mkl_ ## C ## bsrmv(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, k),                   \
+                       HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha),                                          \
+                       HPDDM_CONST(char, sym ? (matdescr<N, 'U'>::b) : matdescr<N>::a), HPDDM_CONST(T, a),   \
+                       HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1,                 \
+                       HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y);                                          \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char N>                                                                                             \
@@ -268,6 +312,32 @@ inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const
     }                                                                                                        \
     else                                                                                                     \
         csrmv<N>(trans, m, k, alpha, sym, a, ia, ja, x, beta, y);                                            \
+}                                                                                                            \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const int* const n,               \
+                              const int* const k, const int* const bs, const T* const alpha, bool sym,       \
+                              const T* const a, const int* const ia, const int* const ja,                    \
+                              const T* const x, const int* const ldb, const T* const beta,                   \
+                              T* const y, const int* const ldc) {                                            \
+    if(*n != 1) {                                                                                            \
+        if(N != 'F') {                                                                                       \
+            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { ++i; });         \
+            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { ++i; });         \
+        }                                                                                                    \
+        mkl_ ## C ## bsrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),               \
+                           HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha),                 \
+                           HPDDM_CONST(char, sym ? (matdescr<'F', 'U'>::b) : matdescr<'F'>::a),              \
+                           HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia),                    \
+                           HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(int, ldb),               \
+                           HPDDM_CONST(T, beta), y, HPDDM_CONST(int, ldc));                                  \
+        if(N != 'F') {                                                                                       \
+            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { --i; });         \
+            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { --i; });         \
+        }                                                                                                    \
+    }                                                                                                        \
+    else                                                                                                     \
+        bsrmv<N>(trans, m, k, bs, alpha, sym, a, ia, ja, x, beta, y);                                        \
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
@@ -596,6 +666,12 @@ template<class K>
 template<char N>
 inline void Wrapper<K>::csrmm(bool sym, const int* const n, const int* const m, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
     csrmm<N>("N", n, m, n, &d__1, sym, a, ia, ja, x, n, &d__0, y, n);
+}
+template<class K>
+template<char N>
+inline void Wrapper<K>::bsrmm(bool sym, const int* const n, const int* const m, const int* const bs, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
+    const int ld = *n * *bs;
+    bsrmm<N>("N", n, m, n, bs, &d__1, sym, a, ia, ja, x, &ld, &d__0, y, &ld);
 }
 
 template<class Idx, class T>

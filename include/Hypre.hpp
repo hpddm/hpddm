@@ -177,13 +177,9 @@ class Hypre : public DMatrix {
          *
          *  Solves the system in-place.
          *
-         * Template Parameter:
-         *    D              - Distribution of right-hand sides and solution vectors.
-         *
          * Parameters:
          *    rhs            - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of right-hand sides. */
-        template<DMatrix::Distribution D>
         void solve(K* rhs, const unsigned short& n) {
             HYPRE_ParVector par_b;
             HYPRE_IJVectorGetObject(_b, reinterpret_cast<void**>(&par_b));
@@ -215,9 +211,6 @@ class Hypre : public DMatrix {
                     std::cout << " --- BoomerAMG performed " << num_iterations << " iteration" << (num_iterations > 1 ? "s" : "") << std::endl;
             }
             loc->data = b;
-        }
-        void initialize() {
-            DMatrix::initialize("BoomerAMG", { DISTRIBUTED_SOL_AND_RHS });
         }
 };
 #endif // DHYPRE

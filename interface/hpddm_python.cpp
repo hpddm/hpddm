@@ -250,7 +250,7 @@ int solve(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_C
 void destroyRecycling() {
     HPDDM::Recycling<K>::get()->destroy();
 }
-int CustomOperatorSolve(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int n, int mu) {
+int CustomOperatorSolve(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu) {
     return HPDDM::IterativeMethod::solve(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat), precond), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, MPI_COMM_SELF);
 }
 }

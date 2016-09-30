@@ -42,8 +42,9 @@
  *    HPDDM_BDD           - BDD methods enabled.
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
- *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators. */
-#define HPDDM_VERSION         000400
+ *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
+ *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method. */
+#define HPDDM_VERSION         000500
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -82,6 +83,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #endif
 #ifndef HPDDM_MIXED_PRECISION
 # define HPDDM_MIXED_PRECISION 0
+#endif
+#ifndef HPDDM_INEXACT_COARSE_OPERATOR
+# define HPDDM_INEXACT_COARSE_OPERATOR 0
 #endif
 
 #ifdef __MINGW32__
@@ -152,7 +156,6 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <fstream>
 # include <iomanip>
 # include <unordered_map>
-# include <bitset>
 # include <limits>
 # include <algorithm>
 # include <vector>
@@ -161,7 +164,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # if !__cpp_rtti && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
 #  pragma message("Consider enabling RTTI support with your C++ compiler")
 # endif
-static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double), "Incorrect sizes");
+static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double) && sizeof(char) == 1, "Incorrect sizes");
 # ifdef __GNUG__
 #  include <cxxabi.h>
 #  include <memory>

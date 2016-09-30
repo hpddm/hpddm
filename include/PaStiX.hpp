@@ -221,13 +221,9 @@ class Pastix : public DMatrix {
          *
          *  Solves the system in-place.
          *
-         * Template Parameter:
-         *    D              - Distribution of right-hand sides and solution vectors.
-         *
          * Parameters:
          *    rhs            - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of right-hand sides. */
-        template<DMatrix::Distribution D>
         void solve(K* rhs, const unsigned short& n) {
             K* rhs2 = new K[n * _ncol2];
             if(!DMatrix::_mapOwn && !DMatrix::_mapRecv) {
@@ -250,9 +246,6 @@ class Pastix : public DMatrix {
             for(unsigned short nu = 0; nu < n; ++nu)
                 DMatrix::redistribute<2>(rhs + nu * *DMatrix::_ldistribution, rhs2 + nu * _ncol2);
             delete [] rhs2;
-        }
-        void initialize() {
-            DMatrix::initialize("PaStiX", { DISTRIBUTED_SOL_AND_RHS });
         }
 };
 #endif // DPASTIX

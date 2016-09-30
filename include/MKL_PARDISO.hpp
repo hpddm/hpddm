@@ -57,36 +57,44 @@ class MklPardiso : public DMatrix {
     private:
         /* Variable: pt
          *  Internal data pointer. */
-        void*      _pt[64];
+        mutable void*  _pt[64];
         /* Variable: a
          *  Array of data. */
-        K*              _C;
+        K*                  _C;
         /* Variable: I
          *  Array of row pointers. */
-        int*            _I;
+        int*                _I;
         /* Variable: J
          *  Array of column indices. */
-        int*            _J;
+        int*                _J;
+#if !HPDDM_INEXACT_COARSE_OPERATOR
         /* Variable: w
          *  Workspace array. */
-        K*              _w;
+        K*                  _w;
+#endif
         /* Variable: mtype
          *  Matrix type. */
-        int         _mtype;
+        int             _mtype;
         /* Variable: iparm
          *  Array of parameters. */
-        int     _iparm[64];
+        mutable int _iparm[64];
         /* Variable: comm
          *  MPI communicator. */
-        int          _comm;
+        int              _comm;
     protected:
         /* Variable: numbering
          *  0-based indexing. */
         static constexpr char _numbering = 'F';
     public:
-        MklPardiso() : _pt(), _C(), _I(), _J(), _w(), _comm(-1) { }
+        MklPardiso() : _pt(), _C(), _I(), _J(),
+#if !HPDDM_INEXACT_COARSE_OPERATOR
+            _w(),
+#endif
+            _comm(-1) { }
         ~MklPardiso() {
+#if !HPDDM_INEXACT_COARSE_OPERATOR
             delete [] _w;
+#endif
             int phase = -1;
             int error;
             K ddum;
@@ -104,13 +112,14 @@ class MklPardiso : public DMatrix {
          *    S              - 'S'ymmetric or 'G'eneral factorization.
          *
          * Parameters:
-         *    ncol           - Number of local rows.
          *    I              - Array of row pointers.
          *    loc2glob       - Lower and upper bounds of the local domain.
          *    J              - Array of column indices.
          *    C              - Array of data. */
         template<char S>
-        void numfact(unsigned int ncol, unsigned short bs, int* I, int* loc2glob, int* J, K* C) {
+        void numfact(unsigned short bs, int* I, int* loc2glob, int* J, K* C) {
+            if(DMatrix::_communicator != MPI_COMM_NULL && _comm == -1)
+                _comm = MPI_Comm_c2f(DMatrix::_communicator);
             _I = I;
             _J = J;
             _C = C;
@@ -124,7 +133,11 @@ class MklPardiso : public DMatrix {
             std::fill_n(_iparm, 64, 0);
             _iparm[0]  = 1;
             _iparm[1]  = opt.val<int>("master_mkl_pardiso_iparm_2", 2);
+#if !HPDDM_INEXACT_COARSE_OPERATOR
             _iparm[5]  = 1;
+#else
+            _iparm[5]  = 0;
+#endif
             _iparm[9]  = opt.val<int>("master_mkl_pardiso_iparm_10", S != 'S' ? 13 : 8);
             _iparm[10] = opt.val<int>("master_mkl_pardiso_iparm_11", S != 'S' ? 1 : 0);
             _iparm[12] = opt.val<int>("master_mkl_pardiso_iparm_13", S != 'S' ? 1 : 0);
@@ -138,8 +151,11 @@ class MklPardiso : public DMatrix {
             _iparm[41] = loc2glob[1];
             phase = 12;
             *loc2glob = DMatrix::_n / bs;
+
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, loc2glob, C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+#if !HPDDM_INEXACT_COARSE_OPERATOR
             _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
+#endif
             if(S == 'S' || *loc2glob != _iparm[41] - _iparm[40] + 1)
                 _C = nullptr;
             delete [] loc2glob;
@@ -148,23 +164,22 @@ class MklPardiso : public DMatrix {
          *
          *  Solves the system in-place.
          *
-         * Template Parameter:
-         *    D              - Distribution of right-hand sides and solution vectors.
-         *
          * Parameters:
          *    rhs            - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of right-hand sides. */
-        template<DMatrix::Distribution D>
-        void solve(K* rhs, const unsigned short& n) {
+#if !HPDDM_INEXACT_COARSE_OPERATOR
+        void solve(K* rhs, const unsigned short& n) const {
+#else
+        void solve(const K* const rhs, K* const x, const unsigned short& n) const {
+#endif
             int error;
             int phase = 33;
             int nrhs = n;
+#if !HPDDM_INEXACT_COARSE_OPERATOR
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), rhs, _w, const_cast<int*>(&_comm), &error);
-        }
-        void initialize() {
-            if(DMatrix::_communicator != MPI_COMM_NULL)
-                _comm = MPI_Comm_c2f(DMatrix::_communicator);
-            DMatrix::initialize("PARDISO", { DISTRIBUTED_SOL_AND_RHS });
+#else
+            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), const_cast<K*>(rhs), x, const_cast<int*>(&_comm), &error);
+#endif
         }
 };
 #endif // DMKL_PARDISO

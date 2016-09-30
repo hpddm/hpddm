@@ -214,7 +214,6 @@ class SuiteSparse : public DMatrix {
             }
             delete [] I;
         }
-        template<DMatrix::Distribution D>
         void solve(K* rhs, const unsigned short& n = 1) {
             for(unsigned short nu = 0; nu < n; ++nu) {
                 if(_c) {
@@ -230,9 +229,6 @@ class SuiteSparse : public DMatrix {
                     stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, _tmp, rhs + nu * DMatrix::_n, _numeric, _control, NULL, _pattern, _W);
                 std::copy_n(_tmp, DMatrix::_n, rhs + nu * DMatrix::_n);
             }
-        }
-        void initialize() {
-            DMatrix::initialize("SuiteSparse", { CENTRALIZED });
         }
 };
 #endif // DSUITESPARSE

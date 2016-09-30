@@ -723,7 +723,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     int row = dim + deflated;
                     int bK = deflated * k;
                     K* w = new K[Wrapper<K>::is_complex ? dim : (2 * dim)];
-                    K* vr = new K[dim * dim];
+                    K* vr = new K[std::max(2, dim * dim)];
                     underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * n] : nullptr;
                     {
                         Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, nullptr, &info);

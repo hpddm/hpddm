@@ -43,6 +43,7 @@
         \rowcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol}, \texttt{sol\_and\_rhs} & cen\-tra\-li\-zed \\ \hline
         \rowcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 \\ \hline
         \rowcolor{LightRed}master\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & \\ \hline
+        \rowcolor{LightRed}master\_aggregate\_sizes & Number of master processes per MPI sub-communicators & Integer & \texttt{master\_p} \\ \hline
         master\_dump\_matrix & Save the coarse operator to disk & String & \\ \hline
         \rowcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & \\ \hline
         master\_not\_spd & Assume the coarse operator is just symmetric (instead of symmetric positive definite) & Boolean & \\ \hline

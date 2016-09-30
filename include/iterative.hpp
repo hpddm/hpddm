@@ -638,12 +638,13 @@ class IterativeMethod {
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
             return false;
         }
-        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
+        template<bool, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
         static void preprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&, const MPI_Comm&);
-        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
+        template<bool, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
         static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
-        template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
+        template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
         static void preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
+            static_assert(!excluded, "This is not implemented");
             int size;
             MPI_Comm_size(comm, &size);
             const std::string prefix = A.prefix();
@@ -651,6 +652,7 @@ class IterativeMethod {
                 sx = x;
                 sb = const_cast<K*>(b);
                 Option::get()->remove(prefix + "enlarge_krylov_subspace");
+                k = 1;
             }
             else {
                 int rank;
@@ -660,8 +662,6 @@ class IterativeMethod {
                 sb = new K[k * mu * n]();
                 sx = new K[k * mu * n]();
                 const unsigned short j = std::min(k - 1, rank / (size / k));
-                if(j >= k)
-                    std::cout << "PANIC" << std::endl;
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     std::copy_n(x + nu * n, n, sx + (j + k * nu) * n);
                     std::copy_n(b + nu * n, n, sb + (j + k * nu) * n);
@@ -677,7 +677,7 @@ class IterativeMethod {
                 }
             }
         }
-        template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
+        template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
         static void postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
             if(sb != b) {
                 const int n = A.getDof();
@@ -762,7 +762,7 @@ class IterativeMethod {
             unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
             K* sx = nullptr;
             K* sb = nullptr;
-            preprocess(A, b, sb, x, sx, mu, k, comm);
+            preprocess<excluded>(A, b, sb, x, sx, mu, k, comm);
             int it;
             switch(opt.val<char>(prefix + "krylov_method")) {
                 case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
@@ -772,7 +772,7 @@ class IterativeMethod {
                 case 1:  it = HPDDM::IterativeMethod::BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
                 default: it = HPDDM::IterativeMethod::GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
-            postprocess(A, b, sb, x, sx, mu, k);
+            postprocess<excluded>(A, b, sb, x, sx, mu, k);
             std::cout.flags(ff);
             return it;
         }

@@ -265,7 +265,7 @@ destroyRecycling.restype = None
 destroyRecycling.argtypes = [ ctypes.c_int ]
 _CustomOperatorSolve = lib.CustomOperatorSolve
 _CustomOperatorSolve.restype = ctypes.c_int
-_CustomOperatorSolve.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int ]
+_CustomOperatorSolve.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int ]
 def solve(A, f, sol, comm):
     try:
         mu = sol.shape[1]
@@ -274,4 +274,4 @@ def solve(A, f, sol, comm):
     try:
         return _solve(A, f, sol, mu, comm)
     except ctypes.ArgumentError:
-        return _CustomOperatorSolve(A, f, sol, comm, sol.shape[0], mu)
+        return _CustomOperatorSolve(A, f, sol, comm, mu)

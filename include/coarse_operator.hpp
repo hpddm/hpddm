@@ -25,17 +25,31 @@
 #ifndef _HPDDM_COARSE_OPERATOR_
 #define _HPDDM_COARSE_OPERATOR_
 
-#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE)
+#if HPDDM_INEXACT_COARSE_OPERATOR
+# ifndef DMKL_PARDISO
+#  undef HPDDM_INEXACT_COARSE_OPERATOR
+#  define HPDDM_INEXACT_COARSE_OPERATOR 0
+#  pragma message("Inexact coarse operators require PARDISO as a distributed direct solver")
+# else
+#  include "inexact_coarse_operator.hpp"
+# endif
+#endif
+#if !HPDDM_INEXACT_COARSE_OPERATOR
+namespace HPDDM {
+template<template<class> class Solver, char S, class K>
+class InexactCoarseOperator;
+}
+#endif
+#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CSR_CO
 #endif
-#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DHYPRE)
-# define HPDDM_LOC2GLOB
-#endif
-#if defined(DMKL_PARDISO) || defined(DHYPRE)
+#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE)
 # define HPDDM_CONTIGUOUS
 #endif
 
 namespace HPDDM {
+template<template<class> class Solver, char S, class K>
+using coarse_operator_type = typename std::conditional<HPDDM_INEXACT_COARSE_OPERATOR, InexactCoarseOperator<Solver, S, K>, Solver<K>>::type;
 /* Class: Coarse operator
  *
  *  A class for handling coarse corrections.
@@ -45,7 +59,7 @@ namespace HPDDM {
  *    S              - 'S'ymmetric or 'G'eneral coarse operator.
  *    K              - Scalar type. */
 template<template<class> class Solver, char S, class K>
-class CoarseOperator : public Solver<downscaled_type<K>> {
+class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>> {
     private:
         /* Variable: gatherComm
          *  Communicator used for assembling right-hand sides. */
@@ -212,7 +226,7 @@ class CoarseOperator : public Solver<downscaled_type<K>> {
         }
         /* Typedef: super
          *  Type of the immediate parent class <Solver>. */
-        typedef Solver<downscaled_type<K>> super;
+        typedef coarse_operator_type<Solver, S, downscaled_type<K>> super;
         /* Function: construction
          *  Wrapper function to call all needed subroutines. */
         template<unsigned short, unsigned short, class Operator>

@@ -37,10 +37,9 @@ class DMatrix {
          *  Defines the distribution of both right-hand sides and solution vectors.
          *
          * CENTRALIZED             - Neither are distributed, both are centralized on the root of <DMatrix::communicator>.
-         * DISTRIBUTED_SOL         - Right-hand sides are centralized, while solution vectors are distributed on <DMatrix::communicator>.
-         * DISTRIBUTED_SOL_AND_RHS - Both are distributed on <DMatrix::communicator>. */
-        enum Distribution : char {
-            CENTRALIZED, DISTRIBUTED_SOL, DISTRIBUTED_SOL_AND_RHS
+         * DISTRIBUTED_SOL         - Right-hand sides are centralized, while solution vectors are distributed on <DMatrix::communicator>. */
+        enum Distribution : bool {
+            CENTRALIZED, DISTRIBUTED_SOL
         };
         /* Function: splitCommunicator
          *
@@ -95,6 +94,7 @@ class DMatrix {
             }
         }
     protected:
+#ifndef HPDDM_CONTIGUOUS
         /* Typedef: pair_type
          *  std::pair of unsigned integers. */
         typedef std::pair<unsigned int, unsigned int>   pair_type;
@@ -115,11 +115,12 @@ class DMatrix {
         /* Variable: mapOwn
          *  Values that have to remain on this process to match the distribution of the direct solver and of the user. */
         std::vector<pair_type>*      _mapOwn;
+        /* Variable: idistribution */
+        int*                  _idistribution;
+#endif
         /* Variable: ldistribution
          *  User distribution. */
         int*                  _ldistribution;
-        /* Variable: idistribution */
-        int*                  _idistribution;
         /* Variable: gatherCounts */
         int*                   _gatherCounts;
         /* Variable: gatherSplitCounts */
@@ -137,9 +138,12 @@ class DMatrix {
         /* Variable: rank
          *  Rank of the current master process in <Coarse operator::communicator>. */
         int                            _rank;
+#ifdef DMUMPS
         /* Variable: distribution
          *  <Distribution> used for right-hand sides and solution vectors. */
         Distribution           _distribution;
+#endif
+#ifndef HPDDM_CONTIGUOUS
         /* Function: initializeMap
          *
          *  Initializes <Coarse operator::mapRecv>, <Coarse operator::mapSend>, and <Coarse operator::mapOwn>.
@@ -361,48 +365,27 @@ class DMatrix {
             MPI_Waitall(map_send.size(), rqSend, MPI_STATUSES_IGNORE);
             delete [] rqSend;
         }
-        /* Function: initialize
-         *
-         *  Initializes <DMatrix::rank> and <DMatrix::distribution>.
-         *
-         * Parameters:
-         *    solver         - Name of the solver.
-         *    list           - Supported <DMatrix::Distribution>s. */
-        void initialize(char const* solver, std::initializer_list<Distribution> list) {
-            Option& opt = *Option::get();
-            _distribution = static_cast<Distribution>(opt.val<char>("master_distribution", 0));
-            std::initializer_list<Distribution>::iterator it = std::find(list.begin(), list.end(), _distribution);
-            if(it == list.end()) {
-                opt["master_distribution"] = _distribution = *list.begin();
-                if(_communicator != MPI_COMM_NULL && _rank == 0) {
-                    std::cout << "WARNING -- " << solver << " only supports the following distribution" << (list.size() > 1 ? "s" : "") << ":";
-                    for(std::initializer_list<Distribution>::iterator it = list.begin(); it != list.end(); ++it) {
-                        switch(*it) {
-                            case CENTRALIZED: std::cout << " 'centralized'"; break;
-                            case DISTRIBUTED_SOL: std::cout << " 'distributed sol'"; break;
-                            case DISTRIBUTED_SOL_AND_RHS: std::cout << " 'distributed sol and rhs'"; break;
-                        }
-                        if(list.size() > 1 && it != list.end() - 1)
-                            std::cout << ",";
-                    }
-                    switch(_distribution) {
-                        case CENTRALIZED: std::cout << " (forcing the distribution to 'centralized')" << std::endl; break;
-                        case DISTRIBUTED_SOL: std::cout << " (forcing the distribution to 'distributed sol')" << std::endl; break;
-                        case DISTRIBUTED_SOL_AND_RHS: std::cout << " (forcing the distribution to 'distributed sol and rhs')" << std::endl; break;
-                    }
-                }
-            }
-        }
+#endif
     public:
-        DMatrix() : _mapRecv(), _mapSend(), _mapOwn(), _ldistribution(), _idistribution(), _gatherCounts(), _gatherSplitCounts(), _displs(), _displsSplit(), _communicator(MPI_COMM_NULL), _n(), _rank(), _distribution() { }
+        DMatrix() :
+#ifndef HPDDM_CONTIGUOUS
+            _mapRecv(), _mapSend(), _mapOwn(), _idistribution(),
+#endif
+            _ldistribution(), _gatherCounts(), _gatherSplitCounts(), _displs(), _displsSplit(), _communicator(MPI_COMM_NULL), _n(), _rank()
+#ifdef DMUMPS
+                                                                                                                                           , _distribution()
+#endif
+                                                                                                                                                             { }
         DMatrix(const DMatrix&) = delete;
         ~DMatrix() {
-            delete [] _ldistribution;
+#ifndef HPDDM_CONTIGUOUS
             if(!_mapRecv)
                 delete [] _idistribution;
             delete _mapRecv;
             delete _mapSend;
             delete _mapOwn;
+#endif
+            delete [] _ldistribution;
             delete [] _gatherCounts;
             delete [] _gatherSplitCounts;
         }
