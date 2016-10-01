@@ -339,24 +339,27 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             OptionsPrefix::setPrefix("master_");
         }
     public:
-        InexactCoarseOperator() : OptionsPrefix(), Solver<K>(), _buff(), _x(), _da(), _di(), _oi(), _rq(), _off(), _communicator(MPI_COMM_NULL), _mu() { }
+        InexactCoarseOperator() : OptionsPrefix(), Solver<K>(), _buff(), _x(), _di(), _oi(), _rq(), _off(), _communicator(MPI_COMM_NULL), _mu() { }
         ~InexactCoarseOperator() {
             if(_buff) {
                 delete [] *_buff;
                 delete [] _buff;
             }
             delete [] _x;
-            if(DMatrix::_communicator != MPI_COMM_NULL) {
-                MPI_Comm_size(DMatrix::_communicator, &_off);
-                if(_off > 1) {
-                    delete [] _da;
+            if(_communicator != MPI_COMM_NULL) {
+                MPI_Comm_size(_communicator, &_off);
+                if(_off > 1)
                     delete [] _di;
-                }
+                MPI_Comm_size(DMatrix::_communicator, &_off);
+#ifdef DMKL_PARDISO
+                if(S == 'S' || _off > 1)
+                    delete [] _da;
+#endif
+                if(_communicator != DMatrix::_communicator)
+                    MPI_Comm_free(&_communicator);
             }
             delete [] _oi;
             delete [] _rq;
-            if(_communicator != MPI_COMM_NULL && _communicator != DMatrix::_communicator)
-                MPI_Comm_free(&_communicator);
         }
         int getDof() const { return _dof * _bs; }
         void solve(K* rhs, const unsigned short& n) {

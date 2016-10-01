@@ -964,7 +964,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                                 super::_send[neighbors[offset]].emplace_back((v._max - (super::_numbering == 'F')) / (!blocked ? 1 : _local) + i);
                         if(!blocked)
                             for(unsigned short i = 0; i < _local; ++i)
-                                std::fill_n(neighbors + offset + (coefficients + (S == 'S') * (_local - 1)) * i - (S == 'S') * (i * (i - 1)) / 2, infoNeighbor[first + index], neighbors[offset]);
+                                std::fill_n(neighbors + offset + (coefficients + (S == 'S') * (_local - 1)) * i - (S == 'S') * (i * (i - 1)) / 2, U == 1 ? _local : infoNeighbor[first + index], neighbors[offset]);
 #endif
                     }
                     else
