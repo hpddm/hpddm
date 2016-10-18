@@ -160,7 +160,7 @@ class IterativeMethod {
             if(T == 0 || T == 3)
                 id[1 + (T == 0)] = opt.val<char>(prefix + (T == 0 ? "orthogonalization" : "qr"), 0);
             if(T == 1 || T == 4 || T == 5)
-                id[2] = opt.val<char>(prefix + "orthogonalization", 0) + 4 * opt.val<char>(prefix + "qr", 0);
+                id[2] = opt.val<char>(prefix + "orthogonalization", 0) + (opt.val<char>(prefix + "qr", 0) << 2);
             if(T == 4 || T == 5) {
                 *i = std::min(m[1] - 1, opt.val<int>(prefix + "recycle", 0));
                 id[3] = opt.val<char>(prefix + "recycle_target", 0);
@@ -539,6 +539,49 @@ class IterativeMethod {
                 for(unsigned short xi = k; xi > 0; --xi)
                     std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + nu * k * k + xi * ldr - (ldr - xi));
         }
+        template<bool excluded, class K>
+        static void RRVR(const int n, const int k, const K* const V, K* const R, const int ldr, const underlying_type<K> tol, int& rank, int* const piv, K* const work, const MPI_Comm& comm, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
+            VR<excluded>(n, k, 1, V, R, ldr, comm, static_cast<K*>(nullptr), d, scal);
+            int info;
+            if(tol < -0.9) {
+                Lapack<K>::potrf("U", &k, R, &k, &info);
+                rank = (info > 0 ? info - 1 : k);
+            }
+            else {
+                Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d__0), work, &info);
+                if(info == 0) {
+                    rank = k;
+                    while(rank > 1 && std::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol)
+                        --rank;
+                }
+            }
+        }
+        template<char T, class K>
+        static void diagonal(const char verbosity, const K* const R, const int k, const underlying_type<K> tol, const int* const piv) {
+            if(verbosity > 3) {
+                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : "BGMRES"));
+                if(tol < -0.9) {
+                    std::cout << method << " diag(R), QR = block residual: ";
+                    std::cout << *R;
+                    if(k > 1) {
+                        if(k > 2)
+                            std::cout << "\t...";
+                        std::cout << "\t" << R[(k - 1) * (k + 1)];
+                    }
+                    std::cout << std::endl;
+                }
+                else {
+                    std::cout << method << " diag(R), QR = block residual, with pivoting: ";
+                    std::cout << *R << " (" << *piv << ")";
+                    if(k > 1) {
+                        if(k > 2)
+                            std::cout << "\t...";
+                        std::cout << "\t" << R[(k - 1) * (k + 1)] << " (" << piv[k - 1] << ")";
+                    }
+                    std::cout << std::endl;
+                }
+            }
+        }
         /* Function: QR
          *  Computes a QR decomposition of a distributed matrix. */
         template<bool excluded, class K>
@@ -587,7 +630,7 @@ class IterativeMethod {
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class K>
         static void Arnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
-            orthogonalization<excluded>(id % 4, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, comm);
+            orthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, comm);
             for(unsigned short nu = 0; nu < mu; ++nu)
                 sn[i * mu + nu] = excluded ? 0.0 : std::real(Blas<K>::dot(&n, v[i + 1] + nu * n, &i__1, v[i + 1] + nu * n, &i__1));
             MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
@@ -597,7 +640,7 @@ class IterativeMethod {
                     std::for_each(v[i + 1] + nu * n, v[i + 1] + (nu + 1) * n, [&](K& y) { y /= H[i][(i + 1) * mu + nu]; });
             }
             if(save)
-                Wrapper<K>::template omatcopy<'T'>(i - shift + 2, mu, H[i] + shift * mu, mu, save[i - shift], m + 1);
+                Wrapper<K>::template omatcopy<'T'>(i + 2 - shift, mu, H[i] + shift * mu, mu, save[i - shift], m + 1);
             for(unsigned short k = shift; k < i; ++k) {
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     K gamma = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
@@ -622,8 +665,8 @@ class IterativeMethod {
         template<bool excluded, class K>
         static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
             int ldh = (m + 1) * mu;
-            blockOrthogonalization<excluded>(id % 4, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, work, comm);
-            int info = QR<excluded>(id / 4, n, mu, 1, v[i + 1], H[i] + (i + 1) * mu, ldh, comm, work, i < m - 1);
+            blockOrthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, work, comm);
+            int info = QR<excluded>((id >> 2) & 3, n, mu, 1, v[i + 1], H[i] + (i + 1) * mu, ldh, comm, work, i < m - 1);
             if(info > 0)
                 return true;
             for(unsigned short nu = 0; nu < mu; ++nu)
@@ -631,9 +674,9 @@ class IterativeMethod {
             if(save)
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     std::copy_n(H[i] + shift * mu + nu * ldh, (i + 1 - shift) * mu + nu + 1, save[i - shift] + nu * ldh);
-            int N = 2 * mu;
-            for(unsigned short leading = shift; leading < i; ++leading)
-                Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[leading] + leading * mu, &ldh, tau + leading * N, H[i] + leading * mu, &ldh, work, &lwork, &info);
+            const int N = 2 * mu;
+            for(unsigned short k = shift; k < i; ++k)
+                Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
             Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
             return false;
@@ -644,7 +687,7 @@ class IterativeMethod {
         static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
         template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
         static void preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
-            static_assert(!excluded, "This is not implemented");
+            static_assert(!excluded, "Not implemented");
             int size;
             MPI_Comm_size(comm, &size);
             const std::string prefix = A.prefix();
@@ -666,15 +709,18 @@ class IterativeMethod {
                     std::copy_n(x + nu * n, n, sx + (j + k * nu) * n);
                     std::copy_n(b + nu * n, n, sb + (j + k * nu) * n);
                 }
-                Option& opt = *Option::get();
-                opt[prefix + "enlarge_krylov_subspace"] = k;
-                if(mu > 1)
-                    opt.remove(prefix + "initial_deflation_tol");
-                if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5 })) {
-                    opt[prefix + "krylov_method"] = 1;
-                    if(opt.val<char>(prefix + "verbosity", 0))
-                        std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
-                }
+                checkEnlargedMethod(prefix, k, mu);
+            }
+        }
+        static void checkEnlargedMethod(const std::string& prefix, const unsigned short& k, const int& mu) {
+            Option& opt = *Option::get();
+            opt[prefix + "enlarge_krylov_subspace"] = k;
+            if(mu > 1)
+                opt.remove(prefix + "initial_deflation_tol");
+            if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5, 6 })) {
+                opt[prefix + "krylov_method"] = 1;
+                if(opt.val<char>(prefix + "verbosity", 0))
+                    std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
             }
         }
         template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
@@ -728,7 +774,7 @@ class IterativeMethod {
         template<bool, class Operator, class K>
         static int CG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
         template<bool, class Operator, class K>
-        static int BCG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
+        static int BCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         /* Function: PCG
          *
          *  Implements the projected CG method.

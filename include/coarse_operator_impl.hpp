@@ -618,12 +618,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     std::pair<MPI_Request, const K*>* ret = nullptr;
     if(rankSplit) {
+        downscaled_type<K>* const pt = reinterpret_cast<downscaled_type<K>*>(C);
         if(treeDimension) {
             for(const std::array<int, 3>& m : *msg)
-                MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + size + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, _scatterComm, rqTree++);
+                MPI_Irecv(pt + size + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, _scatterComm, rqTree++);
             rqTree -= msg->size();
         }
-        downscaled_type<K>* const pt = reinterpret_cast<downscaled_type<K>*>(C);
         if(U == 1 || _local) {
             if(Operator::_pattern == 's') {
                 unsigned int* offsetArray = new unsigned int[info[0]];

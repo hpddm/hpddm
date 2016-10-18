@@ -740,15 +740,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
         if(!excluded)
             std::copy_n(b, mu * A.getDof(), x);
         A.Subdomain<K>::template scatter<excluded>(x, sb, mu, k, comm);
-        Option& opt = *Option::get();
-        opt[prefix + "enlarge_krylov_subspace"] = k;
-        if(mu > 1)
-            opt.remove(prefix + "initial_deflation_tol");
-        if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5 })) {
-            opt[prefix + "krylov_method"] = 1;
-            if(opt.val<char>(prefix + "verbosity", 0))
-                std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
-        }
+        checkEnlargedMethod(prefix, k, mu);
     }
     else {
         sx = x;

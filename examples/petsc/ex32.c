@@ -198,7 +198,8 @@ int main(int argc, char** argv)
             }
             VecRestoreArray(x, &pt_x);
             VecRestoreArray(rhs, &pt_rhs);
-            HpddmDestroyRecycling();
+            previous = HpddmOptionVal(opt, "krylov_method");
+            if(previous == 4 || previous == 5) HpddmDestroyRecycling();
         }
         for (i = 0; i < SIZE_ARRAY_NU; ++i) {
             ierr = VecZeroEntries(x);
