@@ -87,10 +87,10 @@ class IterativeMethod {
             }
         }
         template<char T, class K>
-        static unsigned short checkBlockConvergence(const char verbosity, const int& i, const underlying_type<K>& tol, const int& mu, const int& d, const underlying_type<K>* const norm, const K* const res, const int ldh, K* const work, const unsigned short t) {
+        static unsigned short checkBlockConvergence(const char verbosity, const int i, const underlying_type<K>& tol, const int mu, const int d, const underlying_type<K>* const norm, const K* const res, const int ldh, K* const work, const unsigned short t) {
             underlying_type<K>* pt = reinterpret_cast<underlying_type<K>*>(work);
             unsigned short conv = 0;
-            if(T == 3) {
+            if(T == 3 || T == 6) {
                 for(unsigned short nu = 0; nu < mu / t; ++nu) {
                     pt[nu] = std::sqrt(std::real(res[nu]));
                     if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
@@ -115,13 +115,13 @@ class IterativeMethod {
                     conv += t;
             }
             if(verbosity > 2) {
-                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : "BGMRES"));
+                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
                 underlying_type<K>* max = std::max_element(pt, pt + d / t);
                 if(tol > 0.0)
                     std::cout << method << ": " << std::setw(3) << i << " " << *max << " " <<  norm[std::distance(pt, max)] << " " <<  *max / norm[std::distance(pt, max)] << " < " << tol;
                 else
                     std::cout << method << ": " << std::setw(3) << i << " " << *max << " < " << -tol;
-                if(d != t) {
+                if(d != t || (d == t && t != mu)) {
                     std::cout << " (rhs #" << std::distance(pt, max) + 1;
                     if(conv)
                         std::cout << ", " << conv / t << " converged rhs";
@@ -136,7 +136,7 @@ class IterativeMethod {
         template<char T>
         static void convergence(const char verbosity, const unsigned short i, const unsigned short m) {
             if(verbosity) {
-                constexpr auto method = (T == 1 ? "BGMRES" : (T == 2 ? "CG" : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "PCG" : "GMRES"))))));
+                constexpr auto method = (T == 1 ? "BGMRES" : (T == 2 ? "CG" : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 7 ? "PCG" : "GMRES")))))));
                 if(i != m + 1)
                     std::cout << method << " converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
                 else
@@ -149,9 +149,9 @@ class IterativeMethod {
             d[0] = opt.val(prefix + "tol", 1.0e-6);
             m[0] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
             id[0] = opt.val<char>(prefix + "verbosity", 0);
-            if(T == 1 || T == 5) {
-                d[1] = opt.val(prefix + "initial_deflation_tol", -1.0);
-                m[2] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
+            if(T == 1 || T == 5 || T == 6) {
+                d[1] = opt.val(prefix + "deflation_tol", -1.0);
+                m[1 + (T != 6)] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
             }
             if(T == 0 || T == 1 || T == 4 || T == 5)
                 m[1] = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[0]));
@@ -557,9 +557,9 @@ class IterativeMethod {
             }
         }
         template<char T, class K>
-        static void diagonal(const char verbosity, const K* const R, const int k, const underlying_type<K> tol, const int* const piv) {
+        static void diagonal(const char verbosity, const K* const R, const int k, const underlying_type<K> tol = -1.0, const int* const piv = nullptr) {
             if(verbosity > 3) {
-                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : "BGMRES"));
+                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
                 if(tol < -0.9) {
                     std::cout << method << " diag(R), QR = block residual: ";
                     std::cout << *R;
@@ -716,7 +716,7 @@ class IterativeMethod {
             Option& opt = *Option::get();
             opt[prefix + "enlarge_krylov_subspace"] = k;
             if(mu > 1)
-                opt.remove(prefix + "initial_deflation_tol");
+                opt.remove(prefix + "deflation_tol");
             if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5, 6 })) {
                 opt[prefix + "krylov_method"] = 1;
                 if(opt.val<char>(prefix + "verbosity", 0))
@@ -775,6 +775,8 @@ class IterativeMethod {
         static int CG(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm);
         template<bool, class Operator, class K>
         static int BCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
+        template<bool, class Operator, class K>
+        static int BFBCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         /* Function: PCG
          *
          *  Implements the projected CG method.
@@ -811,6 +813,7 @@ class IterativeMethod {
             preprocess<excluded>(A, b, sb, x, sx, mu, k, comm);
             int it;
             switch(opt.val<char>(prefix + "krylov_method")) {
+                case 6:  it = HPDDM::IterativeMethod::BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
                 case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
                 case 4:  it = HPDDM::IterativeMethod::GCRODR<excluded>(A, sb, sx, k * mu, comm); break;
                 case 3:  it = HPDDM::IterativeMethod::BCG<excluded>(A, sb, sx, k * mu, comm); break;

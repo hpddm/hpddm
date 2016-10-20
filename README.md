@@ -7,7 +7,7 @@ HPDDM is an efficient implementation of various domain decomposition methods (DD
 
 This code has been proven to be efficient for solving various elliptic problems such as scalar diffusion equations, the system of linear elasticity, but also frequency domain problems like the Helmholtz equation. A comparison with modern multigrid methods can be found in the thesis of [Jolivet](http://jolivet.perso.enseeiht.fr/thesis.pdf). The preconditioners may be used with a variety of Krylov subspace methods (which all support right, left, and variable preconditioning):
 * [GMRES](http://epubs.siam.org/doi/abs/10.1137/0907058) and [Block GMRES](http://www.sam.math.ethz.ch/~mhg/pub/delhipap.pdf),
-* [CG](http://nvlpubs.nist.gov/nistpubs/jres/049/jresv49n6p409_A1b.pdf) and [Block CG](http://www.sciencedirect.com/science/article/pii/0024379580902475),
+* [CG](http://nvlpubs.nist.gov/nistpubs/jres/049/jresv49n6p409_A1b.pdf), [Block CG](http://www.sciencedirect.com/science/article/pii/0024379580902475), and [Breakdown-Free Block CG](http://link.springer.com/article/10.1007/s10543-016-0631-z),
 * [GCRO-DR](http://epubs.siam.org/doi/abs/10.1137/040607277) and Block GCRO-DR.
 
 #### How to use HPDDM ?

@@ -12,8 +12,10 @@
 \begin{center} {\LARGE --- $\quad$ HPDDM $\quad$ ---} \\[5pt] \url{https://github.com/hpddm/hpddm} \end{center}
     All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified in the column ``Default'', this value is used when the corresponding option is not set by the user. When no default value is specified but the corresponding option is set by the user, the option is true (represented internally by 1). If the option is not set, its value is false (represented internally by 0). Options highlighted in \colorbox{LightRed}{red} should be reserved to expert users.
 \vspace*{-0.4cm}
+\newdimen\origiwspc
+\origiwspc=\fontdimen2\font
 \begin{center}
-    \begin{longtable}{| >{\tt}p{.245\textwidth} | p{.505\textwidth}| p{.13\textwidth}| >{\tt}p{.05\textwidth} |} \hline
+    \begin{longtable}{| >{\tt}p{.245\textwidth} | p{.5\textwidth}| p{.14\textwidth}| >{\tt}p{.05\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & \normalfont{Default} \\ \hline
         help & Display available options & Anything & \\ \hline
         version & Display information about HPDDM & Anything & \\ \hline
@@ -23,14 +25,14 @@
         verbosity & Level of output (higher means more displayed information) & Integer & \\ \hline
         \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
         local\_operators\_not\_spd & Assume local operators are not positive definite & Boolean & \\ \hline
-        orthogonalization & Method used to orthogonalize a vector against a previously generated orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs \\ \hline
+        orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs \\ \hline
         dump\_local\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
-        krylov\_method & Type of iterative method used to solve linear systems & \texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr} & gmres \\ \hline
+        krylov\_method & Type of iterative method used to solve linear systems & {\fontdimen2\font=2.5pt\texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr}, \texttt{bfbcg}\fontdimen2\font=\origiwspc} & gmres \\ \hline
         enlarge\_krylov\_subspace & Split the initial right-hand side into multiple vectors & Integer & $1$ \\ \hline
         gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & $40$ \\ \hline
         variant & Left, right, or variable preconditioning & \texttt{left},~\texttt{right},~\texttt{flexible} & right \\ \hline
         qr & Method used to perform distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & cholqr \\ \hline
-        initial\_deflation\_tol & Tolerance when deflating right-hand sides inside Block GMRES or Block GCRODR & Numeric & \\ \hline
+        deflation\_tol & Tolerance when deflating right-hand sides inside block methods & Numeric & \\ \hline
         recycle & Number of harmonic Ritz vectors to compute & Integer & \\ \hline
         recycle\_same\_system & Assume the system is the same as the one for which Ritz vectors have been computed & Boolean & \\ \hline
         \rowcolor{LightRed}recycle\_strategy & Generalized eigenvalue problem to solve for recycling & \texttt{A}, \texttt{B} & A \\ \hline
@@ -46,7 +48,7 @@
         \rowcolor{LightRed}master\_aggregate\_sizes & Number of master processes per MPI sub-communicators & Integer & \texttt{master\_p} \\ \hline
         master\_dump\_matrix & Save the coarse operator to disk & String & \\ \hline
         \rowcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & \\ \hline
-        master\_not\_spd & Assume the coarse operator is just symmetric (instead of symmetric positive definite) & Boolean & \\ \hline
+        master\_not\_spd & Assume the coarse operator is symmetric (instead of symmetric positive definite) & Boolean & \\ \hline
     \end{longtable}
 \vspace*{-0.4cm}
 \end{center}

@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
                     std::cout << " (rhs #" << nu + 1 << ")";
                 std::cout << std::endl;
             }
-        if(it > (HPDDM_MIXED_PRECISION ? 60 : 45))
+        if(it > ((HPDDM_MIXED_PRECISION || opt.val<char>("krylov_method", 0) == 6) ? 60 : 45))
             status = 1;
         else {
             for(unsigned short nu = 0; nu < mu; ++nu)

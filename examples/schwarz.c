@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
                     printf(" (rhs #%d)", nu + 1);
                 printf("\n");
             }
-        if(it > 45)
+        if(it > ((int)HpddmOptionVal(opt, "krylov_method") == 6 ? 60 : 45))
             status = 1;
         else {
             for(unsigned short nu = 0; nu < mu; ++nu)

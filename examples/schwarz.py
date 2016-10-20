@@ -92,7 +92,7 @@ if sizeWorld > 1:
             if mu > 1:
                 print(' (rhs #{:d})'.format(nu + 1), end = '')
             print('')
-    if it > 45:
+    if it > (60 if int(hpddm.optionVal(opt, b'krylov_method')) == 6 else 45):
         status = 1
     else:
         for nu in xrange(mu):

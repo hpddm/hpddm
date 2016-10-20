@@ -48,12 +48,12 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #else
         std::forward_as_tuple("dump_local_matrices=<output_file>", "Save all local matrices to disk", Arg::argument),
 #endif
-        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr)", "(Block) Generalized Minimal Residual Method, (Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting", Arg::argument),
+        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr|bfbcg)", "(Block) Generalized Minimal Residual Method, (Breakdown-Free Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting", Arg::argument),
         std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors", Arg::positive),
         std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle", Arg::positive),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning", Arg::argument),
         std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process", Arg::argument),
-        std::forward_as_tuple("initial_deflation_tol=<val>", "Tolerance when deflating right-hand sides inside Block GMRES or Block GCRODR", Arg::numeric),
+        std::forward_as_tuple("deflation_tol=<val>", "Tolerance when deflating right-hand sides inside block methods", Arg::numeric),
         std::forward_as_tuple("recycle=<val>", "Number of harmonic Ritz vectors to compute", Arg::positive),
         std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed", Arg::argument),
         std::forward_as_tuple("recycle_strategy=(A|B)", "Generalized eigenvalue problem to solve for recycling", Arg::argument),
@@ -133,7 +133,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
         std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
 #if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)
-      , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is just symmetric (instead of symmetric positive definite)", Arg::argument)
+      , std::forward_as_tuple("master_not_spd=(0|1)", "Assume the coarse operator is symmetric (instead of symmetric positive definite)", Arg::argument)
 #endif
 #endif
     };
