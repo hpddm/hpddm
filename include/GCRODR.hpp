@@ -175,7 +175,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 }
                 else if(!excluded)
                     A.GMV(pt, C, mu * k);
-                QR<excluded>((id[2] >> 2) & 3, n, k, mu, C, *save, k, comm);
+                QR<excluded>((id[2] >> 2) & 7, n, k, mu, C, *save, k, comm);
                 if(!excluded && n) {
                     if(id[1] == 1)
                         for(unsigned short nu = 0; nu < mu; ++nu)
@@ -556,7 +556,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 else if(!excluded)
                     A.GMV(pt, C, bK);
-                QR<excluded>((id[2] >> 2) & 3, n, bK, 1, C, *save, bK, comm);
+                QR<excluded>((id[2] >> 2) & 7, n, bK, 1, C, *save, bK, comm);
                 if(!excluded && n) {
                     if(id[1] == 1)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
@@ -576,12 +576,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 Blas<K>::axpy(&ldv, &(Wrapper<K>::d__1), pt, &i__1, x, &i__1);
             }
         }
-        RRVR<excluded>(n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
+        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
         diagonal<5>(id[0], s, mu, tol[1], piv);
-        if(tol[1] > -0.9) {
-            Lapack<K>::lapmt(&i__1, &n, &mu, *v, &n, piv);
+        if(tol[1] > -0.9)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
-        }
         if(N != mu) {
             int nrhs = mu - N;
             Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
@@ -608,8 +606,6 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             std::copy_n(*v, ldv, v[k]);
         }
         unsigned short i = (U ? k : 0);
-        if(!excluded && n)
-            Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, v[i], &n);
         for(unsigned short nu = 0; nu < deflated; ++nu)
             std::fill(s + i * deflated + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
         if(j == 1 && U)
@@ -663,7 +659,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);
         if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
-        if(i == m[1] && ((id[2] >> 2) & 3) == 0) {
+        if(i == m[1] && ((id[2] >> 2) & 7) == 0) {
             if(U)
                 i -= k;
             if(!excluded && n)

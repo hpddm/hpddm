@@ -190,7 +190,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             rho[i + j * mu] = Wrapper<K>::conj(rho[j + i * mu]);
     std::copy_n(rho, mu * mu, rho + mu * mu);
     int info = QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
-    if(info) {
+    if(info != mu) {
         delete [] trash;
         A.end(allocate);
         return CG<excluded>(A, b, x, mu, comm);
@@ -274,8 +274,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
                 std::copy(p, r, trash);
                 Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__1), trash, &n, rhs, &mu, &(Wrapper<K>::d__1), p, &n);
             }
-            info = QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
-            if(info) {
+            if(QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash) != mu) {
                 delete [] norm;
                 delete [] trash;
                 A.end(allocate);
@@ -294,19 +293,19 @@ template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
     underlying_type<K> tol[2];
     unsigned short m[2];
-    char id;
+    char id[2];
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
         if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { 2, 3, 5 }) || opt.any_of(prefix + "schwarz_coarse_correction", { 0 })))
             return GMRES<excluded>(A, b, x, mu, comm);
-        options<6>(prefix, tol, nullptr, m, &id);
+        options<6>(prefix, tol, nullptr, m, id);
         if(opt.val<char>(prefix + "variant", 0) == 2)
             return CG<excluded>(A, b, x, mu, comm);
     }
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
-    K* const trash = new K[5 * dim + (mu * (3 * mu + 1)) / 2 + (m[1] <= 1 ? mu : 1)];
+    K* const trash = new K[5 * dim + (mu * (3 * mu + 1)) / 2 + mu / m[1]];
     K* const p = trash + dim;
     K* const r = p + dim;
     K* const q = r + dim;
@@ -322,8 +321,8 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), trash, &i__1, r, &i__1);
     A.template apply<excluded>(r, p, mu, trash);
-    RRVR<excluded>(n, mu, p, gamma, mu, tol[1], deflated, piv, q, comm, d, trash);
-    diagonal<6>(id, gamma, mu, tol[1], piv);
+    RRQR<excluded>(id[1], n, mu, p, gamma, mu, tol[1], deflated, piv, q, comm, d, trash);
+    diagonal<6>(id[0], gamma, mu, tol[1], piv);
     underlying_type<K>* const norm = new underlying_type<K>[mu];
     if(m[1] <= 1)
         for(unsigned short nu = 0; nu < mu; ++nu)
@@ -336,13 +335,10 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     }
     if(tol[1] > -0.9) {
         Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
-        Lapack<K>::lapmt(&i__1, &n, &mu, p, &n, piv);
         Lapack<K>::lapmt(&i__1, &n, &mu, r, &n, piv);
         if(m[1] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
     }
-    if(!excluded && n)
-        Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), gamma, &mu, p, &n);
     unsigned short i = 1;
     while(i <= m[0]) {
         if(!excluded)
@@ -382,9 +378,9 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
             }
         }
         else
-             std::fill_n(alpha, deflated * mu + (m[1] <= 1 ? mu : 1), K());
-        MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + (m[1] <= 1 ? mu : 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
-        if(mu == checkBlockConvergence<6>(id, i, tol[0], mu, deflated, norm, res, 0, trash, m[1]))
+             std::fill_n(alpha, deflated * mu + mu / m[1], K());
+        MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + mu / m[1], Wrapper<K>::mpi_type(), MPI_SUM, comm);
+        if(mu == checkBlockConvergence<6>(id[0], i, tol[0], mu, deflated, norm, res, 0, trash, m[1]))
             break;
         else if(++i <= m[0]) {
             if(!excluded && n) {
@@ -399,21 +395,18 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
                 if(m[1] <= 1)
                     Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
             }
-            RRVR<excluded>(n, mu, p, gamma, mu, tol[1], deflated, piv, q, comm, d, trash);
+            RRQR<excluded>(id[1], n, mu, p, gamma, mu, tol[1], deflated, piv, q, comm, d, trash);
             if(tol[1] > -0.9) {
                 Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
-                Lapack<K>::lapmt(&i__1, &n, &mu, p, &n, piv);
                 Lapack<K>::lapmt(&i__1, &n, &mu, r, &n, piv);
                 if(m[1] <= 1)
                     Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
             }
-            if(!excluded && n)
-                Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), gamma, &mu, p, &n);
         }
     }
     if(tol[1] > -0.9)
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
-    convergence<6>(id, i, m[0]);
+    convergence<6>(id[0], i, m[0]);
     delete [] norm;
     delete [] piv;
     delete [] trash;

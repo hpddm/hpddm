@@ -127,7 +127,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int ldh = mu * (m[1] + 1);
     int info;
     int N = 2 * mu;
-    int lwork = mu * std::max(n, ((id[2] >> 2) & 3) == 1 ? mu : ldh);
+    int lwork = mu * std::max(n, ((id[2] >> 2) & 7) == 1 ? mu : ldh);
     *H = new K[lwork + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == 2 ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m[1] * mu * ldh;
     K* const s = *v + mu * n * (m[1] * (1 + (id[1] == 2)) + 1);
@@ -151,12 +151,10 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
         if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
-        RRVR<excluded>(n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
+        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
         diagonal<1>(id[0], s, mu, tol[1], piv);
-        if(tol[1] > -0.9) {
-            Lapack<K>::lapmt(&i__1, &n, &mu, *v, &n, piv);
+        if(tol[1] > -0.9)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
-        }
         if(N != mu) {
             int nrhs = mu - N;
             Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
@@ -173,8 +171,6 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         N *= 2;
         std::fill_n(tau, m[1] * N, K());
         Wrapper<K>::template imatcopy<'N'>(mu, mu, s, mu, ldh);
-        if(!excluded && n)
-            Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), s, &ldh, *v, &n);
         for(unsigned short nu = 0; nu < deflated; ++nu)
             std::fill(s + nu * (ldh + 1) + 1, s + (nu + 1) * ldh, K());
         std::fill(*H, *v, K());

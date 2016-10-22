@@ -153,14 +153,14 @@ class IterativeMethod {
                 d[1] = opt.val(prefix + "deflation_tol", -1.0);
                 m[1 + (T != 6)] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
             }
-            if(T == 0 || T == 1 || T == 4 || T == 5)
+            if(T == 0 || T == 1 || T == 4 || T == 5) {
+                id[2] = opt.val<char>(prefix + "orthogonalization", 0) + (opt.val<char>(prefix + "qr", 0) << 2);
                 m[1] = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[0]));
+            }
             if(T == 0 || T == 1 || T == 2 || T == 4 || T == 5)
                 id[1] = opt.val<char>(prefix + "variant", 1);
-            if(T == 0 || T == 3)
-                id[1 + (T == 0)] = opt.val<char>(prefix + (T == 0 ? "orthogonalization" : "qr"), 0);
-            if(T == 1 || T == 4 || T == 5)
-                id[2] = opt.val<char>(prefix + "orthogonalization", 0) + (opt.val<char>(prefix + "qr", 0) << 2);
+            if(T == 3 || T == 6)
+                id[1] = opt.val<char>(prefix + "qr", 0);
             if(T == 4 || T == 5) {
                 *i = std::min(m[1] - 1, opt.val<int>(prefix + "recycle", 0));
                 id[3] = opt.val<char>(prefix + "recycle_target", 0);
@@ -540,20 +540,21 @@ class IterativeMethod {
                     std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + nu * k * k + xi * ldr - (ldr - xi));
         }
         template<bool excluded, class K>
-        static void RRVR(const int n, const int k, const K* const V, K* const R, const int ldr, const underlying_type<K> tol, int& rank, int* const piv, K* const work, const MPI_Comm& comm, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
-            VR<excluded>(n, k, 1, V, R, ldr, comm, static_cast<K*>(nullptr), d, scal);
-            int info;
-            if(tol < -0.9) {
-                Lapack<K>::potrf("U", &k, R, &k, &info);
-                rank = (info > 0 ? info - 1 : k);
-            }
+        static void RRQR(const char id, const int n, const int k, K* const Q, K* const R, const int ldr, const underlying_type<K> tol, int& rank, int* const piv, K* const work, const MPI_Comm& comm, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
+            if(tol < -0.9)
+                rank = QR<excluded>(id, n, k, 1, Q, R, ldr, comm, work, true, d, scal);
             else {
+                VR<excluded>(n, k, 1, Q, R, ldr, comm, static_cast<K*>(nullptr), d, scal);
+                int info;
                 Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d__0), work, &info);
                 if(info == 0) {
                     rank = k;
                     while(rank > 1 && std::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol)
                         --rank;
                 }
+                Lapack<K>::lapmt(&i__1, &n, &k, Q, &n, piv);
+                if(!excluded && n)
+                    Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d__1), R, &k, Q, &n);
             }
         }
         template<char T, class K>
@@ -587,23 +588,24 @@ class IterativeMethod {
         template<bool excluded, class K>
         static int QR(const char id, const int n, const int k, const int mu, K* const Q, K* const R, const int ldr, const MPI_Comm& comm, K* work = nullptr, bool update = true, const underlying_type<K>* const d = nullptr, K* const scal = nullptr) {
             const int ldv = mu * n;
+            int rank = k;
             if(id == 0) {
                 VR<excluded>(n, k, mu, Q, R, ldr, comm, work, d, scal);
                 int info;
                 for(unsigned short nu = 0; nu < mu; ++nu) {
                     Lapack<K>::potrf("U", &k, R + nu * k * k, &ldr, &info);
                     if(info > 0)
-                        return info;
+                        rank = info - 1;
                 }
                 if(!excluded && n && update)
                     for(unsigned short nu = 0; nu < mu; ++nu)
-                        Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), R + k * k * nu, &ldr, Q + nu * n, &ldv);
+                        Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d__1), R + k * k * nu, &ldr, Q + nu * n, &ldv);
             }
             else {
                 if(!work)
                     work = R;
-                K* pt = d ? scal : Q;
-                for(unsigned short xi = 0; xi < k; ++xi) {
+                K* pt = (d ? scal : Q);
+                for(unsigned short xi = 0; xi < rank; ++xi) {
                     if(xi > 0)
                         orthogonalization<excluded>(id - 1, n, xi, mu, Q, Q + xi * ldv, work + xi * k * mu, comm, d, scal);
                     if(d)
@@ -616,15 +618,18 @@ class IterativeMethod {
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         work[xi * (k + 1) * mu + nu] = std::sqrt(work[xi * (k + 1) * mu + nu]);
                         if(std::real(work[xi * (k + 1) * mu + nu]) < HPDDM_EPS)
-                            return 1;
-                        K alpha = K(1.0) / work[xi * (k + 1) * mu + nu];
-                        Blas<K>::scal(&n, &alpha, Q + xi * ldv + nu * n, &i__1);
+                            rank = xi;
                     }
+                    if(rank != xi)
+                        for(unsigned short nu = 0; nu < mu; ++nu) {
+                            K alpha = K(1.0) / work[xi * (k + 1) * mu + nu];
+                            Blas<K>::scal(&n, &alpha, Q + xi * ldv + nu * n, &i__1);
+                        }
                 }
                 if(work != R)
                     Wrapper<K>::template omatcopy<'N'>(k, k * mu, work, k * mu, R, ldr);
             }
-            return 0;
+            return rank;
         }
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
@@ -666,8 +671,8 @@ class IterativeMethod {
         static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
             int ldh = (m + 1) * mu;
             blockOrthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, work, comm);
-            int info = QR<excluded>((id >> 2) & 3, n, mu, 1, v[i + 1], H[i] + (i + 1) * mu, ldh, comm, work, i < m - 1);
-            if(info > 0)
+            int info = QR<excluded>((id >> 2) & 7, n, mu, 1, v[i + 1], H[i] + (i + 1) * mu, ldh, comm, work, i < m - 1);
+            if(info != mu)
                 return true;
             for(unsigned short nu = 0; nu < mu; ++nu)
                 std::fill(H[i] + (i + 1) * mu + nu * ldh + nu + 1, H[i] + (nu + 1) * ldh, K());
