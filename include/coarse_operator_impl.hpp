@@ -1109,18 +1109,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         delete [] loc2glob;
 #  elif defined(DMKL_PARDISO)
         super::template numfact<S>(!blocked ? 1 : _local, I, loc2glob, J, pt);
+        C = reinterpret_cast<K*>(pt);
 #  else
         super::template numfact<S>(nrow, I, loc2glob, J, pt);
 #  endif
 # else
          super::template numfact<S>(size, I, J, pt);
 # endif
-# ifdef DMKL_PARDISO
-         if(S == 'S' || p != 1)
-             delete [] C;
-# else
          delete [] C;
-# endif
 #endif
         if(!treeDimension)
             delete [] rqRecv;

@@ -578,7 +578,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         }
         RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
         diagonal<5>(id[0], s, mu, tol[1], piv);
-        if(tol[1] > -0.9)
+        if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
         if(N != mu) {
             int nrhs = mu - N;
@@ -641,7 +641,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
         if(j != m[0] + 1 && i == m[1]) {
             converged = false;
-            if(tol[1] > -0.9)
+            if(tol[1] > -0.9 && m[2] <= 1)
                 Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
             if(id[0] > 1)
                 std::cout << "BGCRODR restart(" << m[1] << ", " << k << ")" << std::endl;

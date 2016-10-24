@@ -146,10 +146,8 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     }
 #ifdef DMKL_PARDISO
                     Solver<K>::template numfact<S>(_bs, ia, loc2glob, ia + nrow + 1, a);
+                    delete [] a;
 #endif
-                    MPI_Comm_size(DMatrix::_communicator, &_dof);
-                    if(S == 'S' || _dof != 1)
-                        delete [] a;
                 }
                 _di = new int[nrow + 1];
                 _di[0] = (Solver<K>::_numbering == 'F');
@@ -348,12 +346,16 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             delete [] _x;
             if(_communicator != MPI_COMM_NULL) {
                 MPI_Comm_size(_communicator, &_off);
-                if(_off > 1)
+                if(_off > 1) {
                     delete [] _di;
-                MPI_Comm_size(DMatrix::_communicator, &_off);
-#ifdef DMKL_PARDISO
-                if(S == 'S' || _off > 1)
                     delete [] _da;
+                }
+#ifdef DMKL_PARDISO
+                else {
+                    MPI_Comm_size(DMatrix::_communicator, &_off);
+                    if((S == 'S' && Option::get()->val<char>("master_not_spd", 0) != 1) || _off > 1)
+                        delete [] _da;
+                }
 #endif
                 if(_communicator != DMatrix::_communicator)
                     MPI_Comm_free(&_communicator);

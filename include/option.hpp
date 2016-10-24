@@ -28,7 +28,7 @@
 #define HPDDM_CONCAT(NAME) "" HPDDM_PREFIX #NAME ""
 
 #include <stdlib.h>
-#include <string.h>
+#include <cstring>
 #include <stdexcept>
 #ifndef HPDDM_NO_REGEX
 #include <regex>

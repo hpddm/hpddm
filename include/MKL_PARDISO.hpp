@@ -70,7 +70,7 @@ class MklPardiso : public DMatrix {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
         /* Variable: w
          *  Workspace array. */
-        K*                  _w;
+        mutable K*          _w;
 #endif
         /* Variable: mtype
          *  Matrix type. */
@@ -117,7 +117,7 @@ class MklPardiso : public DMatrix {
          *    J              - Array of column indices.
          *    C              - Array of data. */
         template<char S>
-        void numfact(unsigned short bs, int* I, int* loc2glob, int* J, K* C) {
+        void numfact(unsigned short bs, int* I, int* loc2glob, int* J, K*& C) {
             if(DMatrix::_communicator != MPI_COMM_NULL && _comm == -1)
                 _comm = MPI_Comm_c2f(DMatrix::_communicator);
             _I = I;
@@ -156,8 +156,10 @@ class MklPardiso : public DMatrix {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
 #endif
-            if(S == 'S' || *loc2glob != _iparm[41] - _iparm[40] + 1)
+            if((S == 'S' && opt.val<char>("master_not_spd", 0) != 1) || *loc2glob != _iparm[41] - _iparm[40] + 1)
                 _C = nullptr;
+            else
+                C = nullptr;
             delete [] loc2glob;
         }
         /* Function: solve
@@ -176,6 +178,10 @@ class MklPardiso : public DMatrix {
             int phase = 33;
             int nrhs = n;
 #if !HPDDM_INEXACT_COARSE_OPERATOR
+            if(n != 1) {
+                delete [] _w;
+                _w = new K[(_iparm[41] - _iparm[40] + 1) * _iparm[36] * n];
+            }
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), rhs, _w, const_cast<int*>(&_comm), &error);
 #else
             CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), const_cast<K*>(rhs), x, const_cast<int*>(&_comm), &error);
