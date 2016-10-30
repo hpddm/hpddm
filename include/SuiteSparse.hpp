@@ -257,7 +257,7 @@ class SuiteSparseSub {
         SuiteSparseSub(const SuiteSparseSub&) = delete;
         ~SuiteSparseSub() {
             delete [] _tmp;
-            _W = nullptr;
+            _tmp = nullptr;
             if(_c) {
                 cholmod_free_factor(&_L, _c);
                 cholmod_free(1, sizeof(cholmod_dense), _b, _c);
@@ -268,7 +268,7 @@ class SuiteSparseSub {
                 delete _c;
                 _c = nullptr;
             }
-            else {
+            else if(_control) {
                 delete [] _pattern;
                 delete [] _control;
                 _control = nullptr;

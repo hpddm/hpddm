@@ -408,7 +408,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             if(free)
                 delete [] _o;
         }
-        const underlying_type<K>* getScaling() const { return nullptr; }
+        static constexpr underlying_type<K>* getScaling() { return nullptr; }
     private:
         template<char T>
         void exchange(const K* const in, K* const out, const unsigned short& mu = 1) const {

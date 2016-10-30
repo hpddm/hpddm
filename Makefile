@@ -270,7 +270,9 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -hpddm_gmres_restart=25
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_deflation_tol=1e-4 -hpddm_gmres_restart=25
 	@if test ! $(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS}); then \
-		${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction additive -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 20 -Ny 20 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 4 -hpddm_krylov_method=bfbcg -hpddm_deflation_tol=1e-4 -hpddm_schwarz_method asm; \
+		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction additive -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 20 -Ny 20 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 4 -hpddm_krylov_method=bfbcg -hpddm_deflation_tol=1e-4 -hpddm_schwarz_method asm"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
 	fi
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_deflation_tol=1e-4 -hpddm_qr=mgs -hpddm_gmres_restart=25
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr --hpddm_dump_local_matrix_2 ${TRASH_DIR}/output -hpddm_gmres_restart=25
@@ -295,7 +297,7 @@ test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
 		for OVERLAP in 1 3; do \
 			CMD="${MPIRUN} $${NP} ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp -matrix_filename=${TOP_DIR}/${TRASH_DIR}/data/mini.mtx -hpddm_verbosity 2 -overlap $${OVERLAP}"; \
 			echo "$${CMD}"; \
-			$${CMD}; \
+			$${CMD} || exit; \
 		done \
 	done
 
@@ -308,11 +310,11 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 			for MU in 1 3; do \
 				CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT} -mu $${MU}"; \
 				echo "$${CMD}"; \
-				$${CMD}; \
+				$${CMD} || exit; \
 			done; \
 			CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method bgcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT}"; \
 			echo "$${CMD}"; \
-			$${CMD}; \
+			$${CMD} || exit; \
 		done \
 	done
 

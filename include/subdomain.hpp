@@ -278,7 +278,7 @@ class Subdomain : public OptionsPrefix {
             }
             else
                 MPI_Comm_size(_communicator, &size);
-            if(k < 2 || size == 1)
+            if(k < 2 || size == 1 || mu > 1)
                 k = 1;
             else {
                 k = std::min(k, static_cast<unsigned short>(size));
@@ -740,7 +740,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
         if(!excluded)
             std::copy_n(b, mu * A.getDof(), x);
         A.Subdomain<K>::template scatter<excluded>(x, sb, mu, k, comm);
-        checkEnlargedMethod(prefix, k, mu);
+        checkEnlargedMethod(prefix, k);
     }
     else {
         sx = x;

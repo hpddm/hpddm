@@ -184,13 +184,14 @@ class MumpsSub {
         MumpsSub() : _id(), _I() { }
         MumpsSub(const MumpsSub&) = delete;
         ~MumpsSub() {
+            delete [] _I;
             if(_id) {
                 _id->job = -2;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
                 delete _id;
                 _id = nullptr;
+                _I = nullptr;
             }
-            delete [] _I;
         }
         static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING>

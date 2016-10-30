@@ -222,9 +222,13 @@ class MklPardisoSub {
             if(_mtype == prds<K>::SPD || _mtype == prds<K>::SYM) {
                 delete [] _I;
                 delete [] _J;
+                _I = nullptr;
+                _J = nullptr;
             }
-            if(_mtype == prds<K>::SYM)
+            if(_mtype == prds<K>::SYM) {
                 delete [] _C;
+                _C = nullptr;
+            }
         }
         static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING>

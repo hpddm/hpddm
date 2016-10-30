@@ -28,12 +28,12 @@
 namespace HPDDM {
 template<class K>
 struct EmptyOperator : OptionsPrefix {
-    const underlying_type<K>* getScaling() const { return nullptr; }
     const int _n;
     EmptyOperator(int n) : OptionsPrefix(), _n(n) { }
     int getDof() const { return _n; }
-    template<bool = true> bool start(const K* const, K* const, const unsigned short& = 1) const { return false; }
-    void end(const bool) const { }
+    static constexpr underlying_type<K>* getScaling() { return nullptr; }
+    template<bool = true> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
+    static constexpr bool end(const bool) { return false; }
 };
 template<class Operator, class K>
 struct CustomOperator : EmptyOperator<K> {
@@ -696,10 +696,9 @@ class IterativeMethod {
             int size;
             MPI_Comm_size(comm, &size);
             const std::string prefix = A.prefix();
-            if(k < 2 || size == 1) {
+            if(k < 2 || size == 1 || mu > 1) {
                 sx = x;
                 sb = const_cast<K*>(b);
-                Option::get()->remove(prefix + "enlarge_krylov_subspace");
                 k = 1;
             }
             else {
@@ -714,18 +713,20 @@ class IterativeMethod {
                     std::copy_n(x + nu * n, n, sx + (j + k * nu) * n);
                     std::copy_n(b + nu * n, n, sb + (j + k * nu) * n);
                 }
-                checkEnlargedMethod(prefix, k, mu);
+                checkEnlargedMethod(prefix, k);
             }
         }
-        static void checkEnlargedMethod(const std::string& prefix, const unsigned short& k, const int& mu) {
+        static void checkEnlargedMethod(const std::string& prefix, const unsigned short& k) {
             Option& opt = *Option::get();
-            opt[prefix + "enlarge_krylov_subspace"] = k;
-            if(mu > 1)
-                opt.remove(prefix + "deflation_tol");
-            if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5, 6 })) {
-                opt[prefix + "krylov_method"] = 1;
-                if(opt.val<char>(prefix + "verbosity", 0))
-                    std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
+            if(k <= 1)
+                opt.remove(prefix + "enlarge_krylov_subspace");
+            else {
+                opt[prefix + "enlarge_krylov_subspace"] = k;
+                if(!opt.any_of(prefix + "krylov_method", { 1, 3, 5, 6 })) {
+                    opt[prefix + "krylov_method"] = 1;
+                    if(opt.val<char>(prefix + "verbosity", 0))
+                        std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
+                }
             }
         }
         template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
