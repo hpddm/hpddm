@@ -126,10 +126,16 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     K** const save = H + m[1];
     *save = new K[ldh * m[1]];
     K** const v = save + m[1];
-    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * ((id[1] == 1 ? 3 : 2) + m[1] * (id[1] == 2 ? 2 : 1)) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2))];
-    K* const Ax = s + ldh;
+    const underlying_type<K>* const d = A.getScaling();
     const int ldv = mu * n;
-    *H = Ax + (id[1] == 1 ? 2 : 1) * ldv;
+    Recycling<K>& recycled = *Recycling<K>::get();
+    K* U = recycled.storage(A.prefix()), *C = nullptr;
+    if(U) {
+        k = recycled.k(A.prefix());
+        C = U + k * ldv;
+    }
+    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * ((id[1] == 1 ? 3 : 2) + m[1] * (id[1] == 2 ? 2 : 1)) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2)) + (d && U && id[1] == 1 && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0)];
+    *H = s + ldh;
     for(unsigned short i = 1; i < m[1]; ++i) {
         H[i] = *H + i * ldh;
         save[i] = *save + i * ldh;
@@ -137,17 +143,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     *v = *H + m[1] * ldh;
     for(unsigned short i = 1; i < m[1] * (id[1] == 2 ? 2 : 1) + 1; ++i)
         v[i] = *v + i * ldv;
+    K* const Ax = *v + (m[1] * (id[1] == 2 ? 2 : 1) + 1) * ldv;
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m[1]);
     int info;
     unsigned short j = 1;
-    Recycling<K>& recycled = *Recycling<K>::get();
-    K* U = recycled.storage(A.prefix()), *C = nullptr;
-    if(U) {
-        k = recycled.k(A.prefix());
-        C = U + k * ldv;
-    }
-    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (id[1] == 2 ? 2 : 1) + 1) * ldv);
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + (id[1] == 1 ? 2 : 1) * ldv + (d && U && id[1] == 1 && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0));
     underlying_type<K>* const sn = norm + mu;
     bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
     while(j <= m[0]) {
@@ -175,7 +176,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 }
                 else if(!excluded)
                     A.GMV(pt, C, mu * k);
-                QR<excluded>((id[2] >> 2) & 7, n, k, mu, C, *save, k, comm);
+                QR<excluded>((id[2] >> 2) & 7, n, k, C, *save, k, d, *v + (id[1] == 1 ? ldv * (i + 1) : 0), comm, true, mu);
                 if(!excluded && n) {
                     if(id[1] == 1)
                         for(unsigned short nu = 0; nu < mu; ++nu)
@@ -184,7 +185,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, U + nu * n, &ldv);
                 }
             }
-            orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i], H[i], comm);
+            orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i], H[i], d, Ax, comm);
             if(id[1] != 1 || id[4] / 4 == 0) {
                 if(!excluded && n)
                     for(unsigned short nu = 0; nu < mu; ++nu)
@@ -200,8 +201,15 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
             std::copy_n(C, k * ldv, *v);
         }
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            sn[nu] = std::real(Blas<K>::dot(&n, v[i] + nu * n, &i__1, v[i] + nu * n, &i__1));
+        if(d)
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                sn[nu] = 0.0;
+                for(unsigned int j = 0; j < n; ++j)
+                    sn[nu] += d[j] * std::norm(v[i][nu * n + j]);
+            }
+        else
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                sn[nu] = std::real(Blas<K>::dot(&n, v[i] + nu * n, &i__1, v[i] + nu * n, &i__1));
         if(j == 1) {
             MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -234,8 +242,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
             }
             if(U)
-                orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], comm);
-            Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, comm, save, U ? k : 0);
+                orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], d, Ax, comm);
+            Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0);
             checkConvergence<4>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
             if(std::find(hasConverged, hasConverged + mu, -m[1]) == hasConverged + mu) {
                 i += (U ? m[1] - k : m[1]);
@@ -370,9 +378,18 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     if(id[4] % 4 != 1) {
                         info = m[1] + 1;
                         for(unsigned short nu = 0; nu < active; ++nu) {
-                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &k, &n, &(Wrapper<K>::d__1), *v + activeSet[nu] * n, &ldv, U + activeSet[nu] * n, &ldv, &(Wrapper<K>::d__0), prod + k * nu * info, &info);
-                            for(i = 0; i < k; ++i)
-                                prod[k * active * info + k * nu + i] = Blas<K>::dot(&n, U + activeSet[nu] * n + i * ldv, &i__1, U + activeSet[nu] * n + i * ldv, &i__1);
+                            if(d) {
+                                for(i = 0; i < k; ++i)
+                                    Wrapper<K>::diag(n, d, U + activeSet[nu] * n + i * ldv, C + i * n);
+                                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &k, &n, &(Wrapper<K>::d__1), *v + activeSet[nu] * n, &ldv, C, &n, &(Wrapper<K>::d__0), prod + k * nu * info, &info);
+                                for(i = 0; i < k; ++i)
+                                    prod[k * active * info + k * nu + i] = Blas<K>::dot(&n, U + activeSet[nu] * n + i * ldv, &i__1, C + i * n, &i__1);
+                            }
+                            else {
+                                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &k, &n, &(Wrapper<K>::d__1), *v + activeSet[nu] * n, &ldv, U + activeSet[nu] * n, &ldv, &(Wrapper<K>::d__0), prod + k * nu * info, &info);
+                                for(i = 0; i < k; ++i)
+                                    prod[k * active * info + k * nu + i] = Blas<K>::dot(&n, U + activeSet[nu] * n + i * ldv, &i__1, U + activeSet[nu] * n + i * ldv, &i__1);
+                            }
                         }
                         MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[1] + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                         std::for_each(prod + k * active * (m[1] + 1), prod + k * active * (m[1] + 2), [](K& u) { u = 1.0 / std::sqrt(std::real(u)); });
@@ -459,6 +476,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         delete [] work;
                         work = new K[lwork];
                         Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m[1] + 1), &ldh, Ax, work, &lwork, &info);
+                        if(d)
+                            Wrapper<K>::template omatcopy<'N'>(k, n, *v + activeSet[nu] * n, ldv, C + activeSet[nu] * n, ldv);
                         Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[id[1] == 2 ? m[1] + 1 : 0] + activeSet[nu] * n, ldv);
                         Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1 : 0] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m[1] + 1), &ldh, U + activeSet[nu] * n, &ldv);
@@ -506,14 +525,21 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     K** const v = save + m[1];
     int info;
     int N = 2 * mu;
-    int lwork = mu * std::max((id[1] == 1 ? 2 : 1) * n, (id[2] & 3) == 1 ? mu : ldh);
-    *H = new K[lwork + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == 2 ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
-    *v = *H + m[1] * mu * ldh;
+    const underlying_type<K>* const d = A.getScaling();
     int ldv = mu * n;
-    K* const s = *v + ldv * (m[1] * (id[1] == 2 ? 2 : 1) + 1);
+    Recycling<K>& recycled = *Recycling<K>::get();
+    K* U = recycled.storage(A.prefix()), *C = nullptr;
+    if(U) {
+        k = recycled.k(A.prefix());
+        C = U + k * ldv;
+    }
+    int lwork = mu * (d ? (n + (id[1] == 1 ? std::max(n, ldh) : ldh)) : std::max((id[1] == 1 ? 2 : 1) * n, ldh));
+    *H = new K[lwork + (d && U && id[1] == 1 && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0) + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == 2 ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+    *v = *H + m[1] * mu * ldh;
+    K* const Ax = *v + ldv * (m[1] * (id[1] == 2 ? 2 : 1) + 1);
+    K* const s = Ax + lwork + (d && U && id[1] == 1 && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0);
     K* const tau = s + mu * ldh;
-    K* const Ax = tau + m[1] * N;
-    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(tau + m[1] * N);
     bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
     MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[2], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     for(unsigned short nu = 0; nu < mu / m[2]; ++nu) {
@@ -522,12 +548,6 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             norm[nu] = 1.0;
     }
     unsigned short j = 1;
-    Recycling<K>& recycled = *Recycling<K>::get();
-    K* U = recycled.storage(A.prefix()), *C = nullptr;
-    if(U) {
-        k = recycled.k(A.prefix());
-        C = U + k * ldv;
-    }
     short dim = mu * m[1];
     int* const piv = new int[mu];
     int deflated = -1;
@@ -540,7 +560,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             A.template apply<excluded>(Ax, *v, mu);
         if(j == 1 && U) {
             K* pt;
-            int bK = mu * k;
+            const int bK = mu * k;
             if(id[1] == 1) {
                 pt = *v + ldv;
                 if(id[4] / 4 == 0)
@@ -556,7 +576,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 else if(!excluded)
                     A.GMV(pt, C, bK);
-                QR<excluded>((id[2] >> 2) & 7, n, bK, 1, C, *save, bK, comm);
+                QR<excluded>((id[2] >> 2) & 7, n, bK, C, *save, bK, d, *v + ldv * (id[1] == 1 ? (k + 1) : 1), comm);
                 if(!excluded && n) {
                     if(id[1] == 1)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
@@ -564,7 +584,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 std::fill_n(*save, bK * bK, K());
             }
-            blockOrthogonalization<excluded>(id[2] & 3, n, k, mu, C, *v, *H, ldh, Ax, comm);
+            blockOrthogonalization<excluded>(id[2] & 3, n, k, mu, C, *v, *H, ldh, d, Ax, comm);
             if(id[1] != 1 || id[4] / 4 == 0) {
                 if(!excluded && n)
                     Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), pt, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
@@ -576,7 +596,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 Blas<K>::axpy(&ldv, &(Wrapper<K>::d__1), pt, &i__1, x, &i__1);
             }
         }
-        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
+        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[1], N, piv, d, Ax, comm);
         diagonal<5>(id[0], s, mu, tol[1], piv);
         if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
@@ -622,8 +642,8 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
             }
             if(U)
-                blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, Ax, comm);
-            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, Ax, comm, save, U ? k : 0)) {
+                blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, d, Ax, comm);
+            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm, save, U ? k : 0)) {
                 dim = deflated * (i - 1);
                 i = j = 0;
                 break;
@@ -692,7 +712,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[std::max(2, dim * dim)];
                     underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * n] : nullptr;
                     {
-                        Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, nullptr, &info);
+                        Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, rwork, &info);
                         vr[1] = std::max(static_cast<int>(std::real(*vr)), Wrapper<K>::is_complex ? dim * dim : (dim * (dim + 2)));
                         Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, vr, &lwork, &info);
                         vr[1] = std::max(std::real(*vr), std::real(vr[1]));
@@ -745,9 +765,17 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* A = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
                     if(id[4] % 4 != 1) {
                         info = dim + deflated;
-                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, U, &n, &(Wrapper<K>::d__0), prod, &info);
-                        for(unsigned short nu = 0; nu < bK; ++nu)
-                            prod[bK * (dim + deflated) + nu] = Blas<K>::dot(&n, U + nu * n, &i__1, U + nu * n, &i__1);
+                        if(d) {
+                            Wrapper<K>::diag(n, d, U, C, bK);
+                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, C, &n, &(Wrapper<K>::d__0), prod, &info);
+                            for(unsigned short nu = 0; nu < bK; ++nu)
+                                prod[bK * (dim + deflated) + nu] = Blas<K>::dot(&n, U + nu * n, &i__1, C + nu * n, &i__1);
+                        }
+                        else {
+                            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &info, &bK, &n, &(Wrapper<K>::d__1), *v, &n, U, &n, &(Wrapper<K>::d__0), prod, &info);
+                            for(unsigned short nu = 0; nu < bK; ++nu)
+                                prod[bK * (dim + deflated) + nu] = Blas<K>::dot(&n, U + nu * n, &i__1, U + nu * n, &i__1);
+                        }
                         MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                         for(unsigned short nu = 0; nu < bK; ++nu) {
                             prod[bK * (dim + deflated) + nu] = 1.0 / std::sqrt(std::real(prod[bK * (dim + deflated) + nu]));
@@ -828,12 +856,14 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     delete [] work;
                     work = new K[lwork];
                     Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
-                    Wrapper<K>::template omatcopy<'N'>(bK, n, U, n, v[id[1] == 2 ? m[1] + 1: 0], n);
-                    Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1: 0], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
+                    if(d)
+                        std::copy_n(*v, k * ldv, C);
+                    std::copy_n(U, k * ldv, v[id[1] == 2 ? m[1] + 1 : 0]);
+                    Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1 : 0], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &n);
-                    Wrapper<K>::template omatcopy<'N'>(bK, n, C, n, *v, n);
+                    std::copy_n(C, k * ldv, *v);
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, Ax, *v, &n, work, &lwork, &info);
-                    Wrapper<K>::template omatcopy<'N'>(bK, n, *v, n, C, n);
+                    std::copy_n(*v, k * ldv, C);
                     delete [] work;
                     delete [] vr;
                 }

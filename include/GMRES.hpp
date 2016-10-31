@@ -46,6 +46,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         v[i] = *v + i * mu * n;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (id[1] == 2 ? 2 : 1) + 1) * mu * n);
     underlying_type<K>* const sn = norm + mu;
+    const underlying_type<K>* const d = A.getScaling();
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m[1]);
     bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
@@ -56,8 +57,15 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
         if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            sn[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+        if(d)
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                sn[nu] = 0.0;
+                for(unsigned int j = 0; j < n; ++j)
+                    sn[nu] += d[j] * std::norm(v[0][nu * n + j]);
+            }
+        else
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                sn[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
         if(j == 1) {
             MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -86,7 +94,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 if(!excluded)
                     A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
             }
-            Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, comm);
+            Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, d, Ax, comm);
             checkConvergence<0>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
             if(std::find(hasConverged, hasConverged + mu, -m[1]) == hasConverged + mu) {
                 i = 0;
@@ -127,10 +135,11 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int ldh = mu * (m[1] + 1);
     int info;
     int N = 2 * mu;
-    int lwork = mu * std::max(n, ((id[2] >> 2) & 7) == 1 ? mu : ldh);
+    const underlying_type<K>* const d = A.getScaling();
+    int lwork = mu * (d ? n + ldh : std::max(n, ldh));
     *H = new K[lwork + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == 2 ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m[1] * mu * ldh;
-    K* const s = *v + mu * n * (m[1] * (1 + (id[1] == 2)) + 1);
+    K* const s = *v + mu * n * (m[1] * (id[1] == 2 ? 2 : 1) + 1);
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m[1] * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
@@ -151,7 +160,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
         if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
-        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, mu, tol[1], N, piv, Ax, comm);
+        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[1], N, piv, d, Ax, comm);
         diagonal<1>(id[0], s, mu, tol[1], piv);
         if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
@@ -186,7 +195,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(!excluded)
                     A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
             }
-            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, Ax, comm)) {
+            if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm)) {
                 dim = deflated * (i - 1);
                 i = j = 0;
                 break;

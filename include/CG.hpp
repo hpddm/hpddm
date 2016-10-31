@@ -161,8 +161,8 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[4 * (dim + mu * mu)];
-    K* const p = trash + dim;
-    K* const z = p + dim;
+    K* const z = trash + dim;
+    K* const p = z + dim;
     K* const r = z + dim;
     K* const rho = r + dim;
     K* const rhs = rho + 2 * mu * mu;
@@ -189,7 +189,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         for(unsigned short j = 0; j < i; ++j)
             rho[i + j * mu] = Wrapper<K>::conj(rho[j + i * mu]);
     std::copy_n(rho, mu * mu, rho + mu * mu);
-    int info = QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash);
+    int info = QR<excluded>(id[1], n, mu, p, gamma, mu, d, trash, comm);
     if(info != mu) {
         delete [] trash;
         A.end(allocate);
@@ -274,7 +274,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
                 std::copy(p, r, trash);
                 Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__1), trash, &n, rhs, &mu, &(Wrapper<K>::d__1), p, &n);
             }
-            if(QR<excluded>(id[1], n, mu, 1, p, gamma, mu, comm, static_cast<K*>(nullptr), true, d, trash) != mu) {
+            if(QR<excluded>(id[1], n, mu, p, gamma, mu, d, trash, comm) != mu) {
                 delete [] norm;
                 delete [] trash;
                 A.end(allocate);
@@ -306,10 +306,10 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[5 * dim + (mu * (3 * mu + 1)) / 2 + mu / m[1]];
-    K* const p = trash + dim;
-    K* const r = p + dim;
-    K* const q = r + dim;
-    K* const z = q + dim;
+    K* const q = trash + dim;
+    K* const r = q + dim;
+    K* const p = r + dim;
+    K* const z = p + dim;
     K* const gamma = z + dim;
     const underlying_type<K>* const d = A.getScaling();
     bool allocate = A.template start<excluded>(b, x, mu);
@@ -321,7 +321,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), trash, &i__1, r, &i__1);
     A.template apply<excluded>(r, p, mu, trash);
-    RRQR<excluded>(id[1], n, mu, p, gamma, mu, tol[1], deflated, piv, q, comm, d, trash);
+    RRQR<excluded>(id[1], n, mu, p, gamma, tol[1], deflated, piv, d, trash, comm);
     diagonal<6>(id[0], gamma, mu, tol[1], piv);
     underlying_type<K>* const norm = new underlying_type<K>[mu];
     if(m[1] <= 1)
@@ -395,7 +395,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
                 if(m[1] <= 1)
                     Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
             }
-            RRQR<excluded>(id[1], n, mu, p, gamma, mu, tol[1], deflated, piv, q, comm, d, trash);
+            RRQR<excluded>(id[1], n, mu, p, gamma, tol[1], deflated, piv, d, trash, comm);
             if(tol[1] > -0.9) {
                 Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
                 Lapack<K>::lapmt(&i__1, &n, &mu, r, &n, piv);
