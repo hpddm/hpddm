@@ -249,7 +249,7 @@ test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator
 	cd ${TOP_DIR}/${BIN_DIR} && echo 100 2 | ${MPIRUN} 4 ./custom_operator && cd -
 
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
-	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt
+	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_local_matrices=${TRASH_DIR}/output.txt -hpddm_version
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ]; then \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity; \
 		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres; \
@@ -275,6 +275,7 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 		$${CMD} || exit; \
 	fi
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_deflation_tol=1e-4 -hpddm_qr=mgs -hpddm_gmres_restart=25
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_deflation_tol=1e-4 -hpddm_qr=cgs -hpddm_gmres_restart=25 -hpddm_orthogonalization=mgs
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr --hpddm_dump_local_matrix_2 ${TRASH_DIR}/output -hpddm_gmres_restart=25
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_2_4.txt; \

@@ -640,7 +640,7 @@ class IterativeMethod {
                         if(std::real(work[xi * (k + 1) * mu + nu]) < HPDDM_EPS)
                             rank = xi;
                     }
-                    if(rank != xi && update)
+                    if(rank != xi)
                         for(unsigned short nu = 0; nu < mu; ++nu) {
                             K alpha = K(1.0) / work[xi * (k + 1) * mu + nu];
                             Blas<K>::scal(&n, &alpha, Q + xi * ldv + nu * n, &i__1);
