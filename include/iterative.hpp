@@ -94,16 +94,18 @@ class IterativeMethod {
                 for(unsigned short nu = 0; nu < mu / t; ++nu) {
                     pt[nu] = std::sqrt(std::real(res[nu]));
                     if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
-                        conv += t;
+                        ++conv;
                 }
             }
-            else if(t <= 1)
+            else if(t <= 1) {
+                conv = mu - d;
                 for(unsigned short nu = 0; nu < d; ++nu) {
                     int dim = nu + 1;
                     pt[nu] = Blas<K>::nrm2(&dim, res + nu * ldh, &i__1);
                     if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
                         ++conv;
                 }
+            }
             else {
                 std::fill_n(work, d, K());
                 for(unsigned short nu = 0; nu < t; ++nu) {
@@ -112,7 +114,7 @@ class IterativeMethod {
                 }
                 *pt = Blas<K>::nrm2(&d, work, &i__1);
                 if(((tol > 0.0 && *pt / *norm <= tol) || (tol < 0.0 && *pt <= -tol)))
-                    conv += t;
+                    ++conv;
             }
             if(verbosity > 2) {
                 constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
@@ -123,15 +125,15 @@ class IterativeMethod {
                     std::cout << method << ": " << std::setw(3) << i << " " << *max << " < " << -tol;
                 if(d != t || (d == t && t != mu)) {
                     std::cout << " (rhs #" << std::distance(pt, max) + 1;
-                    if(conv)
-                        std::cout << ", " << conv / t << " converged rhs";
+                    if(conv > d)
+                        std::cout << ", " << t * conv - d << " converged rhs";
                     if(d != mu)
                         std::cout << ", " << mu - d << " deflated rhs";
                     std::cout << ")";
                 }
                 std::cout <<  std::endl;
             }
-            return conv;
+            return t * conv;
         }
         template<char T>
         static void convergence(const char verbosity, const unsigned short i, const unsigned short m) {
@@ -564,11 +566,8 @@ class IterativeMethod {
                 VR<excluded>(n, k, 1, Q, R, k, d, work, comm);
                 int info;
                 Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d__0), work, &info);
-                if(info == 0) {
-                    rank = k;
-                    while(rank > 1 && std::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol)
-                        --rank;
-                }
+                while(rank > 1 && std::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol)
+                    --rank;
                 Lapack<K>::lapmt(&i__1, &n, &k, Q, &n, piv);
                 if(!excluded && n)
                     Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d__1), R, &k, Q, &n);

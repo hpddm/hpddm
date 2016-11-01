@@ -648,7 +648,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 i = j = 0;
                 break;
             }
-            if(deflated == checkBlockConvergence<5>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2])) {
+            if(mu == checkBlockConvergence<5>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2])) {
                 dim = deflated * i;
                 i = 0;
                 break;
