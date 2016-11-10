@@ -341,14 +341,10 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Solves the GenEO problem.
          *
          * Template Parameter:
-         *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements.
-         *
-         * Parameters:
-         *    nu             - Number of eigenvectors requested.
-         *    threshold      - Criterion for selecting the eigenpairs (optional). */
+         *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements. */
         template<char L = 'S'>
-        void solveGEVP(unsigned short& nu, const underlying_type<K>& threshold = 0.0) {
-            super::template solveGEVP<L>(_m, nu, threshold);
+        void solveGEVP() {
+            super::template solveGEVP<L>(_m);
         }
 };
 

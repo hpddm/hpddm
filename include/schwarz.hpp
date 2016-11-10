@@ -402,12 +402,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *
          * Parameters:
          *    A              - Left-hand side matrix.
-         *    B              - Right-hand side matrix (optional).
-         *    nu             - Number of eigenvectors requested.
-         *    threshold      - Precision of the eigensolver. */
+         *    B              - Right-hand side matrix (optional). */
         template<template<class> class Eps>
-        void solveGEVP(MatrixCSR<K>* const& A, unsigned short& nu, const underlying_type<K>& threshold, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
-            Eps<K> evp(threshold, Subdomain<K>::_dof, nu);
+        void solveGEVP(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
+            Option& opt = *Option::get();
+            Eps<K> evp(opt.val("geneo_threshold", 0.0), Subdomain<K>::_dof, opt.template val<unsigned short>("geneo_nu", 20));
 #ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
 #else
@@ -430,11 +429,11 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 A->_ia = nullptr;
                 A->_ja = nullptr;
             }
-            (*Option::get())["geneo_nu"] = nu = evp._nu;
+            opt["geneo_nu"] = evp._nu;
             if(super::_co)
-                super::_co->setLocal(nu);
+                super::_co->setLocal(evp._nu);
             const int n = Subdomain<K>::_dof;
-            std::for_each(super::_ev, super::_ev + nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
+            std::for_each(super::_ev, super::_ev + evp._nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
         }
         template<bool sorted = true, bool scale = false>
         void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {

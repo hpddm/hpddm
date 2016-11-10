@@ -144,11 +144,10 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements.
          *
          * Parameters:
-         *    d              - Constant pointer to a partition of unity of the primal unknowns, cf. <Bdd::m>.
-         *    nu             - Number of eigenvectors requested.
-         *    threshold      - Criterion for selecting the eigenpairs (optional). */
+         *    d              - Constant pointer to a partition of unity of the primal unknowns, cf. <Bdd::m>. */
         template<char L>
-        void solveGEVP(const underlying_type<K>* const d, unsigned short& nu, const underlying_type<K>& threshold) {
+        void solveGEVP(const underlying_type<K>* const d) {
+            Option& opt = *Option::get();
             if(_schur) {
                 K** send = Subdomain<K>::_buff;
                 unsigned int size = std::accumulate(Subdomain<K>::_map.cbegin(), Subdomain<K>::_map.cend(), 0, [](unsigned int sum, const pairNeighbor& n) { return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size()); });
@@ -167,7 +166,8 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     }
                 K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 exchangeSchurComplement<L>(send, recv, res);
-
+                unsigned short nu = opt.template val<unsigned short>("geneo_nu", 20);
+                const underlying_type<K> threshold = opt.val("geneo_threshold", 0.0);
                 Eigensolver<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
                 K* A;
                 if(size < Subdomain<K>::_dof * Subdomain<K>::_dof)
@@ -240,18 +240,18 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     }
                     delete [] iblock;
                 }
-                (*Option::get())["geneo_nu"] = nu = evp._nu;
+                opt["geneo_nu"] = evp._nu;
                 if(super::_co)
-                    super::_co->setLocal(nu);
-                if(nu && *(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
+                    super::_co->setLocal(evp._nu);
+                if(evp._nu && *(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
                     _deficiency = 1;
                     underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
-                    while(_deficiency < nu && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + _deficiency) / relative) * std::cbrt(evp.getTol()) < 1)
+                    while(_deficiency < evp._nu && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + _deficiency) / relative) * std::cbrt(evp.getTol()) < 1)
                         ++_deficiency;
                 }
                 if(A != *recv)
                     delete [] A;
-                if(nu)
+                if(evp._nu)
                     Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::_dof), &(evp._nu), res, &(Subdomain<K>::_dof), *super::_ev, &(Subdomain<K>::_dof), &info);
                 else if(super::_ev) {
                     delete [] *super::_ev;
@@ -266,7 +266,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 delete [] *send;
             }
             else
-                nu = 0;
+                opt["geneo_nu"] = 0;
         }
         template<unsigned short excluded, class Operator, class Prcndtnr>
         std::pair<MPI_Request, const K*>* buildTwo(Prcndtnr* B, const MPI_Comm& comm) {

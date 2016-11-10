@@ -61,14 +61,13 @@ if sizeWorld > 1:
     else:
         mu = 1
     if hpddm.optionSet(opt, b'schwarz_coarse_correction'):
-        nu = ctypes.c_ushort(int(hpddm.optionVal(opt, b'geneo_nu')))
+        addr = hpddm.optionAddr(opt, b'geneo_nu')
+        nu = ctypes.c_ushort(int(addr.contents.value))
         if nu.value > 0:
             if hpddm.optionApp(opt, b'nonuniform'):
-                nu.value += max(int(-hpddm.optionVal(opt, b'geneo_nu') + 1), (-1)**rankWorld * rankWorld)
-            threshold = hpddm.underlying(max(0, hpddm.optionVal(opt, b'geneo_threshold')))
-            hpddm.schwarzSolveGEVP(A, MatNeumann, ctypes.byref(nu), threshold)
-            addr = hpddm.optionAddr(opt, b'geneo_nu')
-            addr.contents.value = nu.value
+                addr.contents.value += max(int(-addr.contents.value + 1), (-1)**rankWorld * rankWorld)
+            hpddm.schwarzSolveGEVP(A, MatNeumann)
+            nu = int(hpddm.optionVal(opt, b'geneo_nu'))
         else:
             nu = 1
             deflation = numpy.ones((dof, nu), order = 'F', dtype = hpddm.scalar)

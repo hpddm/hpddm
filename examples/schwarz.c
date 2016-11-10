@@ -61,13 +61,13 @@ int main(int argc, char** argv) {
         else
             mu = 1;
         if(HpddmOptionSet(opt, "schwarz_coarse_correction")) {
-            unsigned short nu = HpddmOptionVal(opt, "geneo_nu");
+            double* addr = HpddmOptionAddr(opt, "geneo_nu");
+            unsigned short nu = *addr;
             if(nu > 0) {
                 if(HpddmOptionApp(opt, "nonuniform"))
-                    nu += MAX((int)(-HpddmOptionVal(opt, "geneo_nu") + 1), pow(-1, rankWorld) * rankWorld);
-                underlying_type threshold = MAX(0.0, HpddmOptionVal(opt, "geneo_threshold"));
-                HpddmSchwarzSolveGEVP(A, MatNeumann, &nu, threshold);
-                *HpddmOptionAddr(opt, "geneo_nu") = nu;
+                    *addr += MAX((int)(-*addr + 1), pow(-1, rankWorld) * rankWorld);
+                HpddmSchwarzSolveGEVP(A, MatNeumann);
+                nu = HpddmOptionVal(opt, "geneo_nu");
             }
             else {
                 nu = 1;

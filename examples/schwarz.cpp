@@ -87,13 +87,13 @@ int main(int argc, char** argv) {
         /*# InitializationEnd #*/
         if(opt.set("schwarz_coarse_correction")) {
             /*# Factorization #*/
-            unsigned short nu = opt["geneo_nu"];
+            double& ref = opt["geneo_nu"];
+            unsigned short nu = ref;
             if(nu > 0) {
                 if(opt.app().find("nonuniform") != opt.app().cend())
-                    nu += std::max(static_cast<int>(-opt["geneo_nu"] + 1), HPDDM::pow(-1, rankWorld) * rankWorld);
-                HPDDM::underlying_type<K> threshold = std::max(0.0, opt.val("geneo_threshold"));
-                A.solveGEVP<EIGENSOLVER>(MatNeumann, nu, threshold);
-                opt["geneo_nu"] = nu;
+                    ref += std::max(static_cast<int>(-ref + 1), HPDDM::pow(-1, rankWorld) * rankWorld);
+                A.solveGEVP<EIGENSOLVER>(MatNeumann);
+                nu = opt["geneo_nu"];
             }
             else {
                 nu = 1;

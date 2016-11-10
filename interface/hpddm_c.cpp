@@ -172,8 +172,8 @@ void HpddmSchwarzScaledExchange(HpddmSchwarz* A, K* const x, unsigned short mu) 
 void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->callNumfact();
 }
-void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann, unsigned short* nu, underlying_type threshold) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(neumann), *nu, threshold);
+void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(neumann));
 }
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->buildTwo(comm);

@@ -459,20 +459,15 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Solves the GenEO problem.
          *
          * Template Parameter:
-         *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements.
-         *
-         * Parameters:
-         *    nu             - Number of eigenvectors requested.
-         *    threshold      - Criterion for selecting the eigenpairs (optional). */
+         *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements. */
         template<char L = 'S'>
-        void solveGEVP(unsigned short& nu, const underlying_type<K>& threshold) {
+        void solveGEVP() {
             underlying_type<K>* const pt = reinterpret_cast<underlying_type<K>*>(_primal);
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
                     pt[Subdomain<K>::_map[i].second[j]] = _m[i][j];
-            super::template solveGEVP<L>(pt, nu, threshold);
-            nu = super::_deficiency;
-            if(nu == 0 && super::_ev) {
+            super::template solveGEVP<L>(pt);
+            if(super::_deficiency == 0 && super::_ev) {
                 delete [] *super::_ev;
                 delete []  super::_ev;
                 super::_ev = nullptr;
