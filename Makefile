@@ -107,6 +107,13 @@ ifeq (${EIGENSOLVER}, FEAST)
     INCS += ${FEAST_INCS}
     LIBS += ${FEAST_LIBS}
 endif
+ifdef LIBXSMM_INCS
+    ifdef LIBXSMM_LIBS
+        INCS += ${LIBXSMM_INCS}
+        LIBS += ${LIBXSMM_LIBS}
+        override HPDDMFLAGS += -DHPDDM_LIBXSMM=1
+    endif
+endif
 
 ifeq (${OS}, Windows_NT)
     MAKE_OS = Windows

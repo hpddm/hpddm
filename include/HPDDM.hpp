@@ -43,8 +43,9 @@
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
- *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method. */
-#define HPDDM_VERSION         000600
+ *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
+ *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
+#define HPDDM_VERSION         000601
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -86,6 +87,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #endif
 #ifndef HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_INEXACT_COARSE_OPERATOR 0
+#endif
+#ifndef HPDDM_LIBXSMM
+# define HPDDM_LIBXSMM        0
 #endif
 
 #ifdef __MINGW32__

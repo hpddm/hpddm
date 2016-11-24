@@ -602,12 +602,12 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             if(!_schur) {
                 if(_bi->_m) {
                     K* tmp = new K[n * _bi->_m];
-                    Wrapper<K>::template csrmm<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), tmp, &_bi->_m);
+                    Wrapper<K>::template csrmm<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), tmp);
                     super::_s.solve(tmp, n);
-                    Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &_bi->_m, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+                    Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &(Wrapper<K>::d__0), out);
                     delete [] tmp;
                 }
-                Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &_bb->_m, &(Wrapper<K>::d__2), out, &(Subdomain<K>::_dof));
+                Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), out);
             }
             else
                 Blas<K>::symm("L", "L", &(Subdomain<K>::_dof), &n, &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
@@ -656,7 +656,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
          * See also: <Feti::applyLocalPreconditioner(n)>. */
         void applyLocalLumpedMatrix(K*& in, const int& n) const {
             K* out = new K[n * Subdomain<K>::_dof];
-            Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+            Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__0), out);
             delete [] in;
             in = out;
         }

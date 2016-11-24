@@ -25,6 +25,10 @@
 #ifndef _HPDDM_WRAPPER_
 #define _HPDDM_WRAPPER_
 
+#if HPDDM_LIBXSMM
+#include <libxsmm.h>
+#endif
+
 #define HPDDM_GENERATE_EXTERN_MKL(C, T)                                                                      \
 void cblas_ ## C ## gthr(const int, const T*, T*, const int*);                                               \
 void cblas_ ## C ## sctr(const int, const T*, const int*, T*);
@@ -102,12 +106,10 @@ struct Wrapper {
      *  Computes a scalar-sparse matrix-matrix product. */
     template<char N = HPDDM_NUMBERING>
     static void csrmm(const char* const, const int* const, const int* const, const int* const, const K* const, bool,
-                      const K* const, const int* const, const int* const, const K* const, const int* const,
-                      const K* const, K* const, const int* const);
+                      const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
     template<char N = HPDDM_NUMBERING>
     static void bsrmm(const char* const, const int* const, const int* const, const int* const, const int* const, const K* const, bool,
-                      const K* const, const int* const, const int* const, const K* const, const int* const,
-                      const K* const, K* const, const int* const);
+                      const K* const, const int* const, const int* const, const K* const, const K* const, K* const);
 
     /* Function: csrcsc
      *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
@@ -292,13 +294,14 @@ template<char N>                                                                
 inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const int* const n,               \
                               const int* const k, const T* const alpha, bool sym,                            \
                               const T* const a, const int* const ia, const int* const ja,                    \
-                              const T* const x, const int* const ldb, const T* const beta,                   \
-                              T* const y, const int* const ldc) {                                            \
+                              const T* const x, const T* const beta, T* const y) {                           \
     if(*n != 1) {                                                                                            \
         if(N != 'F') {                                                                                       \
             std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { ++i; });         \
             std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { ++i; });         \
         }                                                                                                    \
+        const int* const ldb = (*trans == 'N' ? k : m);                                                      \
+        const int* const ldc = (*trans == 'N' ? m : k);                                                      \
         mkl_ ## C ## csrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),               \
                            HPDDM_CONST(int, k), HPDDM_CONST(T, alpha),                                       \
                            HPDDM_CONST(char, sym ? matdescr<'F'>::b : matdescr<'F'>::a), HPDDM_CONST(T, a),  \
@@ -312,32 +315,6 @@ inline void Wrapper<T>::csrmm(const char* const trans, const int* const m, const
     }                                                                                                        \
     else                                                                                                     \
         csrmv<N>(trans, m, k, alpha, sym, a, ia, ja, x, beta, y);                                            \
-}                                                                                                            \
-template<>                                                                                                   \
-template<char N>                                                                                             \
-inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const int* const n,               \
-                              const int* const k, const int* const bs, const T* const alpha, bool sym,       \
-                              const T* const a, const int* const ia, const int* const ja,                    \
-                              const T* const x, const int* const ldb, const T* const beta,                   \
-                              T* const y, const int* const ldc) {                                            \
-    if(*n != 1) {                                                                                            \
-        if(N != 'F') {                                                                                       \
-            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { ++i; });         \
-            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { ++i; });         \
-        }                                                                                                    \
-        mkl_ ## C ## bsrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),               \
-                           HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha),                 \
-                           HPDDM_CONST(char, sym ? (matdescr<'F', 'U'>::b) : matdescr<'F'>::a),              \
-                           HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia),                    \
-                           HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(int, ldb),               \
-                           HPDDM_CONST(T, beta), y, HPDDM_CONST(int, ldc));                                  \
-        if(N != 'F') {                                                                                       \
-            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { --i; });         \
-            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { --i; });         \
-        }                                                                                                    \
-    }                                                                                                        \
-    else                                                                                                     \
-        bsrmv<N>(trans, m, k, bs, alpha, sym, a, ia, ja, x, beta, y);                                        \
 }                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
@@ -370,6 +347,34 @@ inline void Wrapper<T>::omatcopy(const int n, const int m, const T* const a, con
     static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");                        \
     mkl_ ## C ## omatcopy('C', O, m, n, d__1, a, lda, b, ldb);                                               \
 }
+#define HPDDM_GENERATE_MKL_BSRMM(C, T)                                                                       \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const int* const n,               \
+                              const int* const k, const int* const bs, const T* const alpha, bool sym,       \
+                              const T* const a, const int* const ia, const int* const ja,                    \
+                              const T* const x, const T* const beta, T* const y) {                           \
+    if(*n != 1) {                                                                                            \
+        if(N != 'F') {                                                                                       \
+            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { ++i; });         \
+            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { ++i; });         \
+        }                                                                                                    \
+        int ldb = *bs * (*trans == 'N' ? *k : *m);                                                           \
+        int ldc = *bs * (*trans == 'N' ? *m : *k);                                                           \
+        mkl_ ## C ## bsrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n),               \
+                           HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha),                 \
+                           HPDDM_CONST(char, sym ? (matdescr<'F', 'U'>::b) : matdescr<'F'>::a),              \
+                           HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia),                    \
+                           HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), &ldb,                                \
+                           HPDDM_CONST(T, beta), y, &ldc);                                                   \
+        if(N != 'F') {                                                                                       \
+            std::for_each(const_cast<int*>(ia), const_cast<int*>(ia) + *m + 1, [](int& i) { --i; });         \
+            std::for_each(const_cast<int*>(ja), const_cast<int*>(ja) + ia[*m], [](int& i) { --i; });         \
+        }                                                                                                    \
+    }                                                                                                        \
+    else                                                                                                     \
+        bsrmv<N>(trans, m, k, bs, alpha, sym, a, ia, ja, x, beta, y);                                        \
+}
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
 inline void Wrapper<T>::diag(const int& m, const T* const d,                                                 \
@@ -389,6 +394,12 @@ HPDDM_GENERATE_MKL(s, float)
 HPDDM_GENERATE_MKL(d, double)
 HPDDM_GENERATE_MKL(c, std::complex<float>)
 HPDDM_GENERATE_MKL(z, std::complex<double>)
+#if !HPDDM_LIBXSMM
+HPDDM_GENERATE_MKL_BSRMM(s, float)
+HPDDM_GENERATE_MKL_BSRMM(d, double)
+#endif
+HPDDM_GENERATE_MKL_BSRMM(c, std::complex<float>)
+HPDDM_GENERATE_MKL_BSRMM(z, std::complex<double>)
 HPDDM_GENERATE_MKL_VML(s, float)
 HPDDM_GENERATE_MKL_VML(d, double)
 #else
@@ -399,46 +410,22 @@ inline void Wrapper<K>::csrmv(bool sym, const int* const n, const K* const a, co
 }
 template<class K>
 template<char N>
+inline void Wrapper<K>::bsrmv(bool sym, const int* const n, const int* const bs, const K* const a,
+                              const int* const ia, const int* const ja, const K* const x, K* const y) {
+    bsrmv<N>("N", n, n, bs, &d__1, sym, a, ia, ja, x, &d__0, y);
+}
+template<class K>
+template<char N>
 inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const int* const k, const K* const alpha, bool sym,
                               const K* const a, const int* const ia, const int* const ja, const K* const x, const K* const beta, K* const y) {
-    if(*trans == 'N') {
-        if(sym) {
-            if(beta == &d__0)
-                std::fill_n(y, *m, K());
-            else if(beta != &d__1)
-                Blas<K>::scal(m, beta, y, &i__1);
-            for(int i = 0; i < *m; ++i) {
-                if(ia[i + 1] != ia[i]) {
-                    K res = K();
-                    int l = ia[i] - (N == 'F');
-                    int j = ja[l] - (N == 'F');
-                    while(l < ia[i + 1] - 1 - (N == 'F')) {
-                        res += a[l] * x[j];
-                        y[j] += *alpha * a[l] * x[i];
-                        j = ja[++l] - (N == 'F');
-                    }
-                    if(i != j) {
-                        res += a[l] * x[j];
-                        y[j] += *alpha * a[l] * x[i];
-                        y[i] += *alpha * res;
-                    }
-                    else
-                        y[i] += *alpha * (res + a[l] * x[i]);
-                }
-            }
-        }
-        else {
-            if(beta == &d__0)
-                std::fill_n(y, *m, K());
+    if(*trans == 'N' && !sym) {
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
 #endif
-            for(int i = 0; i < *m; ++i) {
-                K res = K();
-                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
-                    res += a[l] * x[ja[l] - (N == 'F')];
-                y[i] = *alpha * res + *beta * y[i];
-            }
+        for(int i = 0; i < *m; ++i) {
+            y[i] *= *beta;
+            for(int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+                y[i] += *alpha * a[j] * x[ja[j] - (N == 'F')];
         }
     }
     else {
@@ -447,113 +434,169 @@ inline void Wrapper<K>::csrmv(const char* const trans, const int* const m, const
         else if(beta != &d__1)
             Blas<K>::scal(k, beta, y, &i__1);
         if(sym) {
-            for(int i = 0; i < *m; ++i) {
-                K res = K();
+            for(int i = 0; i < *m; ++i)
                 for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     int j = ja[l] - (N == 'F');
-                    y[j] += *alpha * a[l] * x[i];
+                    const K scal = *alpha * (Wrapper<K>::is_complex && *trans == 'C' ? conj(a[l]) : a[l]);
+                    y[i] += scal * x[j];
                     if(i != j)
-                        res += a[l] * x[j];
+                        y[j] += scal * x[i];
                 }
-                y[i] += *alpha * res;
+        }
+        else {
+            for(int i = 0; i < *m; ++i)
+                for(int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) {
+                    const K scal = *alpha * (Wrapper<K>::is_complex && *trans == 'C' ? conj(a[j]) : a[j]);
+                    y[ja[j] - (N == 'F')] += scal * x[i];
+                }
+        }
+    }
+}
+template<class K>
+template<char N>
+inline void Wrapper<K>::bsrmv(const char* const trans, const int* const m, const int* const k,
+                              const int* const bs, const K* const alpha, bool sym, const K* const a,
+                              const int* const ia, const int* const ja, const K* const x,
+                              const K* const beta, K* const y) {
+    if(*trans == 'N' && !sym) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
+#endif
+        for(int i = 0; i < *m; ++i) {
+            Blas<K>::scal(bs, beta, y + *bs * i, &i__1);
+            for(int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+                Blas<K>::gemv(N == 'F' ? "N" : "T", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &i__1, &(Wrapper<K>::d__1), y + *bs * i, &i__1);
+        }
+    }
+    else {
+        const int ldc = *bs * *k;
+        if(beta == &d__0)
+            std::fill_n(y, ldc, K());
+        else if(beta != &d__1)
+            Blas<K>::scal(&ldc, beta, y, &i__1);
+        if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
+            K* const c = const_cast<K* const>(a);
+            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
+                c[i] = conj(c[i]);
+        }
+        if(sym) {
+            for(int i = 0; i < *m; ++i) {
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+                    int j = ja[l] - (N == 'F');
+                    Blas<K>::gemv(N == 'F' ? "N" : "T", bs, bs, alpha, a + *bs * *bs * l, bs, x + *bs * j, &i__1, &(Wrapper<K>::d__1), y + *bs * i, &i__1);
+                    if(i != j)
+                        Blas<K>::gemv(N == 'F' ? "T" : "N", bs, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &i__1, &(Wrapper<K>::d__1), y + *bs * j, &i__1);
+                }
             }
         }
         else {
             for(int i = 0; i < *m; ++i)
-                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
-                    y[ja[l] - (N == 'F')] += *alpha * a[l] * x[i];
+                for(int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+                    Blas<K>::gemv(N == 'F' ? trans : "N", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * i, &i__1, &(Wrapper<K>::d__1), y + *bs * (ja[j] - (N == 'F')), &i__1);
+        }
+        if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
+            K* const c = const_cast<K* const>(a);
+            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
+                c[i] = conj(c[i]);
         }
     }
 }
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrmm(const char* const trans, const int* const m, const int* const n, const int* const k, const K* const alpha, bool sym,
-                              const K* const a, const int* const ia, const int* const ja, const K* const x, const int* const ldb, const K* const beta, K* const y, const int* const ldc) {
-    if(*trans == 'N') {
-        if(*ldb != *k || *ldc != *m)
-            return;
-        int dimY = *m;
-        K* res;
+                              const K* const a, const int* const ia, const int* const ja, const K* const x,  const K* const beta, K* const y) {
+    if(*trans == 'N' || sym) {
+        int j = *m * *n;
+        if(beta == &d__0)
+            std::fill_n(y, j, K());
+        else if(beta != &d__1)
+            Blas<K>::scal(&j, beta, y, &i__1);
         if(sym) {
-            int j;
-            int dimX = *k;
-            int dimNY = dimY * *n;
-            if(beta == &d__0)
-                std::fill_n(y, dimNY, K());
-            else if(beta != &d__1)
-                Blas<K>::scal(&dimNY, beta, y, &i__1);
-            res = new K[*n];
-            for(int i = 0; i < dimY; ++i) {
-                std::fill_n(res, *n, K());
+            for(int i = 0; i < *m; ++i)
                 for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
                     j = ja[l] - (N == 'F');
+                    const K scal = *alpha * (Wrapper<K>::is_complex && *trans == 'C' ? conj(a[l]) : a[l]);
+                    Blas<K>::axpy(n, &scal, x + j, k, y + i, m);
                     if(i != j)
-                        for(int r = 0; r < *n; ++r) {
-                            res[r] += a[l] * x[j + r * dimX];
-                            y[j + r * *ldb] += *alpha * a[l] * x[i + r * *ldc];
-                        }
-                    else
-                        Blas<K>::axpy(n, a + l, x + j, k, res, &i__1);
+                        Blas<K>::axpy(n, &scal, x + i, k, y + j, m);
                 }
-                Blas<K>::axpy(n, alpha, res, &i__1, y + i, m);
-            }
-            delete [] res;
         }
         else {
-#ifdef _OPENMP
-#pragma omp parallel private(res)
-#endif
-            {
-                res = new K[*n];
 #ifdef _OPENMP
 #pragma omp for schedule(static, HPDDM_GRANULARITY)
 #endif
-                for(int i = 0; i < dimY; ++i) {
-                    std::fill_n(res, *n, K());
-                    for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
-                        Blas<K>::axpy(n, a + l, x + ja[l] - (N == 'F'), k, res, &i__1);
-                    Blas<K>::axpby(*n, *alpha, res, 1, *beta, y + i, dimY);
+            for(int i = 0; i < *m; ++i)
+                for(j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) {
+                    const K scal = *alpha * a[j];
+                    Blas<K>::axpy(n, &scal, x + ja[j] - (N == 'F'), k, y + i, m);
                 }
-                delete [] res;
-            }
         }
     }
     else {
-        if(*ldb != *m || *ldc != *k)
-            return;
-        int dimX = *m;
-        int dimY = *k;
-        int dimNY = dimY * *n;
+        int j = *k * *n;
         if(beta == &d__0)
-            std::fill_n(y, dimNY, K());
+            std::fill_n(y, j, K());
         else if(beta != &d__1)
-            Blas<K>::scal(&dimNY, beta, y, &i__1);
-        if(sym) {
-            K* res = new K[*n];
-            for(int i = 0; i < *m; ++i) {
-                std::fill_n(res, *n, K());
-                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
-                    int j = ja[l] - (N == 'F');
-                    if(i != j)
-                        for(int r = 0; r < *n; ++r) {
-                            y[j + r * dimY] += *alpha * a[l] * x[i + r * dimX];
-                            res[r] += a[l] * x[j + r * dimX];
-                        }
-                    else {
-                        const K scal = *alpha * a[l];
-                        Blas<K>::axpy(n, &scal, x + i, m, y + j, k);
-                    }
-                }
-                Blas<K>::axpy(n, alpha, res, &i__1, y + i, k);
+            Blas<K>::scal(&j, beta, y, &i__1);
+        for(int i = 0; i < *m; ++i)
+            for(int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) {
+                const K scal = *alpha * (Wrapper<K>::is_complex && *trans == 'C' ? conj(a[j]) : a[j]);
+                Blas<K>::axpy(n, &scal, x + i, m, y + ja[j] - (N == 'F'), k);
             }
-            delete [] res;
+    }
+}
+template<class K>
+template<char N>
+inline void Wrapper<K>::bsrmm(const char* const trans, const int* const m, const int* const n, const int* const k, const int* const bs, const K* const alpha, bool sym,
+                              const K* const a, const int* const ia, const int* const ja, const K* const x,  const K* const beta, K* const y) {
+    if(*trans == 'N' && !sym) {
+        const int ldb = *bs * *k;
+        const int ldc = *bs * *m;
+        int j = ldc * *n;
+        if(beta == &d__0)
+            std::fill_n(y, j, K());
+        else if(beta != &d__1)
+            Blas<K>::scal(&j, beta, y, &i__1);
+#ifdef _OPENMP
+#pragma omp for schedule(static, HPDDM_GRANULARITY)
+#endif
+        for(int i = 0; i < *m; ++i) {
+            for(j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+                Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<K>::d__1), y + *bs * i, &ldc);
+        }
+    }
+    else {
+        const int ldb = *bs * *m;
+        const int ldc = *bs * *k;
+        int j = ldc * *n;
+        if(beta == &d__0)
+            std::fill_n(y, j, K());
+        else if(beta != &d__1)
+            Blas<K>::scal(&j, beta, y, &i__1);
+        if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
+            K* const c = const_cast<K* const>(a);
+            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
+                c[i] = conj(c[i]);
+        }
+        if(sym) {
+            for(int i = 0; i < *m; ++i) {
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+                    j = ja[l] - (N == 'F');
+                    Blas<K>::gemm("T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * j, &ldc);
+                    if(i != j)
+                        Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * j, &ldb, &(Wrapper<K>::d__1), y + *bs * i, &ldc);
+                }
+            }
         }
         else {
             for(int i = 0; i < *m; ++i)
-                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
-                    const K scal = *alpha * a[l];
-                    Blas<K>::axpy(n, &scal, x + i, m, y + ja[l] - (N == 'F'), k);
-                }
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
+                    Blas<K>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * (ja[l] - (N == 'F')), &ldc);
+        }
+        if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
+            K* const c = const_cast<K* const>(a);
+            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
+                c[i] = conj(c[i]);
         }
     }
 }
@@ -665,14 +708,75 @@ inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, co
 template<class K>
 template<char N>
 inline void Wrapper<K>::csrmm(bool sym, const int* const n, const int* const m, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
-    csrmm<N>("N", n, m, n, &d__1, sym, a, ia, ja, x, n, &d__0, y, n);
+    csrmm<N>("N", n, m, n, &d__1, sym, a, ia, ja, x, &d__0, y);
 }
 template<class K>
 template<char N>
 inline void Wrapper<K>::bsrmm(bool sym, const int* const n, const int* const m, const int* const bs, const K* const a, const int* const ia, const int* const ja, const K* const x, K* const y) {
-    const int ld = *n * *bs;
-    bsrmm<N>("N", n, m, n, bs, &d__1, sym, a, ia, ja, x, &ld, &d__0, y, &ld);
+    bsrmm<N>("N", n, m, n, bs, &d__1, sym, a, ia, ja, x, &d__0, y);
 }
+#if HPDDM_LIBXSMM
+#define HPDDM_GENERATE_LIBXSMM(C, T)                                                                         \
+template<>                                                                                                   \
+template<char N>                                                                                             \
+inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const int* const n,               \
+                              const int* const k, const int* const bs, const T* const alpha, bool sym,       \
+                              const T* const a, const int* const ia, const int* const ja, const T* const x,  \
+                              const T* const beta, T* const y) {                                             \
+    if(*trans == 'N' && !sym) {                                                                              \
+        const int ldb = *bs * *k;                                                                            \
+        const int ldc = *bs * *m;                                                                            \
+        int j = ldc * *n;                                                                                    \
+        if(beta == &d__0)                                                                                    \
+            std::fill_n(y, j, T());                                                                          \
+        else if(beta != &d__1)                                                                               \
+            Blas<T>::scal(&j, beta, y, &i__1);                                                               \
+        for(int i = 0; i < *m; ++i) {                                                                        \
+            for(j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)                                     \
+                libxsmm_ ## C ## gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<T>::d__1), y + *bs * i, &ldc); \
+        }                                                                                                    \
+    }                                                                                                        \
+    else {                                                                                                   \
+        const int ldb = *bs * *m;                                                                            \
+        const int ldc = *bs * *k;                                                                            \
+        int j = ldc * *n;                                                                                    \
+        if(beta == &d__0)                                                                                    \
+            std::fill_n(y, j, T());                                                                          \
+        else if(beta != &d__1)                                                                               \
+            Blas<T>::scal(&j, beta, y, &i__1);                                                               \
+        if(Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) {                                   \
+            T* const c = const_cast<T* const>(a);                                                            \
+            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)                                       \
+                c[i] = conj(c[i]);                                                                           \
+        }                                                                                                    \
+        if(sym) {                                                                                            \
+            for(int i = 0; i < *m; ++i) {                                                                    \
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {                           \
+                    j = ja[l] - (N == 'F');                                                                  \
+                    Blas<T>::gemm("T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb,      \
+                                  &(Wrapper<T>::d__1), y + *bs * j, &ldc);                                   \
+                    if(i != j)                                                                               \
+                        libxsmm_ ## C ## gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * j, &ldb, &(Wrapper<T>::d__1), y + *bs * i, &ldc); \
+                }                                                                                            \
+            }                                                                                                \
+        }                                                                                                    \
+        else {                                                                                               \
+            for(int i = 0; i < *m; ++i)                                                                      \
+                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)                             \
+                    Blas<T>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs,      \
+                                  x + *bs * i, &ldb, &(Wrapper<T>::d__1), y + *bs * (ja[l] - (N == 'F')),    \
+                                  &ldc);                                                                     \
+        }                                                                                                    \
+        if(Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) {                                   \
+            T* const c = const_cast<T* const>(a);                                                            \
+            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)                                       \
+                c[i] = conj(c[i]);                                                                           \
+        }                                                                                                    \
+    }                                                                                                        \
+}
+HPDDM_GENERATE_LIBXSMM(s, float)
+HPDDM_GENERATE_LIBXSMM(d, double)
+#endif
 
 template<class Idx, class T>
 inline void reorder(const Idx& i, const Idx& j, const T& v) {

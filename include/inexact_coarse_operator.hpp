@@ -377,11 +377,9 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             exchange<'N'>(in, nullptr, mu);
             Wrapper<K>::template bsrmm<Solver<K>::_numbering>(S == 'S', &_dof, &mu, &_bs, _da, _di, _dj, in, out);
             wait<'N'>(_o + (mu - 1) * _off * _bs);
-            const int ldb = _off * _bs;
-            const int ldc = _dof * _bs;
-            Wrapper<K>::template bsrmm<Solver<K>::_numbering>("N", &_dof, &mu, &_off, &_bs, &(Wrapper<K>::d__1), false, _oa, _oi, _oj, _o, &ldb, &(Wrapper<K>::d__1), out, &ldc);
+            Wrapper<K>::template bsrmm<Solver<K>::_numbering>("N", &_dof, &mu, &_off, &_bs, &(Wrapper<K>::d__1), false, _oa, _oi, _oj, _o, &(Wrapper<K>::d__1), out);
             if(S == 'S') {
-                Wrapper<K>::template bsrmm<Solver<K>::_numbering>(&(Wrapper<K>::transc), &_dof, &mu, &_off, &_bs, &(Wrapper<K>::d__1), false, _oa, _oi, _oj, in, &ldc, &(Wrapper<K>::d__0), _o, &ldb);
+                Wrapper<K>::template bsrmm<Solver<K>::_numbering>(&(Wrapper<K>::transc), &_dof, &mu, &_off, &_bs, &(Wrapper<K>::d__1), false, _oa, _oi, _oj, in, &(Wrapper<K>::d__0), _o);
                 exchange<'T'>(nullptr, out, mu);
                 wait<'T'>(out + (mu - 1) * _dof * _bs);
             }
