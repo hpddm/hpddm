@@ -155,6 +155,7 @@ class Arpack : public Eigensolver<K> {
                      _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv, vp, iparam,
                      ipntr, workd, workl, &lworkl, rwork, &info);
                 delete [] select;
+                Eigensolver<K>::dump(evr, ev, communicator);
                 if(Eigensolver<K>::_threshold > 0.0)
                     Eigensolver<K>::selectNu(evr, communicator);
                 delete [] evr;

@@ -528,13 +528,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             if(U == 1 || infoNeighbor[i])
                 accumulate += _local * M[i].second.size();
         }
-        if(rankSplit) {
-            const unsigned int tmp = treeDimension && !msg->empty() ? size + (!std::is_same<downscaled_type<K>, K>::value ? 1 + (((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) - 1) / sizeof(K)) : (msg->back()[0] + msg->back()[2])) : size;
-            if(!excluded && tmp <= accumulate)
-                C = *sendNeighbor;
-            else
-                C = new K[tmp];
-        }
+        if(rankSplit)
+            C = new K[treeDimension && !msg->empty() ? size + (!std::is_same<downscaled_type<K>, K>::value ? 1 + (((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) - 1) / sizeof(K)) : (msg->back()[0] + msg->back()[2])) : size];
         recvNeighbor = (U == 1 || _local ? sendNeighbor + (S != 'S' ? info[0] : first) : nullptr);
         if(U == 1 || _local) {
             for(unsigned short i = 0; i < info[0]; ++i) {
@@ -689,7 +684,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
             delete msg;
         }
-        if(!excluded && C != *sendNeighbor)
+        if(!excluded)
             delete [] C;
         delete [] info;
         _sizeRHS = _local;

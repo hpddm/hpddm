@@ -45,8 +45,14 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
 #ifndef HPDDM_NO_REGEX
         std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),
+#if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
+        std::forward_as_tuple("dump_local_eigenvectors(_[[:digit:]]+)?=<output_file>", "Save either one or all local eigenvectors to disk", Arg::argument),
+#endif
 #else
         std::forward_as_tuple("dump_local_matrices=<output_file>", "Save all local matrices to disk", Arg::argument),
+#if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
+        std::forward_as_tuple("dump_local_eigenvectors=<output_file>", "Save all local eigenvectors to disk", Arg::argument),
+#endif
 #endif
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr|bfbcg)", "(Block) Generalized Minimal Residual Method, (Breakdown-Free Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting", Arg::argument),
         std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors", Arg::positive),
@@ -182,7 +188,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         for(const auto& x : _opt) {
             const std::string key = x.first;
             const double val = x.second;
-            if(val < -10000000 && key[-val - 10000000] == '_' && hasEnding(key.substr(0, -val - 10000000), "config_file")) {
+            if(val < -10000000 && key[-val - 10000000] == '#' && hasEnding(key.substr(0, -val - 10000000), "config_file")) {
                 std::ifstream cfg(key.substr(-val - 10000000 + 1));
                 parse(cfg, display);
             }

@@ -70,7 +70,7 @@ class Option : private Singleton {
                     size_t max = v.back().size();
                     for(const auto& x : map) {
                         double intpart;
-                        if(x.second < -10000000 && x.first[-x.second - 10000000] == '_')
+                        if(x.second < -10000000 && x.first[-x.second - 10000000] == '#')
                             v.emplace_back(" │  " + x.first.substr(0, -x.second - 10000000) + ": " + x.first.substr(-x.second - 10000000 + 1));
                         else if(x.second < 1000 && std::modf(x.second, &intpart) == 0.0)
                             v.emplace_back(" │  " + x.first + ": " + to_string(static_cast<int>(x.second)));
@@ -210,8 +210,10 @@ class Option : private Singleton {
                 pIt[1] = _app->cend();
             }
             std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { return std::mismatch(pre.begin(), pre.end(), p.first.begin()).first == pre.end(); });
-            if(it != pIt[1] && it->first.size() > pre.size() + 1)
-                return it->first.substr(pre.size() + 1);
+            if(it != pIt[1] && it->first.size() > pre.size() + 1) {
+                std::string res = it->first.substr(pre.size() + 1);
+                return res.find('#') == std::string::npos ? res : std::string();
+            }
             else
                 return std::string();
         }
@@ -400,7 +402,7 @@ class Option : private Singleton {
                                     map.erase(x.first);
                                     break;
                                 }
-                            map[str + "_" + val] = -static_cast<int>(str.size()) - 10000000;
+                            map[str + "#" + val] = -static_cast<int>(str.size()) - 10000000;
                         }
                         if(sep)
                             return true;

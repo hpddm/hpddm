@@ -865,7 +865,11 @@ class IterativeMethod {
         }
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm) {
-            return HPDDM::IterativeMethod::PCG<excluded>(A, b, x, comm);
+            std::ios_base::fmtflags ff(std::cout.flags());
+            std::cout << std::scientific;
+            int it = HPDDM::IterativeMethod::PCG<excluded>(A, b, x, comm);
+            std::cout.flags(ff);
+            return it;
         }
 };
 } // HPDDM

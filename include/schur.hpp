@@ -240,24 +240,28 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     }
                     delete [] iblock;
                 }
-                opt["geneo_nu"] = evp._nu;
-                if(super::_co)
-                    super::_co->setLocal(evp._nu);
-                if(evp._nu && *(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
-                    _deficiency = 1;
-                    underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
-                    while(_deficiency < evp._nu && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + _deficiency) / relative) * std::cbrt(evp.getTol()) < 1)
-                        ++_deficiency;
-                }
-                if(A != *recv)
-                    delete [] A;
-                if(evp._nu)
+                if(evp._nu) {
+                    if(*(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
+                        _deficiency = 1;
+                        underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
+                        while(_deficiency < evp._nu && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + _deficiency) / relative) * std::cbrt(evp.getTol()) < 1)
+                            ++_deficiency;
+                    }
                     Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::_dof), &(evp._nu), res, &(Subdomain<K>::_dof), *super::_ev, &(Subdomain<K>::_dof), &info);
+                }
                 else if(super::_ev) {
                     delete [] *super::_ev;
                     delete []  super::_ev;
                     super::_ev = nullptr;
                 }
+                evp.dump(work + lwork, super::_ev, Subdomain<K>::_communicator);
+                if(threshold > 0.0)
+                    evp.template selectNu<K, true>(work + lwork, Subdomain<K>::_communicator, _deficiency);
+                opt["geneo_nu"] = evp._nu;
+                if(super::_co)
+                    super::_co->setLocal(evp._nu);
+                if(A != *recv)
+                    delete [] A;
                 if(work != *recv && work != *send)
                     delete [] work;
                 if(!flag)
