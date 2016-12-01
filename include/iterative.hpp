@@ -565,7 +565,7 @@ class IterativeMethod {
             else {
                 VR<excluded>(n, k, 1, Q, R, k, d, work, comm);
                 int info;
-                Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d__0), work, &info);
+                Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d__0), reinterpret_cast<underlying_type<K>*>(work), &info);
                 while(rank > 1 && std::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol)
                     --rank;
                 Lapack<K>::lapmt(&i__1, &n, &k, Q, &n, piv);
@@ -774,6 +774,12 @@ class IterativeMethod {
             }
         }
     public:
+        template<class K>
+        static void orthogonalization(const char id, const int n, const int k, const K* const B, K* const v) {
+            K* H = new K[k];
+            orthogonalization<false>(id, n, k, 1, B, v, H, static_cast<underlying_type<K>*>(nullptr), static_cast<K*>(nullptr), MPI_COMM_SELF);
+            delete [] H;
+        }
         /* Function: GMRES
          *
          *  Implements the GMRES.

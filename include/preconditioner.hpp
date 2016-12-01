@@ -89,7 +89,7 @@ class Preconditioner : public Subdomain<K> {
             allUniform[0] = Subdomain<K>::_map.size();
             const std::string prefix = super::prefix();
             const Option& opt = *Option::get();
-            unsigned short nu = allUniform[1] = allUniform[2] = (_co ? _co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", 20));
+            unsigned short nu = allUniform[1] = allUniform[2] = (_co ? _co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", opt.set(prefix + "geneo_threshold") ? 0 : 20));
             allUniform[3] = static_cast<unsigned short>(~nu);
             if(N == 4)
                 allUniform[4] = nu > 0 ? nu : std::numeric_limits<unsigned short>::max();
@@ -107,14 +107,15 @@ class Preconditioner : public Subdomain<K> {
                 MPI_Op_free(&op);
             }
             if(nu > 0 || allUniform[2] != 0 || allUniform[3] != std::numeric_limits<unsigned short>::max()) {
+                bool uniformity = (N == 3 && opt.set("geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
                 if(!_co) {
                     _co = new CoarseOperator;
-                    _co->setLocal(nu);
+                    _co->setLocal(uniformity ? allUniform[1] : nu);
                 }
                 else
                     _co->~CoarseOperator();
                 double construction = MPI_Wtime();
-                if(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu))
+                if((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
                     ret = _co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
                 else if(N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))
                     ret = _co->template construction<2, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
@@ -127,7 +128,7 @@ class Preconditioner : public Subdomain<K> {
                     unsigned short p = opt.val<unsigned short>("master_p", 1);
                     std::string line = " --- coarse operator transferred and factorized by " + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
                     std::cout << line << std::endl;
-                    std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -_co->getLocal() : 0)) + ")" << std::endl;
+                    std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -_co->getLocal() : (uniformity ? allUniform[1] : 0))) + ")" << std::endl;
                     std::cout.unsetf(std::ios_base::adjustfield);
                 }
             }

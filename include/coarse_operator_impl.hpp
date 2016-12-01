@@ -1268,8 +1268,13 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const pt, const unsigned
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL) {
             if(DMatrix::_displs) {
                 if(_rankWorld == 0) {
-                    transfer<false>(DMatrix::_gatherCounts, _sizeWorld, mu, rhs);
-                    std::for_each(DMatrix::_gatherCounts, DMatrix::_displs + _sizeWorld, [&](int& i) { i /= mu; });
+                    int p = 0;
+                    if(excluded) {
+                        MPI_Comm_size(DMatrix::_communicator, &p);
+                        --p;
+                    }
+                    transfer<false>(DMatrix::_gatherCounts, _sizeWorld - p, mu, rhs);
+                    std::for_each(DMatrix::_gatherCounts, DMatrix::_displs + _sizeWorld - 2 * p, [&](int& i) { i /= mu; });
                 }
                 else if(_gatherComm != MPI_COMM_NULL)
                     MPI_Gatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
@@ -1301,20 +1306,25 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const pt, const unsigned
             }
         }
         else {
+            int p = 0;
             if(DMatrix::_displs) {
-                if(_rankWorld == 0)
-                    transfer<false>(DMatrix::_gatherCounts, _sizeWorld, mu, rhs);
+                if(_rankWorld == 0) {
+                    if(excluded) {
+                        MPI_Comm_size(DMatrix::_communicator, &p);
+                        --p;
+                    }
+                    transfer<false>(DMatrix::_gatherCounts, _sizeWorld - p, mu, rhs);
+                }
                 else if(_gatherComm != MPI_COMM_NULL)
                     MPI_Gatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
                 if(DMatrix::_communicator != MPI_COMM_NULL)
                     super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
                 if(_rankWorld == 0)
-                    transfer<true>(DMatrix::_gatherCounts, mu, _sizeWorld, rhs);
+                    transfer<true>(DMatrix::_gatherCounts, mu, _sizeWorld - p, rhs);
                 else if(_gatherComm != MPI_COMM_NULL)
                     MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
             }
             else {
-                int p = 0;
                 if(_rankWorld == 0) {
                     if(_offset || excluded)
                         MPI_Comm_size(DMatrix::_communicator, &p);

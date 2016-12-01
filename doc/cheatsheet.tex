@@ -14,8 +14,11 @@
 \vspace*{-0.4cm}
 \newdimen\origiwspc
 \origiwspc=\fontdimen2\font
+% \newlength\LTbackup
+% \setlength{\LTbackup}{\LTleft}
+% \setlength{\LTleft}{-0.25cm}
 \begin{center}
-    \begin{longtable}{| >{\tt}p{.245\textwidth} | p{.5\textwidth}| p{.14\textwidth}| >{\tt}p{.05\textwidth} |} \hline
+    \begin{longtable}{| >{\tt}p{.225\textwidth} | p{.5\textwidth}| p{.14\textwidth}| >{\tt}p{.05\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & \normalfont{Default} \\ \hline
         help & Display available options & Anything & \\ \hline
         version & Display information about HPDDM & Anything & \\ \hline
@@ -26,7 +29,8 @@
         \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
         local\_operators\_not\_spd & Assume local operators are not positive definite & Boolean & \\ \hline
         orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs \\ \hline
-        dump\_local\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
+        dump\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
+        dump\_eigenvectors(\_[[:digit:]]+)? & Save either one or all local eigenvectors to disk & String & \\ \hline
         krylov\_method & Type of iterative method used to solve linear systems & {\fontdimen2\font=2.5pt\texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr}, \texttt{bfbcg}\fontdimen2\font=\origiwspc} & gmres \\ \hline
         enlarge\_krylov\_subspace & Split the initial right-hand side into multiple vectors & Integer & $1$ \\ \hline
         gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & $40$ \\ \hline
@@ -40,7 +44,7 @@
         \rowcolor{LightRed}eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ \\ \hline
         geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & $20$ \\ \hline
         \rowcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & \\ \hline
-        geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & Boolean & \\ \hline
+        geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & \texttt{min}, \texttt{max} & \\ \hline
         master\_p & Number of master processes & Integer & $1$ \\ \hline
         \rowcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol}, \texttt{sol\_and\_rhs} & cen\-tra\-li\-zed \\ \hline
         \rowcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 \\ \hline
@@ -50,9 +54,9 @@
         \rowcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & \\ \hline
         master\_not\_spd & Assume the coarse operator is symmetric (instead of symmetric positive definite) & Boolean & \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
 \end{center}
 \newpage
+% \setlength{\LTleft}{\LTbackup}
 \noindent{
 When using Schwarz methods, there are additional options.}
 \vspace*{-0.4cm}

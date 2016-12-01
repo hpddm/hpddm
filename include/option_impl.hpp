@@ -44,14 +44,14 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("local_operators_not_spd=(0|1)", "Assume local operators are not positive definite", Arg::argument),
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
 #ifndef HPDDM_NO_REGEX
-        std::forward_as_tuple("dump_local_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),
+        std::forward_as_tuple("dump_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),
 #if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
-        std::forward_as_tuple("dump_local_eigenvectors(_[[:digit:]]+)?=<output_file>", "Save either one or all local eigenvectors to disk", Arg::argument),
+        std::forward_as_tuple("dump_eigenvectors(_[[:digit:]]+)?=<output_file>", "Save either one or all local eigenvectors to disk", Arg::argument),
 #endif
 #else
-        std::forward_as_tuple("dump_local_matrices=<output_file>", "Save all local matrices to disk", Arg::argument),
+        std::forward_as_tuple("dump_matrices=<output_file>", "Save all local matrices to disk", Arg::argument),
 #if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
-        std::forward_as_tuple("dump_local_eigenvectors=<output_file>", "Save all local eigenvectors to disk", Arg::argument),
+        std::forward_as_tuple("dump_eigenvectors=<output_file>", "Save all local eigenvectors to disk", Arg::argument),
 #endif
 #endif
         std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr|bfbcg)", "(Block) Generalized Minimal Residual Method, (Breakdown-Free Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting", Arg::argument),
@@ -78,7 +78,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Number of local eigenvectors to compute for adaptive methods", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Threshold for selecting local eigenvectors for adaptive methods", Arg::numeric),
-        std::forward_as_tuple("geneo_force_uniformity=(0|1)", "Ensure that the number of local eigenvectors is the same for all subdomains", Arg::argument),
+        std::forward_as_tuple("geneo_force_uniformity=(min|max)", "Ensure that the number of local eigenvectors is the same for all subdomains", Arg::argument),
 #endif
 #if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
 #ifndef HPDDM_NO_REGEX

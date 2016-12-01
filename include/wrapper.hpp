@@ -33,14 +33,24 @@
 void cblas_ ## C ## gthr(const int, const T*, T*, const int*);                                               \
 void cblas_ ## C ## sctr(const int, const T*, const int*, T*);
 
-#if HPDDM_MKL && !defined(INTEL_MKL_VERSION)
+#if HPDDM_MKL
+# include <mkl_spblas.h>
+# include <mkl_vml.h>
+# include <mkl_trans.h>
+# if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
+#  define HPDDM_CONST(T, V) const_cast<T*>(V)
+# else
+#  define HPDDM_CONST(T, V) V
+#  if !defined(INTEL_MKL_VERSION)
 extern "C" {
 HPDDM_GENERATE_EXTERN_MKL(s, float)
 HPDDM_GENERATE_EXTERN_MKL(d, double)
 HPDDM_GENERATE_EXTERN_MKL(c, std::complex<float>)
 HPDDM_GENERATE_EXTERN_MKL(z, std::complex<double>)
 }
-#endif // HPDDM_MKL && !defined(INTEL_MKL_VERSION)
+#  endif
+# endif
+#endif // HPDDM_MKL
 
 namespace HPDDM {
 /* Class: Wrapper

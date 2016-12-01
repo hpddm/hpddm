@@ -42,6 +42,8 @@ HPDDM_GENERATE_ARPACK_EXTERN(c, std::complex<float>, s, float)
 HPDDM_GENERATE_ARPACK_EXTERN(z, std::complex<double>, d, double)
 }
 
+#include "eigensolver.hpp"
+
 namespace HPDDM {
 #ifdef MU_ARPACK
 #undef HPDDM_CHECK_COARSEOPERATOR
@@ -157,7 +159,7 @@ class Arpack : public Eigensolver<K> {
                 delete [] select;
                 Eigensolver<K>::dump(evr, ev, communicator);
                 if(Eigensolver<K>::_threshold > 0.0)
-                    Eigensolver<K>::selectNu(evr, communicator);
+                    Eigensolver<K>::selectNu(evr, ev, communicator);
                 delete [] evr;
             }
             else {

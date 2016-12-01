@@ -25,6 +25,10 @@
 #ifndef _HPDDM_EIGENSOLVER_
 #define _HPDDM_EIGENSOLVER_
 
+#include <random>
+
+#include "iterative.hpp"
+
 namespace HPDDM {
 /* Class: Eigensolver
  *
@@ -34,6 +38,11 @@ namespace HPDDM {
  *    K              - Scalar type. */
 template<class K>
 class Eigensolver {
+    private:
+        template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
+        void imag(T& t, underlying_type<T> v) { t.imag(v); }
+        template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
+        void imag(T&, underlying_type<T>) { }
     protected:
         /* Variable: tol
          *  Relative tolerance of the eigenvalue problem solver. */
@@ -56,9 +65,9 @@ class Eigensolver {
             int rankWorld;
             MPI_Comm_rank(communicator, &rankWorld);
             const Option& opt = *Option::get();
-            std::string filename = opt.prefix("dump_local_eigenvectors", true);
+            std::string filename = opt.prefix("dump_eigenvectors", true);
             if(filename.size() == 0)
-                filename = opt.prefix("dump_local_eigenvectors_" + to_string(rankWorld), true);
+                filename = opt.prefix("dump_eigenvectors_" + to_string(rankWorld), true);
             if(filename.size() != 0) {
                 int sizeWorld;
                 MPI_Comm_size(communicator, &sizeWorld);
@@ -88,17 +97,44 @@ class Eigensolver {
          *    eigenvalues   - Input array used to store eigenvalues in ascending order.
          *    communicator  - MPI communicator (usually <Subdomain::communicator>) on which the criterion <Eigensolver::nu> has to be uniformized. */
         template<class T, bool min = false>
-        void selectNu(const T* const eigenvalues, const MPI_Comm& communicator, unsigned short m = 0) {
+        void selectNu(const T* const eigenvalues, K**& eigenvectors, const MPI_Comm& communicator, unsigned short m = 0) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, underlying_type<K>>::value, "Wrong types");
+            const Option& opt = *Option::get();
             unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
-            if(Option::get()->val<char>("geneo_force_uniformity", 0)) {
-                if(!min)
-                    MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
-                else {
-                    unsigned short r[2] = { nev, static_cast<unsigned short>(std::numeric_limits<unsigned short>::max() - m) };
-                    MPI_Allreduce(MPI_IN_PLACE, r, 2, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
-                    nev = std::max(r[0], static_cast<unsigned short>(std::numeric_limits<unsigned short>::max() - r[1]));
-                }
+            switch(opt.val<char>("geneo_force_uniformity")) {
+                case 0:
+                    if(!min)
+                        MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
+                    else {
+                        unsigned short r[2] = { nev, static_cast<unsigned short>(std::numeric_limits<unsigned short>::max() - m) };
+                        MPI_Allreduce(MPI_IN_PLACE, r, 2, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
+                        nev = std::max(r[0], static_cast<unsigned short>(std::numeric_limits<unsigned short>::max() - r[1]));
+                    }
+                    break;
+                case 1:
+                    MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MAX, communicator);
+                    if(nev > _nu) {
+                        K** basis = new K*[nev];
+                        *basis = new K[nev * _n];
+                        for(unsigned short i = 1; i < nev; ++i)
+                            basis[i] = *basis + i * _n;
+                        std::copy_n(*eigenvectors, _nu * _n, *basis);
+                        std::pair<K*, K*> result = std::minmax_element(*eigenvectors, *eigenvectors + _nu * _n, [](const K& lhs, const K& rhs) { return std::real(lhs) < std::real(rhs); });
+                        std::random_device rd;
+                        std::default_random_engine generator(rd());
+                        std::uniform_real_distribution<underlying_type<K>> uniform(std::real(*(result.first)), std::real(*(result.second)));
+                        std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { v = uniform(generator); });
+                        if(Wrapper<K>::is_complex)
+                            std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { imag(v, uniform(generator)); });
+                        delete [] *eigenvectors;
+                        delete []  eigenvectors;
+                        eigenvectors = basis;
+                        const char id = opt.val<char>("orthogonalization", 0);
+                        for(unsigned short i = _nu; i < nev; ++i)
+                            IterativeMethod::orthogonalization(id, _n, i - 1, *basis, basis[i]);
+                    }
+                    _nu = nev;
+                    break;
             }
             _nu = std::min(_nu, static_cast<int>(nev));
         }

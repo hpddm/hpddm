@@ -231,12 +231,14 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             if(super::_co) {
                 unsigned short k = 1;
                 const std::string prefix = super::prefix();
-                const Option& opt = *Option::get();
+                Option& opt = *Option::get();
                 if(opt.any_of(prefix + "krylov_method", { 4, 5 }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
                     k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
                 super::start(mu * k);
                 if(opt.val<char>(prefix + "schwarz_coarse_correction") == 2) {
-                    if(!excluded) {
+                    if(opt.val<char>("geneo_force_uniformity") == 1)
+                        opt[prefix + "schwarz_coarse_correction"] = 0;
+                    else if(!excluded) {
                         K* tmp = new K[mu * Subdomain<K>::_dof];
                         GMV(x, tmp, mu);                                                  // tmp = A x
                         Blas<K>::axpby(mu * Subdomain<K>::_dof, 1.0, b, 1, -1.0, tmp, 1); // tmp = b - A x
@@ -405,8 +407,9 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
          *    B              - Right-hand side matrix (optional). */
         template<template<class> class Eps>
         void solveGEVP(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
+            const std::string prefix = super::prefix();
             Option& opt = *Option::get();
-            Eps<K> evp(opt.val("geneo_threshold", 0.0), Subdomain<K>::_dof, opt.template val<unsigned short>("geneo_nu", 20));
+            Eps<K> evp(opt.val(prefix + "geneo_threshold", 0.0), Subdomain<K>::_dof, opt.template val<unsigned short>(prefix + "geneo_nu", 20));
 #ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
 #else
@@ -429,7 +432,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 A->_ia = nullptr;
                 A->_ja = nullptr;
             }
-            opt["geneo_nu"] = evp._nu;
+            opt[prefix + "geneo_nu"] = evp._nu;
             if(super::_co)
                 super::_co->setLocal(evp._nu);
             const int n = Subdomain<K>::_dof;

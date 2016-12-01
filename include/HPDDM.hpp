@@ -143,15 +143,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # define MKL_INT int
 #endif
 #if HPDDM_MKL
-# if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201
-#  define HPDDM_CONST(T, V) const_cast<T*>(V)
-# else
-#  define HPDDM_CONST(T, V) V
-# endif
 # define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
-# include <mkl_spblas.h>
-# include <mkl_vml.h>
-# include <mkl_trans.h>
 #endif // HPDDM_MKL
 
 #include "preprocessor_check.hpp"
@@ -343,7 +335,6 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  include "LAPACK.hpp"
 #  include "enum.hpp"
 #  if HPDDM_MPI
-#   include "eigensolver.hpp"
 #   if HPDDM_SCHWARZ
 #    ifndef EIGENSOLVER
 #     ifdef INTEL_MKL_VERSION
@@ -363,7 +354,6 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   define MPI_Allreduce(a, b, c, d, e, f) (void)f
 typedef int MPI_Comm;
 #  endif
-#  include "GMRES.hpp"
 #  include "GCRODR.hpp"
 #  include "CG.hpp"
 #  if !HPDDM_MPI
@@ -385,7 +375,7 @@ using HpFeti = HPDDM::Feti<SUBDOMAIN, COARSEOPERATOR, S, K, P>;
 template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #  endif
-# endif // HPDDM_MINIMAL
+# endif // !HPDDM_MINIMAL
 # include "option_impl.hpp"
 #else
 # include "BLAS.hpp"

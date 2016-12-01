@@ -177,7 +177,7 @@ class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>
             }
             permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Scatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
+                MPI_Scatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
