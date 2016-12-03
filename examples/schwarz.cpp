@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     else {
         mu = std::max(1, mu);
         int it = 0;
-        std::string filename = opt.prefix("dump_local_matrices", true);
+        std::string filename = opt.prefix("dump_matrices", true);
         if(!filename.empty()) {
             std::ofstream output { filename };
             output << *Mat;
