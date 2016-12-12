@@ -234,7 +234,7 @@ class Option : private Singleton {
             std::vector<std::string> args(argv, argv + argc);
             return parse(args, display, reg);
         }
-        template<class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>, typename std::enable_if<!std::is_same<Container, bool>::value && !std::is_same<C, std::ifstream>::value>::type* = nullptr>
+        template<class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>, typename std::enable_if<!std::is_same<Container, bool>::value && !std::is_same<C, int>::value && !std::is_same<C, std::ifstream>::value>::type* = nullptr>
         int parse(C& arg, bool display = true, const Container& reg = { }) {
             std::vector<std::string> args;
             std::stringstream ss(arg);

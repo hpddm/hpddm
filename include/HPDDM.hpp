@@ -352,11 +352,17 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 
 #  if !HPDDM_MPI
 #   define MPI_Allreduce(a, b, c, d, e, f) (void)f
+#   define MPI_Comm_size(a, b) *b = 1
+#   define MPI_Comm_rank(a, b) *b = 0
+#   define MPI_COMM_SELF 0
 typedef int MPI_Comm;
 #  endif
 #  include "GCRODR.hpp"
 #  include "CG.hpp"
 #  if !HPDDM_MPI
+#   undef MPI_COMM_SELF
+#   undef MPI_Comm_rank
+#   undef MPI_Comm_size
 #   undef MPI_Allreduce
 #  endif
 
