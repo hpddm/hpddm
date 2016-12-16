@@ -78,7 +78,14 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n GenEO options:"; return true; }),
         std::forward_as_tuple("geneo_nu=<20>", "Number of local eigenvectors to compute for adaptive methods", Arg::integer),
         std::forward_as_tuple("geneo_threshold=<eps>", "Threshold for selecting local eigenvectors for adaptive methods", Arg::numeric),
+#if defined(MUMPSSUB) || defined(MKL_PARDISOSUB)
+        std::forward_as_tuple("geneo_estimate_nu=(0|1)", "Estimate the number of eigenvalues below a threshold using the inertia of the stencil", Arg::argument),
+#endif
         std::forward_as_tuple("geneo_force_uniformity=(min|max)", "Ensure that the number of local eigenvectors is the same for all subdomains", Arg::argument),
+#endif
+#ifdef MU_ARPACK
+        std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n ARPACK-specific options:"; return true; }),
+        std::forward_as_tuple("arpack_ncv=<val>", "Number of Lanczos basis vectors generated in one iteration", Arg::integer),
 #endif
 #if defined(SUBDOMAIN) || defined(COARSEOPERATOR)
 #ifndef HPDDM_NO_REGEX

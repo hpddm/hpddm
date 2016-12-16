@@ -251,6 +251,17 @@ class MumpsSub {
             if(N == 'C')
                 std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
         }
+        template<char N = HPDDM_NUMBERING>
+        int inertia(MatrixCSR<K>* const& A) {
+            Option& opt = *Option::get();
+            double& v = opt["mumps_icntl_13"];
+            bool remove = (v == 0.0);
+            v = 1;
+            numfact<N>(A, true);
+            if(remove)
+                opt.remove("mumps_icntl_13");
+            return _id->infog[11];
+        }
         unsigned short deficiency() const { return _id->infog[27]; }
         void solve(K* const x, const unsigned short& n = 1) const {
             _id->icntl[20] = 0;

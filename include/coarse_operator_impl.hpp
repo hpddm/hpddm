@@ -352,12 +352,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     size += infoNeighbor[index];
             }
             rqInfo.resize(rqInfo.size() - info[0]);
+            info[2] = size;
             size *= _local;
             if(S == 'S') {
                 info[0] -= first;
                 size += _local * (_local + 1) / 2;
             }
-            info[2] = size;
             if(_local) {
                 if(excluded == 0)
                     std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
@@ -450,8 +450,10 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 if(!(S == 'S' && i < first))
                     tmp += infoNeighbor[i];
             }
-            for(unsigned short k = 1; k < _sizeSplit; size += infoSplit[k++][2])
+            for(unsigned short k = 1; k < _sizeSplit; ++k) {
                 offsetIdx[k - 1] = size;
+                size += infoSplit[k][2] * infoSplit[k][1] + (S == 'S' ? infoSplit[k][1] * (infoSplit[k][1] + 1) / 2 : 0);
+            }
             if(excluded < 2)
                 size += _local * tmp + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local);
             if(S == 'S')
@@ -711,8 +713,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 treeHeight = 0;
             for(unsigned short k = 1; k < _sizeSplit; ++k) {
                 if(U != 1) {
-                    if(infoSplit[k][2])
-                        MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[k - 1], infoSplit[k][2], Wrapper<downscaled_type<K>>::mpi_type(), k, 3, _scatterComm, rqRecv + treeHeight + k - 1);
+                    if(infoSplit[k][1])
+                        MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[k - 1], infoSplit[k][2] * infoSplit[k][1] + (S == 'S' ? infoSplit[k][1] * (infoSplit[k][1] + 1) / 2 : 0), Wrapper<downscaled_type<K>>::mpi_type(), k, 3, _scatterComm, rqRecv + treeHeight + k - 1);
                     else
                         rqRecv[treeHeight + k - 1] = MPI_REQUEST_NULL;
                 }
@@ -728,14 +730,17 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 for(unsigned short k = 0; k < bound; ++k) {
                     const unsigned short nextLeaf = std::min(leaf * (k + 1) * treeDimension, _sizeSplit);
                     int nnz = 0;
-                    for(unsigned short j = leaf * (k + 1); j < nextLeaf; ++j)
-                        nnz += infoSplit[j][U != 1 ? 2 : 0];
                     if(U != 1) {
+                        for(unsigned short j = leaf * (k + 1); j < nextLeaf; ++j)
+                            nnz += infoSplit[j][2] * infoSplit[j][1] + (S == 'S' ? infoSplit[j][1] * (infoSplit[j][1] + 1) / 2 : 0);
                         if(nnz)
-                            MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[leaf * (k + 1) - 1], infoSplit[leaf * (k + 1)][2], Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
+                            MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[leaf * (k + 1) - 1], nnz, Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
                     }
-                    else
+                    else {
+                        for(unsigned short j = leaf * (k + 1); j < nextLeaf; ++j)
+                            nnz += infoSplit[j][0];
                         MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C) + offsetIdx[leaf * (k + 1) - 1], _local * _local * nnz + (S == 'S' && !blocked ? _local * (_local + 1) / 2 : _local * _local) * (nextLeaf - leaf), Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, _scatterComm, rqTree + i * (treeDimension - 1) + k);
+                    }
                 }
             }
         }
@@ -755,7 +760,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #pragma omp parallel for shared(I, J, infoWorld, infoSplit, relative, offsetIdx, offsetPosition) schedule(dynamic, 64)
 #endif
         for(unsigned int k = 1; k < _sizeSplit; ++k) {
-            if(U == 1 || infoSplit[k][2]) {
+            if(U == 1 || infoSplit[k][1]) {
                 unsigned int offsetSlave = static_cast<unsigned int>(super::_numbering == 'F');
                 if(U != 1 && infoSplit[k][0])
                     offsetSlave = std::accumulate(infoWorld, infoWorld + infoSplit[k][3], offsetSlave);

@@ -309,6 +309,11 @@ class MklPardisoSub {
             if(_mtype == prds<K>::SPD)
                 delete [] _C;
         }
+        template<char N = HPDDM_NUMBERING>
+        int inertia(MatrixCSR<K>* const& A) {
+            numfact<N>(A, true);
+            return _iparm[22];
+        }
         void solve(K* x) const {
             int error;
             _iparm[5] = 1;

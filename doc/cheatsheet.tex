@@ -14,11 +14,11 @@
 \vspace*{-0.4cm}
 \newdimen\origiwspc
 \origiwspc=\fontdimen2\font
-% \newlength\LTbackup
-% \setlength{\LTbackup}{\LTleft}
-% \setlength{\LTleft}{-0.25cm}
+\newlength\LTbackup
+\setlength{\LTbackup}{\LTleft}
+\setlength{\LTleft}{-0.1cm}
 \begin{center}
-    \begin{longtable}{| >{\tt}p{.225\textwidth} | p{.5\textwidth}| p{.14\textwidth}| >{\tt}p{.05\textwidth} |} \hline
+    \begin{longtable}{| >{\tt}p{.225\textwidth} | p{.5\textwidth}| p{.165\textwidth}| >{\tt}p{.05\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & \normalfont{Default} \\ \hline
         help & Display available options & Anything & \\ \hline
         version & Display information about HPDDM & Anything & \\ \hline
@@ -44,9 +44,10 @@
         \rowcolor{LightRed}eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ \\ \hline
         geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & $20$ \\ \hline
         \rowcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & \\ \hline
+        \rowcolor{LightRed}geneo\_estimate\_nu & Estimate the number of eigenvalues below a threshold using the inertia of the stencil & Numeric & \\ \hline
         geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & \texttt{min}, \texttt{max} & \\ \hline
         master\_p & Number of master processes & Integer & $1$ \\ \hline
-        \rowcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol}, \texttt{sol\_and\_rhs} & cen\-tra\-li\-zed \\ \hline
+        \rowcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol\_and\_rhs}, \texttt{sol} & cen\-tra\-li\-zed \\ \hline
         \rowcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 \\ \hline
         \rowcolor{LightRed}master\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & \\ \hline
         \rowcolor{LightRed}master\_aggregate\_sizes & Number of master processes per MPI sub-communicators & Integer & \texttt{master\_p} \\ \hline
@@ -55,8 +56,7 @@
         master\_not\_spd & Assume the coarse operator is symmetric (instead of symmetric positive definite) & Boolean & \\ \hline
     \end{longtable}
 \end{center}
-\newpage
-% \setlength{\LTleft}{\LTbackup}
+\setlength{\LTleft}{\LTbackup}
 \noindent{
 When using Schwarz methods, there are additional options.}
 \vspace*{-0.4cm}
@@ -111,6 +111,15 @@ When using \textit{hypre} as a coarse operator solver, there are additional opti
         \rowcolor{LightRed}master\_boomeramg\_coarsen\_type & Parallel coarsening algorithm & Integer & 6 \\ \hline
         \rowcolor{LightRed}master\_boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
         \rowcolor{LightRed}master\_boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
+    \end{longtable}
+\vspace*{-0.4cm}
+\end{center}
+When using ARPACK as an eigensolver, there is an additional option.
+\vspace*{-0.4cm}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
+        \normalfont{Keyword} & Description & Possible values \\ \hline
+        \rowcolor{LightRed}arpack\_ncv & Number of Lanczos basis vectors generated in one iteration & Integer \\ \hline
     \end{longtable}
 \vspace*{-0.4cm}
 \end{center}

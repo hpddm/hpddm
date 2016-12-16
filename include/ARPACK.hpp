@@ -91,7 +91,7 @@ class Arpack : public Eigensolver<K> {
             int ipntr[!Wrapper<K>::is_complex ? 11 : 14] { };
             if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
                 Eigensolver<K>::_nu = std::max(1, Eigensolver<K>::_n / 4);
-            int ncv = 2 * Eigensolver<K>::_nu + 1;
+            int ncv = std::min(Eigensolver<K>::_n, std::max(Option::get()->template val<int>("arpack_ncv"), 2 * Eigensolver<K>::_nu + 1));
             int lworkl = ncv * (ncv + 8);
             K* workd;
             K* workev;

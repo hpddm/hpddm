@@ -409,7 +409,8 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         void solveGEVP(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
             const std::string prefix = super::prefix();
             Option& opt = *Option::get();
-            Eps<K> evp(opt.val(prefix + "geneo_threshold", 0.0), Subdomain<K>::_dof, opt.template val<unsigned short>(prefix + "geneo_nu", 20));
+            const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", 0.0);
+            Eps<K> evp(threshold, Subdomain<K>::_dof, opt.template val<unsigned short>(prefix + "geneo_nu", 20));
 #ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
 #else
@@ -425,6 +426,24 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     delete [] *super::_ev;
                 delete [] super::_ev;
             }
+#if defined(MUMPSSUB) || defined(MKL_PARDISOSUB)
+            if(threshold > 0.0 && opt.template val<char>(prefix + "geneo_estimate_nu", 0) && (!B || B->hashIndices() == A->hashIndices())) {
+                K* difference = new K[A->_nnz];
+                std::copy_n(A->_a, A->_nnz, difference);
+                for(unsigned int i = 0; i < A->_n; ++i) {
+                    int* it = A->_ja + A->_ia[i];
+                    for(unsigned int j = rhs->_ia[i]; j < rhs->_ia[i + 1]; ++j) {
+                        it = std::lower_bound(it, A->_ja + A->_ia[i + 1], rhs->_ja[j]);
+                        difference[std::distance(A->_ja, it++)] -= threshold * rhs->_a[j];
+                    }
+                }
+                std::swap(A->_a, difference);
+                Solver<K> s;
+                evp._nu = s.inertia(A);
+                std::swap(A->_a, difference);
+                delete [] difference;
+            }
+#endif
             evp.template solve<Solver>(A, rhs, super::_ev, Subdomain<K>::_communicator, free ? &(super::_s) : nullptr);
             if(rhs != B)
                 delete rhs;
