@@ -48,6 +48,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
         Mat = new HPDDM::MatrixCSR<K>(file);
         ndof = Mat->_n;
     }
+    int n;
     if(!Mat || Mat->_n == 0)
         return;
     else if(sizeWorld > 1) {
@@ -142,6 +143,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
         std::partial_sum(locMat->_ia, locMat->_ia + locMat->_n + 1, locMat->_ia);
         delete [] indicator;
 
+        n = Mat->_n;
         delete Mat;
         Mat = locMat;
     }
@@ -151,12 +153,20 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
         std::string line;
         unsigned int i = 0, j = 0;
         K val;
-        while(std::getline(file, line) && (idx.empty() || j < ndof))
+        while(std::getline(file, line) && (idx.empty() || j < ndof)) {
+            if(i == 0) {
+                std::istringstream iss(line);
+                std::string word;
+                iss >> word;
+                if(HPDDM::Option::Arg::integer(std::string(), word, false) && HPDDM::sto<int>(word) == n)
+                    std::getline(file, line);
+            }
             if(idx.empty() || i++ == idx[j]) {
                 std::istringstream iss(line);
                 iss >> val;
                 f[j++] = val;
             }
+        }
     }
     else {
         std::random_device rd;

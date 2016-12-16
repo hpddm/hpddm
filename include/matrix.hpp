@@ -39,17 +39,17 @@ class MatrixCSR {
     private:
 #if INTEL_MKL_VERSION > 110299
 #endif
-        template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
+        template<bool I, class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
         static bool scan(const char* str, int* row, int* col, T* val) {
             double x;
-            int ret = sscanf(str, "%i %i %le", row, col, &x);
+            int ret = (I ? sscanf(str, "%i %i %le", row, col, &x) : sscanf(str, "%le %i %i", &x, row, col));
             *val = x;
             return ret != 3;
         }
-        template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
+        template<bool I, class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
         static bool scan(const char* str, int* row, int* col, T* val) {
             double re, im;
-            int ret = sscanf(str, "%i %i (%le,%le)", row, col, &re, &im);
+            int ret = (I ? sscanf(str, "(%le,%le) %i %i", &re, &im, row, col) : sscanf(str, "%i %i (%le,%le)", row, col, &re, &im));
             *val = T(re, im);
             return ret != 4;
         }
@@ -98,7 +98,15 @@ class MatrixCSR {
                         std::stringstream ss(line);
                         std::istream_iterator<std::string> begin(ss), end;
                         std::vector<std::string> vstrings(begin, end);
-                        if(vstrings.size() == 3) {
+                        if(vstrings.size() == 1) {
+                            if(_n == 0) {
+                                _n = _m = sto<int>(vstrings[0]);
+                                _sym = false;
+                            }
+                            else
+                                _nnz = sto<int>(vstrings[0]);
+                        }
+                        else if(vstrings.size() == 3) {
                             _n = sto<int>(vstrings[0]);
                             _m = sto<int>(vstrings[1]);
                             _nnz = sto<int>(vstrings[2]);
@@ -118,28 +126,36 @@ class MatrixCSR {
                     }
                 }
                 if(_n && _m) {
-                    std::vector<std::string> parsed;
                     _ia = new int[_n + 1];
                     _ja = new int[_nnz];
                     _a = new K[_nnz];
                     _ia[0] = (HPDDM_NUMBERING == 'F');
                     std::fill_n(_ia + 1, _n, 0);
                     _nnz = 0;
+                    bool order;
                     while(std::getline(file, line)) {
-                        int row;
-                        if(scan(line.c_str(), &row, _ja + _nnz, _a + _nnz) && !line.empty() && line[0] != '#' && line[0] != '%') {
-                            delete [] _a;
-                            _a = nullptr;
-                            delete [] _ja;
-                            delete [] _ia;
-                            _ia = _ja = nullptr;
-                            _n = _m = _nnz = 0;
-                            break;
+                        if(!line.empty() && line[0] != '#' && line[0] != '%') {
+                            if(_nnz == 0) {
+                                std::istringstream iss(line);
+                                std::string word;
+                                iss >> word;
+                                order = Option::Arg::integer(std::string(), word, false);
+                            }
+                            int row;
+                            if((order && scan<true>(line.c_str(), &row, _ja + _nnz, _a + _nnz)) || (!order && scan<false>(line.c_str(), &row, _ja + _nnz, _a + _nnz))) {
+                                delete [] _a;
+                                _a = nullptr;
+                                delete [] _ja;
+                                delete [] _ia;
+                                _ia = _ja = nullptr;
+                                _n = _m = _nnz = 0;
+                                break;
+                            }
+                            if(HPDDM_NUMBERING == 'C')
+                                _ja[_nnz]--;
+                            ++_nnz;
+                            _ia[row]++;
                         }
-                        if(HPDDM_NUMBERING == 'C')
-                            _ja[_nnz]--;
-                        ++_nnz;
-                        _ia[row]++;
                     }
                     if(_ia)
                         std::partial_sum(_ia, _ia + _n + 1, _ia);
