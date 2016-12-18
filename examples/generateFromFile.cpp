@@ -81,7 +81,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
             HPDDM::Wrapper<K>::csrmm(Mat->_sym , &Mat->_n, &sizeWorld, val, Mat->_ia, Mat->_ja, indicator, z);
             std::transform(indicator, indicator + sizeWorld * Mat->_n, z, z, [](const K& a, const K& b) { return (b > 0.5) - (a > 0.5); });
             K alpha = i + 2;
-            int n = Mat->_n * sizeWorld;
+            n = Mat->_n * sizeWorld;
             HPDDM::Blas<K>::axpy(&n, &alpha, z, &(HPDDM::i__1), indicator, &(HPDDM::i__1));
         }
         delete [] z;
@@ -147,6 +147,8 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
         delete Mat;
         Mat = locMat;
     }
+    else
+        n = Mat->_n;
     f = new K[ndof];
     if(opt.prefix("rhs_filename").size()) {
         std::ifstream file(opt.prefix("rhs_filename"));
@@ -154,7 +156,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
         unsigned int i = 0, j = 0;
         K val;
         while(std::getline(file, line) && (idx.empty() || j < ndof)) {
-            if(i == 0) {
+            if(i == 0 && j == 0) {
                 std::istringstream iss(line);
                 std::string word;
                 iss >> word;

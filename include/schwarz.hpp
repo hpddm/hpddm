@@ -439,7 +439,7 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                 }
                 std::swap(A->_a, difference);
                 Solver<K> s;
-                evp._nu = s.inertia(A);
+                evp._nu = std::max(1, s.inertia(A));
                 std::swap(A->_a, difference);
                 delete [] difference;
             }

@@ -100,7 +100,7 @@ class Eigensolver {
         void selectNu(const T* const eigenvalues, K**& eigenvectors, const MPI_Comm& communicator, unsigned short m = 0) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, underlying_type<K>>::value, "Wrong types");
             const Option& opt = *Option::get();
-            unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
+            unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues + 1, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
             switch(opt.val<char>("geneo_force_uniformity")) {
                 case 0:
                     if(!min)
