@@ -867,7 +867,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 for(unsigned short j = 0; j < coefficients + (S == 'S') * super::_local; ++j)
                     Wrapper<K>::diag(super::_n, m, arrayC + j * super::_n);
                 if(S != 'S')
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "T", &coefficients, &(super::_local), &(super::_n), &(Wrapper<K>::d__1), arrayC, &(super::_n), *super::_deflation, super::_p.getLDR(), &(Wrapper<K>::d__0), C, &coefficients);
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::_local), &(super::_n), &(Wrapper<K>::d__1), arrayC, &(super::_n), *super::_deflation, super::_p.getLDR(), &(Wrapper<K>::d__0), C, &coefficients);
                 else
                     for(unsigned short j = 0; j < super::_local; ++j) {
                         int local = coefficients + super::_local - j;

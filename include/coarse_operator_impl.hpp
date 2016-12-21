@@ -820,10 +820,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 }
                 while(i < infoSplit[k][0]) {
 #if HPDDM_INEXACT_COARSE_OPERATOR
-                    *nghbrs = std::distance(DMatrix::_ldistribution + 1, std::upper_bound(DMatrix::_ldistribution + DMatrix::_rank + 1, DMatrix::_ldistribution + p, infoSplit[k][(U != 1 ? 3 : 1) + i]));
-                    if(S != 'S' && *nghbrs != DMatrix::_rank && ((T != 1 && (i == 0 || *nghbrs != *(nghbrs - 1))) || (T == 1 && !std::binary_search(super::_send[*nghbrs].cbegin(), super::_send[*nghbrs].cend(), tmp - (super::_numbering == 'F')))))
-                        for(unsigned short row = 0; row < (U == 1 ? (!blocked ? _local : 1) : infoSplit[k][1]); ++row)
-                            super::_send[*nghbrs].emplace_back(tmp - (super::_numbering == 'F') + row);
+                    if(U == 1 || infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]) {
+                        *nghbrs = std::distance(DMatrix::_ldistribution + 1, std::upper_bound(DMatrix::_ldistribution + DMatrix::_rank + 1, DMatrix::_ldistribution + p, infoSplit[k][(U != 1 ? 3 : 1) + i]));
+                        if(S != 'S' && *nghbrs != DMatrix::_rank && ((T != 1 && (i == 0 || *nghbrs != *(nghbrs - 1))) || (T == 1 && !std::binary_search(super::_send[*nghbrs].cbegin(), super::_send[*nghbrs].cend(), tmp - (super::_numbering == 'F')))))
+                            for(unsigned short row = 0; row < (U == 1 ? (!blocked ? _local : 1) : infoSplit[k][1]); ++row)
+                                super::_send[*nghbrs].emplace_back(tmp - (super::_numbering == 'F') + row);
+                    }
 #endif
                     if(!blocked) {
                         if(U != 1) {
@@ -878,14 +880,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                         nghbrs += coefficientsSlave;
 #endif
                     }
-#ifdef HPDDM_CONTIGUOUS
-                if(excluded == 2 && k == 1)
-                    loc2glob[0] = tmp;
-                if(k == _sizeSplit - 1)
-                    loc2glob[1] = tmp + (!blocked ? (U == 1 ? _local : infoSplit[k][1]) - 1 : 0);
-#endif
             }
         }
+#ifdef HPDDM_CONTIGUOUS
+        if(excluded == 2)
+            loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[1]);
+        else if(_sizeSplit > 1)
+            loc2glob[1] = (U == 1 ? (relative + _sizeSplit - 1 - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[_sizeSplit - 1])+ (!blocked ? (U == 1 ? _local : infoSplit[_sizeSplit - 1][1]) - 1 : 0);
+#endif
         if(std::is_same<downscaled_type<K>, K>::value)
             delete [] offsetIdx;
         if(excluded < 2) {

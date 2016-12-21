@@ -124,7 +124,7 @@ class Preconditioner : public Subdomain<K> {
                 construction = MPI_Wtime() - construction;
                 if(_co->getRank() == 0 && opt.val<char>(prefix + "verbosity", 0) > 1) {
                     std::stringstream ss;
-                    ss << std::setprecision(2) << construction;
+                    ss << std::setprecision(3) << construction;
                     unsigned short p = opt.val<unsigned short>("master_p", 1);
                     std::string line = " --- coarse operator transferred and factorized by " + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
                     std::cout << line << std::endl;

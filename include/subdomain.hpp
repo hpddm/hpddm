@@ -322,6 +322,55 @@ class Subdomain : public OptionsPrefix {
             }
             delete [] s;
         }
+        void statistics() const {
+            unsigned long long local[4], global[4];
+            unsigned short* const table = new unsigned short[_dof];
+            int n;
+            MPI_Comm_rank(_communicator, &n);
+            std::fill_n(table, _dof, n);
+            for(const auto& i : _map)
+                for(const int& j : i.second)
+                    table[j] = i.first;
+            local[0] = local[2] = 0;
+            for(unsigned int i = 0; i < _dof; ++i)
+                if(table[i] <= n) {
+                    ++local[0];
+                    local[2] += _a->_ia[i + 1] - _a->_ia[i];
+                }
+            if(_a->_sym) {
+                local[2] *= 2;
+                local[2] -= local[0];
+            }
+            if(_dof == _a->_n)
+                local[1] = _dof - local[0];
+            else {
+                local[1] = local[0];
+                local[0] = _a->_n - local[1];
+            }
+            delete [] table;
+            local[3] = _map.size();
+            MPI_Allreduce(local, global, 4, MPI_UNSIGNED_LONG_LONG, MPI_SUM, _communicator);
+            if(n == 0) {
+                std::vector<std::string> v;
+                v.reserve(7);
+                const std::string& prefix = OptionsPrefix::prefix();
+                v.emplace_back(" ┌");
+                v.emplace_back(" │ HPDDM statistics" + std::string(prefix.size() ? " for operator \""  + prefix + "\"": "") + ":");
+                v.emplace_back(" │  " + to_string(global[0]) + " unknown" + (global[0] > 1 ? "s" : ""));
+                v.emplace_back(" │  " + to_string(global[1]) + " interprocess unknown" + (global[1] > 1 ? "s" : ""));
+                std::stringstream ss;
+                ss << std::fixed << std::setprecision(1) << global[2] / static_cast<float>(global[0]) << " nonzero entr" << (global[2] / static_cast<float>(global[0]) > 1 ? "ies" : "y") << " per unknown";
+                v.emplace_back(" │  " + ss.str());
+                ss.clear();
+                ss.str(std::string());
+                MPI_Comm_size(_communicator, &n);
+                ss << std::fixed << std::setprecision(1) << global[3] / static_cast<float>(n) << " neighboring process" << (global[3] / static_cast<float>(n) > 1.0 ? "es" : "") << " (average)";
+                v.emplace_back(" │  " + ss.str());
+                v.emplace_back(" └");
+                std::vector<std::string>::const_iterator max = std::max_element(v.cbegin(), v.cend(), [](const std::string& lhs, const std::string& rhs) { return lhs.size() < rhs.size(); });
+                Option::output(v, max->size());
+            }
+        }
         /* Function: interaction
          *
          *  Builds a vector of matrices to store interactions with neighboring subdomains.

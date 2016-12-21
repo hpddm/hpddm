@@ -46,13 +46,6 @@ class Option : private Singleton {
         /* Variable: app
          *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
         std::unordered_map<std::string, double>* _app;
-        static void output(const std::vector<std::string>& list, size_t width) {
-            std::cout << list.front() << std::setfill('-') << std::setw(width + 1) << std::right << "┐" << std::endl;
-            for(std::vector<std::string>::const_iterator it = list.begin() + 1; it != list.end() - 1; ++it)
-                std::cout << std::left << std::setfill(' ') << std::setw(width + 2) << *it << "│" << std::endl;
-            std::cout << list.back() << std::setfill('-') << std::setw(width + 1) << std::right << "┘" << std::endl;
-            std::cout << std::setfill(' ');
-        }
         static bool hasEnding(const std::string& str, const std::string& ending) {
             return str.length() >= ending.length() ? str.compare(str.length() - ending.length(), ending.length(), ending) == 0 : false;
         }
@@ -105,6 +98,13 @@ class Option : private Singleton {
                     version();
             }
             delete _app;
+        }
+        static void output(const std::vector<std::string>& list, const size_t width) {
+            std::cout << list.front() << std::setfill('-') << std::setw(width + 1) << std::right << "┐" << std::endl;
+            for(std::vector<std::string>::const_iterator it = list.begin() + 1; it != list.end() - 1; ++it)
+                std::cout << std::left << std::setfill(' ') << std::setw(width + 2) << *it << "│" << std::endl;
+            std::cout << list.back() << std::setfill('-') << std::setw(width + 1) << std::right << "┘" << std::endl;
+            std::cout << std::setfill(' ');
         }
         void version() const;
         /* Function: get
