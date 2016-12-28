@@ -299,32 +299,36 @@ test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10 ---hpddm_krylov_method bgmres
 
 test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
-	mkdir -p ${TOP_DIR}/${TRASH_DIR}/data
-	tar xzf ./examples/data/mini.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data
-	@for NP in 2 4; do \
-		for OVERLAP in 1 3; do \
-			CMD="${MPIRUN} $${NP} ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp -matrix_filename=${TOP_DIR}/${TRASH_DIR}/data/mini.mtx -hpddm_verbosity 2 -overlap $${OVERLAP}"; \
-			echo "$${CMD}"; \
-			$${CMD} || exit; \
+	@if [ -a ./examples/data/mini.tar.gz ]; then \
+		mkdir -p ${TOP_DIR}/${TRASH_DIR}/data; \
+		tar xzf ./examples/data/mini.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data; \
+		for NP in 2 4; do \
+			for OVERLAP in 1 3; do \
+				CMD="${MPIRUN} $${NP} ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp -matrix_filename=${TOP_DIR}/${TRASH_DIR}/data/mini.mtx -hpddm_verbosity 2 -overlap $${OVERLAP}"; \
+				echo "$${CMD}"; \
+				$${CMD} || exit; \
+			done \
 		done \
-	done
+	fi
 
 
 test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
-	mkdir -p ${TOP_DIR}/${TRASH_DIR}/data
-	tar xzf ./examples/data/40X.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data
-	@for SCALING in 0 1; do \
-		for VARIANT in left right; do \
-			for MU in 1 3; do \
-				CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT} -mu $${MU}"; \
+	@if [ -a ./examples/data/40X.tar.gz ]; then \
+		mkdir -p ${TOP_DIR}/${TRASH_DIR}/data; \
+		tar xzf ./examples/data/40X.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data; \
+		for SCALING in 0 1; do \
+			for VARIANT in left right; do \
+				for MU in 1 3; do \
+					CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method gcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT} -mu $${MU}"; \
+					echo "$${CMD}"; \
+					$${CMD} || exit; \
+				done; \
+				CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method bgcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT}"; \
 				echo "$${CMD}"; \
 				$${CMD} || exit; \
-			done; \
-			CMD="${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/driver -path=${TOP_DIR}/${TRASH_DIR}/data -hpddm_max_it 1000 -hpddm_krylov_method bgcrodr -hpddm_gmres_restart 40 -hpddm_recycle 20 -hpddm_tol 1e-10 -diagonal_scaling $${SCALING} -hpddm_variant $${VARIANT}"; \
-			echo "$${CMD}"; \
-			$${CMD} || exit; \
+			done \
 		done \
-	done
+	fi
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
