@@ -138,16 +138,26 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                         std::copy_n(C, accumulate * _bs * _bs, a);
                     }
                     if(_mu < _off) {
-#ifdef DMKL_PARDISO
                         loc2glob[0] -= _di[0];
                         loc2glob[1] -= _di[0];
-#endif
                         delete [] _di;
                     }
 #ifdef DMKL_PARDISO
                     Solver<K>::template numfact<S>(_bs, ia, loc2glob, ia + nrow + 1, a);
-                    delete [] a;
+#else
+                    int* irn;
+                    int* jcn;
+                    K* b;
+                    Wrapper<K>::template bsrcoo<S, Solver<K>::_numbering, 'F'>(nrow, _bs, a, ia, ia + nrow + 1, b, irn, jcn, loc2glob[0] - (Solver<K>::_numbering == 'F'));
+                    if(b != a) {
+                        delete [] a;
+                        a = b;
+                    }
+                    if(DMatrix::_n)
+                        Solver<K>::template numfact<S>(std::distance(irn, jcn), irn, jcn, a);
+                    Solver<K>::_range = { (loc2glob[0] - (Solver<K>::_numbering == 'F')) * _bs, (loc2glob[1] + (Solver<K>::_numbering == 'C')) * _bs };
 #endif
+                    delete [] a;
                 }
                 _di = new int[nrow + 1];
                 _di[0] = (Solver<K>::_numbering == 'F');
@@ -331,6 +341,16 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 delete [] neighbors;
 #ifdef DMKL_PARDISO
                 Solver<K>::template numfact<S>(_bs, I, loc2glob, J, C);
+#else
+                int* irn;
+                int* jcn;
+                K* b;
+                Wrapper<K>::template bsrcoo<S, Solver<K>::_numbering, 'F'>(nrow, _bs, C, I, J, b, irn, jcn, loc2glob[0] - (Solver<K>::_numbering == 'F'));
+                if(DMatrix::_n)
+                    Solver<K>::template numfact<S>(std::distance(irn, jcn), irn, jcn, b);
+                if(b != C)
+                    delete [] b;
+                Solver<K>::_range = { (loc2glob[0] - (Solver<K>::_numbering == 'F')) * _bs, (loc2glob[1] + (Solver<K>::_numbering == 'C')) * _bs };
 #endif
             }
             _mu = 0;
@@ -346,11 +366,13 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             delete [] _x;
             if(_communicator != MPI_COMM_NULL) {
                 MPI_Comm_size(_communicator, &_off);
+#ifdef DMKL_PARDISO
                 if(_off > 1) {
+#endif
                     delete [] _di;
                     delete [] _da;
-                }
 #ifdef DMKL_PARDISO
+                }
                 else {
                     MPI_Comm_size(DMatrix::_communicator, &_off);
                     if((S == 'S' && Option::get()->val<char>("master_not_spd", 0) != 1) || _off > 1)
@@ -386,7 +408,10 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
         }
         template<bool>
         void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr) const {
-            Solver<K>::solve(in, out, mu);
+#ifdef DMUMPS
+            if(DMatrix::_n)
+#endif
+                Solver<K>::solve(in, out, mu);
         }
         template<bool = false>
         bool start(const K* const, K* const, const unsigned short& mu = 1) const {
@@ -419,7 +444,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     }
                 else
                     for(const std::pair<unsigned short, std::vector<int>>& p : _send) {
-                        MPI_Irecv(_buff[i], p.second.size() * _bs, Wrapper<K>::mpi_type(), p.first, 10, _communicator, _rq + i);
+                        MPI_Irecv(_buff[i], p.second.size() * _bs, Wrapper<K>::mpi_type(), p.first, 20, _communicator, _rq + i);
                         ++i;
                     }
                 if(T == 'N')
@@ -434,7 +459,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     while(i < _recv.size()) {
                         for(unsigned int j = 0; j < _recv[i].second.size(); ++j)
                             std::copy_n(_o + (nu * _off + _recv[i].second[j]) * _bs, _bs, _buff[i] + j * _bs);
-                        MPI_Isend(_buff[i], _recv[i].second.size() * _bs, Wrapper<K>::mpi_type(), _recv[i].first, 10, _communicator, _rq + i);
+                        MPI_Isend(_buff[i], _recv[i].second.size() * _bs, Wrapper<K>::mpi_type(), _recv[i].first, 20, _communicator, _rq + i);
                         ++i;
                     }
                 }

@@ -67,10 +67,17 @@ class Mumps : public DMatrix {
         /* Variable: numbering
          *  1-based indexing. */
         static constexpr char _numbering = 'F';
+#if HPDDM_INEXACT_COARSE_OPERATOR
+        std::pair<unsigned int, unsigned int> _range;
+#endif
     public:
         Mumps() : _id() { }
         ~Mumps() {
             if(_id) {
+#if HPDDM_INEXACT_COARSE_OPERATOR
+                if(_id->nrhs)
+                    delete [] _id->rhs;
+#endif
                 _id->job = -2;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
                 delete _id;
@@ -105,7 +112,12 @@ class Mumps : public DMatrix {
             _id->irn_loc = I;
             _id->jcn_loc = J;
             _id->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
+#if !HPDDM_INEXACT_COARSE_OPERATOR
             _id->nrhs = 1;
+#else
+            _id->nrhs = 0;
+            _id->icntl[20] = 0;
+#endif
             _id->icntl[4]  = 0;
             _id->icntl[13] = opt.val<int>("master_mumps_icntl_14", 80);
             _id->icntl[17] = 3;
@@ -133,8 +145,9 @@ class Mumps : public DMatrix {
          * Parameters:
          *    rhs            - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of right-hand sides. */
+#if !HPDDM_INEXACT_COARSE_OPERATOR
         template<DMatrix::Distribution D>
-        void solve(K* rhs, const unsigned short& n) {
+        void solve(K* const rhs, const unsigned short& n) {
             _id->nrhs = n;
             if(D == DMatrix::DISTRIBUTED_SOL) {
                 _id->icntl[20] = 1;
@@ -167,6 +180,25 @@ class Mumps : public DMatrix {
                 MUMPS_STRUC_C<K>::mumps_c(_id);
             }
         }
+#else
+        void solve(const K* const rhs, K* const x, const unsigned short& n) const {
+            if(n > _id->nrhs) {
+                if(_id->nrhs)
+                    delete [] reinterpret_cast<K*>(_id->rhs);
+                _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(new K[n * _id->n]);
+                _id->nrhs = n;
+            }
+            std::fill_n(reinterpret_cast<K*>(_id->rhs), n * _id->n, K());
+            for(unsigned short i = 0; i < n; ++i)
+                std::copy_n(rhs + i * (_range.second - _range.first), _range.second - _range.first, reinterpret_cast<K*>(_id->rhs) + i * _id->n + _range.first);
+            MPI_Allreduce(MPI_IN_PLACE, reinterpret_cast<K*>(_id->rhs), n * _id->n, Wrapper<K>::mpi_type(), MPI_SUM, DMatrix::_communicator);
+            _id->job = 3;
+            MUMPS_STRUC_C<K>::mumps_c(_id);
+            MPI_Bcast(reinterpret_cast<K*>(_id->rhs), n * _id->n, Wrapper<K>::mpi_type(), 0, DMatrix::_communicator);
+            for(unsigned short i = 0; i < n; ++i)
+                std::copy_n(reinterpret_cast<K*>(_id->rhs) + i * _id->n + _range.first, _range.second - _range.first, x + i * (_range.second - _range.first));
+        }
+#endif
 };
 #endif // DMUMPS
 

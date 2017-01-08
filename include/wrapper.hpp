@@ -125,6 +125,10 @@ struct Wrapper {
      *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
     template<char, char>
     static void csrcsc(const int* const, const K* const, const int* const, const int* const, K* const, int* const, int* const);
+    /* Function: bsrcoo
+     *  Converts a matrix stored in Block Compressed Sparse Row format into Coordinate format. */
+    template<char, char, char>
+    static void bsrcoo(const int, const unsigned short, K* const, const int* const, const int* const, K*&, int*&, int*&, const int& = 0);
     /* Function: gthr
      *  Gathers the elements of a full-storage sparse vector into compressed form. */
     static void gthr(const int&, const K* const, K* const, const int* const);
@@ -700,6 +704,46 @@ inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const in
 }
 #endif // HPDDM_MKL
 
+template<class K>
+template<char S, char N, char M>
+inline void Wrapper<K>::bsrcoo(const int n, const unsigned short bs, K* const a, const int* const ia, const int* const ja, K*& b, int*& ib, int*& jb, const int& shift) {
+    if(S != 'S' || bs == 1)
+        b = a;
+    unsigned int nnz = (ia[n] - (N == 'F')) * bs * bs;
+    if(S == 'S' && bs > 1) {
+        for(unsigned int i = 0; i < n; ++i)
+            if(ja[ia[i] - (N == 'F')] - (N == 'F') == i + shift)
+                nnz -= (bs * (bs - 1)) / 2;
+        b = new K[nnz];
+    }
+    ib = new int[2 * nnz];
+    jb = ib + nnz;
+    nnz = 0;
+    for(unsigned int i = 0; i < n; ++i) {
+        for(unsigned int j = ia[i]; j < ia[i + 1]; ++j) {
+            if(N == 'F') {
+                for(unsigned short l = 0; l < bs; ++l) {
+                    for(unsigned short k = 0; k < ((S == 'S' && bs > 1 && (ja[j - 1] - 1 == i + shift)) ? l + 1 : bs); ++k, ++nnz) {
+                        ib[nnz] = (i + shift) * bs + k + (M == 'F');
+                        jb[nnz] = (ja[j - 1] - 1) * bs + l + (M == 'F');
+                        if(S == 'S' && bs > 1)
+                            b[nnz] = a[(j - 1) * bs * bs + k + l * bs];
+                    }
+                }
+            }
+            else {
+                for(unsigned short l = 0; l < bs; ++l) {
+                    for(unsigned short k = 0; ((S == 'S' && bs > 1 && (ja[j] == i + shift)) ? l : 0) < bs; ++k, ++nnz) {
+                        ib[nnz] = (i + shift) * bs + k + (M == 'F');
+                        jb[nnz] = ja[j] * bs + l + (M == 'F');
+                        if(S == 'S' && bs > 1)
+                            b[nnz] = a[j * bs * bs + l + k * bs];
+                    }
+                }
+            }
+        }
+    }
+}
 template<class K>
 inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, const K* const in, K* const out, const int& n) {
     if(d) {

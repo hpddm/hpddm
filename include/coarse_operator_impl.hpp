@@ -484,7 +484,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(T == 1)
             for(unsigned short i = 1; i < p; ++i)
                 DMatrix::_ldistribution[i] = (excluded == 2 ? 0 : p) + i * ((_sizeWorld / p) - 1);
-        else if(excluded == 2)
+        else if(U && excluded == 2)
             for(unsigned short i = 1; i < p; ++i)
                 DMatrix::_ldistribution[i] -= i;
 #endif
@@ -885,8 +885,8 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #ifdef HPDDM_CONTIGUOUS
         if(excluded == 2)
             loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[1]);
-        else if(_sizeSplit > 1)
-            loc2glob[1] = (U == 1 ? (relative + _sizeSplit - 1 - (excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[_sizeSplit - 1])+ (!blocked ? (U == 1 ? _local : infoSplit[_sizeSplit - 1][1]) - 1 : 0);
+        if(excluded == 2 || _sizeSplit > 1)
+            loc2glob[1] = (U == 1 ? (relative + _sizeSplit - 1 - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[_sizeSplit - 1]) + (!blocked ? (U == 1 ? _local : infoSplit[_sizeSplit - 1][1]) - 1 : 0);
 #endif
         if(std::is_same<downscaled_type<K>, K>::value)
             delete [] offsetIdx;
@@ -1073,7 +1073,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             else {
                 super::_di[0] = DMatrix::_ldistribution[begin];
                 if(end == p)
-                    end = _sizeWorld - (excluded == 2 ? p : 0);
+                    end = _sizeWorld - (U && excluded == 2 ? p : 0);
                 else
                     end = DMatrix::_ldistribution[end];
             }
@@ -1098,7 +1098,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         std::swap(DMatrix::_n, rank);
         if(T == 1)
             std::iota(DMatrix::_ldistribution + 1, DMatrix::_ldistribution + p, 1);
-        else if(excluded == 2)
+        else if(U && excluded == 2)
             for(unsigned short i = 1; i < p; ++i)
                 DMatrix::_ldistribution[i] += i;
 #else
@@ -1125,11 +1125,11 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     if(excluded < 2)
         delete [] *sendNeighbor;
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     DMatrix::_distribution = static_cast<DMatrix::Distribution>(opt.val<char>("master_distribution", 0));
 #endif
     if(U != 2) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::CENTRALIZED)
             _scatterComm = _gatherComm;
 #else
@@ -1138,7 +1138,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     else {
         unsigned short* pt;
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
             if(rankSplit)
                 infoWorld = new unsigned short[_sizeWorld];
@@ -1167,14 +1167,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         v._max = _sizeSplit;
 #endif
         MPI_Bcast(pt, v._max, MPI_UNSIGNED_SHORT, 0, _scatterComm);
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
             constructionCommunicatorCollective<(excluded > 0)>(pt, v._max, _gatherComm, &_scatterComm);
 #else
             constructionCommunicatorCollective<false>(pt, v._max, _scatterComm);
 #endif
             _gatherComm = _scatterComm;
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         }
         else {
             constructionCommunicatorCollective<(excluded > 0)>(pt, _sizeWorld, _gatherComm);
@@ -1182,14 +1182,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
 #endif
         if(rankSplit
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
                 || DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL
 #endif
                 )
             delete [] pt;
     }
     if(rankSplit == 0) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
             if(_rankWorld == 0) {
                 _sizeRHS = DMatrix::_n;
@@ -1216,7 +1216,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         else {
 #endif
             constructionMap<T, U == 1, excluded == 2>(p, U == 1 ? nullptr : infoWorld);
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
             if(_rankWorld == 0)
                 _sizeRHS = DMatrix::_n;
             else
@@ -1239,13 +1239,13 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                     infoMaster[i] = infoSplit[i][1];
                 constructionCollective<false, DMatrix::DISTRIBUTED_SOL, excluded == 2>(infoWorld, p - 1, infoMaster);
             }
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         }
 #endif
         delete [] *infoSplit;
         delete [] infoSplit;
         if(excluded == 2) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
             if(DMatrix::_distribution == DMatrix::CENTRALIZED && _rankWorld == 0)
                 _sizeRHS += _local;
             else if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL)
@@ -1271,7 +1271,7 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const pt, const unsigned
         for(unsigned int i = 0; i < mu * _local; ++i)
             rhs[i] = pt[i];
     if(_scatterComm != MPI_COMM_NULL) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL) {
             if(DMatrix::_displs) {
                 if(_rankWorld == 0) {
@@ -1378,7 +1378,7 @@ inline void CoarseOperator<Solver, S, K>::callSolver(K* const pt, const unsigned
 #endif
     }
     else if(DMatrix::_communicator != MPI_COMM_NULL) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL)
             super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
         else
@@ -1401,7 +1401,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
         for(unsigned int i = 0; i < mu * _local; ++i)
             rhs[i] = pt[i];
     if(_scatterComm != MPI_COMM_NULL) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL) {
             if(DMatrix::_displs) {
                 if(_rankWorld == 0) {
@@ -1510,7 +1510,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
 #endif
     }
     else if(DMatrix::_communicator != MPI_COMM_NULL) {
-#ifdef DMUMPS
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL)
             super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu); break;
         else

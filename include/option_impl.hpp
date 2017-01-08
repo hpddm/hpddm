@@ -130,7 +130,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", Arg::anything),
 #if !defined(DSUITESPARSE)
         std::forward_as_tuple("master_p=<1>", "Number of master processes", Arg::positive),
-#if defined(DMUMPS)
+#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         std::forward_as_tuple("master_distribution=(centralized|sol)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
 #endif
         std::forward_as_tuple("master_topology=(0|" +

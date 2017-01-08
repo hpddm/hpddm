@@ -26,10 +26,10 @@
 #define _HPDDM_COARSE_OPERATOR_
 
 #if HPDDM_INEXACT_COARSE_OPERATOR
-# ifndef DMKL_PARDISO
+# if !defined(DMKL_PARDISO) && !defined(DMUMPS)
 #  undef HPDDM_INEXACT_COARSE_OPERATOR
 #  define HPDDM_INEXACT_COARSE_OPERATOR 0
-#  pragma message("Inexact coarse operators require PARDISO as a distributed direct solver")
+#  pragma message("Inexact coarse operators require PARDISO or MUMPS as a distributed direct solver")
 # else
 #  include "inexact_coarse_operator.hpp"
 # endif
@@ -43,7 +43,7 @@ class InexactCoarseOperator;
 #if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CSR_CO
 #endif
-#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE)
+#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CONTIGUOUS
 #endif
 

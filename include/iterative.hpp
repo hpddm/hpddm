@@ -745,8 +745,8 @@ class IterativeMethod {
                     std::copy_n(x + nu * n, n, sx + (j + k * nu) * n);
                     std::copy_n(b + nu * n, n, sb + (j + k * nu) * n);
                 }
-                checkEnlargedMethod(prefix, k);
             }
+            checkEnlargedMethod(prefix, k);
         }
         static void checkEnlargedMethod(const std::string& prefix, const unsigned short& k) {
             Option& opt = *Option::get();
