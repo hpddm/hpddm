@@ -86,14 +86,13 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
                     _hash = hash;
                     super::destroySolver();
                 }
-                _type = (m == 2 ? Prcndtnr::OS : Prcndtnr::OG);
             }
-            else
-                switch(m) {
-                    case 3:  _type = Prcndtnr::SY; break;
-                    case 5:  _type = Prcndtnr::NO; break;
-                    default: _type = Prcndtnr::GE;
-                }
+            switch(m) {
+                case 2:  _type = (A ? Prcndtnr::OS : Prcndtnr::SY); break;
+                case 3:  _type = Prcndtnr::SY; break;
+                case 5:  _type = Prcndtnr::NO; return;
+                default: _type = (A && (m == 1 || m == 4) ? Prcndtnr::OG : Prcndtnr::GE);
+            }
             m = opt.val<unsigned short>(prefix + "reuse_preconditioner");
             if(m <= 1)
                 super::_s.template numfact<N>(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a);

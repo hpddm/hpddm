@@ -206,7 +206,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 sn[nu] = 0.0;
                 for(unsigned int j = 0; j < n; ++j) {
                     K& val = v[i][nu * n + j];
-                    if(std::abs(val) > 1 / (100.0 * std::numeric_limits<underlying_type<K>>::epsilon()))
+                    if(std::abs(val) > 100.0 * norm[nu] / HPDDM_EPS)
                         val = K();
                     else
                         sn[nu] += d[j] * std::norm(val);
@@ -564,11 +564,12 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
         else if(d) {
-            for(unsigned int j = 0; j < mu * n; ++j) {
-                K& val = v[0][j];
-                if(std::abs(val) > 1 / (100.0 * std::numeric_limits<underlying_type<K>>::epsilon()))
-                    val = K();
-            }
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                for(unsigned int j = 0; j < n; ++j) {
+                    K& val = v[0][nu * n + j];
+                    if(std::abs(val) > 100.0 * norm[nu] / HPDDM_EPS)
+                        val = K();
+                }
         }
         if(j == 1 && U) {
             K* pt;

@@ -54,7 +54,7 @@ class Subdomain : public OptionsPrefix {
          *  Number of degrees of freedom in the current subdomain. */
         int                        _dof;
     public:
-        Subdomain() : OptionsPrefix(), _a(), _buff(), _map(), _rq() { }
+        Subdomain() : OptionsPrefix(), _a(), _buff(), _map(), _rq(), _dof() { }
         ~Subdomain() {
             delete [] _rq;
             vectorNeighbor().swap(_map);
@@ -119,7 +119,8 @@ class Subdomain : public OptionsPrefix {
             else
                 _communicator = MPI_COMM_WORLD;
             _a = a;
-            _dof = _a->_n;
+            if(_a)
+                _dof = _a->_n;
             _map.reserve(o.size());
             unsigned short j = 0;
             for(const auto& i : o) {
@@ -140,7 +141,8 @@ class Subdomain : public OptionsPrefix {
             else
                 _communicator = MPI_COMM_WORLD;
             _a = a;
-            _dof = _a->_n;
+            if(_a)
+                _dof = _a->_n;
             _map.reserve(neighbors);
             unsigned short j = 0;
             while(j < neighbors) {
@@ -235,6 +237,8 @@ class Subdomain : public OptionsPrefix {
          *  Sets the pointer <Subdomain::a>. */
         bool setMatrix(MatrixCSR<K>* const& a) {
             bool ret = !(_a && a && _a->_n == a->_n && _a->_m == a->_m && _a->_nnz == a->_nnz);
+            if(!_dof && a)
+                _dof = a->_n;
             delete _a;
             _a = a;
             return ret;
