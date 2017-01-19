@@ -54,7 +54,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("dump_eigenvectors=<output_file>", "Save all local eigenvectors to disk", Arg::argument),
 #endif
 #endif
-        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr|bfbcg)", "(Block) Generalized Minimal Residual Method, (Breakdown-Free Block) Conjugate Gradient, or (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting", Arg::argument),
+        std::forward_as_tuple("krylov_method=(gmres|bgmres|cg|bcg|gcrodr|bgcrodr|bfbcg|richardson|none)", "(Block) Generalized Minimal Residual Method, (Breakdown-Free Block) Conjugate Gradient, (Block) Generalized Conjugate Residual Method With Inner Orthogonalization and Deflated Restarting, or Richardson iterations", Arg::argument),
         std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors", Arg::positive),
         std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle", Arg::positive),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning", Arg::argument),
@@ -64,6 +64,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed", Arg::argument),
         std::forward_as_tuple("recycle_strategy=(A|B)", "Generalized eigenvalue problem to solve for recycling", Arg::argument),
         std::forward_as_tuple("recycle_target=(SM|LM|SR|LR|SI|LI)", "Criterion to select harmonic Ritz vectors", Arg::argument),
+        std::forward_as_tuple("richardson_damping_factor=<1.0>", "Damping factor using in Richardson iterations", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not", Arg::argument),
@@ -141,7 +142,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #endif
         std::forward_as_tuple("master_assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator", Arg::positive),
 #if HPDDM_INEXACT_COARSE_OPERATOR
-        std::forward_as_tuple("master_aggregate_sizes=<val>", "Number of master processes per MPI sub-communicators", Arg::positive),
+        std::forward_as_tuple("master_aggregate_size=<val>", "Number of master processes per MPI sub-communicators", Arg::positive),
 #endif
         std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
         std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)

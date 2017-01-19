@@ -192,146 +192,153 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     I[i + 1] += I[i] - (_di[i + 1] - _di[i]);
                 }
                 delete [] neighbors;
-                accumulate = 0;
-                if(range.size() > 1) {
-                    range.emplace_back(J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0));
-                    K* D = new K[(_di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0])) * _bs * _bs];
-                    int* L = new int[_di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0])];
-                    std::vector<int*>::const_iterator it;
-                    for(it = range.cbegin() + 2; it < range.cend() - 1; it += 2) {
-                        unsigned int size = *(it + 1) - *it;
-                        std::copy_n(*it, size, L + accumulate);
-                        std::copy_n(C + std::distance(J, *it) * _bs * _bs, size * _bs * _bs, D + accumulate * _bs * _bs);
-                        accumulate += size;
-                    }
-                    accumulate = std::distance(J, range.back());
-                    if(it != range.cend())
-                        accumulate -= std::distance(*(it - 1), *it);
-                    while(it > range.cbegin() + 3) {
-                        it -= 2;
-                        std::copy_backward(*(it - 1), *it, J + accumulate);
-                        std::copy_backward(C + std::distance(J, *(it - 1)) * _bs * _bs, C + std::distance(J, *it) * _bs * _bs, C + (accumulate + 0) * _bs * _bs);
-                        accumulate -= *it - *(it - 1);
-                    }
-                    std::copy_n(D, (_di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0])) * _bs * _bs, C + (range[1] - range[0]) * _bs * _bs);
-                    std::copy_n(L, _di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0]), J + (range[1] - range[0]));
-                    delete [] L;
-                    delete [] D;
-                }
-                _recv.reserve(allocation.size());
-                for(const std::pair<unsigned short, unsigned int>& p : allocation) {
-                    _recv.emplace_back(p.first, std::vector<int>());
-                    _recv.back().second.reserve(p.second);
-                }
-                _dof = on.size();
-                std::unordered_map<int, int> g2l;
-                g2l.reserve(_dof + off.size());
-                accumulate = 0;
-                for(const int& i : on)
-                    g2l.emplace(i - (Solver<K>::_numbering == 'F'), accumulate++);
-                std::set<int>().swap(on);
-                unsigned short search[2] { 0, std::numeric_limits<unsigned short>::max() };
-                for(std::pair<const int, unsigned short>& i : off) {
-                    if(search[1] != i.second) {
-                        search[0] = std::distance(allocation.begin(), allocation.find(i.second));
-                        search[1] = i.second;
-                    }
-                    _recv[search[0]].second.emplace_back(accumulate++);
-                }
-                if(S == 'S') {
-                    char* table = new char[((T == 1 ? _off * _off : (_off * (_off - 1)) / 2) >> 3) + 1]();
-                    std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator begin = (T == 1 ? _recv.cbegin() : std::upper_bound(_recv.cbegin(), _recv.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::_rank), std::vector<int>()), [](const std::pair<unsigned short, std::vector<int>>& lhs, const std::pair<unsigned short, std::vector<int>>& rhs) { return lhs.first < rhs.first; }));
-                    for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
-                        const unsigned int idx = (T == 1 ? it->first * _off : (it->first * (it->first - 1)) / 2) + DMatrix::_rank;
-                        table[idx >> 3] |= 1 << (idx & 7);
-                    }
-                    MPI_Allreduce(MPI_IN_PLACE, table, ((T == 1 ? _off * _off : (_off * (_off - 1)) / 2) >> 3) + 1, MPI_CHAR, MPI_BOR, _communicator);
-                    std::vector<unsigned short> infoRecv;
-                    infoRecv.reserve(T == 1 ? _off : DMatrix::_rank);
-                    for(unsigned short i = 0; i < (T == 1 ? _off : DMatrix::_rank); ++i) {
-                        const unsigned int idx = (T == 1 ? DMatrix::_rank * _off : (DMatrix::_rank * (DMatrix::_rank - 1)) / 2) + i;
-                        if(table[idx >> 3] & (1 << (idx & 7)))
-                            infoRecv.emplace_back(i);
-                    }
-                    delete [] table;
-                    const unsigned short size = infoRecv.size() + std::distance(begin, _recv.cend());
-                    unsigned int* lengths = new unsigned int[size];
-                    unsigned short distance = 0;
-                    MPI_Request* rq = new MPI_Request[size];
-                    for(const unsigned short& i : infoRecv) {
-                        MPI_Irecv(lengths + distance, 1, MPI_UNSIGNED, i, 11, _communicator, rq + distance);
-                        ++distance;
-                    }
-                    for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
-                        lengths[distance] = it->second.size();
-                        MPI_Isend(lengths + distance, 1, MPI_UNSIGNED, it->first, 11, _communicator, rq + distance);
-                        ++distance;
-                    }
-                    MPI_Waitall(size, rq, MPI_STATUSES_IGNORE);
-                    distance = 0;
-                    for(const unsigned short& i : infoRecv) {
-                        std::map<unsigned short, std::vector<int>>::iterator it = _send.emplace_hint(_send.end(), i, std::vector<int>(lengths[distance]));
-                        MPI_Irecv(it->second.data(), it->second.size(), MPI_INT, i, 12, _communicator, rq + distance++);
-                    }
-                    accumulate = std::accumulate(lengths + infoRecv.size(), lengths + size, 0);
-                    delete [] lengths;
-                    int* sendIdx = new int[accumulate];
-                    accumulate = 0;
-                    for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
-                        std::map<int, unsigned short>::const_iterator global = off.begin();
-                        for(unsigned int k = 0; k < it->second.size(); ++k) {
-                            std::advance(global, it->second[k] - (k == 0 ? _dof : it->second[k - 1]));
-                            sendIdx[accumulate + k] = global->first - (Solver<K>::_numbering == 'F');
-                        }
-                        MPI_Isend(sendIdx + accumulate, it->second.size(), MPI_INT, it->first, 12, _communicator, rq + distance++);
-                        accumulate += it->second.size();
-                    }
-                    for(unsigned int i = 0; i < infoRecv.size(); ++i) {
-                        int index;
-                        MPI_Waitany(infoRecv.size(), rq, &index, MPI_STATUS_IGNORE);
-                        for(int& j : _send[infoRecv[index]])
-                            j = g2l[j];
-                    }
-                    MPI_Waitall(size - infoRecv.size(), rq + infoRecv.size(), MPI_STATUSES_IGNORE);
-                    delete [] sendIdx;
-                    delete [] rq;
-                }
-                else
-                    for(std::pair<const unsigned short, std::vector<int>>& i : _send)
-                        for(int& j : i.second)
-                            j = g2l[j];
-                accumulate = 0;
-                for(std::pair<const int, unsigned short>& i : off)
-                    g2l.emplace(i.first - (Solver<K>::_numbering == 'F'), accumulate++);
-                for(std::pair<unsigned short, std::vector<int>>& i : _recv)
-                    for(int& j : i.second)
-                        j -= _dof;
-                std::for_each(J, J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0), [&](int& i) { i = g2l[i - (Solver<K>::_numbering == 'F')] + (Solver<K>::_numbering == 'F'); });
-                _buff = new K*[_send.size() + _recv.size()];
-                accumulate = 0;
-                for(const std::pair<unsigned short, std::vector<int>>& i : _recv)
-                    accumulate += i.second.size();
-                for(const std::pair<unsigned short, std::vector<int>>& i : _send)
-                    accumulate += i.second.size();
-                *_buff = new K[accumulate * _bs];
-                accumulate = 0;
-                _off = 0;
-                for(const std::pair<unsigned short, std::vector<int>>& i : _recv) {
-                    _buff[_off++] = *_buff + accumulate * _bs;
-                    accumulate += i.second.size();
-                }
-                for(const std::pair<unsigned short, std::vector<int>>& i : _send) {
-                    _buff[_off++] = *_buff + accumulate * _bs;
-                    accumulate += i.second.size();
-                }
-                _rq = new MPI_Request[_send.size() + _recv.size()];
-                _oi = I;
-                _oa = C + (_di[nrow] - (Solver<K>::_numbering == 'F')) * _bs * _bs;
-                _oj = J + _di[nrow] - (Solver<K>::_numbering == 'F');
-                _off = off.size();
                 Option& opt = *Option::get();
-                if(DMatrix::_rank != 0)
-                    opt.remove("master_verbosity");
+                _dof = on.size();
+                if(opt.template val<char>("master_krylov_method", 0) != 8) {
+                    accumulate = 0;
+                    if(range.size() > 1) {
+                        range.emplace_back(J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0));
+                        K* D = new K[(_di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0])) * _bs * _bs];
+                        int* L = new int[_di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0])];
+                        std::vector<int*>::const_iterator it;
+                        for(it = range.cbegin() + 2; it < range.cend() - 1; it += 2) {
+                            unsigned int size = *(it + 1) - *it;
+                            std::copy_n(*it, size, L + accumulate);
+                            std::copy_n(C + std::distance(J, *it) * _bs * _bs, size * _bs * _bs, D + accumulate * _bs * _bs);
+                            accumulate += size;
+                        }
+                        accumulate = std::distance(J, range.back());
+                        if(it != range.cend())
+                            accumulate -= std::distance(*(it - 1), *it);
+                        while(it > range.cbegin() + 3) {
+                            it -= 2;
+                            std::copy_backward(*(it - 1), *it, J + accumulate);
+                            std::copy_backward(C + std::distance(J, *(it - 1)) * _bs * _bs, C + std::distance(J, *it) * _bs * _bs, C + (accumulate + 0) * _bs * _bs);
+                            accumulate -= *it - *(it - 1);
+                        }
+                        std::copy_n(D, (_di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0])) * _bs * _bs, C + (range[1] - range[0]) * _bs * _bs);
+                        std::copy_n(L, _di[nrow] - (Solver<K>::_numbering == 'F') - (range[1] - range[0]), J + (range[1] - range[0]));
+                        delete [] L;
+                        delete [] D;
+                    }
+                    _recv.reserve(allocation.size());
+                    for(const std::pair<unsigned short, unsigned int>& p : allocation) {
+                        _recv.emplace_back(p.first, std::vector<int>());
+                        _recv.back().second.reserve(p.second);
+                    }
+                    std::unordered_map<int, int> g2l;
+                    g2l.reserve(_dof + off.size());
+                    accumulate = 0;
+                    for(const int& i : on)
+                        g2l.emplace(i - (Solver<K>::_numbering == 'F'), accumulate++);
+                    std::set<int>().swap(on);
+                    unsigned short search[2] { 0, std::numeric_limits<unsigned short>::max() };
+                    for(std::pair<const int, unsigned short>& i : off) {
+                        if(search[1] != i.second) {
+                            search[0] = std::distance(allocation.begin(), allocation.find(i.second));
+                            search[1] = i.second;
+                        }
+                        _recv[search[0]].second.emplace_back(accumulate++);
+                    }
+                    if(S == 'S') {
+                        char* table = new char[((T == 1 ? _off * _off : (_off * (_off - 1)) / 2) >> 3) + 1]();
+                        std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator begin = (T == 1 ? _recv.cbegin() : std::upper_bound(_recv.cbegin(), _recv.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::_rank), std::vector<int>()), [](const std::pair<unsigned short, std::vector<int>>& lhs, const std::pair<unsigned short, std::vector<int>>& rhs) { return lhs.first < rhs.first; }));
+                        for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
+                            const unsigned int idx = (T == 1 ? it->first * _off : (it->first * (it->first - 1)) / 2) + DMatrix::_rank;
+                            table[idx >> 3] |= 1 << (idx & 7);
+                        }
+                        MPI_Allreduce(MPI_IN_PLACE, table, ((T == 1 ? _off * _off : (_off * (_off - 1)) / 2) >> 3) + 1, MPI_CHAR, MPI_BOR, _communicator);
+                        std::vector<unsigned short> infoRecv;
+                        infoRecv.reserve(T == 1 ? _off : DMatrix::_rank);
+                        for(unsigned short i = 0; i < (T == 1 ? _off : DMatrix::_rank); ++i) {
+                            const unsigned int idx = (T == 1 ? DMatrix::_rank * _off : (DMatrix::_rank * (DMatrix::_rank - 1)) / 2) + i;
+                            if(table[idx >> 3] & (1 << (idx & 7)))
+                                infoRecv.emplace_back(i);
+                        }
+                        delete [] table;
+                        const unsigned short size = infoRecv.size() + std::distance(begin, _recv.cend());
+                        unsigned int* lengths = new unsigned int[size];
+                        unsigned short distance = 0;
+                        MPI_Request* rq = new MPI_Request[size];
+                        for(const unsigned short& i : infoRecv) {
+                            MPI_Irecv(lengths + distance, 1, MPI_UNSIGNED, i, 11, _communicator, rq + distance);
+                            ++distance;
+                        }
+                        for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
+                            lengths[distance] = it->second.size();
+                            MPI_Isend(lengths + distance, 1, MPI_UNSIGNED, it->first, 11, _communicator, rq + distance);
+                            ++distance;
+                        }
+                        MPI_Waitall(size, rq, MPI_STATUSES_IGNORE);
+                        distance = 0;
+                        for(const unsigned short& i : infoRecv) {
+                            std::map<unsigned short, std::vector<int>>::iterator it = _send.emplace_hint(_send.end(), i, std::vector<int>(lengths[distance]));
+                            MPI_Irecv(it->second.data(), it->second.size(), MPI_INT, i, 12, _communicator, rq + distance++);
+                        }
+                        accumulate = std::accumulate(lengths + infoRecv.size(), lengths + size, 0);
+                        delete [] lengths;
+                        int* sendIdx = new int[accumulate];
+                        accumulate = 0;
+                        for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
+                            std::map<int, unsigned short>::const_iterator global = off.begin();
+                            for(unsigned int k = 0; k < it->second.size(); ++k) {
+                                std::advance(global, it->second[k] - (k == 0 ? _dof : it->second[k - 1]));
+                                sendIdx[accumulate + k] = global->first - (Solver<K>::_numbering == 'F');
+                            }
+                            MPI_Isend(sendIdx + accumulate, it->second.size(), MPI_INT, it->first, 12, _communicator, rq + distance++);
+                            accumulate += it->second.size();
+                        }
+                        for(unsigned int i = 0; i < infoRecv.size(); ++i) {
+                            int index;
+                            MPI_Waitany(infoRecv.size(), rq, &index, MPI_STATUS_IGNORE);
+                            for(int& j : _send[infoRecv[index]])
+                                j = g2l[j];
+                        }
+                        MPI_Waitall(size - infoRecv.size(), rq + infoRecv.size(), MPI_STATUSES_IGNORE);
+                        delete [] sendIdx;
+                        delete [] rq;
+                    }
+                    else
+                        for(std::pair<const unsigned short, std::vector<int>>& i : _send)
+                            for(int& j : i.second)
+                                j = g2l[j];
+                    accumulate = 0;
+                    for(std::pair<const int, unsigned short>& i : off)
+                        g2l.emplace(i.first - (Solver<K>::_numbering == 'F'), accumulate++);
+                    for(std::pair<unsigned short, std::vector<int>>& i : _recv)
+                        for(int& j : i.second)
+                            j -= _dof;
+                    std::for_each(J, J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0), [&](int& i) { i = g2l[i - (Solver<K>::_numbering == 'F')] + (Solver<K>::_numbering == 'F'); });
+                    _buff = new K*[_send.size() + _recv.size()];
+                    accumulate = 0;
+                    for(const std::pair<unsigned short, std::vector<int>>& i : _recv)
+                        accumulate += i.second.size();
+                    for(const std::pair<unsigned short, std::vector<int>>& i : _send)
+                        accumulate += i.second.size();
+                    *_buff = new K[accumulate * _bs];
+                    accumulate = 0;
+                    _off = 0;
+                    for(const std::pair<unsigned short, std::vector<int>>& i : _recv) {
+                        _buff[_off++] = *_buff + accumulate * _bs;
+                        accumulate += i.second.size();
+                    }
+                    for(const std::pair<unsigned short, std::vector<int>>& i : _send) {
+                        _buff[_off++] = *_buff + accumulate * _bs;
+                        accumulate += i.second.size();
+                    }
+                    _rq = new MPI_Request[_send.size() + _recv.size()];
+                    _oi = I;
+                    _oa = C + (_di[nrow] - (Solver<K>::_numbering == 'F')) * _bs * _bs;
+                    _oj = J + _di[nrow] - (Solver<K>::_numbering == 'F');
+                    _off = off.size();
+                    if(DMatrix::_rank != 0)
+                        opt.remove("master_verbosity");
+                }
+                else {
+                    delete [] _di;
+                    _di = nullptr;
+                    _off = 0;
+                }
             }
             else {
                 _dof = nrow;
@@ -392,7 +399,10 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 _x = new K[n * _dof * _bs]();
                 _mu = n;
             }
-            IterativeMethod::template solve<false>(*this, rhs, _x, n, _communicator);
+            if(Option::get()->template val<char>("master_krylov_method", 0) != 8)
+                IterativeMethod::template solve<false>(*this, rhs, _x, n, _communicator);
+            else
+                Solver<K>::solve(rhs, _x, n);
             std::copy_n(_x, n * _dof * _bs, rhs);
         }
         void GMV(const K* const in, K* const out, const int& mu = 1) const {

@@ -299,7 +299,7 @@ test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10 ---hpddm_krylov_method bgmres
 
 test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
-	@if [ -a ./examples/data/mini.tar.gz ]; then \
+	@if [ -f ./examples/data/mini.tar.gz ]; then \
 		mkdir -p ${TOP_DIR}/${TRASH_DIR}/data; \
 		tar xzf ./examples/data/mini.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data; \
 		for NP in 2 4; do \
@@ -313,7 +313,7 @@ test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
 
 
 test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
-	@if [ -a ./examples/data/40X.tar.gz ]; then \
+	@if [ -f ./examples/data/40X.tar.gz ]; then \
 		mkdir -p ${TOP_DIR}/${TRASH_DIR}/data; \
 		tar xzf ./examples/data/40X.tar.gz -C ${TOP_DIR}/${TRASH_DIR}/data; \
 		for SCALING in 0 1; do \

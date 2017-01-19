@@ -1055,7 +1055,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
             delete [] backup;
         }
-        super::_mu = std::min(p, opt.val<unsigned short>("master_aggregate_sizes", p));
+        super::_mu = std::min(p, opt.val<unsigned short>("master_aggregate_size", p));
         rank = DMatrix::_n;
         if(super::_mu < p) {
             super::_di = new int[T == 1 ? 3 : 1];

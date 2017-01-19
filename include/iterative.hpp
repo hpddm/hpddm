@@ -148,8 +148,12 @@ class IterativeMethod {
         template<char T, class K>
         static void options(const std::string& prefix, K* const d, int* const i, unsigned short* const m, char* const id) {
             const Option& opt = *Option::get();
-            d[0] = opt.val(prefix + "tol", 1.0e-6);
             m[0] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
+            if(T == 7) {
+                d[0] =  opt.val(prefix + "richardson_damping_factor", 1.0);
+                return;
+            }
+            d[0] = opt.val(prefix + "tol", 1.0e-6);
             id[0] = opt.val<char>(prefix + "verbosity", 0);
             if(T == 1 || T == 5 || T == 6) {
                 d[1] = opt.val(prefix + "deflation_tol", -1.0);
@@ -350,10 +354,10 @@ class IterativeMethod {
                     Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
                 }
                 std::copy_n(U, shift * ldv, v[dim * (variant == 2)]);
-                addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K* const* const>(v + dim * (variant == 2)), hasConverged, mu, work, deflated);
+                addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K* const*>(v + dim * (variant == 2)), hasConverged, mu, work, deflated);
             }
             else
-                updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K* const* const>(v + dim * (variant == 2)), hasConverged, mu, work, deflated);
+                updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K* const*>(v + dim * (variant == 2)), hasConverged, mu, work, deflated);
         }
         template<class T, typename std::enable_if<std::is_pointer<T>::value>::type* = nullptr>
         static void clean(T* const& pt) {
@@ -821,6 +825,31 @@ class IterativeMethod {
         static int BCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         template<bool, class Operator, class K>
         static int BFBCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
+        template<bool excluded, class Operator, class K>
+        static int Richardson(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm&) {
+            K factor;
+            unsigned short it;
+            {
+                underlying_type<K> d;
+                options<7>(A.prefix(), &d, nullptr, &it, nullptr);
+                factor = d;
+            }
+            const int n = excluded ? 0 : mu * A.getDof();
+            K* work = new K[2 * n];
+            K* r = work + n;
+            bool allocate = A.template start<excluded>(b, x, mu);
+            unsigned short j = 1;
+            while(j++ <= it) {
+                if(!excluded)
+                    A.GMV(x, r, mu);
+                Blas<K>::axpby(n, 1.0, b, 1, -1.0, r, 1);
+                A.template apply<excluded>(r, work, mu);
+                Blas<K>::axpy(&n, &factor, work, &i__1, x, &i__1);
+            }
+            delete [] work;
+            A.end(allocate);
+            return it;
+        }
         /* Function: PCG
          *
          *  Implements the projected CG method.
@@ -857,6 +886,9 @@ class IterativeMethod {
             preprocess<excluded>(A, b, sb, x, sx, mu, k, comm);
             int it;
             switch(opt.val<char>(prefix + "krylov_method")) {
+                case 8:  { it = 1; bool allocate = A.template start<excluded>(b, x, mu); K* work = new K[mu * A.getDof()];
+                         A.template apply<excluded>(b, x, mu, work); delete [] work; A.end(allocate); break; }
+                case 7:  it = HPDDM::IterativeMethod::Richardson<excluded>(A, sb, sx, k * mu, comm); break;
                 case 6:  it = HPDDM::IterativeMethod::BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
                 case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
                 case 4:  it = HPDDM::IterativeMethod::GCRODR<excluded>(A, sb, sx, k * mu, comm); break;

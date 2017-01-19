@@ -11,49 +11,50 @@
 \begin{document}
 \begin{center} {\LARGE --- $\quad$ HPDDM $\quad$ ---} \\[5pt] \url{https://github.com/hpddm/hpddm} \end{center}
     All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified in the column ``Default'', this value is used when the corresponding option is not set by the user. When no default value is specified but the corresponding option is set by the user, the option is true (represented internally by 1). If the option is not set, its value is false (represented internally by 0). Options highlighted in \colorbox{LightRed}{red} should be reserved to expert users.
-\vspace*{-0.4cm}
+\vspace*{-0.6cm}
 \newdimen\origiwspc
 \origiwspc=\fontdimen2\font
 \newlength\LTbackup
 \setlength{\LTbackup}{\LTleft}
-\setlength{\LTleft}{-0.1cm}
+\setlength{\LTleft}{0.15cm}
 \begin{center}
-    \begin{longtable}{| >{\tt}p{.225\textwidth} | p{.5\textwidth}| p{.165\textwidth}| >{\tt}p{.05\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values & \normalfont{Default} \\ \hline
-        help & Display available options & Anything & \\ \hline
-        version & Display information about HPDDM & Anything & \\ \hline
-        config\_file & Load options from a file saved on disk & String & \\ \hline
-        tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-6}$ \\ \hline
-        max\_it & Maximum number of iterations of iterative methods & Integer & $100$ \\ \hline
-        verbosity & Level of output (higher means more displayed information) & Integer & \\ \hline
-        \rowcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & \\ \hline
-        local\_operators\_not\_spd & Assume local operators are not positive definite & Boolean & \\ \hline
-        orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs \\ \hline
-        dump\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & \\ \hline
-        dump\_eigenvectors(\_[[:digit:]]+)? & Save either one or all local eigenvectors to disk & String & \\ \hline
-        krylov\_method & Type of iterative method used to solve linear systems & {\fontdimen2\font=2.5pt\texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr}, \texttt{bfbcg}\fontdimen2\font=\origiwspc} & gmres \\ \hline
-        enlarge\_krylov\_subspace & Split the initial right-hand side into multiple vectors & Integer & $1$ \\ \hline
-        gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & $40$ \\ \hline
-        variant & Left, right, or variable preconditioning & \texttt{left},~\texttt{right},~\texttt{flexible} & right \\ \hline
-        qr & Method used to perform distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & cholqr \\ \hline
-        deflation\_tol & Tolerance when deflating right-hand sides inside block methods & Numeric & \\ \hline
-        recycle & Number of harmonic Ritz vectors to compute & Integer & \\ \hline
-        recycle\_same\_system & Assume the system is the same as the one for which Ritz vectors have been computed & Boolean & \\ \hline
-        \rowcolor{LightRed}recycle\_strategy & Generalized eigenvalue problem to solve for recycling & \texttt{A}, \texttt{B} & A \\ \hline
-        \rowcolor{LightRed}recycle\_target & Criterion to select harmonic Ritz vectors & \texttt{SM}, \texttt{LM}, \texttt{SR}, \texttt{LR}, \texttt{SI}, \texttt{LI} & SM \\ \hline
-        \rowcolor{LightRed}eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ \\ \hline
-        geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & $20$ \\ \hline
-        \rowcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & \\ \hline
-        \rowcolor{LightRed}geneo\_estimate\_nu & Estimate the number of eigenvalues below a threshold using the inertia of the stencil & Numeric & \\ \hline
-        geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & \texttt{min}, \texttt{max} & \\ \hline
-        master\_p & Number of master processes & Integer & $1$ \\ \hline
-        \rowcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol\_and\_rhs}, \texttt{sol} & cen\-tra\-li\-zed \\ \hline
-        \rowcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 \\ \hline
-        \rowcolor{LightRed}master\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & \\ \hline
-        \rowcolor{LightRed}master\_aggregate\_sizes & Number of master processes per MPI sub-communicators & Integer & \texttt{master\_p} \\ \hline
-        master\_dump\_matrix & Save the coarse operator to disk & String & \\ \hline
-        \rowcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & \\ \hline
-        master\_not\_spd & Assume the coarse operator is symmetric (instead of symmetric positive definite) & Boolean & \\ \hline
+    \begin{longtable}{| >{\tt}p{.225\textwidth} | p{.5\textwidth}| p{.145\textwidth}| >{\tt}p{.05\textwidth} | @{}m{0pt}@{}} \hline
+        \normalfont{Keyword} & Description & Possible values & \normalfont{Default} & \\ \hline
+        help & Display available options & Anything & & \\ \hline
+        version & Display information about HPDDM & Anything & & \\ \hline
+        config\_file & Load options from a file saved on disk & String & & \\ \hline
+        tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-6}$ & \\ \hline
+        max\_it & Maximum number of iterations of iterative methods & Integer & $100$ & \\ \hline
+        verbosity & Level of output (higher means more displayed information) & Integer & & \\ \hline
+        \cellcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & & \\ \hline
+        local\_operators\_not\_spd & Assume local operators are not positive definite & Boolean & & \\ \hline
+        orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs & \\ \hline
+        dump\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & & \\ \hline
+        dump\_eigenvectors(\_[[:digit:]]+)? & Save either one or all local eigenvectors to disk & String & & \\ \hline
+        krylov\_method & Type of iterative method used to solve linear systems & \begin{parbox}{.145\textwidth}{\fontdimen2\font=2.5pt\texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr}, \texttt{bfbcg}, \texttt{richardson}, \texttt{none}\fontdimen2\font=\origiwspc}\end{parbox} & gmres & \\[0.85cm] \hline
+        enlarge\_krylov\_subspace & Split the initial right-hand side into multiple vectors & Integer & $1$ & \\ \hline
+        gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & $40$ & \\ \hline
+        variant & Left, right, or variable preconditioning & \texttt{left},~\texttt{right},~\texttt{flexible} & right & \\ \hline
+        qr & Method used to perform distributed QR factorizations & \texttt{cholqr}, \texttt{cgs}, \texttt{mgs} & cholqr & \\ \hline
+        deflation\_tol & Tolerance when deflating right-hand sides inside block methods & Numeric & & \\ \hline
+        recycle & Number of harmonic Ritz vectors to compute & Integer & & \\ \hline
+        recycle\_same\_system & Assume the system is the same as the one for which Ritz vectors have been computed & Boolean & & \\ \hline
+        \cellcolor{LightRed}recycle\_strategy & Generalized eigenvalue problem to solve for recycling & \texttt{A}, \texttt{B} & A & \\ \hline
+        \cellcolor{LightRed}recycle\_target & Criterion to select harmonic Ritz vectors & \texttt{SM}, \texttt{LM}, \texttt{SR}, \texttt{LR}, \texttt{SI}, \texttt{LI} & SM & \\ \hline
+        richardson\_damping\_factor & Damping factor using in Richardson iterations & Numeric & $1.0$ & \\ \hline
+        \cellcolor{LightRed}eigensolver\_tol & Tolerance for computing eigenvectors by ARPACK or LAPACK & Numeric & $10^{-6}$ & \\ \hline
+        geneo\_nu & Number of local eigenvectors to compute for adaptive methods & Integer & $20$ & \\ \hline
+        \cellcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & & \\ \hline
+        \cellcolor{LightRed}geneo\_estimate\_nu & Estimate the number of eigenvalues below a threshold using the inertia of the stencil & Numeric & & \\ \hline
+        geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & \texttt{min}, \texttt{max} & & \\ \hline
+        master\_p & Number of master processes & Integer & $1$ & \\ \hline
+        \cellcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol} & \begin{parbox}{.05\textwidth}{cen\-tra\-li\-zed}\end{parbox} & \\[0.35cm] \hline
+        \cellcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 & \\ \hline
+        \cellcolor{LightRed}master\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & & \\ \hline
+        \cellcolor{LightRed}master\_aggregate\_size & Number of master processes per MPI sub-communicators & Integer & \texttt{master\_p} & \\ \hline
+        master\_dump\_matrix & Save the coarse operator to disk & String & & \\ \hline
+        \cellcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & & \\ \hline
+        master\_not\_spd & Assume the coarse operator is symmetric (instead of symmetric positive definite) & Boolean & & \\ \hline
     \end{longtable}
 \end{center}
 \setlength{\LTleft}{\LTbackup}
@@ -82,8 +83,8 @@ When using MKL PARDISO as a subdomain solver (resp. coarse operator solver), the
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values \\ \hline
-        \rowcolor{LightRed}mkl\_pardiso\_iparm\_(2|8|1[013]|2[147]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
-        \rowcolor{LightRed}master\_mkl\_pardiso\_iparm\_(2|1[013]|2[17]) & Integer control parameters of MKL PARDISO for the coarse operator solver & Integer \\ \hline
+        \cellcolor{LightRed}mkl\_pardiso\_iparm\_(2|8|1[013]|2[147]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
+        \cellcolor{LightRed}master\_mkl\_pardiso\_iparm\_(2|1[013]|2[17]) & Integer control parameters of MKL PARDISO for the coarse operator solver & Integer \\ \hline
     \end{longtable}
 \vspace*{-0.4cm}
 \end{center}
@@ -92,8 +93,8 @@ When using MUMPS as a subdomain solver (resp. coarse operator solver), there are
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values \\ \hline
-        \rowcolor{LightRed}mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the subdomain solvers & Integer \\ \hline
-        \rowcolor{LightRed}master\_mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the coarse operator solver & Integer \\ \hline
+        \cellcolor{LightRed}mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the subdomain solvers & Integer \\ \hline
+        \cellcolor{LightRed}master\_mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the coarse operator solver & Integer \\ \hline
     \end{longtable}
 \vspace*{-0.4cm}
 \end{center}
@@ -102,15 +103,15 @@ When using \textit{hypre} as a coarse operator solver, there are additional opti
 \begin{center}
     \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.49\textwidth}| p{.115\textwidth}| p{.05\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & Default \\ \hline
-        \rowcolor{LightRed}master\_hypre\_solver & Solver used by \textit{hypre} to solve coarse linear systems & \texttt{fgmres}, \texttt{pcg}, \texttt{amg} & \texttt{fgmres} \\ \hline
-        \rowcolor{LightRed}master\_hypre\_tol & Relative convergence tolerance & Numeric & $10^{-12}$ \\ \hline
-        \rowcolor{LightRed}master\_hypre\_max\_it & Maximum number of iterations & Integer & 500 \\ \hline
-        \rowcolor{LightRed}master\_hypre\_gmres\_restart & Maximum number of Arnoldi vectors generated per cycle when using FlexGMRES & Integer & 100 \\ \hline
-        \rowcolor{LightRed}master\_boomeramg\_num\_sweeps & Number of sweeps & Integer & 1 \\ \hline
-        \rowcolor{LightRed}master\_boomeramg\_max\_levels & Maximum number of multigrid levels & Integer & 10 \\ \hline
-        \rowcolor{LightRed}master\_boomeramg\_coarsen\_type & Parallel coarsening algorithm & Integer & 6 \\ \hline
-        \rowcolor{LightRed}master\_boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
-        \rowcolor{LightRed}master\_boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
+        \cellcolor{LightRed}master\_hypre\_solver & Solver used by \textit{hypre} to solve coarse linear systems & \texttt{fgmres}, \texttt{pcg}, \texttt{amg} & \texttt{fgmres} \\ \hline
+        \cellcolor{LightRed}master\_hypre\_tol & Relative convergence tolerance & Numeric & $10^{-12}$ \\ \hline
+        \cellcolor{LightRed}master\_hypre\_max\_it & Maximum number of iterations & Integer & 500 \\ \hline
+        \cellcolor{LightRed}master\_hypre\_gmres\_restart & Maximum number of Arnoldi vectors generated per cycle when using FlexGMRES & Integer & 100 \\ \hline
+        \cellcolor{LightRed}master\_boomeramg\_num\_sweeps & Number of sweeps & Integer & 1 \\ \hline
+        \cellcolor{LightRed}master\_boomeramg\_max\_levels & Maximum number of multigrid levels & Integer & 10 \\ \hline
+        \cellcolor{LightRed}master\_boomeramg\_coarsen\_type & Parallel coarsening algorithm & Integer & 6 \\ \hline
+        \cellcolor{LightRed}master\_boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
+        \cellcolor{LightRed}master\_boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
     \end{longtable}
 \vspace*{-0.4cm}
 \end{center}
@@ -119,7 +120,7 @@ When using ARPACK as an eigensolver, there is an additional option.
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values \\ \hline
-        \rowcolor{LightRed}arpack\_ncv & Number of Lanczos basis vectors generated in one iteration & Integer \\ \hline
+        \cellcolor{LightRed}arpack\_ncv & Number of Lanczos basis vectors generated in one iteration & Integer \\ \hline
     \end{longtable}
 \vspace*{-0.4cm}
 \end{center}
