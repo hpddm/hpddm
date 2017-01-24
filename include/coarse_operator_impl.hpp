@@ -757,7 +757,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(blocked)
             std::for_each(offsetIdx, offsetIdx + _sizeSplit - 1, [&](unsigned int& i) { i /= _local * _local; });
 #ifdef _OPENMP
-#pragma omp parallel for shared(I, J, infoWorld, infoSplit, relative, offsetIdx, offsetPosition) schedule(dynamic, 64)
+#pragma omp parallel for shared(I, J, infoWorld, infoSplit, offsetIdx, offsetPosition) schedule(dynamic, 64)
 #endif
         for(unsigned int k = 1; k < _sizeSplit; ++k) {
             if(U == 1 || infoSplit[k][1]) {
@@ -1116,9 +1116,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         super::template numfact<S>(nrow, I, loc2glob, J, pt);
 #  endif
 # else
-         super::template numfact<S>(size, I, J, pt);
+        super::template numfact<S>(size, I, J, pt);
 # endif
-         delete [] C;
+        delete [] C;
 #endif
         if(!treeDimension)
             delete [] rqRecv;
