@@ -33,6 +33,7 @@ struct EmptyOperator : OptionsPrefix {
     int getDof() const { return _n; }
     static constexpr underlying_type<K>* getScaling() { return nullptr; }
     template<bool = true> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
+    static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
     static constexpr bool end(const bool) { return false; }
 };
 template<class Operator, class K>
@@ -421,10 +422,11 @@ class IterativeMethod {
                     for(unsigned short nu = 0; nu < k; ++nu)
                         Blas<K>::axpy(&n, &(Wrapper<K>::d__1), b + nu * n, &i__1, work, &i__1);
                 }
+                const std::unordered_map<unsigned int, K> map = A.boundaryConditions();
                 for(unsigned short nu = 0; nu < mu / k; ++nu) {
                     norm[nu] = 0.0;
                     for(unsigned int i = 0; i < n; ++i) {
-                        if(std::abs(work[nu * n + i]) > HPDDM_PEN * HPDDM_EPS)
+                        if(std::abs(work[nu * n + i]) > HPDDM_PEN * HPDDM_EPS && map.find(i) != map.cend())
                             norm[nu] += (d ? d[i] : 1.0) * std::norm(work[nu * n + i] / underlying_type<K>(HPDDM_PEN));
                         else
                             norm[nu] += (d ? d[i] : 1.0) * std::norm(work[nu * n + i]);

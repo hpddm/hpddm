@@ -218,13 +218,10 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         bool start(const K* const b, K* const x, const unsigned short& mu = 1) const {
             bool allocate = Subdomain<K>::setBuffer();
             if(!excluded) {
-                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
-                    K boundary = Subdomain<K>::boundaryCond(i);
-                    if(std::abs(boundary) > HPDDM_EPS) {
-                        for(unsigned short nu = 0; nu < mu; ++nu)
-                            x[nu * Subdomain<K>::_dof + i] = b[nu * Subdomain<K>::_dof + i] / boundary;
-                    }
-                }
+                const std::unordered_map<unsigned int, K> map = Subdomain<K>::boundaryConditions();
+                for(const std::pair<unsigned int, K>& p : map)
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        x[nu * Subdomain<K>::_dof + p.first] = b[nu * Subdomain<K>::_dof + p.first] / p.second;
             }
             scaledExchange(x, mu);
             if(super::_co) {

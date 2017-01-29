@@ -227,6 +227,16 @@ class Subdomain : public OptionsPrefix {
                 return K();
             return _a->_a[stop - 1];
         }
+        std::unordered_map<unsigned int, K> boundaryConditions() const {
+            std::unordered_map<unsigned int, K> map;
+            map.reserve(_dof / 1000);
+            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+                const K boundary = boundaryCond(i);
+                if(std::abs(boundary) > HPDDM_EPS)
+                    map[i] = boundary;
+            }
+            return map;
+        }
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */
         int getDof() const { return _dof; }

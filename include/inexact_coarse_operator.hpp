@@ -442,6 +442,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 delete [] _o;
         }
         static constexpr underlying_type<K>* getScaling() { return nullptr; }
+        static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
     private:
         template<char T>
         void exchange(const K* const in, K* const out, const unsigned short& mu = 1) const {

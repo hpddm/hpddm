@@ -112,23 +112,35 @@ class Eigensolver {
                     }
                     break;
                 case 1:
+                    if(!_nu)
+                        nev = 0;
                     MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MAX, communicator);
                     if(nev > _nu) {
                         K** basis = new K*[nev];
                         *basis = new K[nev * _n];
                         for(unsigned short i = 1; i < nev; ++i)
                             basis[i] = *basis + i * _n;
-                        std::copy_n(*eigenvectors, _nu * _n, *basis);
-                        std::pair<K*, K*> result = std::minmax_element(*eigenvectors, *eigenvectors + _nu * _n, [](const K& lhs, const K& rhs) { return std::real(lhs) < std::real(rhs); });
                         std::random_device rd;
                         std::default_random_engine generator(rd());
-                        std::uniform_real_distribution<underlying_type<K>> uniform(std::real(*(result.first)), std::real(*(result.second)));
+                        std::uniform_real_distribution<underlying_type<K>> uniform;
+                        if(eigenvectors) {
+                            std::copy_n(*eigenvectors, _nu * _n, *basis);
+                            std::pair<K*, K*> result = std::minmax_element(*eigenvectors, *eigenvectors + _nu * _n, [](const K& lhs, const K& rhs) { return std::real(lhs) < std::real(rhs); });
+                            uniform = std::uniform_real_distribution<underlying_type<K>>(std::real(*(result.first)), std::real(*(result.second)));
+                            delete [] *eigenvectors;
+                            delete []  eigenvectors;
+                        }
+                        else
+                            uniform = std::uniform_real_distribution<underlying_type<K>>(0.0, 1.0);
                         std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { v = uniform(generator); });
                         if(Wrapper<K>::is_complex)
                             std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { imag(v, uniform(generator)); });
-                        delete [] *eigenvectors;
-                        delete []  eigenvectors;
                         eigenvectors = basis;
+                        if(_nu == 0) {
+                            underlying_type<K> nrm = Blas<K>::nrm2(&_n, *basis, &i__1);
+                            std::for_each(*basis, *basis + _n, [&](K& v) { v /= nrm; });
+                            _nu = 1;
+                        }
                         const char id = opt.val<char>("orthogonalization", 0);
                         for(unsigned short i = _nu; i < nev; ++i)
                             IterativeMethod::orthogonalization(id, _n, i - 1, *basis, basis[i]);

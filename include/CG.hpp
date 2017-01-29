@@ -418,7 +418,7 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     underlying_type<K> tol;
     unsigned short it;
     char verbosity;
-    options<7>(A.prefix(), &tol, nullptr, &it, &verbosity);
+    options<8>(A.prefix(), &tol, nullptr, &it, &verbosity);
     typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K**, K*>::type ptr_type;
     const int n = std::is_same<ptr_type, K*>::value ? A.getDof() : A.getMult();
     const int offset = std::is_same<ptr_type, K*>::value ? A.getEliminated() : 0;
