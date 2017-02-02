@@ -39,20 +39,6 @@ class MatrixCSR {
     private:
 #if INTEL_MKL_VERSION > 110299
 #endif
-        template<bool I, class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
-        static bool scan(const char* str, int* row, int* col, T* val) {
-            double x;
-            int ret = (I ? sscanf(str, "%i %i %le", row, col, &x) : sscanf(str, "%le %i %i", &x, row, col));
-            *val = x;
-            return ret != 3;
-        }
-        template<bool I, class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
-        static bool scan(const char* str, int* row, int* col, T* val) {
-            double re, im;
-            int ret = (I ? sscanf(str, "(%le,%le) %i %i", &re, &im, row, col) : sscanf(str, "%i %i (%le,%le)", row, col, &re, &im));
-            *val = T(re, im);
-            return ret != 4;
-        }
     public:
         /* Variable: a
          *  Array of data. */
@@ -247,6 +233,20 @@ class MatrixCSR {
                     f << std::setw(9) << i + 1 << std::setw(9) << _ja[k] + (N == 'C') << " " << std::setw(13) << _a[k] << "\n";
             f.flags(ff);
             return f;
+        }
+        template<bool I, class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
+        static bool scan(const char* str, int* row, int* col, T* val) {
+            double x;
+            int ret = (I ? sscanf(str, "%i %i %le", row, col, &x) : sscanf(str, "%le %i %i", &x, row, col));
+            *val = x;
+            return ret != 3;
+        }
+        template<bool I, class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
+        static bool scan(const char* str, int* row, int* col, T* val) {
+            double re, im;
+            int ret = (I ? sscanf(str, "(%le,%le) %i %i", &re, &im, row, col) : sscanf(str, "%i %i (%le,%le)", row, col, &re, &im));
+            *val = T(re, im);
+            return ret != 4;
         }
 };
 template<class K>

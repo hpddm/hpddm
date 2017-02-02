@@ -99,8 +99,10 @@ class MklPardiso : public DMatrix {
             int error;
             K ddum;
             int idum;
-            if(_comm != -1)
+            if(_comm != -1) {
                 CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), &ddum, &idum, &idum, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+                _comm = -1;
+            }
             delete [] _I;
             delete [] _C;
         }

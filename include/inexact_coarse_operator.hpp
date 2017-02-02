@@ -391,6 +391,8 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             }
             delete [] _oi;
             delete [] _rq;
+            std::map<unsigned short, std::vector<int>>().swap(_send);
+            vectorNeighbor().swap(_recv);
         }
         int getDof() const { return _dof * _bs; }
         void solve(K* rhs, const unsigned short& n) {

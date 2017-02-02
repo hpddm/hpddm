@@ -434,6 +434,7 @@ class OptionsPrefix {
         OptionsPrefix() : _prefix() { };
         ~OptionsPrefix() {
             delete [] _prefix;
+            _prefix = nullptr;
         }
         void setPrefix(const char* prefix) {
             if(_prefix)
