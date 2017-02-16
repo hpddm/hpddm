@@ -26,6 +26,8 @@
 #ifndef _HPDDM_SUBDOMAIN_
 #define _HPDDM_SUBDOMAIN_
 
+#include <unordered_set>
+
 namespace HPDDM {
 /* Class: Subdomain
  *
@@ -284,57 +286,6 @@ class Subdomain : public OptionsPrefix {
         K** getBuffer() const { return _buff; }
         template<bool excluded>
         void scatter(const K* const x, K*& s, const unsigned short mu, unsigned short& k, const MPI_Comm& comm) const {
-            int size;
-            if(excluded) {
-                MPI_Comm_size(comm, &size);
-                int master;
-                MPI_Comm_size(_communicator, &master);
-                size -= master;
-            }
-            else
-                MPI_Comm_size(_communicator, &size);
-            if(k < 2 || size == 1 || mu > 1)
-                k = 1;
-            else {
-                k = std::min(k, static_cast<unsigned short>(size));
-                s = new K[k * mu * _dof]();
-                if(!excluded) {
-                    int rank;
-                    MPI_Comm_rank(_communicator, &rank);
-                    unsigned int n = 0;
-                    for(const auto& i : _map)
-                        n += i.second.size();
-                    unsigned short* idx = new unsigned short[_dof + n];
-                    unsigned short* buff = idx + _dof;
-                    int div = size / k;
-                    std::fill_n(idx, _dof + n, std::min(rank / div, k - 1) + 1);
-                    n = 0;
-                    for(unsigned short i = 0; i < _map.size(); ++i) {
-                        if(rank < _map[i].first)
-                            std::fill_n(buff + n, _map[i].second.size(), std::min(_map[i].first / div, k - 1) + 1);
-                        n += _map[i].second.size();
-                    }
-                    n = 0;
-                    for(unsigned short i = 0; i < _map.size(); ++i) {
-                        Wrapper<unsigned short>::sctr(_map[i].second.size(), buff + n, _map[i].second.data(), idx);
-                        n += _map[i].second.size();
-                    }
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        for(unsigned int i = 0; i < _dof; ++i)
-                            s[k * nu * _dof + i + (idx[i] - 1) * _dof] = x[nu * _dof + i];
-                    delete [] idx;
-                }
-            }
-        }
-        template<bool excluded>
-        void gather(K*& s, K* x, const unsigned short mu, const unsigned short k) const {
-            if(!excluded) {
-                std::fill_n(x, mu * _dof, K());
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    for(unsigned short j = 0; j < k; ++j)
-                        Blas<K>::axpy(&_dof, &(Wrapper<K>::d__1), s + (j + k * nu) * _dof, &i__1, x + nu * _dof, &i__1);
-            }
-            delete [] s;
         }
         void statistics() const {
             unsigned long long local[4], global[4];
@@ -798,26 +749,100 @@ class Subdomain : public OptionsPrefix {
 
 template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
 inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
-    A.Subdomain<K>::template scatter<excluded>(x, sx, mu, k, comm);
-    const std::string prefix = A.prefix();
-    if(sx != nullptr) {
-        if(!excluded)
-            std::copy_n(b, mu * A.getDof(), x);
-        A.Subdomain<K>::template scatter<excluded>(x, sb, mu, k, comm);
-        checkEnlargedMethod(prefix, k);
+    int size;
+    if(excluded) {
+        MPI_Comm_size(comm, &size);
+        int master;
+        MPI_Comm_size(A.getCommunicator(), &master);
+        size -= master;
     }
-    else {
+    else
+        MPI_Comm_size(A.getCommunicator(), &size);
+    if(k < 2 || size == 1 || mu > 1) {
         sx = x;
         sb = const_cast<K*>(b);
-        Option::get()->remove(prefix + "enlarge_krylov_subspace");
+        k = 1;
     }
-}
-template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
-inline void IterativeMethod::postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
-    if(sb != b) {
-        A.Subdomain<K>::template gather<excluded>(sx, x, mu, k);
-        delete [] sb;
+    else {
+        int rank;
+        MPI_Comm_rank(A.getCommunicator(), &rank);
+        k = std::min(k, static_cast<unsigned short>(size));
+        unsigned int* local = new unsigned int[2 * k];
+        unsigned int* global = local + k;
+        const int n = excluded ? 0 : A.getDof();
+        const vectorNeighbor& map = A.getMap();
+        int displ = 0;
+        std::unordered_set<int> redundant;
+        unsigned short j = std::min(k - 1, rank / (size / k));
+        std::function<void ()> check_size = [&] {
+            std::fill_n(local, k, 0U);
+            if(!excluded)
+                for(unsigned int i = 0; i < n; ++i) {
+                    if(std::abs(b[i]) > HPDDM_EPS && redundant.count(i) == 0) {
+                        if(++local[j] > k)
+                            break;
+                    }
+                }
+            MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm);
+        };
+        if(!excluded)
+            for(const auto& i : map) {
+                displ += i.second.size();
+                for(const int& k : i.second)
+                    redundant.emplace(k);
+            }
+        check_size();
+        {
+            unsigned int max = 0;
+            for(unsigned short nu = 0; nu < k && max < k; ++nu)
+                max += global[nu];
+            if(max < k) {
+                k = std::max(1U, max);
+                global = local + k;
+                j = std::min(k - 1, rank / (size / k));
+                check_size();
+            }
+        }
+        if(k > 1) {
+            unsigned short* idx = new unsigned short[n + displ];
+            unsigned short* buff = idx + n;
+            sx = new K[k * n]();
+            sb = new K[k * n]();
+            const int div = size / k;
+            if(!excluded) {
+                std::fill_n(idx, n + displ, std::min(rank / div, k - 1) + 1);
+                displ = 0;
+                for(unsigned short i = 0; i < map.size(); ++i) {
+                    if(rank < map[i].first)
+                        std::fill_n(buff + displ, map[i].second.size(), std::min(map[i].first / div, k - 1) + 1);
+                    displ += map[i].second.size();
+                }
+                displ = 0;
+                for(unsigned short i = 0; i < map.size(); ++i) {
+                    Wrapper<unsigned short>::sctr(map[i].second.size(), buff + displ, map[i].second.data(), idx);
+                    displ += map[i].second.size();
+                }
+                for(unsigned int i = 0; i < n; ++i) {
+                    sx[i + (idx[i] - 1) * n] = x[i];
+                    sb[i + (idx[i] - 1) * n] = b[i];
+                }
+            }
+            std::function<K* (K*, unsigned int*, unsigned int*, int)> lambda = [&](K* sb, unsigned int* local, unsigned int* swap, int n) {
+                for(unsigned int i = 0; i < n; ++i)
+                    if(std::abs(sb[std::distance(local, swap) * n + i]) > HPDDM_EPS && redundant.count(i) == 0)
+                        return sb + std::distance(local, swap) * n + i;
+                return sb + (std::distance(local, swap) + 1) * n;
+            };
+            IterativeMethod::equilibrate<excluded>(n, sb, sx, lambda, local, k, rank, size / k, comm);
+            delete [] idx;
+        }
+        else {
+            sx = x;
+            sb = const_cast<K*>(b);
+        }
+        delete [] local;
     }
+    checkEnlargedMethod(A.prefix(), k);
 }
 
 template<class K>

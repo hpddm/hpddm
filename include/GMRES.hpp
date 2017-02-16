@@ -60,13 +60,8 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         if(d)
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 sn[nu] = 0.0;
-                for(unsigned int j = 0; j < n; ++j) {
-                    K& val = v[0][nu * n + j];
-                    if(std::abs(val) > 100.0 * norm[nu] / HPDDM_EPS)
-                        val = K();
-                    else
-                        sn[nu] += d[j] * std::norm(val);
-                }
+                for(unsigned int j = 0; j < n; ++j)
+                    sn[nu] += d[j] * std::norm(v[0][nu * n + j]);
             }
         else
             for(unsigned short nu = 0; nu < mu; ++nu)
@@ -165,14 +160,6 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
         if(!id[1])
             A.template apply<excluded>(Ax, *v, mu);
-        else if(d) {
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                for(unsigned int j = 0; j < n; ++j) {
-                    K& val = v[0][nu * n + j];
-                    if(std::abs(val) > 100.0 * norm[nu] / HPDDM_EPS)
-                        val = K();
-                }
-        }
         RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[1], N, piv, d, Ax, comm);
         diagonal<1>(id[0], s, mu, tol[1], piv);
         if(tol[1] > -0.9 && m[2] <= 1)

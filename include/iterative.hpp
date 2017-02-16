@@ -724,16 +724,48 @@ class IterativeMethod {
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
             return false;
         }
+        template<bool excluded, class K>
+        static void equilibrate(int n, K* sb, K* sx, std::function<K* (K*, unsigned int*, unsigned int*, int)>& lambda, unsigned int* local, unsigned short k, int rank, int div, const MPI_Comm& comm) {
+            unsigned int* global = local + k;
+            unsigned short j = 0;
+            std::function<unsigned int* (unsigned int*, unsigned short)> find_zero = [](unsigned int* global, unsigned short k) { return std::find_if(global, global + k, [](const unsigned int& v) { return v == 0; }); };
+            for(unsigned int* pt = find_zero(global, k); pt != global + k; pt = find_zero(global, k), ++j) {
+                if((rank < k * div && (rank % div) == j) || (rank >= k * div && (j + (k - 1) * div == rank))) {
+                    while(pt != global + k) {
+                        unsigned int* swap = local;
+                        for(unsigned short nu = 0; nu < k; ++nu, ++swap) {
+                            if(*swap > 1 || (*swap == 1 && global[nu] > 1))
+                                break;
+                        }
+                        if(swap != local + k) {
+                            K* addr = lambda(sb, local, swap, n);
+                            if(addr != sb + (std::distance(local, swap) + 1) * n) {
+                                sb[std::distance(global, pt) * n + std::distance(sb + std::distance(local, swap) * n, addr)] = *addr;
+                                sx[std::distance(global, pt) * n + std::distance(sb + std::distance(local, swap) * n, addr)] = sx[std::distance(sb, addr)];
+                                *addr = sx[std::distance(sb, addr)] = K();
+                                --*swap;
+                                --global[std::distance(local, swap)];
+                                ++local[std::distance(global, pt)];
+                                ++global[std::distance(global, pt)];
+                            }
+                        }
+                        unsigned int* next = find_zero(global, k);
+                        if(next != pt)
+                            pt = next;
+                        else
+                            pt = global + k;
+                    }
+                }
+                MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm);
+            }
+        }
         template<bool, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
         static void preprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&, const MPI_Comm&);
-        template<bool, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void postprocess(const Operator&, const K* const, K*&, K* const, K*&, const int&, unsigned short&);
         template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
         static void preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
             static_assert(!excluded, "Not implemented");
             int size;
             MPI_Comm_size(comm, &size);
-            const std::string prefix = A.prefix();
             if(k < 2 || size == 1 || mu > 1) {
                 sx = x;
                 sb = const_cast<K*>(b);
@@ -743,16 +775,47 @@ class IterativeMethod {
                 int rank;
                 MPI_Comm_rank(comm, &rank);
                 k = std::min(k, static_cast<unsigned short>(size));
+                unsigned int* local = new unsigned int[2 * k];
+                unsigned int* global = local + k;
                 const int n = A.getDof();
-                sb = new K[k * mu * n]();
-                sx = new K[k * mu * n]();
-                const unsigned short j = std::min(k - 1, rank / (size / k));
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    std::copy_n(x + nu * n, n, sx + (j + k * nu) * n);
-                    std::copy_n(b + nu * n, n, sb + (j + k * nu) * n);
+                unsigned short j = std::min(k - 1, rank / (size / k));
+                std::function<void ()> check_size = [&] {
+                    std::fill_n(local, k, 0U);
+                    for(unsigned int i = 0; i < n; ++i) {
+                        if(std::abs(b[i]) > HPDDM_EPS) {
+                            if(++local[j] > k)
+                                break;
+                        }
+                    }
+                    MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm);
+                };
+                check_size();
+                {
+                    unsigned int max = 0;
+                    for(unsigned short nu = 0; nu < k && max < k; ++nu)
+                        max += global[nu];
+                    if(max < k) {
+                        k = std::max(1U, max);
+                        global = local + k;
+                        j = std::min(k - 1, rank / (size / k));
+                        check_size();
+                    }
                 }
+                if(k > 1) {
+                    sx = new K[k * n]();
+                    sb = new K[k * n]();
+                    std::copy_n(x, n, sx + j * n);
+                    std::copy_n(b, n, sb + j * n);
+                    std::function<K* (K*, unsigned int*, unsigned int*, int)> lambda = [](K* sb, unsigned int* local, unsigned int* swap, int n) { return static_cast<K*>(std::find_if(sb + std::distance(local, swap) * n, sb + (std::distance(local, swap) + 1) * n, [](const K& v) { return std::abs(v) > HPDDM_EPS; })); };
+                    equilibrate<excluded>(n, sb, sx, lambda, local, k, rank, size / k, comm);
+                }
+                else {
+                    sx = x;
+                    sb = const_cast<K*>(b);
+                }
+                delete [] local;
             }
-            checkEnlargedMethod(prefix, k);
+            checkEnlargedMethod(A.prefix(), k);
         }
         static void checkEnlargedMethod(const std::string& prefix, const unsigned short& k) {
             Option& opt = *Option::get();
@@ -767,16 +830,15 @@ class IterativeMethod {
                 }
             }
         }
-        template<bool excluded, class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k) {
+        template<bool excluded, class Operator, class K>
+        static void postprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, unsigned short& k) {
             if(sb != b) {
                 const int n = A.getDof();
-                std::fill_n(x, mu * n, K());
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    for(unsigned short j = 0; j < k; ++j)
-                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), sx + (j + k * nu) * n, &i__1, x + nu * n, &i__1);
-                delete [] sx;
+                std::fill_n(x, n, K());
+                for(unsigned short j = 0; j < k; ++j)
+                    Blas<K>::axpy(&n, &(Wrapper<K>::d__1), sx + j * n, &i__1, x, &i__1);
                 delete [] sb;
+                delete [] sx;
             }
         }
     public:
@@ -882,14 +944,20 @@ class IterativeMethod {
 #if HPDDM_MIXED_PRECISION
             opt[prefix + "variant"] = 2;
 #endif
-            unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
+            unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 0);
             K* sx = nullptr;
             K* sb = nullptr;
-            preprocess<excluded>(A, b, sb, x, sx, mu, k, comm);
+            if(k)
+                preprocess<excluded>(A, b, sb, x, sx, mu, k, comm);
+            else {
+                sx = x;
+                sb = const_cast<K*>(b);
+                k = 1;
+            }
             int it;
             switch(opt.val<char>(prefix + "krylov_method")) {
-                case 8:  { it = 1; bool allocate = A.template start<excluded>(b, x, mu); K* work = new K[mu * A.getDof()];
-                         A.template apply<excluded>(b, x, mu, work); delete [] work; A.end(allocate); break; }
+                case 8:  { it = 1; bool allocate = A.template start<excluded>(sb, sx, k * mu); K* work = new K[k * mu * A.getDof()];
+                         A.template apply<excluded>(sb, sx, k * mu, work); delete [] work; A.end(allocate); break; }
                 case 7:  it = HPDDM::IterativeMethod::Richardson<excluded>(A, sb, sx, k * mu, comm); break;
                 case 6:  it = HPDDM::IterativeMethod::BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
                 case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
@@ -899,7 +967,7 @@ class IterativeMethod {
                 case 1:  it = HPDDM::IterativeMethod::BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
                 default: it = HPDDM::IterativeMethod::GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
-            postprocess<excluded>(A, b, sb, x, sx, mu, k);
+            postprocess<excluded>(A, b, sb, x, sx, k);
             std::cout.flags(ff);
             return it;
         }
