@@ -45,7 +45,7 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000604
+#define HPDDM_VERSION         000700
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -366,11 +366,18 @@ typedef int MPI_Comm;
 #   undef MPI_Allreduce
 #  endif
 
-#  if HPDDM_SCHWARZ
-#   include "schwarz.hpp"
+#  include "schwarz.hpp"
 template<class K = double, char S = 'S'>
-using HpSchwarz = HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, S, K>;
-#  endif
+using HpSchwarz = HPDDM::Schwarz<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    SUBDOMAIN, COARSEOPERATOR,
+#endif
+    S, K>;
+#if !HPDDM_SCHWARZ && !HPDDM_FETI && !HPDDM_BDD
+#  include "schur.hpp"
+template<class K = double>
+using HpSchur = HPDDM::Schur<K>;
+#endif
 #  if HPDDM_FETI
 #   include "FETI.hpp"
 template<HPDDM::FetiPrcndtnr P, class K = double, char S = 'S'>

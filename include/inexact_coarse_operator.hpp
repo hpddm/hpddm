@@ -382,7 +382,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 }
                 else {
                     MPI_Comm_size(DMatrix::_communicator, &_off);
-                    if((S == 'S' && Option::get()->val<char>("master_not_spd", 0) != 1) || _off > 1)
+                    if((S == 'S' && Option::get()->val<char>("master_spd", 0) == 1) || _off > 1)
                         delete [] _da;
                 }
 #endif

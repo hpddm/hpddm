@@ -285,8 +285,7 @@ class Subdomain : public OptionsPrefix {
          *  Returns a pointer to <Subdomain::buff>. */
         K** getBuffer() const { return _buff; }
         template<bool excluded>
-        void scatter(const K* const x, K*& s, const unsigned short mu, unsigned short& k, const MPI_Comm& comm) const {
-        }
+        void scatter(const K* const, K*&, const unsigned short, unsigned short&, const MPI_Comm&) const { }
         void statistics() const {
             unsigned long long local[4], global[4];
             unsigned short* const table = new unsigned short[_dof];
@@ -670,7 +669,8 @@ class Subdomain : public OptionsPrefix {
          *  Assembles a distributed matrix that can be used by a backend such as PETSc.
          *
          * See also: <Subdomain::globalMapping>. */
-        bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c, const MatrixCSR<K>* const& A) const {
+        template<class T = K>
+        bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A) const {
             if(first != 0 || last != A->_n) {
                 unsigned int nnz = 0;
                 unsigned int dof = 0;
@@ -678,7 +678,7 @@ class Subdomain : public OptionsPrefix {
                     if(num[i] >= first && num[i] < last)
                         ++dof;
                 }
-                std::vector<std::vector<std::pair<unsigned int, K>>> tmp(dof);
+                std::vector<std::vector<std::pair<unsigned int, T>>> tmp(dof);
                 for(unsigned int i = 0; i < A->_n; ++i) {
                     if(num[i] >= first && num[i] < last)
                             tmp[num[i] - first].reserve(A->_ia[i + 1] - A->_ia[i]);
@@ -686,12 +686,12 @@ class Subdomain : public OptionsPrefix {
                 for(unsigned int i = 0; i < A->_n; ++i) {
                     if(num[i] >= first && num[i] < last) {
                         for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1]; ++j)
-                            tmp[num[i] - first].emplace_back(num[A->_ja[j]], A->_a[j]);
+                            tmp[num[i] - first].emplace_back(num[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
                     }
                 }
-                nnz = std::accumulate(tmp.cbegin(), tmp.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); });
+                nnz = std::accumulate(tmp.cbegin(), tmp.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, T>>& v) { return sum + v.size(); });
                 if(!c)
-                    c  = new K[nnz];
+                    c  = reinterpret_cast<T*>(new K[nnz * (1 + (sizeof(K) - 1) / sizeof(T))]);
                 if(!ia)
                     ia = new int[dof + 1];
                 if(!ja)
@@ -699,8 +699,8 @@ class Subdomain : public OptionsPrefix {
                 ia[0] = 0;
                 nnz = 0;
                 for(unsigned int i = 0; i < dof; ++i) {
-                    std::sort(tmp[i].begin(), tmp[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
-                    for(std::pair<unsigned int, K>& p : tmp[i]) {
+                    std::sort(tmp[i].begin(), tmp[i].end(), [](const std::pair<unsigned int, T>& lhs, const std::pair<unsigned int, T>& rhs) { return lhs.first < rhs.first; });
+                    for(std::pair<unsigned int, T>& p : tmp[i]) {
                         ja[nnz] = p.first;
                         c[nnz++] = p.second;
                     }
@@ -709,7 +709,10 @@ class Subdomain : public OptionsPrefix {
                 return true;
             }
             else {
-                c  = A->_a;
+                if(std::is_same<K, T>::value)
+                    c  = reinterpret_cast<T*>(A->_a);
+                else
+                    c = nullptr;
                 ia = A->_ia;
                 ja = A->_ja;
                 return false;
@@ -720,29 +723,30 @@ class Subdomain : public OptionsPrefix {
          *
          * See also: <Subdomain::globalMapping>. */
         template<bool T>
-        void distributedVec(unsigned int* num, unsigned int first, unsigned int last, K* const& in, K*& out, unsigned int n) const {
+        static void distributedVec(unsigned int* num, unsigned int first, unsigned int last, K* const& in, K*& out, const unsigned int n, const unsigned short bs = 1) {
             if(first != 0 || last != n) {
-                unsigned int dof = 0;
-                for(unsigned int i = 0; i < n; ++i) {
-                    if(num[i] >= first && num[i] < last)
-                        ++dof;
-                }
-                if(!out)
+                if(!out) {
+                    unsigned int dof = 0;
+                    for(unsigned int i = 0; i < n; ++i) {
+                        if(num[i] >= first && num[i] < last)
+                            ++dof;
+                    }
                     out = new K[dof];
+                }
                 for(unsigned int i = 0; i < n; ++i) {
                     if(num[i] >= first && num[i] < last) {
                         if(!T)
-                            out[num[i] - first] = in[i];
+                            std::copy_n(in + bs * i, bs, out + bs * (num[i] - first));
                         else
-                            in[i] = out[num[i] - first];
+                            std::copy_n(out + bs * (num[i] - first), bs, in + bs * i);
                     }
                 }
             }
             else {
                 if(!T)
-                    std::copy_n(in, n, out);
+                    std::copy_n(in, bs * n, out);
                 else
-                    std::copy_n(out, n, in);
+                    std::copy_n(out, bs * n, in);
             }
         }
 };

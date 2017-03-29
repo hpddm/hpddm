@@ -39,8 +39,16 @@ namespace HPDDM {
  *    CoarseOperator - Class of the coarse operator.
  *    S              - 'S'ymmetric or 'G'eneral coarse operator.
  *    K              - Scalar type. */
-template<template<class> class Solver, template<class> class CoarseSolver, char S, class K>
-class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
+template<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    template<class> class Solver, template<class> class CoarseSolver,
+#endif
+    char S, class K>
+class Schwarz : public Preconditioner<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+                Solver, CoarseOperator<CoarseSolver, S, K>,
+#endif
+                K> {
     public:
         /* Enum: Prcndtnr
          *
@@ -67,12 +75,17 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
         ~Schwarz() { _d = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-        typedef Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
+        typedef Preconditioner<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+            Solver, CoarseOperator<CoarseSolver, S, K>,
+#endif
+            K> super;
         /* Function: initialize
          *  Sets <Schwarz::d>. */
         void initialize(underlying_type<K>* const& d) {
             _d = d;
         }
+#if HPDDM_SCHWARZ
         /* Function: callNumfact
          *  Factorizes <Subdomain::a> or another user-supplied matrix, useful for <Prcndtnr::OS> and <Prcndtnr::OG>. */
         template<char N = HPDDM_NUMBERING>
@@ -521,16 +534,26 @@ class Schwarz : public Preconditioner<Solver, CoarseOperator<CoarseSolver, S, K>
             MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
             std::for_each(storage, storage + 2 * mu, [](underlying_type<K>& b) { b = std::sqrt(b); });
         }
+#endif
         template<char N = HPDDM_NUMBERING>
         void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global, _d);
         }
-        bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
+        template<class T = K>
+        bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, Subdomain<K>::_a);
         }
 };
 
-template<template<class> class Solver, template<class> class CoarseSolver, char S, class K>
-struct hpddm_method_id<Schwarz<Solver, CoarseSolver, S, K>> { static constexpr char value = 1; };
+template<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    template<class> class Solver, template<class> class CoarseSolver,
+#endif
+    char S, class K>
+struct hpddm_method_id<Schwarz<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    Solver, CoarseSolver,
+#endif
+    S, K>> { static constexpr char value = 1; };
 } // HPDDM
 #endif // _HPDDM_SCHWARZ_

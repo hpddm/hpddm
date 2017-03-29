@@ -37,8 +37,17 @@ namespace HPDDM {
  *    Solver         - Solver used for the factorization of local matrices.
  *    CoarseOperator - Class of the coarse operator.
  *    K              - Scalar type. */
-template<template<class> class Solver, class CoarseOperator, class K>
-class Schur : public Preconditioner<Solver, CoarseOperator, K> {
+template<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    template<class> class Solver, class CoarseOperator,
+#endif
+    class K>
+class Schur : public Preconditioner<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+              Solver, CoarseOperator,
+#endif
+              K> {
+#if HPDDM_FETI || HPDDM_BDD
     private:
         /* Function: exchangeSchurComplement
          *
@@ -103,6 +112,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     }
             }
         }
+#endif
     protected:
         /* Variable: bb
          *  Local matrix assembled on boundary degrees of freedom. */
@@ -137,6 +147,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Variable: deficiency
          *  Dimension of the kernel of <Subdomain::a>. */
         unsigned short _deficiency;
+#if HPDDM_FETI || HPDDM_BDD
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -283,6 +294,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             }
             return super::template buildTwo<excluded, Operator>(B, comm);
         }
+#endif
     public:
         Schur() : _bb(), _ii(), _bi(), _schur(), _work(), _structure(), _pinv(), _mult(), _signed(), _deficiency() { }
         Schur(const Schur&) = delete;
@@ -290,18 +302,24 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             delete _bb;
             delete _bi;
             delete _ii;
+#if HPDDM_FETI || HPDDM_BDD
             if(!HPDDM_QR || !_schur)
                 delete static_cast<Solver<K>*>(_pinv);
             else if(_deficiency)
                 delete static_cast<QR<K>*>(_pinv);
             else
                 delete [] static_cast<K*>(_pinv);
+#endif
             delete [] _schur;
             delete [] _work;
         }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-        typedef Preconditioner<Solver, CoarseOperator, K> super;
+        typedef Preconditioner<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+            Solver, CoarseOperator,
+#endif
+            K> super;
         /* Function: initialize
          *  Sets <Schur::rankWorld> and <Schur::signed>, and allocates <Schur::mult>, <Schur::work>, and <Schur::structure>. */
         template<bool m>
@@ -321,6 +339,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                 _structure = _work + Subdomain<K>::_dof;
             }
         }
+#if HPDDM_FETI || HPDDM_BDD
         /* Function: callNumfact
          *  Factorizes <Subdomain::a>. */
         void callNumfact() {
@@ -383,6 +402,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     std::cerr << "The matrix '_ii' has not been allocated => impossible to build the Dirichlet preconditioner" << std::endl;
             }
         }
+#endif
         /* Function: originalNumbering
          *
          *  Renumbers a vector according to the numbering of the user.
@@ -421,29 +441,43 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
                     Subdomain<K>::_dof = Subdomain<K>::_a->_n;
                     std::vector<signed int> vec;
                     vec.reserve(Subdomain<K>::_dof);
-                    std::vector<std::vector<K>> deflationBoundary(super::getLocal());
+                    std::vector<std::vector<K>> deflationBoundary(
+#if HPDDM_FETI || HPDDM_BDD
+                            super::getLocal()
+#else
+                            0
+#endif
+                            );
                     for(std::vector<K>& deflation : deflationBoundary)
                         deflation.reserve(interface.size());
                     unsigned int j = 0;
                     for(unsigned int k = 0, i = 0; i < interface.size(); ++k) {
                         if(k == interface[i]) {
                             vec.emplace_back(++i);
+#if HPDDM_FETI || HPDDM_BDD
                             for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
                                 deflationBoundary[l].emplace_back(super::_ev[l][k]);
+#endif
                         }
                         else {
+#if HPDDM_FETI || HPDDM_BDD
                             for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
                                 super::_ev[l][j] = super::_ev[l][k];
+#endif
                             vec.emplace_back(-(++j));
                         }
                     }
                     for(unsigned int k = interface.back() + 1; k < Subdomain<K>::_dof; ++k) {
+#if HPDDM_FETI || HPDDM_BDD
                         for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
                             super::_ev[l][j] = super::_ev[l][k];
+#endif
                         vec.emplace_back(-(++j));
                     }
+#if HPDDM_FETI || HPDDM_BDD
                     for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
                         std::copy(deflationBoundary[l].cbegin(), deflationBoundary[l].cend(), super::_ev[l] + Subdomain<K>::_dof - interface.size());
+#endif
                     std::vector<std::pair<unsigned int, K>> tmpInterior;
                     std::vector<std::pair<unsigned int, K>> tmpBoundary;
                     std::vector<std::vector<std::pair<unsigned int, K>>> tmpInteraction(interface.size());
@@ -594,6 +628,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Function: getSigned
          *  Returns the value of <Schur::signed>. */
         unsigned short getSigned() const { return _signed; }
+#if HPDDM_FETI || HPDDM_BDD
         /* Function: applyLocalSchurComplement(n)
          *
          *  Applies the local Schur complement to multiple right-hand sides.
@@ -708,6 +743,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
                 in[i] *= _bb->_a[_bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
         }
+#endif
         /* Function: getRank
          *  Returns the value of <Schur::rankWorld>. */
         int getRank() const { return _rankWorld; }
@@ -720,6 +756,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
         /* Function: setDeficiency
          *  Sets <Schur::deficiency>. */
         void setDeficiency(unsigned short deficiency) { _deficiency = deficiency; }
+#if HPDDM_FETI || HPDDM_BDD
         /* Function: condensateEffort
          *
          *  Performs static condensation.
@@ -768,6 +805,7 @@ class Schur : public Preconditioner<Solver, CoarseOperator, K> {
             storage[0] = std::sqrt(storage[0]);
             storage[1] = std::sqrt(storage[1]);
         }
+#endif
         /* Function: getAllDof
          *  Returns the number of local interior and boundary degrees of freedom (with the right multiplicity). */
         unsigned int getAllDof() const {

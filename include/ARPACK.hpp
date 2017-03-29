@@ -86,7 +86,7 @@ class Arpack : public Eigensolver<K> {
          *    ev             - Array of eigenvectors.
          *    communicator   - MPI communicator for selecting the threshold criterion. */
         template<template<class> class Solver>
-        void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr) {
+        void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr, std::ios_base::openmode mode = std::ios_base::out) {
             int iparam[11] { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
             int ipntr[!Wrapper<K>::is_complex ? 11 : 14] { };
             if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
@@ -157,13 +157,22 @@ class Arpack : public Eigensolver<K> {
                      _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv, vp, iparam,
                      ipntr, workd, workl, &lworkl, rwork, &info);
                 delete [] select;
-                Eigensolver<K>::dump(evr, ev, communicator);
+                std::string name = Eigensolver<K>::dump(evr, ev, communicator, mode);
+                if(!name.empty()) {
+                    std::ofstream output(name, std::fstream::in | std::fstream::out | std::fstream::app);
+                    output << "ARPACK informations:\n";
+                    output << "\t" << iparam[4] << " Arnoldi update iteration" << (iparam[4] > 1 ? "s" : "") << "\n";
+                    output << "\t" << iparam[8] << " (y = OP x) operation" << (iparam[8] > 1 ? "s" : "") << "\n";
+                    output << "\t" << iparam[9] << " (y = B x) operation" << (iparam[9] > 1 ? "s" : "") << "\n";
+                    output << "\t" << iparam[10] << " step" << (iparam[10] > 1 ? "s" : "") << " of re-orthogonalization\n";
+                    output << "\n\n";
+                }
                 if(Eigensolver<K>::_threshold > 0.0)
                     Eigensolver<K>::selectNu(evr, ev, communicator);
                 delete [] evr;
             }
             else {
-                ev = new K*[0];
+                ev = new K*[1];
                 *ev = nullptr;
             }
             delete [] workd;

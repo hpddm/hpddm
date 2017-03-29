@@ -173,7 +173,7 @@ class Pastix : public DMatrix {
             _iparm[IPARM_END_TASK]            = API_TASK_INIT;
             if(S == 'S') {
                 _iparm[IPARM_SYM]             = API_SYM_YES;
-                _iparm[IPARM_FACTORIZATION]   = opt.val<char>("master_not_spd", 0) ? API_FACT_LDLT : API_FACT_LLT;
+                _iparm[IPARM_FACTORIZATION]   = opt.val<char>("master_spd", 0) ? API_FACT_LLT : API_FACT_LDLT;
             }
             else {
                 _iparm[IPARM_SYM]             = API_SYM_NO;

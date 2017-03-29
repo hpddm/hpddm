@@ -36,8 +36,10 @@
         output[4] = output[4] & input[4];
 
 #include "subdomain.hpp"
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #include "coarse_operator_impl.hpp"
 #include "operator.hpp"
+#endif
 
 namespace HPDDM {
 /* Class: Preconditioner
@@ -48,8 +50,13 @@ namespace HPDDM {
  *    Solver         - Solver used for the factorization of local matrices.
  *    CoarseOperator - Class of the coarse operator.
  *    K              - Scalar type. */
-template<template<class> class Solver, class CoarseOperator, class K>
+template<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    template<class> class Solver, class CoarseOperator,
+#endif
+    class K>
 class Preconditioner : public Subdomain<K> {
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #ifdef __MINGW32__
     private:
         template<unsigned short N>
@@ -154,14 +161,14 @@ class Preconditioner : public Subdomain<K> {
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
             delete _co;
+            _co = nullptr;
             if(_ev && *_ev)
                 delete [] *_ev;
             delete [] _ev;
+            _ev = nullptr;
             delete [] _uc;
+            _uc = nullptr;
         }
-        /* Typedef: super
-         *  Type of the immediate parent class <Subdomain>. */
-        typedef Subdomain<K> super;
         /* Function: initialize
          *
          *  Initializes a two-level preconditioner.
@@ -210,6 +217,11 @@ class Preconditioner : public Subdomain<K> {
         /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local> or <i__0> if <Preconditioner::co> is not allocated. */
         const int* getAddrLocal() const { return _co ? _co->getAddrLocal() : &i__0; }
+#endif
+    public:
+        /* Typedef: super
+         *  Type of the immediate parent class <Subdomain>. */
+        typedef Subdomain<K> super;
 };
 } // HPDDM
 #endif // _HPDDM_PRECONDITIONER_

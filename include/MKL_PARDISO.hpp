@@ -127,7 +127,7 @@ class MklPardiso : public DMatrix {
             _C = C;
             const Option& opt = *Option::get();
             if(S == 'S')
-                _mtype = opt.val<char>("master_not_spd", 0) ? prds<K>::SYM : prds<K>::SPD;
+                _mtype = opt.val<char>("master_spd", 0) ? prds<K>::SPD : prds<K>::SYM;
             else
                 _mtype = prds<K>::SSY;
             int phase, error;
@@ -158,7 +158,7 @@ class MklPardiso : public DMatrix {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
 #endif
-            if((S == 'S' && opt.val<char>("master_not_spd", 0) != 1) || *loc2glob != _iparm[41] - _iparm[40] + 1)
+            if((S == 'S' && opt.val<char>("master_spd", 0) == 1) || *loc2glob != _iparm[41] - _iparm[40] + 1)
                 _C = nullptr;
             else
                 C = nullptr;
