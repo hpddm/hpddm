@@ -7,6 +7,8 @@
 \usepackage{amsmath}
 \usepackage{color, colortbl}
 \usepackage[utf8]{inputenc}
+\newdimen\parspace
+\parspace=-0.5cm
 \definecolor{LightRed}{rgb}{1,0.88,0.88}
 \begin{document}
 \begin{center} {\LARGE --- $\quad$ HPDDM $\quad$ ---} \\[5pt] \url{https://github.com/hpddm/hpddm} \end{center}
@@ -60,46 +62,48 @@
 \setlength{\LTleft}{\LTbackup}
 \noindent{
 When using Schwarz methods, there are additional options.}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.4\textwidth}| p{.20\textwidth} | p{.04\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & Default \\ \hline
         schwarz\_method & Type of Schwarz preconditioner used to solve linear systems & \texttt{ras}, \texttt{oras}, \texttt{soras}, \texttt{asm}, \texttt{osm}, \texttt{none} & \texttt{ras} \\ \hline
         schwarz\_coarse\_correction & Type of coarse correction used in two-level methods & \texttt{deflated}, \texttt{additive}, \texttt{balanced} & \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \end{center}
 When using substructuring methods, there is an additional option.
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.15\textwidth} | p{.42\textwidth}| p{.25\textwidth} | p{.085\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & Default \\ \hline
         substructuring\_scaling & Scaling used in the definition of the Schur complement preconditioner & \texttt{multiplicity}, \texttt{stiffness}, \texttt{coefficient} & \texttt{multiplicity} \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \end{center}
 When using MKL PARDISO as a subdomain solver (resp. coarse operator solver), there are additional options, cf. \url{https://software.intel.com/en-us/node/470298} (resp. \url{https://software.intel.com/en-us/node/590089}).
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values \\ \hline
         \cellcolor{LightRed}mkl\_pardiso\_iparm\_(2|8|1[013]|2[147]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
         \cellcolor{LightRed}master\_mkl\_pardiso\_iparm\_(2|1[013]|2[17]) & Integer control parameters of MKL PARDISO for the coarse operator solver & Integer \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \end{center}
 When using MUMPS as a subdomain solver (resp. coarse operator solver), there are additional options, cf. \url{http://mumps.enseeiht.fr/index.php?page=doc}.
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values \\ \hline
-        \cellcolor{LightRed}mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the subdomain solvers & Integer \\ \hline
-        \cellcolor{LightRed}master\_mumps\_icntl\_([6-9]|[1-3][0-9]|40) & Integer control parameters of MUMPS for the coarse operator solver & Integer \\ \hline
+        \cellcolor{LightRed}mumps\_icntl\_([678]|1[234]|2[3789]|35) & Integer control parameters of MUMPS for the subdomain solvers & Integer \\ \hline
+        \cellcolor{LightRed}mumps\_cntl\_([123457]) & Real control parameters of MUMPS for the subdomain solvers & Numeric \\ \hline
+        \cellcolor{LightRed}master\_mumps\_icntl\_([678]|1[234]|2[3789]|35) & Integer control parameters of MUMPS for the coarse operator solver & Integer \\ \hline
+        \cellcolor{LightRed}master\_mumps\_cntl\_([123457]) & Real control parameters of MUMPS for the coarse operator solver & Numeric \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \end{center}
 When using \textit{hypre} as a coarse operator solver, there are additional options, cf. \url{http://acts.nersc.gov/hypre/#Documentation}.
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.49\textwidth}| p{.115\textwidth}| p{.05\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values & Default \\ \hline
@@ -113,15 +117,15 @@ When using \textit{hypre} as a coarse operator solver, there are additional opti
         \cellcolor{LightRed}master\_boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
         \cellcolor{LightRed}master\_boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \end{center}
 When using ARPACK as an eigensolver, there is an additional option.
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{Keyword} & Description & Possible values \\ \hline
         \cellcolor{LightRed}arpack\_ncv & Number of Lanczos basis vectors generated in one iteration & Integer \\ \hline
     \end{longtable}
-\vspace*{-0.4cm}
+\vspace*{\parspace}
 \end{center}
 \end{document}

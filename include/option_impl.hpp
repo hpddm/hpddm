@@ -103,10 +103,12 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
 #endif
 #ifdef MUMPSSUB
-        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the subdomain solvers", Arg::integer),
+        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[3789]|35)=<val>", "Integer control parameters of MUMPS for the subdomain solvers", Arg::integer),
+        std::forward_as_tuple("mumps_cntl_([123457])=<val>", "Real control parameters of MUMPS for the subdomain solvers", Arg::numeric),
 #endif
 #ifdef DMUMPS
-        std::forward_as_tuple("master_mumps_icntl_([678]|1[234]|2[3789])=<val>", "Integer control parameters of MUMPS for the coarse operator solver", Arg::integer),
+        std::forward_as_tuple("master_mumps_icntl_([678]|1[234]|2[3789]|35)=<val>", "Integer control parameters of MUMPS for the coarse operator solver", Arg::integer),
+        std::forward_as_tuple("master_mumps_cntl_([123457])=<val>", "Real control parameters of MUMPS for the coarse operator solver", Arg::numeric),
 #endif
 #endif
 #ifdef DHYPRE

@@ -121,10 +121,15 @@ class Mumps : public DMatrix {
             _id->icntl[4]  = 0;
             _id->icntl[13] = opt.val<int>("master_mumps_icntl_14", 80);
             _id->icntl[17] = 3;
-            for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28 }) {
+            for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28, 34 }) {
                 int val = opt.val<int>("master_mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
                     _id->icntl[i] = val;
+            }
+            for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
+                double val = opt.val("master_mumps_cntl_" + to_string(i + 1));
+                if(val >= std::numeric_limits<double>::lowest() / 10.0)
+                    _id->cntl[i] = val;
             }
             _id->job = 4;
             if(opt.val<char>("verbosity", 0) < 3)
@@ -250,10 +255,15 @@ class MumpsSub {
                 std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
                 _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
-                for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28 }) {
+                for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28, 34 }) {
                     int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                     if(val != std::numeric_limits<int>::lowest())
                         _id->icntl[i] = val;
+                }
+                for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
+                    double val = opt.val("mumps_cntl_" + to_string(i + 1));
+                    if(val >= std::numeric_limits<double>::lowest() / 10.0)
+                        _id->cntl[i] = val;
                 }
                 _id->lrhs = A->_n;
                 _I = new int[A->_nnz];
