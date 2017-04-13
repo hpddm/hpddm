@@ -294,7 +294,7 @@ class MklPardisoSub {
                 phase = 22;
             }
             if(A->_sym) {
-                _mtype = (opt.val<char>("local_operators_not_spd", 0) || detection) ? prds<K>::SYM : prds<K>::SPD;
+                _mtype = (opt.val<char>("local_operator_spd", 0) && !detection) ? prds<K>::SPD : prds<K>::SYM;
                 Wrapper<K>::template csrcsc<N, N>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
             }
             else {

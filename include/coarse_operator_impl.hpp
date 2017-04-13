@@ -592,7 +592,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
                             std::iota(J + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + j, J + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + _local, v._max + j);
 #if HPDDM_INEXACT_COARSE_OPERATOR
-                            std::fill(neighbors + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + j, neighbors + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + _local, DMatrix::_rank);
+                            std::fill_n(neighbors + j * (coefficients + _local - 1) - (j * (j - 1)) / 2 + j, _local - j, DMatrix::_rank);
 #endif
                         }
                     else {

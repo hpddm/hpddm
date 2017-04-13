@@ -41,7 +41,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations", Arg::positive),
         std::forward_as_tuple("verbosity(=<integer>)", "Level of output (higher means more displayed information)", Arg::anything),
         std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems", Arg::argument),
-        std::forward_as_tuple("local_operators_not_spd=(0|1)", "Assume local operators are not positive definite", Arg::argument),
+        std::forward_as_tuple("local_operator_spd=(0|1)", "Assume the local operator is symmetric positive definite", Arg::argument),
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
 #ifndef HPDDM_NO_REGEX
         std::forward_as_tuple("dump_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),

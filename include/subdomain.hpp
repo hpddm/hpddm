@@ -722,8 +722,8 @@ class Subdomain : public OptionsPrefix {
          *  Assembles a distributed vector that can by used by a backend such as PETSc.
          *
          * See also: <Subdomain::globalMapping>. */
-        template<bool T>
-        static void distributedVec(unsigned int* num, unsigned int first, unsigned int last, K* const& in, K*& out, const unsigned int n, const unsigned short bs = 1) {
+        template<bool V, class T = K>
+        static void distributedVec(unsigned int* num, unsigned int first, unsigned int last, T* const& in, T*& out, const unsigned int n, const unsigned short bs = 1) {
             if(first != 0 || last != n) {
                 if(!out) {
                     unsigned int dof = 0;
@@ -731,11 +731,11 @@ class Subdomain : public OptionsPrefix {
                         if(num[i] >= first && num[i] < last)
                             ++dof;
                     }
-                    out = new K[dof];
+                    out = new T[dof];
                 }
                 for(unsigned int i = 0; i < n; ++i) {
                     if(num[i] >= first && num[i] < last) {
-                        if(!T)
+                        if(!V)
                             std::copy_n(in + bs * i, bs, out + bs * (num[i] - first));
                         else
                             std::copy_n(out + bs * (num[i] - first), bs, in + bs * i);
@@ -743,7 +743,7 @@ class Subdomain : public OptionsPrefix {
                 }
             }
             else {
-                if(!T)
+                if(!V)
                     std::copy_n(in, bs * n, out);
                 else
                     std::copy_n(out, bs * n, in);

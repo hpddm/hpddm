@@ -29,7 +29,7 @@
         max\_it & Maximum number of iterations of iterative methods & Integer & $100$ & \\ \hline
         verbosity & Level of output (higher means more displayed information) & Integer & & \\ \hline
         \cellcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & & \\ \hline
-        local\_operators\_not\_spd & Assume local operators are not positive definite & Boolean & & \\ \hline
+        local\_operator\_spd & Assume the local operator is symmetric positive definite & Boolean & & \\ \hline
         orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs & \\ \hline
         dump\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & & \\ \hline
         dump\_eigenvectors(\_[[:digit:]]+)? & Save either one or all local eigenvectors to disk & String & & \\ \hline

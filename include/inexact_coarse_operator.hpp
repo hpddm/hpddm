@@ -116,13 +116,12 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                         _communicator = DMatrix::_communicator;
                         accumulate = std::accumulate(I + 1, I + 1 + nrow, 0);
                     }
+                    int* ja = ia + nrow + 1;
                     if(!ia) {
-                        ia = new int[nrow + 1 + accumulate];
-                        ia[0] = I[0];
-                        for(unsigned int i = 0; i < nrow; ++i)
-                            ia[i + 1] = I[i + 1] + ia[i];
+                        ia = new int[nrow + 1 + (_mu < _off ? accumulate : 0)];
+                        std::partial_sum(I, I + nrow + 1, ia);
                         if(_mu < _off) {
-                            int* const ja = ia + nrow + 1;
+                            ja = ia + nrow + 1;
                             for(unsigned int i = 0; i < nrow; ++i) {
                                 for(unsigned int j = ia[i]; j < ia[i + 1]; ++j) {
                                     const unsigned int idx = J[j - (Solver<K>::_numbering == 'F')];
@@ -133,9 +132,8 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                             }
                         }
                         else
-                            std::copy_n(I + nrow + 1, accumulate, ia + nrow + 1);
-                        a = new K[accumulate * _bs * _bs];
-                        std::copy_n(C, accumulate * _bs * _bs, a);
+                            ja = I + nrow + 1;
+                        a = C;
                     }
                     if(_mu < _off) {
                         loc2glob[0] -= _di[0];
@@ -143,21 +141,20 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                         delete [] _di;
                     }
 #ifdef DMKL_PARDISO
-                    Solver<K>::template numfact<S>(_bs, ia, loc2glob, ia + nrow + 1, a);
+                    Solver<K>::template numfact<S>(_bs, ia, loc2glob, ja, a);
 #else
                     int* irn;
                     int* jcn;
                     K* b;
-                    Wrapper<K>::template bsrcoo<S, Solver<K>::_numbering, 'F'>(nrow, _bs, a, ia, ia + nrow + 1, b, irn, jcn, loc2glob[0] - (Solver<K>::_numbering == 'F'));
-                    if(b != a) {
+                    Wrapper<K>::template bsrcoo<S, Solver<K>::_numbering, 'F'>(nrow, _bs, a, ia, ja, b, irn, jcn, loc2glob[0] - (Solver<K>::_numbering == 'F'));
+                    if(a != b && a != C)
                         delete [] a;
-                        a = b;
-                    }
                     if(DMatrix::_n)
-                        Solver<K>::template numfact<S>(std::distance(irn, jcn), irn, jcn, a);
+                        Solver<K>::template numfact<S>(std::distance(irn, jcn), irn, jcn, a = b);
                     Solver<K>::_range = { (loc2glob[0] - (Solver<K>::_numbering == 'F')) * _bs, (loc2glob[1] + (Solver<K>::_numbering == 'C')) * _bs };
 #endif
-                    delete [] a;
+                    if(a != C)
+                        delete [] a;
                 }
                 _di = new int[nrow + 1];
                 _di[0] = (Solver<K>::_numbering == 'F');

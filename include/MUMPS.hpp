@@ -240,7 +240,7 @@ class MumpsSub {
                 _id->job = -1;
                 _id->par = 1;
                 _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
-                _id->sym = A->_sym ? 1 + (opt.val<char>("local_operators_not_spd", 0) || detection) : 0;
+                _id->sym = A->_sym ? 2 - (opt.val<char>("local_operator_spd", 0) && !detection) : 0;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
             }
             _id->icntl[23] = detection;
