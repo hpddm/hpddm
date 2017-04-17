@@ -207,6 +207,93 @@ class MatrixCSR {
             }
             return false;
         }
+        template<char N>
+        bool structurallySymmetric() const {
+            for(unsigned int i = 0; i < _n; ++i) {
+                bool diagonalCoefficient = false;
+                for(unsigned int j = _ia[i] - (N == 'F'); j < _ia[i + 1] - (N == 'F'); ++j) {
+                    if(_ja[j] != (i + (N == 'F'))) {
+                        if(!std::binary_search(_ja + _ia[_ja[j] - (N == 'F')] - (N == 'F'), _ja + _ia[_ja[j] - (N == 'F') + 1] - (N == 'F'), i + (N == 'F')))
+                            return false;
+                    }
+                    else
+                        diagonalCoefficient = true;
+                }
+                if(!diagonalCoefficient)
+                    return false;
+            }
+            return true;
+        }
+        template<char N, char M>
+        const MatrixCSR<K>* symmetrizedStructure() const {
+            std::vector<std::array<int, 3>> missingCoefficients;
+            bool sorted = true;
+            for(int i = 0; i < _n; ++i) {
+                if(_ia[i + 1] == _ia[i]) {
+                    missingCoefficients.emplace_back(std::array<int, 3>({{ _ia[i] - (N == 'F'), i , i }}));
+                    sorted = false;
+                }
+                else {
+                    int* diagonal;
+                    if(!_sym) {
+                        diagonal = std::lower_bound(_ja + _ia[i] - (N == 'F'), _ja + _ia[i + 1] - (N == 'F'), i + (N == 'F'));
+                        for(int j = _ia[i] - (N == 'F'); j < _ia[i + 1] - (N == 'F'); ++j) {
+                            if(j != std::distance(_ja, diagonal)) {
+                                int* it = std::lower_bound(_ja + _ia[_ja[j] - (N == 'F')] - (N == 'F'), _ja + _ia[_ja[j] - (N == 'F') + 1] - (N == 'F'), i + (N == 'F'));
+                                if(it == _ja + _ia[_ja[j] - (N == 'F') + 1] - (N == 'F') || *it != i + (N == 'F'))
+                                    missingCoefficients.emplace_back(std::array<int, 3>({{ static_cast<int>(std::distance(_ja, it)), _ja[j] - (N == 'F'), i }}));
+                            }
+                        }
+                    }
+                    else
+                        diagonal = _ja + _ia[i + 1] - (N == 'F') - 1;
+                    if((!_sym && diagonal == _ja + _ia[i + 1] - (N == 'F')) || *diagonal != i + (N == 'F')) {
+                        missingCoefficients.emplace_back(std::array<int, 3>({{ static_cast<int>(std::distance(_ja, diagonal)), i, i }}));
+                        sorted = false;
+                    }
+                }
+            }
+            if(missingCoefficients.empty()) {
+                if(N == 'C' && M == 'F') {
+                    std::for_each(_ia, _ia + _n + 1, [](int& i) { ++i; });
+                    std::for_each(_ja, _ja + _nnz, [](int& i) { ++i; });
+                }
+                else if(N == 'F' && M == 'C') {
+                    std::for_each(_ia, _ia + _n + 1, [](int& i) { --i; });
+                    std::for_each(_ja, _ja + _nnz, [](int& i) { --i; });
+                }
+                return this;
+            }
+            else {
+                if(!sorted)
+                    std::sort(missingCoefficients.begin(), missingCoefficients.end());
+                MatrixCSR<K>* ret = new MatrixCSR<K>(_n, _m, _nnz + missingCoefficients.size(), _sym);
+                if(N == 'C' && M == 'F')
+                    std::transform(_ia, _ia + _n + 1, ret->_ia, [](int i) { return i + 1; });
+                else if(N == 'F' && M == 'C')
+                    std::transform(_ia, _ia + _n + 1, ret->_ia, [](int i) { return i - 1; });
+                else
+                    std::copy_n(_ia, _n + 1, ret->_ia);
+                missingCoefficients.emplace_back(std::array<int, 3>({{ _nnz, 0 , 0 }}));
+                unsigned int prev = 0;
+                for(unsigned int i = 0; i < missingCoefficients.size(); ++i) {
+                    if(N == 'C' && M == 'F')
+                        std::transform(_ja + prev, _ja + missingCoefficients[i][0], ret->_ja + prev + i, [](int j) { return j + 1; });
+                    else if(N == 'F' && M == 'C')
+                        std::transform(_ja + prev, _ja + missingCoefficients[i][0], ret->_ja + prev + i, [](int j) { return j - 1; });
+                    else
+                        std::copy(_ja + prev, _ja + missingCoefficients[i][0], ret->_ja + prev + i);
+                    std::copy(_a + prev, _a + missingCoefficients[i][0], ret->_a + prev + i);
+                    if(i != missingCoefficients.size() - 1) {
+                        ret->_ja[missingCoefficients[i][0] + i] = missingCoefficients[i][2] + (M == 'F');
+                        ret->_a[missingCoefficients[i][0] + i] = K();
+                        prev = missingCoefficients[i][0];
+                        std::for_each(ret->_ia + missingCoefficients[i][1] + 1, ret->_ia + _n + 1, [](int& j) { j += 1; });
+                    }
+                }
+                return ret;
+            }
+        }
         std::size_t hashIndices() const {
             std::size_t seed = 0;
             hash_range(seed, _ia, _ia + _n);

@@ -261,24 +261,8 @@ class MklPardisoSub {
                     _J = new int[A->_nnz];
                     _C = new K[A->_nnz];
                 }
-                else {
-                    _mtype = prds<K>::SSY;
-                    for(unsigned int i = 0; i < _n && _mtype != prds<K>::UNS; ++i) {
-                        bool diagonalCoefficient = false;
-                        for(unsigned int j = A->_ia[i] - (N == 'F'); j < A->_ia[i + 1] - (N == 'F'); ++j) {
-                            if(A->_ja[j] != (i + (N == 'F'))) {
-                                if(!std::binary_search(A->_ja + A->_ia[A->_ja[j] - (N == 'F')] - (N == 'F'), A->_ja + A->_ia[A->_ja[j] - (N == 'F') + 1] - (N == 'F'), i + (N == 'F'))) {
-                                    _mtype = prds<K>::UNS;
-                                    break;
-                                }
-                            }
-                            else
-                                diagonalCoefficient = true;
-                        }
-                        if(!diagonalCoefficient)
-                            _mtype = prds<K>::UNS;
-                    }
-                }
+                else
+                    _mtype = A->structurallySymmetric<N>() ? prds<K>::SSY : prds<K>::UNS;
                 if(schur) {
                     _iparm[35] = 2;
                     perm = new int[_n];

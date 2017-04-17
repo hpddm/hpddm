@@ -312,18 +312,17 @@ class PastixSub {
                     _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
                 }
             }
+            const MatrixCSR<K>* B = A->_sym ? nullptr : A->template symmetrizedStructure<N, 'F'>();
             if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = (Option::get()->val<char>("local_operator__spd", 0) && !detection) ? API_FACT_LLT : API_FACT_LDLT;
+                _iparm[IPARM_FACTORIZATION]       = (Option::get()->val<char>("local_operator_spd", 0) && !detection) ? API_FACT_LLT : API_FACT_LDLT;
                 Wrapper<K>::template csrcsc<N, 'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
             }
             else {
-                _values = A->_a;
-                _colptr = A->_ia;
-                _rows = A->_ja;
-                if(N == 'C') {
-                    std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { ++i; });
-                    std::for_each(_rows, _rows + A->_nnz, [](int& i) { ++i; });
-                }
+                _values = B->_a;
+                _colptr = B->_ia;
+                _rows = B->_ja;
+                if(B != A)
+                    _iparm[IPARM_TRANSPOSE_SOLVE] = API_YES;
             }
             pastix_int_t* perm = new pastix_int_t[2 * _ncol];
             pastix_int_t* iperm = perm + _ncol;
@@ -350,16 +349,21 @@ class PastixSub {
                          perm, iperm, NULL, 1, _iparm, _dparm);
             delete [] listvar;
             delete [] perm;
-            if(N == 'C' && _iparm[IPARM_SYM] == API_SYM_NO) {
-                std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { --i; });
-                std::for_each(_rows, _rows + A->_nnz, [](int& i) { --i; });
+            if(_iparm[IPARM_SYM] == API_SYM_NO) {
+                if(B == A) {
+                    if(N == 'C') {
+                        std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { --i; });
+                        std::for_each(_rows, _rows + A->_nnz, [](int& i) { --i; });
+                    }
+                }
+                else
+                    delete B;
             }
         }
         void solve(K* const x, const unsigned short& n = 1) const {
             _iparm[IPARM_START_TASK] = API_TASK_SOLVE;
             _iparm[IPARM_END_TASK]   = API_TASK_SOLVE;
             pstx<K>::seq(const_cast<pastix_data_t**>(&_data), MPI_COMM_SELF,
-                         // _ncol, _colptr, _rows, _values,
                          _ncol, NULL, NULL, NULL,
                          NULL, NULL, x, n, _iparm, _dparm);
         }
