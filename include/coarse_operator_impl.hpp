@@ -25,7 +25,6 @@
 #ifndef _HPDDM_COARSE_OPERATOR_IMPL_
 #define _HPDDM_COARSE_OPERATOR_IMPL_
 
-#include <array>
 #include "coarse_operator.hpp"
 
 namespace HPDDM {

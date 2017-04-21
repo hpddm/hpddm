@@ -26,6 +26,7 @@
 #define _HPDDM_MATRIX_
 
 #include <iterator>
+#include <array>
 
 namespace HPDDM {
 /* Class: MatrixCSR
