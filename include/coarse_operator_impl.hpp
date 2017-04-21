@@ -392,7 +392,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     unsigned short** infoSplit;
     unsigned int*    offsetIdx;
-    unsigned short*  infoWorld;
+    unsigned short*  infoWorld = nullptr;
 #if HPDDM_INEXACT_COARSE_OPERATOR
     unsigned short*  neighbors;
 #endif

@@ -58,7 +58,7 @@ class DissectionSub {
 #else
                 int num_threads = 1;
 #endif
-                _dslv = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, 0);
+                _dslv = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
                 _dslv->SymbolicFact(B->_n, B->_ia, B->_ja, B->_sym, false);
                 if(N == 'F' && B == A) {
                     std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });

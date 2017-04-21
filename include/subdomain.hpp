@@ -57,6 +57,16 @@ class Subdomain : public OptionsPrefix {
         int                        _dof;
     public:
         Subdomain() : OptionsPrefix(), _a(), _buff(), _map(), _rq(), _dof() { }
+#if !(HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD)
+        Subdomain(const Subdomain<K>& s) {
+            _a = nullptr;
+            _map = s._map;
+            _communicator = s._communicator;
+            _dof = s._dof;
+            _rq = new MPI_Request[2 * _map.size()];
+            _buff = new K*[2 * _map.size()];
+        }
+#endif
         ~Subdomain() {
             delete [] _rq;
             vectorNeighbor().swap(_map);
@@ -89,6 +99,15 @@ class Subdomain : public OptionsPrefix {
                         in[_map[index].second[j] + nu * _dof] += _buff[index][j];
                 }
                 MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
+            }
+        }
+        template<class T, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex && std::is_same<K, underlying_type<T>>::value>::type* = nullptr>
+        void exchange(T* const in, const unsigned short& mu = 1) const {
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                K* transpose = reinterpret_cast<K*>(in + nu * _dof);
+                Wrapper<K>::template cycle<'T'>(_dof, 2, transpose, 1);
+                exchange(transpose, 2);
+                Wrapper<K>::template cycle<'T'>(2, _dof, transpose, 1);
             }
         }
         /* Function: recvBuffer

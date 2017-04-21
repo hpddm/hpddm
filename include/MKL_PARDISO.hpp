@@ -262,7 +262,7 @@ class MklPardisoSub {
                     _C = new K[A->_nnz];
                 }
                 else
-                    _mtype = A->structurallySymmetric<N>() ? prds<K>::SSY : prds<K>::UNS;
+                    _mtype = A->template structurallySymmetric<N>() ? prds<K>::SSY : prds<K>::UNS;
                 if(schur) {
                     _iparm[35] = 2;
                     perm = new int[_n];
