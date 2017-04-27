@@ -228,12 +228,9 @@ class MatrixCSR {
         template<char N, char M>
         const MatrixCSR<K>* symmetrizedStructure() const {
             std::vector<std::array<int, 3>> missingCoefficients;
-            bool sorted = true;
             for(int i = 0; i < _n; ++i) {
-                if(_ia[i + 1] == _ia[i]) {
+                if(_ia[i + 1] == _ia[i])
                     missingCoefficients.emplace_back(std::array<int, 3>({{ _ia[i] - (N == 'F'), i , i }}));
-                    sorted = false;
-                }
                 else {
                     int* diagonal;
                     if(!_sym) {
@@ -248,10 +245,8 @@ class MatrixCSR {
                     }
                     else
                         diagonal = _ja + _ia[i + 1] - (N == 'F') - 1;
-                    if((!_sym && diagonal == _ja + _ia[i + 1] - (N == 'F')) || *diagonal != i + (N == 'F')) {
+                    if((!_sym && diagonal == _ja + _ia[i + 1] - (N == 'F')) || *diagonal != i + (N == 'F'))
                         missingCoefficients.emplace_back(std::array<int, 3>({{ static_cast<int>(std::distance(_ja, diagonal)), i, i }}));
-                        sorted = false;
-                    }
                 }
             }
             if(missingCoefficients.empty()) {
@@ -266,8 +261,7 @@ class MatrixCSR {
                 return this;
             }
             else {
-                if(!sorted)
-                    std::sort(missingCoefficients.begin(), missingCoefficients.end());
+                std::sort(missingCoefficients.begin(), missingCoefficients.end());
                 MatrixCSR<K>* ret = new MatrixCSR<K>(_n, _m, _nnz + missingCoefficients.size(), _sym);
                 if(N == 'C' && M == 'F')
                     std::transform(_ia, _ia + _n + 1, ret->_ia, [](int i) { return i + 1; });
