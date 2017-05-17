@@ -326,7 +326,7 @@ class MatrixCSR {
         template<bool I, class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
         static bool scan(const char* str, int* row, int* col, T* val) {
             double re, im;
-            int ret = (I ? sscanf(str, "(%le,%le) %i %i", &re, &im, row, col) : sscanf(str, "%i %i (%le,%le)", row, col, &re, &im));
+            int ret = (I ? sscanf(str, "%i %i (%le,%le)", row, col, &re, &im) : sscanf(str, "(%le,%le) %i %i", &re, &im, row, col));
             *val = T(re, im);
             return ret != 4;
         }

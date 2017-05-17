@@ -307,6 +307,7 @@ class MumpsSub {
         unsigned short deficiency() const { return _id->infog[27]; }
         void solve(K* const x, const unsigned short& n = 1) const {
             _id->icntl[20] = 0;
+            _id->icntl[26] = n;
             _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);
             _id->nrhs = n;
             _id->job = 3;

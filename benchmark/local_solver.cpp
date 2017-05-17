@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         auto tEnd = std::chrono::steady_clock::now();
-        std::cout << "// matrix read from file in " << std::chrono::duration<double, std::ratio<1>>(tEnd - tBegin).count() << " second(s)\n";
+        std::cout << "// matrix read from file in " << std::chrono::duration<double>(tEnd - tBegin).count() << " second(s)\n";
     }
     {
 #if defined(MUMPSSUB) || defined(PASTIXSUB)
@@ -115,13 +115,13 @@ int main(int argc, char** argv) {
             auto tBegin = std::chrono::steady_clock::now();
             S->numfact(A);
             auto tEnd = std::chrono::steady_clock::now();
-            std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double, std::milli>(tEnd - tBegin).count();
+            std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count();
         }
         for(unsigned short nu = mu; nu >= 1; nu /= 2) {
             auto tBegin = std::chrono::steady_clock::now();
             S->solve(rhs, nu);
             auto tEnd = std::chrono::steady_clock::now();
-            std::cout << "\t" << std::setw(10) << std::setprecision(5) << std::chrono::duration<double, std::milli>(tEnd - tBegin).count();
+            std::cout << (!solve || nu != mu ? "\t" : "") << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count();
         }
         std::cout << "\n";
         if(!solve) {

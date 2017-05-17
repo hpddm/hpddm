@@ -32,7 +32,6 @@ else:
     from io import StringIO
 from subprocess import Popen, PIPE
 import pandas
-pandas.set_option('display.width', pandas.util.terminal.get_terminal_size()[0])
 
 if len(sys.argv) < 2:
     sys.exit(1)
