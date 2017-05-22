@@ -21,6 +21,7 @@
  */
 
 #include <chrono>
+#include <deque>
 #if HPDDM_MKL
 # include <complex>
 # define MKL_Complex16         std::complex<double>
@@ -87,8 +88,8 @@ int main(int argc, char** argv) {
     }
     HPDDM::Option& opt = *HPDDM::Option::get();
     opt.parse(argc, argv, false, {
-        std::forward_as_tuple("warm_up=<2>", "Number of fake runs to prime the pump.", HPDDM::Option::Arg::integer),
-        std::forward_as_tuple("trials=<5>", "Number of trial runs to time.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("warm_up=<1>", "Number of fake runs to prime the pump.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("trials=<3>", "Number of trial runs to time.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("rhs=<1>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("solve_phase_only=(0|1)", "Benchmark only the solve phase.", HPDDM::Option::Arg::argument)
     });
@@ -117,7 +118,10 @@ int main(int argc, char** argv) {
             auto tEnd = std::chrono::steady_clock::now();
             std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count();
         }
-        for(unsigned short nu = mu; nu >= 1; nu /= 2) {
+        std::deque<unsigned short> q;
+        for(unsigned short nu = mu; nu >= 1; nu /= 2)
+            q.emplace_front(nu);
+        for(const unsigned short& nu : q) {
             auto tBegin = std::chrono::steady_clock::now();
             S->solve(rhs, nu);
             auto tEnd = std::chrono::steady_clock::now();
