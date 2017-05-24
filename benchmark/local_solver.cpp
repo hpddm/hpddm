@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
     opt.parse(argc, argv, false, {
         std::forward_as_tuple("warm_up=<1>", "Number of fake runs to prime the pump.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("trials=<3>", "Number of trial runs to time.", HPDDM::Option::Arg::integer),
-        std::forward_as_tuple("rhs=<1>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::integer),
+        std::forward_as_tuple("rhs=<1>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::positive),
         std::forward_as_tuple("solve_phase_only=(0|1)", "Benchmark only the solve phase.", HPDDM::Option::Arg::argument)
     });
     int mu = opt.app()["rhs"];
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
             auto tBegin = std::chrono::steady_clock::now();
             S->numfact(A);
             auto tEnd = std::chrono::steady_clock::now();
-            std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count();
+            std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count() << "\t";
         }
         std::deque<unsigned short> q;
         for(unsigned short nu = mu; nu >= 1; nu /= 2)
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
             auto tBegin = std::chrono::steady_clock::now();
             S->solve(rhs, nu);
             auto tEnd = std::chrono::steady_clock::now();
-            std::cout << (!solve || nu != mu ? "\t" : "") << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count();
+            std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double>(tEnd - tBegin).count() << (nu > 1 ? "\t" : "");
         }
         std::cout << "\n";
         if(!solve) {

@@ -142,14 +142,20 @@ class Subdomain : public OptionsPrefix {
             _a = a;
             if(_a)
                 _dof = _a->_n;
-            _map.reserve(o.size());
+            std::vector<unsigned short> sortable;
+            for(const auto& i : o)
+                sortable.emplace_back(i);
+            _map.reserve(sortable.size());
+            std::vector<unsigned short> idx(sortable.size());
+            std::iota(idx.begin(), idx.end(), 0);
+            std::sort(idx.begin(), idx.end(), [&](const unsigned short& lhs, const unsigned short& rhs) { return sortable[lhs] < sortable[rhs]; });
             unsigned short j = 0;
-            for(const auto& i : o) {
-                if(r[j].size() > 0) {
-                    _map.emplace_back(i, typename decltype(_map)::value_type::second_type());
-                    _map.back().second.reserve(r[j].size());
-                    for(int k = 0; k < r[j].size(); ++k)
-                        _map.back().second.emplace_back(r[j][k]);
+            for(const unsigned short& i : idx) {
+                if(r[idx[j]].size() > 0) {
+                    _map.emplace_back(sortable[i], typename decltype(_map)::value_type::second_type());
+                    _map.back().second.reserve(r[idx[j]].size());
+                    for(int k = 0; k < r[idx[j]].size(); ++k)
+                        _map.back().second.emplace_back(r[idx[j]][k]);
                 }
                 ++j;
             }
@@ -165,13 +171,16 @@ class Subdomain : public OptionsPrefix {
             if(_a)
                 _dof = _a->_n;
             _map.reserve(neighbors);
+            std::vector<unsigned short> idx(neighbors);
+            std::iota(idx.begin(), idx.end(), 0);
+            std::sort(idx.begin(), idx.end(), [&](const unsigned short& lhs, const unsigned short& rhs) { return list[lhs] < list[rhs]; });
             unsigned short j = 0;
             while(j < neighbors) {
-                if(sizes[j] > 0) {
-                    _map.emplace_back(list[j], typename decltype(_map)::value_type::second_type());
-                    _map.back().second.reserve(sizes[j]);
-                    for(int k = 0; k < sizes[j]; ++k)
-                        _map.back().second.emplace_back(connectivity[j][k]);
+                if(sizes[idx[j]] > 0) {
+                    _map.emplace_back(list[idx[j]], typename decltype(_map)::value_type::second_type());
+                    _map.back().second.reserve(sizes[idx[j]]);
+                    for(int k = 0; k < sizes[idx[j]]; ++k)
+                        _map.back().second.emplace_back(connectivity[idx[j]][k]);
                 }
                 ++j;
             }
