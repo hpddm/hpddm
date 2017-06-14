@@ -80,13 +80,13 @@ if sizeWorld > 1:
     comm = hpddm.getCommunicator(hpddm.schwarzPreconditioner(A))
     it = hpddm.solve(A, f, sol, comm)
     storage = numpy.empty(2 * mu, order = 'F', dtype = hpddm.underlying)
-    hpddm.schwarzComputeError(A, sol, f, storage)
+    hpddm.schwarzComputeResidual(A, sol, f, storage)
     if rankWorld == 0:
         for nu in xrange(mu):
             if nu == 0:
-                print(' --- error = ', end = '')
+                print(' --- residual = ', end = '')
             else:
-                print('             ', end = '')
+                print('                ', end = '')
             print('{:e} / {:e}'.format(storage[1 + 2 * nu], storage[2 * nu]), end = '')
             if mu > 1:
                 print(' (rhs #{:d})'.format(nu + 1), end = '')
@@ -113,9 +113,9 @@ else:
         mu = 1
     for nu in xrange(mu):
         if nu == 0:
-            print(' --- error = ', end = '')
+            print(' --- residual = ', end = '')
         else:
-            print('             ', end = '')
+            print('                ', end = '')
         print('{:e} / {:e}'.format(nrmAx[nu], nrmb[nu]), end = '')
         if mu > 1:
             print(' (rhs #{:d})'.format(nu + 1), end = '')

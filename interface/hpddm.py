@@ -243,15 +243,15 @@ schwarzSolveGEVP.argtypes = [ ctypes.POINTER(Schwarz), ctypes.POINTER(MatrixCSR)
 schwarzBuildCoarseOperator = lib.schwarzBuildCoarseOperator
 schwarzBuildCoarseOperator.restype = None
 schwarzBuildCoarseOperator.argtypes = [ ctypes.POINTER(Schwarz), MPI_Comm ]
-_schwarzComputeError = lib.schwarzComputeError
-_schwarzComputeError.restype = None
-_schwarzComputeError.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(underlying, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
-def schwarzComputeError(A, sol, f, storage):
+_schwarzComputeResidual = lib.schwarzComputeResidual
+_schwarzComputeResidual.restype = None
+_schwarzComputeResidual.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(underlying, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
+def schwarzComputeResidual(A, sol, f, storage):
     try:
         mu = sol.shape[1]
     except IndexError:
         mu = 1
-    _schwarzComputeError(A, sol, f, storage, mu)
+    _schwarzComputeResidual(A, sol, f, storage, mu)
 schwarzDestroy = lib.schwarzDestroy
 schwarzDestroy.restype = None
 schwarzDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Schwarz)) ]

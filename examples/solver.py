@@ -45,7 +45,7 @@ tmp = numpy.empty_like(f)
 hpddm.csrmv(Mat, sol, tmp)
 tmp -= f
 nrmAx = numpy.linalg.norm(tmp)
-print(' --- error = {:e} / {:e}'.format(nrmAx, nrmb))
+print(' --- residual = {:e} / {:e}'.format(nrmAx, nrmb))
 if nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
     status = 1
 hpddm.subdomainDestroy(ctypes.byref(S))

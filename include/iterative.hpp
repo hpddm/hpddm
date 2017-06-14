@@ -47,7 +47,7 @@ struct CustomOperator<MatrixCSR<K>, K> : EmptyOperator<K> {
     const MatrixCSR<K>* const _A;
     CustomOperator(const MatrixCSR<K>* const A) : EmptyOperator<K>(A ? A->_n : 0), _A(A) { }
     void GMV(const K* const in, K* const out, const int& mu = 1) const {
-        HPDDM::Wrapper<K>::csrmm(_A->_sym, &(EmptyOperator<K>::_n), &mu, _A->_a, _A->_ia, _A->_ja, in, out);
+        Wrapper<K>::csrmm(_A->_sym, &(EmptyOperator<K>::_n), &mu, _A->_a, _A->_ia, _A->_ja, in, out);
     }
 };
 
@@ -841,6 +841,84 @@ class IterativeMethod {
                 delete [] sx;
             }
         }
+        template<class Operator = void, class K = double>
+        static void printResidual(const Operator& A, const K* const b, const K* const x, const int& mu, unsigned short norm, const MPI_Comm& comm) {
+            HPDDM::underlying_type<K>* storage = new HPDDM::underlying_type<K>[2 * mu]();
+            computeResidual(A, b, x, storage, mu, norm);
+            if(!hpddm_method_id<Operator>::value) {
+                if(norm == 0 || norm == 1) {
+                    MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+                    if(norm == 0)
+                        std::for_each(storage, storage + 2 * mu, [](underlying_type<K>& b) { b = std::sqrt(b); });
+                }
+                else
+                    MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_MAX, comm);
+            }
+            int rank;
+            MPI_Comm_rank(comm, &rank);
+            if(rank == 0) {
+                std::string header = "Final residual";
+                if(mu > 1)
+                    header = header + "s";
+                const std::string prefix = A.prefix();
+                if(prefix.size() > 0)
+                    header = header + " (" + prefix + ")";
+                header = header + ": ";
+                std::cout << header << storage[1] << " / " << storage[0];
+                if(mu > 1)
+                    std::cout << " (rhs #1)\n";
+                else
+                    std::cout << "\n";
+                for(unsigned short nu = 1; nu < mu; ++nu)
+                    std::cout << std::string(header.size(), ' ') << storage[2 * nu + 1] << " / " << storage[2 * nu] << " (rhs #" << (nu + 1) << ")\n";
+            }
+            delete [] storage;
+        }
+        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
+        static void computeResidual(const Operator& A, const K* const b, const K* const x, underlying_type<K>* const storage, const int& mu, unsigned short norm) {
+            A.computeResidual(x, b, storage, mu, norm);
+        }
+        template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
+        static void computeResidual(const Operator& A, const K* const b, const K* const x, underlying_type<K>* const storage, const int& mu, unsigned short norm) {
+            int dim = mu * A.getDof();
+            K* tmp = new K[dim];
+            A.GMV(x, tmp, mu);
+            Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), b, &i__1, tmp, &i__1);
+            if(norm == 1) {
+                for(unsigned int i = 0, n = A.getDof(); i < n; ++i) {
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        storage[2 * nu + 1] += std::abs(tmp[nu * n + i]);
+                        if(std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
+                            storage[2 * nu] += std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+                        else
+                            storage[2 * nu] += std::abs(b[nu * n + i]);
+                    }
+                }
+            }
+            else if(norm == 2) {
+                for(unsigned int i = 0, n = A.getDof(); i < n; ++i) {
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        storage[2 * nu + 1] = std::max(std::abs(tmp[nu * n + i]), storage[2 * nu + 1]);
+                        if(std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
+                            storage[2 * nu] = std::max(std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
+                        else
+                            storage[2 * nu] = std::max(std::abs(b[nu * n + i]), storage[2 * nu]);
+                    }
+                }
+            }
+            else {
+                for(unsigned int i = 0, n = A.getDof(); i < n; ++i) {
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        storage[2 * nu + 1] += std::norm(tmp[nu * n + i]);
+                        if(std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
+                            storage[2 * nu] += std::norm(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+                        else
+                            storage[2 * nu] += std::norm(b[nu * n + i]);
+                    }
+                }
+            }
+            delete [] tmp;
+        }
     public:
         template<class K>
         static void orthogonalization(const char id, const int n, const int k, const K* const B, K* const v) {
@@ -958,16 +1036,19 @@ class IterativeMethod {
             switch(opt.val<char>(prefix + "krylov_method")) {
                 case 8:  { it = 1; bool allocate = A.template start<excluded>(sb, sx, k * mu); K* work = new K[k * mu * A.getDof()];
                          A.template apply<excluded>(sb, sx, k * mu, work); delete [] work; A.end(allocate); break; }
-                case 7:  it = HPDDM::IterativeMethod::Richardson<excluded>(A, sb, sx, k * mu, comm); break;
-                case 6:  it = HPDDM::IterativeMethod::BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
-                case 5:  it = HPDDM::IterativeMethod::BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
-                case 4:  it = HPDDM::IterativeMethod::GCRODR<excluded>(A, sb, sx, k * mu, comm); break;
-                case 3:  it = HPDDM::IterativeMethod::BCG<excluded>(A, sb, sx, k * mu, comm); break;
-                case 2:  it = HPDDM::IterativeMethod::CG<excluded>(A, sb, sx, k * mu, comm); break;
-                case 1:  it = HPDDM::IterativeMethod::BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
-                default: it = HPDDM::IterativeMethod::GMRES<excluded>(A, sb, sx, k * mu, comm);
+                case 7:  it = Richardson<excluded>(A, sb, sx, k * mu, comm); break;
+                case 6:  it = BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
+                case 5:  it = BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
+                case 4:  it = GCRODR<excluded>(A, sb, sx, k * mu, comm); break;
+                case 3:  it = BCG<excluded>(A, sb, sx, k * mu, comm); break;
+                case 2:  it = CG<excluded>(A, sb, sx, k * mu, comm); break;
+                case 1:  it = BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
+                default: it = GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
             postprocess<excluded>(A, b, sb, x, sx, k);
+            k = opt.val<unsigned short>(prefix + "compute_residual", 10);
+            if(!excluded && (k == 0 || k == 1 || k == 2))
+                printResidual(A, b, x, mu, k, comm);
             std::cout.flags(ff);
             return it;
         }
@@ -975,7 +1056,10 @@ class IterativeMethod {
         static int solve(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm) {
             std::ios_base::fmtflags ff(std::cout.flags());
             std::cout << std::scientific;
-            int it = HPDDM::IterativeMethod::PCG<excluded>(A, b, x, comm);
+            int it = PCG<excluded>(A, b, x, comm);
+            unsigned short k = Option::get()->val<unsigned short>(A.prefix() + "compute_residual", 10);
+            if(!excluded && k == 0)
+                printResidual(A, b, x, 1, 0, comm);
             std::cout.flags(ff);
             return it;
         }

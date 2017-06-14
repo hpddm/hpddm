@@ -28,6 +28,7 @@
         tol & Relative decrease in residual norm to reach in order to stop iterative methods & Numeric & $10^{-6}$ & \\ \hline
         max\_it & Maximum number of iterations of iterative methods & Integer & $100$ & \\ \hline
         verbosity & Level of output (higher means more displayed information) & Integer & & \\ \hline
+        compute\_residual & Print the residual after convergence & \texttt{l2}, \texttt{l1}, \texttt{linfty} & & \\ \hline
         \cellcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & & \\ \hline
         local\_operator\_spd & Assume the local operator is symmetric positive definite & Boolean & & \\ \hline
         orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs & \\ \hline
@@ -119,6 +120,7 @@ When using \textit{hypre} as a coarse operator solver, there are additional opti
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
+\newpage
 When using ARPACK as an eigensolver, there is an additional option.
 \vspace*{\parspace}
 \begin{center}

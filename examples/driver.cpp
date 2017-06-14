@@ -132,9 +132,9 @@ int main(int argc, char** argv) {
         for(unsigned short nu = 0; nu < mu; ++nu) {
             nrmAx[nu] = HPDDM::Blas<K>::nrm2(&n, tmp + nu * n, &(HPDDM::i__1));
             if(nu == 0)
-                std::cout << " --- error = ";
+                std::cout << " --- residual = ";
             else
-                std::cout << "             ";
+                std::cout << "                ";
             std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];
             if(mu > 1)
                 std::cout << " (rhs #" << nu + 1 << ")";

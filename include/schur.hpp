@@ -770,17 +770,17 @@ class Schur : public Preconditioner<
             std::copy_n(f + _bi->_m, Subdomain<K>::_dof, b ? b : _structure + _bi->_m);
             Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__2), false, _bi->_a, _bi->_ia, _bi->_ja, _structure, &(Wrapper<K>::d__1), b ? b : _structure + _bi->_m);
         }
-        /* Function: computeError
+        /* Function: computeResidual
          *
-         *  Computes the Euclidean norm of a right-hand side and of the difference between a solution vector and a right-hand side.
+         *  Computes the norms of right-hand sides and residual vectors.
          *
          * Parameters:
          *    x              - Solution vector.
          *    f              - Right-hand side.
          *    storage        - Array to store both values.
          *
-         * See also: <Schwarz::computeError>. */
-        void computeError(const K* const x, const K* const f, underlying_type<K>* const storage) const {
+         * See also: <Schwarz::computeResidual>. */
+        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short&, const unsigned short) const {
             storage[0] = std::real(Blas<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);

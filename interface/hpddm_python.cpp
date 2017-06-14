@@ -233,8 +233,8 @@ void schwarzSolveGEVP(void* A, void* neumann) {
 void schwarzBuildCoarseOperator(void* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->buildTwo(comm);
 }
-void schwarzComputeError(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, HPDDM::underlying_type<K>* storage, unsigned short mu) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->computeError(reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), storage, mu);
+void schwarzComputeResidual(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>* f, HPDDM::underlying_type<K>* storage, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->computeResidual(reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), storage, mu);
 }
 void schwarzDestroy(void** schwarz) {
     if(*schwarz != NULL) {

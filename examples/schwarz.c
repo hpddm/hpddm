@@ -89,13 +89,13 @@ int main(int argc, char** argv) {
         int it = HpddmSolve(A, f, sol, mu, comm);
         /*# SolutionEnd #*/
         underlying_type* storage = malloc(sizeof(underlying_type) * 2 * mu);
-        HpddmSchwarzComputeError(A, sol, f, storage, mu);
+        HpddmSchwarzComputeResidual(A, sol, f, storage, mu);
         if(rankWorld == 0)
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(nu == 0)
-                    printf(" --- error = ");
+                    printf(" --- residual = ");
                 else
-                    printf("             ");
+                    printf("                ");
                 printf("%e / %e", storage[1 + 2 * nu], storage[2 * nu]);
                 if(mu > 1)
                     printf(" (rhs #%d)", nu + 1);
@@ -132,9 +132,9 @@ int main(int argc, char** argv) {
         for(unsigned short nu = 0; nu < mu; ++nu) {
             nrmAx[nu] = nrm2(&ndof, tmp + nu * ndof, &one);
             if(nu == 0)
-                printf(" --- error = ");
+                printf(" --- residual = ");
             else
-                printf("             ");
+                printf("                ");
             printf("%e / %e", nrmAx[nu], nrmb[nu]);
             if(mu > 1)
                 printf(" (rhs #%d)", nu + 1);

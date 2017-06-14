@@ -106,9 +106,9 @@ if mu == 1:
     nrmAx = [ nrmAx ]
 for nu in xrange(mu):
     if nu == 0:
-        print(' --- error = ', end = '')
+        print(' --- residual = ', end = '')
     else:
-        print('             ', end = '')
+        print('                ', end = '')
     print('{:e} / {:e}'.format(nrmAx[nu], nrmb[nu]), end = '')
     if mu > 1:
         print(' (rhs #{:d})'.format(nu + 1), end = '')

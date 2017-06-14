@@ -501,17 +501,19 @@ class Schwarz : public Preconditioner<
             scaledExchange(out, mu);
 #endif
         }
-        /* Function: computeError
+        /* Function: computeResidual
          *
-         *  Computes the Euclidean norm of a right-hand side and of the difference between a solution vector and a right-hand side.
+         *  Computes the norms of right-hand sides and residual vectors.
          *
          * Parameters:
          *    x              - Solution vector.
          *    f              - Right-hand side.
          *    storage        - Array to store both values.
+         *    mu             - Number of vectors.
+         *    norm           - l^2, l^1, or l^\infty norm.
          *
-         * See also: <Schur::computeError>. */
-        void computeError(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short& mu = 1) const {
+         * See also: <Schur::computeResidual>. */
+        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short& mu = 1, const unsigned short norm = 0) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
             bool allocate = Subdomain<K>::setBuffer();
@@ -519,20 +521,53 @@ class Schwarz : public Preconditioner<
             Subdomain<K>::clearBuffer(allocate);
             Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
             std::fill_n(storage, 2 * mu, 0.0);
-            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
-                bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    if(!boundary)
-                        storage[2 * nu + 1] += _d[i] * std::norm(tmp[nu * Subdomain<K>::_dof + i]);
-                    if(std::abs(f[nu * Subdomain<K>::_dof + i]) > HPDDM_EPS * HPDDM_PEN)
-                        storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i] / underlying_type<K>(HPDDM_PEN));
-                    else
-                        storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i]);
+            if(norm == 1) {
+                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+                    bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        if(!boundary)
+                            storage[2 * nu + 1] += _d[i] * std::abs(tmp[nu * Subdomain<K>::_dof + i]);
+                        if(std::abs(f[nu * Subdomain<K>::_dof + i]) > HPDDM_EPS * HPDDM_PEN)
+                            storage[2 * nu] += _d[i] * std::abs(f[nu * Subdomain<K>::_dof + i] / underlying_type<K>(HPDDM_PEN));
+                        else
+                            storage[2 * nu] += _d[i] * std::abs(f[nu * Subdomain<K>::_dof + i]);
+                    }
+                }
+            }
+            else if(norm == 2) {
+                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+                    bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        if(!boundary)
+                            storage[2 * nu + 1] = std::max(std::abs(tmp[nu * Subdomain<K>::_dof + i]), storage[2 * nu + 1]);
+                        if(std::abs(f[nu * Subdomain<K>::_dof + i]) > HPDDM_EPS * HPDDM_PEN)
+                            storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::_dof + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
+                        else
+                            storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::_dof + i]), storage[2 * nu]);
+                    }
+                }
+            }
+            else {
+                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+                    bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        if(!boundary)
+                            storage[2 * nu + 1] += _d[i] * std::norm(tmp[nu * Subdomain<K>::_dof + i]);
+                        if(std::abs(f[nu * Subdomain<K>::_dof + i]) > HPDDM_EPS * HPDDM_PEN)
+                            storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i] / underlying_type<K>(HPDDM_PEN));
+                        else
+                            storage[2 * nu] += _d[i] * std::norm(f[nu * Subdomain<K>::_dof + i]);
+                    }
                 }
             }
             delete [] tmp;
-            MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
-            std::for_each(storage, storage + 2 * mu, [](underlying_type<K>& b) { b = std::sqrt(b); });
+            if(norm == 0 || norm == 1) {
+                MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
+                if(norm == 0)
+                    std::for_each(storage, storage + 2 * mu, [](underlying_type<K>& b) { b = std::sqrt(b); });
+            }
+            else
+                MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_MAX, Subdomain<K>::_communicator);
         }
 #endif
         template<char N = HPDDM_NUMBERING>

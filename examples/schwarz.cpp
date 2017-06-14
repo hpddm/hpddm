@@ -111,13 +111,13 @@ int main(int argc, char** argv) {
         int it = HPDDM::IterativeMethod::solve(A, f, sol, mu, A.getCommunicator());
         /*# SolutionEnd #*/
         HPDDM::underlying_type<K>* storage = new HPDDM::underlying_type<K>[2 * mu];
-        A.computeError(sol, f, storage, mu);
+        A.computeResidual(sol, f, storage, mu);
         if(rankWorld == 0)
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(nu == 0)
-                    std::cout << " --- error = ";
+                    std::cout << " --- residual = ";
                 else
-                    std::cout << "             ";
+                    std::cout << "                ";
                 std::cout << std::scientific << storage[1 + 2 * nu] << " / " << storage[2 * nu];
                 if(mu > 1)
                     std::cout << " (rhs #" << nu + 1 << ")";
@@ -159,9 +159,9 @@ int main(int argc, char** argv) {
         for(unsigned short nu = 0; nu < mu; ++nu) {
             nrmAx[nu] = HPDDM::Blas<K>::nrm2(&ndof, tmp + nu * ndof, &(HPDDM::i__1));
             if(nu == 0)
-                std::cout << " --- error = ";
+                std::cout << " --- residual = ";
             else
-                std::cout << "             ";
+                std::cout << "                ";
             std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];
             if(mu > 1)
                 std::cout << " (rhs #" << nu + 1 << ")";

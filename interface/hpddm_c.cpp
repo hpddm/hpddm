@@ -178,8 +178,8 @@ void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann) {
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->buildTwo(comm);
 }
-void HpddmSchwarzComputeError(HpddmSchwarz* A, const K* const sol, const K* const f, underlying_type* storage, unsigned short mu) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->computeError(reinterpret_cast<const cpp_type<K>*>(sol), reinterpret_cast<const cpp_type<K>*>(f), storage, mu);
+void HpddmSchwarzComputeResidual(HpddmSchwarz* A, const K* const sol, const K* const f, underlying_type* storage, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->computeResidual(reinterpret_cast<const cpp_type<K>*>(sol), reinterpret_cast<const cpp_type<K>*>(f), storage, mu);
 }
 void HpddmSchwarzDestroy(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyMatrix(std::free);

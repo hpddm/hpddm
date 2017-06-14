@@ -107,7 +107,7 @@ void HpddmSchwarzScaledExchange(HpddmSchwarz*, K* const, unsigned short);
 void HpddmSchwarzCallNumfact(HpddmSchwarz*);
 void HpddmSchwarzSolveGEVP(HpddmSchwarz*, HpddmMatrixCSR*);
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz*, MPI_Comm);
-void HpddmSchwarzComputeError(HpddmSchwarz*, const K* const, const K* const, underlying_type*, unsigned short);
+void HpddmSchwarzComputeResidual(HpddmSchwarz*, const K* const, const K* const, underlying_type*, unsigned short);
 void HpddmSchwarzDestroy(HpddmSchwarz*);
 
 int HpddmSolve(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
