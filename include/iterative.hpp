@@ -842,7 +842,7 @@ class IterativeMethod {
             }
         }
         template<class Operator = void, class K = double>
-        static void printResidual(const Operator& A, const K* const b, const K* const x, const int& mu, unsigned short norm, const MPI_Comm& comm) {
+        static void printResidual(const Operator& A, const K* const b, const K* const x, const unsigned short mu, const unsigned short norm, const MPI_Comm& comm) {
             HPDDM::underlying_type<K>* storage = new HPDDM::underlying_type<K>[2 * mu]();
             computeResidual(A, b, x, storage, mu, norm);
             if(!hpddm_method_id<Operator>::value) {
@@ -874,12 +874,12 @@ class IterativeMethod {
             }
             delete [] storage;
         }
-        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void computeResidual(const Operator& A, const K* const b, const K* const x, underlying_type<K>* const storage, const int& mu, unsigned short norm) {
+        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type* = nullptr>
+        static void computeResidual(const Operator& A, const K* const b, const K* const x, underlying_type<K>* const storage, const unsigned short mu, const unsigned short norm) {
             A.computeResidual(x, b, storage, mu, norm);
         }
-        template<class Operator, class K, typename std::enable_if<!hpddm_method_id<Operator>::value>::type* = nullptr>
-        static void computeResidual(const Operator& A, const K* const b, const K* const x, underlying_type<K>* const storage, const int& mu, unsigned short norm) {
+        template<class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value == 0>::type* = nullptr>
+        static void computeResidual(const Operator& A, const K* const b, const K* const x, underlying_type<K>* const storage, const unsigned short mu, const unsigned short norm) {
             int dim = mu * A.getDof();
             K* tmp = new K[dim];
             A.GMV(x, tmp, mu);

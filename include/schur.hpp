@@ -780,7 +780,7 @@ class Schur : public Preconditioner<
          *    storage        - Array to store both values.
          *
          * See also: <Schwarz::computeResidual>. */
-        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short&, const unsigned short) const {
+        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short, const unsigned short) const {
             storage[0] = std::real(Blas<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);

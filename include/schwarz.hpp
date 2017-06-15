@@ -513,7 +513,7 @@ class Schwarz : public Preconditioner<
          *    norm           - l^2, l^1, or l^\infty norm.
          *
          * See also: <Schur::computeResidual>. */
-        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short& mu = 1, const unsigned short norm = 0) const {
+        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short mu = 1, const unsigned short norm = 0) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
             bool allocate = Subdomain<K>::setBuffer();
