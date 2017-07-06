@@ -66,7 +66,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     std::transform(dir, dir + mu, res, [](const underlying_type<K>& d) { return std::sqrt(d); });
 
     int i = 0;
-    if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return v < 10 * std::numeric_limits<underlying_type<K>>::epsilon(); }) == dir + mu) {
+    if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return 100 * v < std::numeric_limits<underlying_type<K>>::epsilon(); }) == dir + mu) {
         while(i < it) {
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
