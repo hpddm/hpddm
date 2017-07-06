@@ -93,7 +93,7 @@ def precond(y, x, n, m):
         y = numpy.ctypeslib.as_array(y, (m, n)).transpose()
     x[:] = lu.solve(y[:])
 
-hpddm.solve(Mat, precond, f, sol)
+it = hpddm.solve(Mat, precond, f, sol)
 
 status = 0
 nrmb = numpy.linalg.norm(f, axis = 0)
@@ -115,5 +115,7 @@ for nu in xrange(mu):
     print('')
     if nrmAx[nu] / nrmb[nu] > (1.0e-4 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
         status = 1
+if it > 50:
+    status = 1
 hpddm.matrixCSRDestroy(ctypes.byref(Mat))
 sys.exit(status)

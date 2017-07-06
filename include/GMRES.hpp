@@ -72,10 +72,18 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 norm[nu] = std::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
+                if(sn[nu] < 10 * std::numeric_limits<underlying_type<K>>::epsilon()) {
+                    j = 0;
+                    break;
+                }
             }
         }
         else
             MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+        if(j == 0) {
+            std::fill_n(hasConverged, mu, 0);
+            break;
+        }
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] > 0)
                 hasConverged[nu] = 0;
@@ -164,6 +172,10 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         diagonal<1>(id[0], s, mu, tol[1], piv);
         if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
+        if(N == 0) {
+            j = 0;
+            break;
+        }
         if(N != mu) {
             int nrhs = mu - N;
             Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
@@ -228,14 +240,16 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(rem != 0)
             dim = deflated * rem;
     }
-    updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == 2 ? m[1] + 1 : 0), &dim, mu, Ax, deflated);
-    if(tol[1] > -0.9)
-        Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
+    if(j != 0 && deflated != -1) {
+        updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == 2 ? m[1] + 1 : 0), &dim, mu, Ax, deflated);
+        if(tol[1] > -0.9)
+            Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
+    }
     delete [] piv;
     A.end(allocate);
     delete [] *H;
     delete [] H;
-    if(j != 0) {
+    if(j != 0 || deflated == -1) {
         convergence<1>(id[0], j, m[0]);
         return std::min(j, m[0]);
     }

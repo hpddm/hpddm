@@ -258,11 +258,21 @@ test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_matrices=${TRASH_DIR}/output.txt -hpddm_version
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ]; then \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity; \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres; \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4; \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6; \
-		examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6 -hpddm_qr    cgs; \
+		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
+		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
+		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
+		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
+		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6 -hpddm_qr    cgs"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
 	fi
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -generate_random_rhs 8

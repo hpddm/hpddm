@@ -66,75 +66,79 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     std::transform(dir, dir + mu, res, [](const underlying_type<K>& d) { return std::sqrt(d); });
 
     int i = 0;
-    while(i < it) {
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
-        if(id[1] == 2 && i) {
-            for(unsigned short k = 0; k < i; ++k)
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
-            MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-            if(!excluded && n) {
-                std::copy_n(z, dim, p);
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    for(unsigned short k = 0; k < i; ++k)
-                        trash[k] = dir[mu + k * mu + nu];
-                    Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
-                }
-            }
-        }
-        if(!excluded)
-            A.GMV(p, z, mu);
-        if(i) {
-            Wrapper<K>::diag(n, d, z, trash, mu);
-            for(unsigned short k = 0; k < i; ++k)
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
-            MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-            if(!excluded) {
-                if(n)
+    if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return v < 10 * std::numeric_limits<underlying_type<K>>::epsilon(); }) == dir + mu) {
+        while(i < it) {
+            for(unsigned short nu = 0; nu < mu; ++nu)
+                dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
+            if(id[1] == 2 && i) {
+                for(unsigned short k = 0; k < i; ++k)
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
+                MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+                if(!excluded && n) {
+                    std::copy_n(z, dim, p);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         for(unsigned short k = 0; k < i; ++k)
                             trash[k] = dir[mu + k * mu + nu];
                         Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
                     }
+                }
+            }
+            if(!excluded)
                 A.GMV(p, z, mu);
+            if(i) {
+                Wrapper<K>::diag(n, d, z, trash, mu);
+                for(unsigned short k = 0; k < i; ++k)
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
+                MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+                if(!excluded) {
+                    if(n)
+                        for(unsigned short nu = 0; nu < mu; ++nu) {
+                            for(unsigned short k = 0; k < i; ++k)
+                                trash[k] = dir[mu + k * mu + nu];
+                            Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
+                        }
+                    A.GMV(p, z, mu);
+                }
             }
-        }
-        Wrapper<K>::diag(n, d, p, trash, mu);
-        for(unsigned short nu = 0; nu < mu; ++nu)
-            dir[mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
-        MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        ++i;
-        std::copy_n(dir + mu, mu, dir + (it + i) * mu);
-        std::copy_n(p, dim, p + i * dim);
-        if(id[1] == 2)
-            std::copy_n(z, dim, p + (it + i) * dim);
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            if(hasConverged[nu] == -it) {
-                trash[nu] = dir[nu] / dir[mu + nu];
-                Blas<K>::axpy(&n, trash + nu, p + n * nu, &i__1, x + n * nu, &i__1);
-                trash[nu] = -trash[nu];
-                Blas<K>::axpy(&n, trash + nu, z + n * nu, &i__1, r + n * nu, &i__1);
-            }
-        }
-        A.template apply<excluded>(r, z, mu, trash);
-        Wrapper<K>::diag(n, d, z, trash, mu);
-        for(unsigned short nu = 0; nu < mu; ++nu) {
-            dir[mu + nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1)) / dir[nu];
-            dir[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
-        }
-        MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-        if(id[1] != 2)
+            Wrapper<K>::diag(n, d, p, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu)
-                Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
-        std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
-        checkConvergence<2>(id[0], i, i, tol, mu, res, dir, hasConverged, it);
-        if(std::find(hasConverged, hasConverged + mu, -it) == hasConverged + mu) {
-            --i;
-            break;
+                dir[mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
+            MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            ++i;
+            std::copy_n(dir + mu, mu, dir + (it + i) * mu);
+            std::copy_n(p, dim, p + i * dim);
+            if(id[1] == 2)
+                std::copy_n(z, dim, p + (it + i) * dim);
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                if(hasConverged[nu] == -it) {
+                    trash[nu] = dir[nu] / dir[mu + nu];
+                    Blas<K>::axpy(&n, trash + nu, p + n * nu, &i__1, x + n * nu, &i__1);
+                    trash[nu] = -trash[nu];
+                    Blas<K>::axpy(&n, trash + nu, z + n * nu, &i__1, r + n * nu, &i__1);
+                }
+            }
+            A.template apply<excluded>(r, z, mu, trash);
+            Wrapper<K>::diag(n, d, z, trash, mu);
+            for(unsigned short nu = 0; nu < mu; ++nu) {
+                dir[mu + nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1)) / dir[nu];
+                dir[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
+            }
+            MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            if(id[1] != 2)
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
+            std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
+            checkConvergence<2>(id[0], i, i, tol, mu, res, dir, hasConverged, it);
+            if(std::find(hasConverged, hasConverged + mu, -it) == hasConverged + mu) {
+                --i;
+                break;
+            }
         }
     }
+    else
+        i = -1;
     convergence<2>(id[0], i + 1, it);
     delete [] res;
     if(Wrapper<K>::is_complex)
@@ -339,8 +343,8 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
         if(m[1] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
     }
-    unsigned short i = 1;
-    while(i <= m[0]) {
+    unsigned short i = (deflated != 0 ? 1 : 0);
+    while(i <= m[0] && deflated != 0) {
         if(!excluded)
             A.GMV(p, q, deflated);
         K* const alpha = gamma + (deflated * (deflated + 1)) / 2;

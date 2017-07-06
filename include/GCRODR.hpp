@@ -216,6 +216,14 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 norm[nu] = std::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
+                if(sn[nu] < 10 * std::numeric_limits<underlying_type<K>>::epsilon()) {
+                    j = 0;
+                    break;
+                }
+            }
+            if(j == 0) {
+                std::fill_n(hasConverged, mu, 0);
+                break;
             }
         }
         else
@@ -495,7 +503,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         if(converged)
             break;
     }
-    if(j != m[0] + 1 && id[4] / 4)
+    if(j != 0 && j != m[0] + 1 && id[4] / 4)
         (*Option::get())[A.prefix("recycle_same_system")] += 1;
     convergence<4>(id[0], j, m[0]);
     delete [] hasConverged;
@@ -597,6 +605,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             }
         }
         RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[1], N, piv, d, Ax, comm);
+        if(N == 0) {
+            j = 0;
+            break;
+        }
         diagonal<5>(id[0], s, mu, tol[1], piv);
         if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
@@ -880,7 +892,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     delete [] *H;
     delete [] *save;
     delete [] H;
-    if(j != 0) {
+    if(j != 0 || deflated == -1) {
         convergence<5>(id[0], j, m[0]);
         return std::min(j, m[0]);
     }
