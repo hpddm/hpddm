@@ -64,6 +64,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                         ranges[0][2] = 1;
                         MPI_Group_range_incl(world, 1, ranges, &aggregate);
                         MPI_Comm_create(_communicator, aggregate, &(DMatrix::_communicator));
+                        MPI_Group_free(&aggregate);
                         MPI_Group_free(&world);
                         bool r = false;
                         std::vector<int*> range;

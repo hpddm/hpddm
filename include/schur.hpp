@@ -781,14 +781,19 @@ class Schur : public Preconditioner<
          *
          * See also: <Schwarz::computeResidual>. */
         void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short, const unsigned short) const {
-            storage[0] = std::real(Blas<K>::dot(&(Subdomain<K>::_a->_n), f, &i__1, f, &i__1));
             K* tmp = new K[Subdomain<K>::_a->_n];
             std::copy_n(f, Subdomain<K>::_a->_n, tmp);
             bool allocate = Subdomain<K>::setBuffer();
             Subdomain<K>::exchange(tmp + _bi->_m);
+            storage[0] = 0.0;
             for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                    storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
+                for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j) {
+                    bool boundary = (std::abs(Subdomain<K>::boundaryCond(_bi->_m + i)) > HPDDM_EPS);
+                    if(boundary && std::abs(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) > HPDDM_EPS * HPDDM_PEN)
+                        storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]) / (underlying_type<K>(HPDDM_PEN * HPDDM_PEN));
+                    else
+                        storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
+                }
             Wrapper<K>::csrmv(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
             Subdomain<K>::exchange(_work + _bi->_m);
             Subdomain<K>::clearBuffer(allocate);
@@ -798,8 +803,15 @@ class Schur : public Preconditioner<
             for(const pairNeighbor& neighbor : Subdomain<K>::_map)
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
                         tmp[val] /= K(1.0) + tmp[val];
-            for(unsigned short i = 0; i < Subdomain<K>::_dof; ++i)
-                storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
+            for(unsigned short i = 0; i < Subdomain<K>::_dof; ++i) {
+                bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
+                if(!boundary) {
+                    storage[0] += std::norm(f[i]);
+                    storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
+                }
+                else
+                    storage[0] += std::norm(f[i] / underlying_type<K>(HPDDM_PEN));
+            }
             delete [] tmp;
             MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
             storage[0] = std::sqrt(storage[0]);

@@ -72,6 +72,7 @@ class Schwarz : public Preconditioner<
         Prcndtnr               _type;
     public:
         Schwarz() : _d(), _hash() { }
+        Schwarz(const Subdomain<K>& s) : super(s), _d(), _hash() { }
         ~Schwarz() { _d = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */

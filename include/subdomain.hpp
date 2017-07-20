@@ -57,7 +57,6 @@ class Subdomain : public OptionsPrefix {
         int                        _dof;
     public:
         Subdomain() : OptionsPrefix(), _a(), _buff(), _map(), _rq(), _dof() { }
-#if !(HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD)
         Subdomain(const Subdomain<K>& s) {
             _a = nullptr;
             _map = s._map;
@@ -66,7 +65,6 @@ class Subdomain : public OptionsPrefix {
             _rq = new MPI_Request[2 * _map.size()];
             _buff = new K*[2 * _map.size()];
         }
-#endif
         ~Subdomain() {
             delete [] _rq;
             vectorNeighbor().swap(_map);

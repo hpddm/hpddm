@@ -158,6 +158,7 @@ class Preconditioner : public Subdomain<K> {
         }
     public:
         Preconditioner() : _co(), _ev(), _uc() { }
+        Preconditioner(const Subdomain<K>& s) : Subdomain<K>(s) { };
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
             delete _co;

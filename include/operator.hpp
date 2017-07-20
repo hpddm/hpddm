@@ -429,6 +429,9 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         }
         template<char S, char N, bool U>
         void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+#ifdef HPDDM_CSR_CO
+            (void)I; (void)offsetI;
+#endif
             applyFromNeighbor<U>(in, index, S == 'B' && N == 'F' ? C : arrayC, infoNeighbor);
             unsigned int offset = (S == 'B' ? super::_map[index].first + (N == 'F') : (U ? super::_map[index].first * super::_local + (N == 'F') : *offsetJ));
             if(S == 'B') {
