@@ -158,7 +158,6 @@ class Preconditioner : public Subdomain<K> {
         }
     public:
         Preconditioner() : _co(), _ev(), _uc() { }
-        Preconditioner(const Subdomain<K>& s) : Subdomain<K>(s) { };
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
             delete _co;
@@ -218,7 +217,12 @@ class Preconditioner : public Subdomain<K> {
         /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local> or <i__0> if <Preconditioner::co> is not allocated. */
         const int* getAddrLocal() const { return _co ? _co->getAddrLocal() : &i__0; }
+#else
+    protected:
+        Preconditioner() { };
 #endif
+    protected:
+        Preconditioner(const Subdomain<K>& s) : super(s) { };
     public:
         /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */
