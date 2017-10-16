@@ -29,6 +29,7 @@
         max\_it & Maximum number of iterations of iterative methods & Integer & $100$ & \\ \hline
         verbosity & Level of output (higher means more displayed information) & Integer & & \\ \hline
         compute\_residual & Print the residual after convergence & \texttt{l2}, \texttt{l1}, \texttt{linfty} & & \\ \hline
+        push\_prefix & Prepend a prefix for all following options (use \verb!-hpddm_pop_prefix! when done) & & & \\ \hline
         \cellcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & & \\ \hline
         local\_operator\_spd & Assume the local operator is symmetric positive definite & Boolean & & \\ \hline
         orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs & \\ \hline

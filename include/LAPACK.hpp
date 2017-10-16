@@ -36,6 +36,12 @@ void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*,
                            const int*, T*, const int*, U*, int*, int*, int*);                                \
 void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
                                 const T*, const int*, const T*, T*, const int*, T*, const int*, int*);       \
+void HPDDM_F77(C ## getrf)(const int*, const int*, T*, const int*, int*, int*);                              \
+void HPDDM_F77(C ## getrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
+                           const int*, int*);                                                                \
+void HPDDM_F77(C ## sytrf)(const char*, const int*, T*, const int*, int*, T*, int*, int*);                   \
+void HPDDM_F77(C ## sytrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
+                           const int*, int*);                                                                \
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*); \
 void HPDDM_F77(C ## pstrf)(const char*, const int*, T*, const int*, int*, int*, const U*, U*, int*);         \
@@ -116,6 +122,18 @@ struct Lapack {
     /* Function: lan
      *  Computes the norm of a symmetric or Hermitian matrix. */
     static underlying_type<K> lan(const char*, const char*, const int*, const K*, const int*, underlying_type<K>*);
+    /* Function: getrf
+     *  Computes an LU factorization of a general rectangular matrix. */
+    static void getrf(const int*, const int*, K*, const int*, int*, int*);
+    /* Function: getrs
+     *  Solves a system of linear equations with an LU-factored matrix. */
+    static void getrs(const char*, const int*, const int*, const K*, const int*, const int*, K*, const int*, int*);
+    /* Function: sytrf
+     *  Computes the Bunch--Kaufman factorization of a symmetric matrix. */
+    static void sytrf(const char*, const int*, K*, const int*, int*, K*, int*, int*);
+    /* Function: sytrs
+     *  Solves a system of linear equations with an LDLT-factored matrix. */
+    static void sytrs(const char*, const int*, const int*, const K*, const int*, const int*, K*, const int*, int*);
     /* Function: potrf
      *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
     static void potrf(const char*, const int*, K*, const int*, int*);
@@ -282,6 +300,88 @@ class QR {
         }
 };
 
+#ifdef LAPACKSUB
+#undef HPDDM_CHECK_COARSEOPERATOR
+#define HPDDM_CHECK_SUBDOMAIN
+#include "preprocessor_check.hpp"
+#define SUBDOMAIN HPDDM::LapackSub
+template<class K>
+class LapackSub {
+    private:
+        K*                _a;
+        int*           _ipiv;
+        int               _n;
+        unsigned short _type;
+    public:
+        LapackSub() : _a(), _ipiv(), _n(), _type() { }
+        LapackSub(const LapackSub&) = delete;
+        ~LapackSub() {
+            delete [] _a;
+            delete [] _ipiv;
+        }
+        static constexpr char _numbering = 'F';
+        template<char N = HPDDM_NUMBERING>
+        void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+            _n = A->_n;
+            _a = new K[_n * _n]();
+            if(A->_nnz == _n * _n) {
+                if(N == 'C')
+                    Wrapper<K>::template omatcopy<'T'>(_n, _n, A->_a, _n, _a, _n);
+                else
+                    std::copy_n(A->_a, A->_nnz, _a);
+            }
+            else {
+                for(unsigned int i = 0; i < A->_n; ++i) {
+                    for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1]; ++j)
+                        _a[i + (A->_ja[j] - (N == 'F')) * _n] = A->_a[j];
+                }
+            }
+            const Option& opt = *Option::get();
+            int info;
+            if(!A->_sym) {
+                _type = 1;
+                _ipiv = new int[_n];
+                Lapack<K>::getrf(&_n, &_n, _a, &_n, _ipiv, &info);
+            }
+            else {
+                _type = 2 + (opt.val<char>("local_operator_spd", 0) && !detection);
+                if(_type == 2) {
+                    K* work;
+                    int lwork = -1;
+                    _ipiv = new int[_n];
+                    K wkopt;
+                    Lapack<K>::sytrf("L", &_n, _a, &_n, _ipiv, &wkopt, &lwork, &info);
+                    if(info == 0) {
+                        lwork = static_cast<int>(std::real(wkopt));
+                        work = new K[lwork];
+                        Lapack<K>::sytrf("L", &_n, _a, &_n, _ipiv, work, &lwork, &info);
+                    }
+                }
+                else
+                    Lapack<K>::potrf("L", &_n, _a, &_n, &info);
+            }
+        }
+        template<char N = HPDDM_NUMBERING>
+        int inertia(MatrixCSR<K>* const& A) {
+            return 0;
+        }
+        unsigned short deficiency() const { return 0; }
+        void solve(K* const x, const unsigned short& n = 1) const {
+            int nrhs = n, info;
+            if(_type == 1)
+                Lapack<K>::getrs("N", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
+            else if(_type == 2)
+                Lapack<K>::sytrs("L", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
+            else if(_type == 3)
+                Lapack<K>::potrs("L", &_n, &nrhs, _a, &_n, x, &_n, &info);
+        }
+        void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
+            std::copy_n(b, n * _n, x);
+            solve(x, n);
+        }
+};
+#endif // LapackSub
+
 # define HPDDM_GENERATE_LAPACK(C, T, B, U, SYM, ORT)                                                         \
 template<>                                                                                                   \
 inline void Lapack<T>::lapmt(const int* forwrd, const int* m, const int* n, T* x, const int* ldx, int* k) {  \
@@ -325,6 +425,25 @@ inline void Lapack<T>::mtr(const char* side, const char* uplo, const char* trans
                            const int* n, const T* a, const int* lda, const T* tau, T* c, const int* ldc,     \
                            T* work, const int* lwork, int* info) {                                           \
     HPDDM_F77(C ## ORT ## mtr)(side, uplo, trans, m, n, a, lda, tau, c, ldc, work, lwork, info);             \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::getrf(const int* m, const int* n, T* a, const int* lda, int* ipiv, int* info) {       \
+    HPDDM_F77(C ## getrf)(m, n, a, lda, ipiv, info);                                                         \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::getrs(const char* trans, const int* n, const int* nrhs, const T* a, const int* lda,   \
+                             const int* ipiv, T* b, const int* ldb, int* info) {                             \
+    HPDDM_F77(C ## getrs)(trans, n, nrhs, a, lda, ipiv, b, ldb, info);                                       \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::sytrf(const char* uplo, const int* n, T* a, const int* lda, int* ipiv, T* work,       \
+                             int* lwork, int* info) {                                                        \
+    HPDDM_F77(C ## sytrf)(uplo, n, a, lda, ipiv, work, lwork, info);                                         \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::sytrs(const char* uplo, const int* n, const int* nrhs, const T* a, const int* lda,    \
+                             const int* ipiv, T* b, const int* ldb, int* info) {                             \
+    HPDDM_F77(C ## sytrs)(uplo, n, nrhs, a, lda, ipiv, b, ldb, info);                                        \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::potrf(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \

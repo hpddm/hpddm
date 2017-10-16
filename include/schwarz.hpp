@@ -62,7 +62,7 @@ class Schwarz : public Preconditioner<
         enum class Prcndtnr : char {
             NO, SY, GE, OS, OG
         };
-    private:
+    protected:
         /* Variable: d
          *  Local partition of unity. */
         const underlying_type<K>* _d;
@@ -151,9 +151,6 @@ class Schwarz : public Preconditioner<
             MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
             Subdomain<K>::clearBuffer(allocate);
         }
-        /* Function: getScaling
-         *  Returns a constant pointer to <Schwarz::d>. */
-        const underlying_type<K>* getScaling() const { return _d; }
         /* Function: scaledExchange */
         template<bool allocate = false>
         void scaledExchange(K* const x, const unsigned short& mu = 1) const {
@@ -231,7 +228,7 @@ class Schwarz : public Preconditioner<
         template<bool excluded = false>
         bool start(const K* const b, K* const x, const unsigned short& mu = 1) const {
             bool allocate = Subdomain<K>::setBuffer();
-            if(!excluded) {
+            if(!excluded && Subdomain<K>::_a->_ia) {
                 const std::unordered_map<unsigned int, K> map = Subdomain<K>::boundaryConditions();
                 for(const std::pair<unsigned int, K>& p : map)
                     for(unsigned short nu = 0; nu < mu; ++nu)
@@ -571,6 +568,9 @@ class Schwarz : public Preconditioner<
                 MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_MAX, Subdomain<K>::_communicator);
         }
 #endif
+        /* Function: getScaling
+         *  Returns a constant pointer to <Schwarz::d>. */
+        const underlying_type<K>* getScaling() const { return _d; }
         template<char N = HPDDM_NUMBERING>
         void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global, _d);

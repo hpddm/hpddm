@@ -45,7 +45,7 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000702
+#define HPDDM_VERSION         000703
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -322,6 +322,9 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  ifdef DISSECTIONSUB
 #   include "Dissection.hpp"
 #  endif
+#  ifdef LAPACKSUB
+#   include "LAPACK.hpp"
+#  endif
 # endif
 # if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
 #  undef HPDDM_SCHWARZ
@@ -373,11 +376,13 @@ using HpSchwarz = HPDDM::Schwarz<
     SUBDOMAIN, COARSEOPERATOR,
 #endif
     S, K>;
-#if !HPDDM_SCHWARZ && !HPDDM_FETI && !HPDDM_BDD
 #  include "schur.hpp"
 template<class K = double>
-using HpSchur = HPDDM::Schur<K>;
+using HpSchur = HPDDM::Schur<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    SUBDOMAIN, COARSEOPERATOR<K>,
 #endif
+    K>;
 #  if HPDDM_FETI
 #   include "FETI.hpp"
 template<HPDDM::FetiPrcndtnr P, class K = double, char S = 'S'>

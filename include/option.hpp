@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <cstring>
 #include <stdexcept>
+#include <stack>
 #ifndef HPDDM_NO_REGEX
 #include <regex>
 #endif
@@ -272,10 +273,11 @@ class Option : private Singleton {
                 return parse<true>(s, display);
             }
         }
-        template<bool = false, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>>
-        int parse(std::vector<std::string>&, bool display = true, const Container& reg = { });
-        template<bool internal, class T>
-        bool insert(const T& option, std::string& str, const std::string& arg) {
+        template<bool = false, bool = false, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>>
+        int parse(std::vector<std::string>&, bool display = true, const Container& reg = { }, std::string prefix = "");
+        template<bool internal, bool exact = false, class T>
+        bool insert(const T& option, std::string str, const std::string& arg, const std::string& prefix = "") {
+            static_assert(internal || !exact, "Wrong call");
             std::string::size_type n = str.find("=");
             bool sep = true;
             std::string val;
@@ -288,13 +290,13 @@ class Option : private Singleton {
                 if(std::get<0>(tuple).empty())
                     return false;
                 if(hasEnding(std::get<0>(tuple), str))
-                    return true;
+                    return exact ? std::get<0>(tuple).compare(str) == 0 : true;
                 else {
                     std::string::size_type del = std::get<0>(tuple).find_first_of("=");
                     if(del != std::string::npos && del > 0 && std::get<0>(tuple)[del - 1] == '(')
                         --del;
                     if(hasEnding(str, std::get<0>(tuple).substr(0, del)))
-                        return true;
+                        return exact ? str.compare(std::get<0>(tuple).substr(0, del)) == 0 : true;
                     else {
 #ifndef HPDDM_NO_REGEX
                         std::regex words_regex("^" + std::get<0>(tuple).substr(0, del) + "$");
@@ -307,9 +309,10 @@ class Option : private Singleton {
             });
             if(it != option.end()) {
                 std::unordered_map<std::string, double>& map = (internal ? _opt : *_app);
-                bool boolean = (std::get<0>(*it).size() > 6 && std::get<0>(*it).substr(std::get<0>(*it).size() - 6) == "=(0|1)");
+                const bool boolean = (std::get<0>(*it).size() > 6 && std::get<0>(*it).substr(std::get<0>(*it).size() - 6) == "=(0|1)");
+                const bool optional = std::get<0>(*it).find("(=") != std::string::npos;
+                const std::string key = (exact ? prefix : "") + str;
                 std::string empty;
-                bool optional = std::get<0>(*it).find("(=") != std::string::npos;
                 if(!std::get<2>(*it)(str, empty, false) || optional) {
                     bool success = true;
                     if(sep) {
@@ -317,16 +320,16 @@ class Option : private Singleton {
                             if(!optional && !boolean)
                                 std::cout << "'" << str << "'" << " requires an argument" << std::endl;
                             else
-                                map[str] = 1;
+                                map[key] = 1;
                             success = false;
                         }
                         else if(optional) {
                             if(Arg::numeric(str, arg, false)) {
-                                map[str] = sto<double>(arg);
+                                map[key] = sto<double>(arg);
                                 return true;
                             }
                             else
-                                map[str] = 1;
+                                map[key] = 1;
                             success = false;
                         }
                         else if(std::get<2>(*it)(str, arg, !boolean)) {
@@ -337,15 +340,15 @@ class Option : private Singleton {
                         }
                         else {
                             if(boolean)
-                                map[str] = 1;
+                                map[key] = 1;
                             success = false;
                         }
                     }
                     else if(optional) {
                         if(Arg::numeric(str, val, false))
-                            map[str] = sto<double>(val);
+                            map[key] = sto<double>(val);
                         else
-                            map[str] = 1;
+                            map[key] = 1;
                         success = false;
                     }
                     else if(std::get<2>(*it)(str, val, true)) {
@@ -367,13 +370,13 @@ class Option : private Singleton {
                             char* endptr = nullptr;
                             double number = strtod(val.c_str(), &endptr);
                             if(endptr != empty.c_str() && *endptr == 0 && !std::isnan(number))
-                                map[str] = number;
+                                map[key] = number;
                             else {
 #ifndef HPDDM_NO_REGEX
                                 std::string::size_type found = empty.find(val);
                                 if(found != std::string::npos)
 #endif
-                                    map[str] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
+                                    map[key] = std::count(empty.cbegin(), empty.cbegin() + found, '|');
 #ifndef HPDDM_NO_REGEX
                                 else
                                     std::cout << "WARNING -- something is wrong with this regular expression" << std::endl;
@@ -384,9 +387,9 @@ class Option : private Singleton {
                         }
                         else {
                             if(boolean && (val.compare("true") == 0 || val.compare("yes") == 0))
-                                map[str] = 1;
+                                map[key] = 1;
                             else if(boolean && (val.compare("false") == 0 || val.compare("no") == 0))
-                                map[str];
+                                map[key];
                             else
                                 std::cerr << "'" << val << "' doesn't match the regular expression '" << empty << "' for option '" << str << "'" << std::endl;
                         }
@@ -395,20 +398,20 @@ class Option : private Singleton {
 #if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                         auto target = std::get<2>(*it).template target<bool (*)(const std::string&, const std::string&, bool)>();
                         if(!target || *target != Arg::argument)
-                            map[str] = sto<double>(val);
+                            map[key] = sto<double>(val);
                         else {
                             for(const auto& x : map)
                                 if(x.first.find(str) == 0) {
                                     map.erase(x.first);
                                     break;
                                 }
-                            map[str + "#" + val] = -static_cast<int>(str.size()) - 10000000;
+                            map[key + "#" + val] = -static_cast<int>(key.size()) - 10000000;
                         }
                         if(sep)
                             return true;
 #else
                         try {
-                            map[str] = sto<double>(val);
+                            map[key] = sto<double>(val);
                             if(sep)
                                 return true;
                         }
@@ -419,9 +422,9 @@ class Option : private Singleton {
                     }
                 }
                 else
-                    map[str] = 1;
+                    map[key] = 1;
             }
-            else if(internal)
+            else if(internal && !exact)
                 std::cout << "WARNING -- '-hpddm_" << str << "' is not a registered HPDDM option" << std::endl;
             return false;
         }

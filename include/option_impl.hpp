@@ -29,8 +29,8 @@ template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
     _app = nullptr;
 }
-template<bool recursive, class Container>
-inline int Option::parse(std::vector<std::string>& args, bool display, const Container& reg) {
+template<bool recursive, bool exact, class Container>
+inline int Option::parse(std::vector<std::string>& args, bool display, const Container& reg, std::string prefix) {
     if(args.size() == 0 && reg.size() == 0)
         return 0;
     std::vector<std::tuple<std::string, std::string, std::function<bool(std::string&, const std::string&, bool)>>> option {
@@ -41,6 +41,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("max_it=<100>", "Maximum number of iterations", Arg::positive),
         std::forward_as_tuple("verbosity(=<integer>)", "Level of output (higher means more displayed information)", Arg::anything),
         std::forward_as_tuple("compute_residual=(l2|l1|linfty)", "Print the residual after convergence", Arg::argument),
+        std::forward_as_tuple("push_prefix", "Prepend the according prefix for all following options (use -" + std::string(HPDDM_PREFIX) + "pop_prefix when done)", Arg::anything),
         std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems", Arg::argument),
         std::forward_as_tuple("local_operator_spd=(0|1)", "Assume the local operator is symmetric positive definite", Arg::argument),
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
@@ -177,25 +178,45 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
             }
         }
     }
+    std::stack<std::string> pre;
+    std::string p = std::string(HPDDM_PREFIX) + (exact ? prefix : "");
     for(std::vector<std::string>::const_iterator itArg = args.cbegin(); itArg != args.cend(); ++itArg) {
-        std::string::size_type n = itArg->find("-" + std::string(HPDDM_PREFIX));
+        if(pre.empty())
+            p = std::string(HPDDM_PREFIX) + (exact ? prefix : "");
+        std::string::size_type n = itArg->find("-" + (pre.empty() ? p : std::string(HPDDM_PREFIX)));
         if(n == std::string::npos) {
             if(reg.size() != 0) {
                 n = itArg->find_first_not_of("-");
-                if(n != 0 && n != std::string::npos) {
-                    std::string opt = itArg->substr(n);
-                    if(insert<false>(reg, opt, itArg + 1 != args.cend() ? *(itArg + 1) : ""))
-                        ++itArg;
-                }
+                if(n != 0 && n != std::string::npos && insert<0>(reg, itArg->substr(n), itArg + 1 != args.cend() ? *(itArg + 1) : ""))
+                    ++itArg;
             }
         }
         else if(itArg->substr(0, n).find_first_not_of("-") == std::string::npos) {
-            std::string opt = itArg->substr(n + 1 + std::string(HPDDM_PREFIX).size());
-            if(insert<true>(option, opt, itArg + 1 != args.cend() ? *(itArg + 1) : ""))
+            std::string opt = itArg->substr(n + 1 + (pre.empty() ? p.size() : std::string(HPDDM_PREFIX).size()));
+            bool ending = hasEnding(opt, "_prefix");
+            if(!ending && insert<true, exact>(option, (!pre.empty() ? p : "") + opt, itArg + 1 != args.cend() ? *(itArg + 1) : "", prefix))
                 ++itArg;
+            else if(ending) {
+                opt = opt.substr(0, opt.size() - 7);
+                if(hasEnding(opt, "push")) {
+                    opt = (exact ? prefix : opt.substr(0, opt.size() - 4));
+                    p = (pre.empty() ? "" : p) + opt;
+                    pre.push(opt);
+                }
+                else if(opt.compare("pop") == 0) {
+                    if(!pre.empty()) {
+                        p = p.substr(0, p.size() - pre.top().size());
+                        pre.pop();
+                    }
+                    else
+                        std::cout << "WARNING -- there is no prefix to pop right now" << std::endl;
+                }
+                else
+                    std::cout << "WARNING -- '-" << std::string(HPDDM_PREFIX) << (!pre.empty() ? p : "") + opt << "' is not a registered HPDDM option" << std::endl;
+            }
         }
     }
-    if(!recursive)
+    if(!recursive) {
         for(const auto& x : _opt) {
             const std::string key = x.first;
             const double val = x.second;
@@ -204,7 +225,10 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
                 parse(cfg, display);
             }
         }
-    _opt.rehash(_opt.size());
+        _opt.rehash(_opt.size());
+    }
+    if(pre.size() > 0)
+        std::cout << "WARNING -- too many prefixes have been pushed" << std::endl;
     if(display && _opt.find("help") != _opt.cend()) {
         size_t max = 0;
         int col = getenv("COLUMNS") ? sto<int>(std::getenv("COLUMNS")) : 200;

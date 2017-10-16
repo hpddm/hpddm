@@ -581,11 +581,17 @@ class Subdomain : public OptionsPrefix {
          *    global        - Global number of unknowns.
          *    d             - Local partition of unity (optional). */
         template<char N, class It>
-        void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const underlying_type<K>* const d = nullptr) const {
+        void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const underlying_type<K>* const d = nullptr, const unsigned int* const list = nullptr) const {
             unsigned int between = 0;
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);
             MPI_Comm_size(_communicator, &sizeWorld);
+            std::map<unsigned int, unsigned int> r;
+            if(list) {
+                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
+                    if(list[i] > 0)
+                        r[list[i]] = i;
+            }
             if(sizeWorld > 1) {
                 setBuffer();
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
@@ -617,9 +623,18 @@ class Subdomain : public OptionsPrefix {
                 if(rankWorld == 0) {
                     begining = (N == 'F');
                     start = begining;
-                    for(unsigned int i = 0; i < std::distance(first, last); ++i)
-                        if(!d || d[i] > 0.1)
-                            *(first + i) = begining++;
+                    if(!list) {
+                        for(unsigned int i = 0; i < std::distance(first, last); ++i)
+                            if(!d || d[i] > 0.1)
+                                *(first + i) = begining++;
+                    }
+                    else {
+                        for(const std::pair<unsigned int, unsigned int>& p : r) {
+                            if(!d || d[p.second] > 0.1) {
+                                *(first + p.second) = begining++;
+                            }
+                        }
+                    }
                     end = begining;
                 }
                 size = 0;
@@ -634,9 +649,18 @@ class Subdomain : public OptionsPrefix {
                         MPI_Wait(rq, MPI_STATUS_IGNORE);
                     begining = rbuff[size];
                     start = begining;
-                    for(unsigned int i = 0; i < std::distance(first, last); ++i)
-                        if((!d || d[i] > 0.1) && *(first + i) == std::numeric_limits<unsigned int>::max())
-                            *(first + i) = begining++;
+                    if(!list) {
+                        for(unsigned int i = 0; i < std::distance(first, last); ++i)
+                            if((!d || d[i] > 0.1) && *(first + i) == std::numeric_limits<unsigned int>::max())
+                                *(first + i) = begining++;
+                    }
+                    else {
+                        for(const std::pair<unsigned int, unsigned int>& p : r) {
+                            if((!d || d[p.second] > 0.1) && *(first + p.second) == std::numeric_limits<unsigned int>::max()) {
+                                *(first + p.second) = begining++;
+                            }
+                        }
+                    }
                     end = begining;
                 }
                 size = 0;
@@ -685,9 +709,18 @@ class Subdomain : public OptionsPrefix {
                 clearBuffer();
             }
             else {
-                std::iota(first, last, N == 'F');
+                if(!list) {
+                    std::iota(first, last, static_cast<unsigned int>(N == 'F'));
+                    end = std::distance(first, last);
+                }
+                else {
+                    unsigned int j = (N == 'F');
+                    for(const std::pair<unsigned int, unsigned int>& p : r) {
+                        *(first + p.second) = j++;
+                    }
+                    end = r.size();
+                }
                 start = (N == 'F');
-                end = std::distance(first, last);
                 global = end - start;
             }
         }
@@ -696,41 +729,35 @@ class Subdomain : public OptionsPrefix {
          *
          * See also: <Subdomain::globalMapping>. */
         template<class T = K>
-        bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A) const {
+        static bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A) {
             if(first != 0 || last != A->_n) {
-                unsigned int nnz = 0;
-                unsigned int dof = 0;
-                for(unsigned int i = 0; i < A->_n; ++i) {
-                    if(num[i] >= first && num[i] < last)
-                        ++dof;
-                }
-                std::vector<std::vector<std::pair<unsigned int, T>>> tmp(dof);
-                for(unsigned int i = 0; i < A->_n; ++i) {
-                    if(num[i] >= first && num[i] < last)
-                            tmp[num[i] - first].reserve(A->_ia[i + 1] - A->_ia[i]);
-                }
-                for(unsigned int i = 0; i < A->_n; ++i) {
-                    if(num[i] >= first && num[i] < last) {
-                        for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1]; ++j)
-                            tmp[num[i] - first].emplace_back(num[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
-                    }
-                }
-                nnz = std::accumulate(tmp.cbegin(), tmp.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, T>>& v) { return sum + v.size(); });
-                if(!c)
-                    c  = reinterpret_cast<T*>(new K[nnz * (1 + (sizeof(K) - 1) / sizeof(T))]);
+                std::vector<std::pair<unsigned int, unsigned int>> s;
+                s.reserve(A->_n);
+                for(unsigned int i = 0; i < A->_n; ++i)
+                    s.emplace_back(num[i], i);
+                std::sort(s.begin(), s.end());
+                std::vector<std::pair<unsigned int, unsigned int>>::iterator begin = std::lower_bound(s.begin(), s.end(), std::make_pair(first, static_cast<unsigned int>(0)));
+                std::vector<std::pair<unsigned int, unsigned int>>::iterator end = std::upper_bound(begin, s.end(), std::make_pair(last, static_cast<unsigned int>(0)));
+                unsigned int dof = std::distance(begin, end);
+                std::vector<std::pair<unsigned int, T>> tmp;
+                tmp.reserve(A->_nnz);
                 if(!ia)
                     ia = new int[dof + 1];
+                ia[0] = 0;
+                for(std::vector<std::pair<unsigned int, unsigned int>>::iterator it = begin; it != end; it++) {
+                    for(unsigned int j = A->_ia[it->second]; j < A->_ia[it->second + 1]; ++j)
+                        tmp.emplace_back(num[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
+                    std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end());
+                    ia[std::distance(begin, it) + 1] = tmp.size();
+                }
+                unsigned int nnz = tmp.size();
+                if(!c)
+                    c  = reinterpret_cast<T*>(new K[nnz * (1 + (sizeof(K) - 1) / sizeof(T))]);
                 if(!ja)
                     ja = new int[nnz];
-                ia[0] = 0;
-                nnz = 0;
-                for(unsigned int i = 0; i < dof; ++i) {
-                    std::sort(tmp[i].begin(), tmp[i].end(), [](const std::pair<unsigned int, T>& lhs, const std::pair<unsigned int, T>& rhs) { return lhs.first < rhs.first; });
-                    for(std::pair<unsigned int, T>& p : tmp[i]) {
-                        ja[nnz] = p.first;
-                        c[nnz++] = p.second;
-                    }
-                    ia[i + 1] = nnz;
+                for(unsigned int i = 0; i < tmp.size(); ++i) {
+                    ja[i] = tmp[i].first;
+                    c[i] = tmp[i].second;
                 }
                 return true;
             }
