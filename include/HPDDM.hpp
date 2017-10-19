@@ -393,6 +393,13 @@ using HpFeti = HPDDM::Feti<SUBDOMAIN, COARSEOPERATOR, S, K, P>;
 template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #  endif
+#  include "dense.hpp"
+template<class K = double, char S = 'S'>
+using HpDense = HPDDM::Dense<
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+    SUBDOMAIN, COARSEOPERATOR,
+#endif
+    S, K>;
 # endif // !HPDDM_MINIMAL
 # include "option_impl.hpp"
 #else
