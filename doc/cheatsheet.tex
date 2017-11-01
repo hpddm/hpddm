@@ -1,3 +1,26 @@
+\iffalse
+
+   This file is part of HPDDM.
+
+   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+        Date: 2016-02-14
+
+   Copyright (C) 2016-     Centre National de la Recherche Scientifique
+
+   HPDDM is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Lesser General Public License as published
+   by the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   HPDDM is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public License
+   along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
+
+\fi
 \documentclass{article}
 \pagestyle{empty}
 \usepackage[landscape,vmargin=1cm,hmargin=1cm]{geometry}
@@ -5,7 +28,14 @@
 \usepackage{longtable}
 \usepackage{url}
 \usepackage{amsmath}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
 \usepackage{color, colortbl}
+\usepackage{multicol}
+\usepackage{enumitem}
+\usepackage[backend=biber,giveninits=true,useprefix=true,backref=true,style=numeric,maxnames=6,maxbibnames=99,language=auto]{biblatex}
+\addbibresource{cheatsheet.bib}
+\setlist{nosep,after=\vspace{0.5\baselineskip}}
+\newcommand{\fullcitecolor}[1]{{\color{Sepia}\fullcite{#1}}}
 \usepackage[utf8]{inputenc}
 \newdimen\parspace
 \parspace=-0.5cm
@@ -131,4 +161,45 @@ When using ARPACK as an eigensolver, there is an additional option.
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
+\begin{multicols}{2}[\section*{References}]
+For the keyword \texttt{krylov\_method}:
+    \begin{itemize}
+        \item value \texttt{gmres}, see \fullcitecolor{saad1986gmres},
+        \item value \texttt{bgmres}, see \fullcitecolor{gutknecht2006block},
+        \item value \texttt{cg}, see \fullcitecolor{hestenes1952methods},
+        \item value \texttt{bcg}, see \fullcitecolor{o1980block},
+        \item value \texttt{gcrodr}, see \fullcitecolor{parks2006recycling},
+        \item value \texttt{bgcrodr}, see \fullcitecolor{jolivet2016block},
+        \item value \texttt{bfbcg}, see \fullcitecolor{ji2017breakdown},
+        \item value \texttt{richardson}, see {\color{Sepia}\url{https://en.wikipedia.org/wiki/Modified_Richardson_iteration}}.
+    \end{itemize}
+For the keyword \texttt{variant}, value \texttt{flexible}, see \fullcitecolor{saad1993flexible}. \\[0.5\baselineskip]
+For the keyword \texttt{qr}:
+    \begin{itemize}
+        \item value \texttt{cholqr}, see \fullcitecolor{stathopoulos2002block},
+        \item value \texttt{cgs}, see Algorithm 3 on page 3 of \fullcitecolor{hernandez2005orthogonalization},
+        \item value \texttt{mgs}, see Algorithm 4 on page 4.
+    \end{itemize}
+For the keyword \texttt{deflation\_tol}, see section 12 of \fullcitecolor{gutknecht2006block}. \\[0.5\baselineskip]
+For the keywords \texttt{geneo\_nu}, \texttt{geneo\_threshold}, \texttt{master\_p}, and \texttt{master\_topology} see respectively eq.~(8), eq.~(9), section 3.1.1, and figure 5 of \fullcitecolor{jolivet2013scalable}. \\[0.5\baselineskip]
+For the keyword \texttt{schwarz\_method}:
+    \begin{itemize}
+        \item value \texttt{ras}, see \fullcitecolor{cai1999restricted},
+        \item values \texttt{oras} and \texttt{soras}, see \fullcitecolor{haferssas2017soras},
+        \item value \texttt{asm}, see eq.~(1.30) section 1.4 of \fullcitecolor{dolean2015introduction},
+        \item value \texttt{osm}, see \fullcitecolor{gander2006optimized}.
+    \end{itemize}
+For the keyword \texttt{schwarz\_coarse\_correction}:
+    \begin{itemize}
+        \item value \texttt{deflated}, see eq.~(13) section 2.3.3 of  \fullcitecolor{tang2009comparison},
+        \item value \texttt{additive}, see eq.~(7) section 2.3.1,
+        \item value \texttt{balanced}, see the first unnumbered equation of section 2.3.4.
+    \end{itemize}
+For the keyword \texttt{substructuring\_scaling}:
+    \begin{itemize}
+        \item value \texttt{multiplicity}, see the first bullet point section 3.2.1 of \fullcitecolor{gosselet2006non},
+        \item value \texttt{stiffness}, see the second bullet point,
+        \item value \texttt{coefficient}, see the third bullet point.
+    \end{itemize}
+\end{multicols}
 \end{document}
