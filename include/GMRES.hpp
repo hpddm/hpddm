@@ -34,17 +34,17 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     char id[3];
     options<0>(A.prefix(), &tol, nullptr, m, id);
     const int n = excluded ? 0 : A.getDof();
-    K** const H = new K*[m[1] * (id[1] == 2 ? 3 : 2) + 1];
+    K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 3 : 2) + 1];
     K** const v = H + m[1];
-    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * (2 + m[1] * (id[1] == 2 ? 2 : 1)) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2))];
+    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * (2 + m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1)) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2))];
     K* const Ax = s + mu * (m[1] + 1);
     *H = Ax + mu * n;
     for(unsigned short i = 1; i < m[1]; ++i)
         H[i] = *H + i * mu * (m[1] + 1);
     *v = *H + m[1] * mu * (m[1] + 1);
-    for(unsigned short i = 1; i < m[1] * (id[1] == 2 ? 2 : 1) + 1; ++i)
+    for(unsigned short i = 1; i < m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1; ++i)
         v[i] = *v + i * mu * n;
-    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (id[1] == 2 ? 2 : 1) + 1) * mu * n);
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) * mu * n);
     underlying_type<K>* const sn = norm + mu;
     const underlying_type<K>* const d = A.getScaling();
     short* const hasConverged = new short[mu];
@@ -53,9 +53,9 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     unsigned short j = 1;
     while(j <= m[0]) {
         if(!excluded)
-            A.GMV(x, !id[1] ? Ax : *v, mu);
-        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
-        if(!id[1])
+            A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu);
+        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+        if(id[1] == HPDDM_VARIANT_LEFT)
             A.template apply<excluded>(Ax, *v, mu);
         if(d)
             for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -92,15 +92,15 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         }
         unsigned short i = 0;
         while(i < m[1] && j <= m[0]) {
-            if(!id[1]) {
+            if(id[1] == HPDDM_VARIANT_LEFT) {
                 if(!excluded)
                     A.GMV(v[i], Ax, mu);
                 A.template apply<excluded>(Ax, v[i + 1], mu);
             }
             else {
-                A.template apply<excluded>(v[i], id[1] == 2 ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);
+                A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);
                 if(!excluded)
-                    A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
+                    A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
             }
             Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, d, Ax, comm);
             checkConvergence<0>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
@@ -112,7 +112,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 ++j;
         }
         if(j != m[0] + 1 && i == m[1]) {
-            updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == 2 ? m[1] + 1 : 0), hasConverged, mu, Ax);
+            updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0), hasConverged, mu, Ax);
             if(id[0] > 1)
                 std::cout << "GMRES restart(" << m[1] << ")" << std::endl;
         }
@@ -123,7 +123,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         const int rem = m[0] % m[1];
         std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
     }
-    updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == 2 ? m[1] + 1 : 0), hasConverged, mu, Ax);
+    updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0), hasConverged, mu, Ax);
     convergence<0>(id[0], j, m[0]);
     delete [] hasConverged;
     A.end(allocate);
@@ -138,16 +138,16 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     char id[3];
     options<1>(A.prefix(), tol, nullptr, m, id);
     const int n = excluded ? 0 : A.getDof();
-    K** const H = new K*[m[1] * (id[1] == 2 ? 3 : 2) + 1];
+    K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 3 : 2) + 1];
     K** const v = H + m[1];
     int ldh = mu * (m[1] + 1);
     int info;
     int N = 2 * mu;
     const underlying_type<K>* const d = A.getScaling();
     int lwork = mu * (d ? n + ldh : std::max(n, ldh));
-    *H = new K[lwork + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == 2 ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+    *H = new K[lwork + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m[1] * mu * ldh;
-    K* const s = *v + mu * n * (m[1] * (id[1] == 2 ? 2 : 1) + 1);
+    K* const s = *v + mu * n * (m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1);
     K* const tau = s + mu * ldh;
     K* const Ax = tau + m[1] * N;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
@@ -164,9 +164,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int deflated = -1;
     while(j <= m[0]) {
         if(!excluded)
-            A.GMV(x, !id[1] ? Ax : *v, mu);
-        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
-        if(!id[1])
+            A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu);
+        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+        if(id[1] == HPDDM_VARIANT_LEFT)
             A.template apply<excluded>(Ax, *v, mu);
         RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[1], N, piv, d, Ax, comm);
         diagonal<1>(id[0], s, mu, tol[1], piv);
@@ -186,7 +186,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             ldh = deflated * (m[1] + 1);
             for(unsigned short i = 1; i < m[1]; ++i)
                 H[i] = *H + i * deflated * ldh;
-            for(unsigned short i = 1; i < m[1] * (id[1] == 2 ? 2 : 1) + 1; ++i)
+            for(unsigned short i = 1; i < m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1; ++i)
                 v[i] = *v + i * deflated * n;
         }
         N *= 2;
@@ -197,15 +197,15 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         std::fill(*H, *v, K());
         unsigned short i = 0;
         while(i < m[1] && j <= m[0]) {
-            if(!id[1]) {
+            if(id[1] == HPDDM_VARIANT_LEFT) {
                 if(!excluded)
                     A.GMV(v[i], Ax, deflated);
                 A.template apply<excluded>(Ax, v[i + 1], deflated);
             }
             else {
-                A.template apply<excluded>(v[i], id[1] == 2 ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);
+                A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);
                 if(!excluded)
-                    A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
+                    A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
             }
             if(BlockArnoldi<excluded>(id[2], m[1], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm)) {
                 dim = deflated * (i - 1);
@@ -223,7 +223,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
         if(j != m[0] + 1 && i == m[1]) {
-            updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == 2 ? m[1] + 1 : 0), &dim, mu, Ax, deflated);
+            updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0), &dim, mu, Ax, deflated);
             if(tol[1] > -0.9) {
                 Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
                 if(m[2] <= 1)
@@ -241,7 +241,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             dim = deflated * rem;
     }
     if(j != 0 && deflated != -1) {
-        updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == 2 ? m[1] + 1 : 0), &dim, mu, Ax, deflated);
+        updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0), &dim, mu, Ax, deflated);
         if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     }

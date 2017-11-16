@@ -35,7 +35,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
-        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { 2, 3, 5 }) || opt.any_of(prefix + "schwarz_coarse_correction", { 0 })))
+        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
         options<2>(prefix, &tol, nullptr, &it, id);
     }
@@ -43,7 +43,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     const int dim = n * mu;
     underlying_type<K>* res;
     K* trash;
-    allocate(res, trash, n, id[1] == 2 ? 2 : 1, it, mu);
+    allocate(res, trash, n, id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1, it, mu);
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -it);
     underlying_type<K>* const dir = res + mu;
@@ -70,7 +70,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         while(i < it) {
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
-            if(id[1] == 2 && i) {
+            if(id[1] == HPDDM_VARIANT_FLEXIBLE && i) {
                 for(unsigned short k = 0; k < i; ++k)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
@@ -109,7 +109,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             ++i;
             std::copy_n(dir + mu, mu, dir + (it + i) * mu);
             std::copy_n(p, dim, p + i * dim);
-            if(id[1] == 2)
+            if(id[1] == HPDDM_VARIANT_FLEXIBLE)
                 std::copy_n(z, dim, p + (it + i) * dim);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -it) {
@@ -126,7 +126,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                 dir[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
             }
             MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-            if(id[1] != 2)
+            if(id[1] != HPDDM_VARIANT_FLEXIBLE)
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
             std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
@@ -155,10 +155,10 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
-        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { 2, 3, 5 }) || opt.any_of(prefix + "schwarz_coarse_correction", { 0 })))
+        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
         options<3>(prefix, &tol, nullptr, m, id);
-        if(opt.val<char>(prefix + "variant", 0) == 2)
+        if(opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE)
             return CG<excluded>(A, b, x, mu, comm);
         m[1] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
     }
@@ -301,10 +301,10 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
-        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { 2, 3, 5 }) || opt.any_of(prefix + "schwarz_coarse_correction", { 0 })))
+        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
         options<6>(prefix, tol, nullptr, m, id);
-        if(opt.val<char>(prefix + "variant", 0) == 2)
+        if(opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE)
             return CG<excluded>(A, b, x, mu, comm);
     }
     const int n = excluded ? 0 : A.getDof();

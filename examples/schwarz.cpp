@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
                     std::cout << " (rhs #" << nu + 1 << ")";
                 std::cout << std::endl;
             }
-        if(it > ((HPDDM_MIXED_PRECISION || opt.val<char>("krylov_method", 0) == 6) ? 60 : 45))
+        if(it > ((HPDDM_MIXED_PRECISION || opt.val<char>("krylov_method", HPDDM_KRYLOV_METHOD_GMRES) == HPDDM_KRYLOV_METHOD_BFBCG) ? 60 : 45))
             status = 1;
         else {
             for(unsigned short nu = 0; nu < mu; ++nu)
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
             std::ofstream output { filename };
             output << *Mat;
         }
-        if(opt["schwarz_method"] != 5) {
+        if(opt["schwarz_method"] != HPDDM_SCHWARZ_METHOD_NONE) {
             SUBDOMAIN<K> S;
             S.numfact(Mat);
             S.solve(f, sol, mu);

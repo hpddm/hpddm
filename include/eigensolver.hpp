@@ -106,7 +106,7 @@ class Eigensolver {
             const Option& opt = *Option::get();
             unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues + 1, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
             switch(opt.val<char>("geneo_force_uniformity")) {
-                case 0:
+                case HPDDM_GENEO_FORCE_UNIFORMITY_MIN:
                     if(!min)
                         MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
                     else {
@@ -115,7 +115,7 @@ class Eigensolver {
                         nev = std::max(r[0], static_cast<unsigned short>(std::numeric_limits<unsigned short>::max() - r[1]));
                     }
                     break;
-                case 1:
+                case HPDDM_GENEO_FORCE_UNIFORMITY_MAX:
                     if(!_nu)
                         nev = 0;
                     MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MAX, communicator);
@@ -145,7 +145,7 @@ class Eigensolver {
                             std::for_each(*basis, *basis + _n, [&](K& v) { v /= nrm; });
                             _nu = 1;
                         }
-                        const char id = opt.val<char>("orthogonalization", 0);
+                        const char id = opt.val<char>("orthogonalization", HPDDM_ORTHOGONALIZATION_CGS);
                         for(unsigned short i = _nu; i < nev; ++i)
                             IterativeMethod::orthogonalization(id, _n, i - 1, *basis, basis[i]);
                     }

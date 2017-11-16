@@ -27,6 +27,7 @@
 #define _HPDDM_SUBDOMAIN_
 
 #include <unordered_set>
+#include <map>
 
 namespace HPDDM {
 /* Class: Subdomain

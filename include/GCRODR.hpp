@@ -99,12 +99,12 @@ inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short
     }
     using type = typename std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>>::const_reference;
     switch(target) {
-        case 1:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }); break;
-        case 2:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) < std::real(rhs.second); }); break;
-        case 3:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) > std::real(rhs.second); }); break;
-        case 4:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) < std::imag(rhs.second); }); break;
-        case 5:  std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) > std::imag(rhs.second); }); break;
-        default: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) < std::norm(rhs.second); });
+        case HPDDM_RECYCLE_TARGET_LM: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_SR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) < std::real(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_LR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) > std::real(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_SI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) < std::imag(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_LI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) > std::imag(rhs.second); }); break;
+        default:                      std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) < std::norm(rhs.second); });
     }
 }
 
@@ -122,7 +122,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     }
     const int n = excluded ? 0 : A.getDof();
     const int ldh = mu * (m[1] + 1);
-    K** const H = new K*[m[1] * (id[1] == 2 ? 4 : 3) + 1];
+    K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 4 : 3) + 1];
     K** const save = H + m[1];
     *save = new K[ldh * m[1]];
     K** const v = save + m[1];
@@ -134,34 +134,34 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         k = recycled.k(A.prefix());
         C = U + k * ldv;
     }
-    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * ((id[1] == 1 ? 3 : 2) + m[1] * (id[1] == 2 ? 2 : 1)) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2)) + (d && U && id[1] == 1 && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0)];
+    K* const s = new K[mu * ((m[1] + 1) * (m[1] + 1) + n * ((id[1] == HPDDM_VARIANT_RIGHT ? 3 : 2) + m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1)) + (!Wrapper<K>::is_complex ? m[1] + 1 : (m[1] + 2) / 2)) + (d && U && id[1] == HPDDM_VARIANT_RIGHT && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0)];
     *H = s + ldh;
     for(unsigned short i = 1; i < m[1]; ++i) {
         H[i] = *H + i * ldh;
         save[i] = *save + i * ldh;
     }
     *v = *H + m[1] * ldh;
-    for(unsigned short i = 1; i < m[1] * (id[1] == 2 ? 2 : 1) + 1; ++i)
+    for(unsigned short i = 1; i < m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1; ++i)
         v[i] = *v + i * ldv;
-    K* const Ax = *v + (m[1] * (id[1] == 2 ? 2 : 1) + 1) * ldv;
+    K* const Ax = *v + (m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) * ldv;
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m[1]);
     int info;
     unsigned short j = 1;
-    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + (id[1] == 1 ? 2 : 1) * ldv + (d && U && id[1] == 1 && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0));
+    underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + (id[1] == HPDDM_VARIANT_RIGHT ? 2 : 1) * ldv + (d && U && id[1] == HPDDM_VARIANT_RIGHT && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0));
     underlying_type<K>* const sn = norm + mu;
     bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
     while(j <= m[0]) {
         unsigned short i = (U ? k : 0);
         if(!excluded) {
-            A.GMV(x, !id[1] ? Ax : v[i], mu);
-            Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, !id[1] ? Ax : v[i], 1);
+            A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], mu);
+            Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], 1);
         }
-        if(!id[1])
+        if(id[1] == HPDDM_VARIANT_LEFT)
             A.template apply<excluded>(Ax, v[i], mu);
         if(j == 1 && U) {
             K* pt;
-            if(id[1] == 1) {
+            if(id[1] == HPDDM_VARIANT_RIGHT) {
                 pt = *v;
                 if(id[4] / 4 == 0)
                     A.template apply<excluded>(U, pt, mu * k, C);
@@ -169,16 +169,16 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             else
                 pt = U;
             if(id[4] / 4 == 0) {
-                if(!id[1]) {
+                if(id[1] == HPDDM_VARIANT_LEFT) {
                     if(!excluded)
                         A.GMV(pt, *v, mu * k);
                     A.template apply<excluded>(*v, C, mu * k);
                 }
                 else if(!excluded)
                     A.GMV(pt, C, mu * k);
-                QR<excluded>((id[2] >> 2) & 7, n, k, C, *save, k, d, *v + (id[1] == 1 ? ldv * (i + 1) : 0), comm, true, mu);
+                QR<excluded>((id[2] >> 2) & 7, n, k, C, *save, k, d, *v + (id[1] == HPDDM_VARIANT_RIGHT ? ldv * (i + 1) : 0), comm, true, mu);
                 if(!excluded && n) {
-                    if(id[1] == 1)
+                    if(id[1] == HPDDM_VARIANT_RIGHT)
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, pt + nu * n, &ldv);
                     for(unsigned short nu = 0; nu < mu; ++nu)
@@ -239,15 +239,15 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             std::for_each(v[i] + nu * n, v[i] + (nu + 1) * n, [&](K& y) { y /= s[mu * i + nu]; });
         }
         while(i < m[1] && j <= m[0]) {
-            if(!id[1]) {
+            if(id[1] == HPDDM_VARIANT_LEFT) {
                 if(!excluded)
                     A.GMV(v[i], Ax, mu);
                 A.template apply<excluded>(Ax, v[i + 1], mu);
             }
             else {
-                A.template apply<excluded>(v[i], id[1] == 2 ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);
+                A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);
                 if(!excluded)
-                    A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
+                    A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
             }
             if(U)
                 orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], d, Ax, comm);
@@ -355,7 +355,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         delete [] select;
                         delete [] rwork;
                         delete [] w;
-                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1 : 0] + nu * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + nu * n, &ldv);
+                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0] + nu * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + nu * n, &ldv);
                         Blas<K>::gemm("N", "N", &row, &k, &dim, &(Wrapper<K>::d__1), *save + nu * (m[1] + 1), &ldh, vr, &dim, &(Wrapper<K>::d__0), *H + nu * (m[1] + 1), &ldh);
                         Lapack<K>::geqrf(&row, &k, *H + nu * (m[1] + 1), &ldh, vr, work, &lwork, &info);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, *H + nu * (m[1] + 1), &ldh, vr, *v + nu * n, &ldv, work, &lwork, &info);
@@ -372,18 +372,18 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 for(unsigned short nu = 0, curr = 0; nu < active; ++curr)
                     if(hasConverged[curr])
                         activeSet[nu++] = curr;
-                K* prod = (id[4] % 4 == 1 ? nullptr : new K[k * active * (m[1] + 2)]);
+                K* prod = (id[4] % 4 == HPDDM_RECYCLE_STRATEGY_B ? nullptr : new K[k * active * (m[1] + 2)]);
                 if(excluded || !n) {
-                    if(id[4] % 4 != 1) {
+                    if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         std::fill_n(prod, k * active * (m[1] + 2), K());
                         MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[1] + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     }
                 }
                 else {
                     std::copy_n(C, k * ldv, *v);
-                    if(id[1] == 2)
+                    if(id[1] == HPDDM_VARIANT_FLEXIBLE)
                         std::copy_n(v[m[1] + 1], k * ldv, U);
-                    if(id[4] % 4 != 1) {
+                    if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         info = m[1] + 1;
                         for(unsigned short nu = 0; nu < active; ++nu) {
                             if(d) {
@@ -407,7 +407,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         for(i = 0; i < dim; ++i)
                             std::fill_n(save[i] + i + 2 + activeSet[nu] * (m[1] + 1), m[1] - i - 1, K());
                         K* A = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
-                        if(id[4] % 4 != 1)
+                        if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B)
                             for(i = 0; i < k; ++i) {
                                 Blas<K>::scal(&n, prod + k * active * (m[1] + 1) + k * nu + i, U + activeSet[nu] * n + i * ldv, &i__1);
                                 for(unsigned short j = 0; j < k; ++j)
@@ -420,7 +420,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         }
                         int diff = dim - k;
                         Wrapper<K>::template omatcopy<'N'>(diff, k, H[k] + activeSet[nu] * (m[1] + 1), ldh, A + k * dim, dim);
-                        if(id[4] % 4 != 1)
+                        if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B)
                             for(i = 0; i < k; ++i)
                                 Blas<K>::scal(&diff, prod + k * active * (m[1] + 1) + k * nu + i, A + k * dim + i, &dim);
                         Wrapper<K>::template omatcopy<'C'>(diff, k, A + k * dim, dim, A + k, dim);
@@ -428,7 +428,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &k, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m[1] + 1), &ldh, H[k] + activeSet[nu] * (m[1] + 1), &ldh, &(Wrapper<K>::d__0), A + k * dim + k, &dim);
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m[1] + 1), &ldh, *save + activeSet[nu] * (m[1] + 1), &ldh, &(Wrapper<K>::d__1), A + k * dim + k, &dim);
                         K* B = new K[dim * (dim + 1)]();
-                        if(id[4] % 4 != 1) {
+                        if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                             row = dim + 1;
                             for(i = 0; i < k; ++i)
                                 std::transform(prod + k * nu * (m[1] + 1) + i * (m[1] + 1), prod + k * nu * (m[1] + 1) + i * (m[1] + 1) + dim + 1, B + i * (dim + 1), [&](const K& u) { return prod[k * active * (m[1] + 1) + k * nu + i] * u; });
@@ -471,7 +471,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         row = diff + 1;
                         Blas<K>::gemm("N", "N", &row, &k, &diff, &(Wrapper<K>::d__1), *save + activeSet[nu] * (m[1] + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__0), *H + k + activeSet[nu] * (m[1] + 1), &ldh);
                         Wrapper<K>::template omatcopy<'N'>(k, k, vr, dim, *H + activeSet[nu] * (m[1] + 1), ldh);
-                        if(id[4] % 4 != 1)
+                        if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B)
                             for(i = 0; i < k; ++i)
                                 Blas<K>::scal(&k, prod + k * active * (m[1] + 1) + k * nu + i, *H + activeSet[nu] * (m[1] + 1) + i, &ldh);
                         Blas<K>::gemm("N", "N", &k, &k, &diff, &(Wrapper<K>::d__1), H[k] + activeSet[nu] * (m[1] + 1), &ldh, vr + k, &dim, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m[1] + 1), &ldh);
@@ -486,8 +486,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m[1] + 1), &ldh, Ax, work, &lwork, &info);
                         if(d)
                             Wrapper<K>::template omatcopy<'N'>(k, n, *v + activeSet[nu] * n, ldv, C + activeSet[nu] * n, ldv);
-                        Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[id[1] == 2 ? m[1] + 1 : 0] + activeSet[nu] * n, ldv);
-                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1 : 0] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
+                        Wrapper<K>::template omatcopy<'N'>(k, n, U + activeSet[nu] * n, ldv, v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0] + activeSet[nu] * n, ldv);
+                        Blas<K>::gemm("N", "N", &n, &k, &dim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0] + activeSet[nu] * n, &ldv, vr, &dim, &(Wrapper<K>::d__0), U + activeSet[nu] * n, &ldv);
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *H + activeSet[nu] * (m[1] + 1), &ldh, U + activeSet[nu] * n, &ldv);
                         Wrapper<K>::template omatcopy<'N'>(k, n, C + activeSet[nu] * n, ldv, *v + activeSet[nu] * n, ldv);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, *H + activeSet[nu] * (m[1] + 1), &ldh, Ax, *v + activeSet[nu] * n, &ldv, work, &lwork, &info);
@@ -527,7 +527,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     }
     const int n = excluded ? 0 : A.getDof();
     int ldh = mu * (m[1] + 1);
-    K** const H = new K*[m[1] * (id[1] == 2 ? 4 : 3) + 1];
+    K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 4 : 3) + 1];
     K** const save = H + m[1];
     *save = new K[ldh * mu * m[1]]();
     K** const v = save + m[1];
@@ -541,11 +541,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         k = recycled.k(A.prefix());
         C = U + k * ldv;
     }
-    int lwork = mu * (d ? (n + (id[1] == 1 ? std::max(n, ldh) : ldh)) : std::max((id[1] == 1 ? 2 : 1) * n, ldh));
-    *H = new K[lwork + (d && U && id[1] == 1 && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0) + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == 2 ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
+    int lwork = mu * (d ? (n + (id[1] == HPDDM_VARIANT_RIGHT ? std::max(n, ldh) : ldh)) : std::max((id[1] == HPDDM_VARIANT_RIGHT ? 2 : 1) * n, ldh));
+    *H = new K[lwork + (d && U && id[1] == HPDDM_VARIANT_RIGHT && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0) + mu * ((m[1] + 1) * ldh + n * (m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) + 2 * m[1]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m[1] * mu * ldh;
-    K* const Ax = *v + ldv * (m[1] * (id[1] == 2 ? 2 : 1) + 1);
-    K* const s = Ax + lwork + (d && U && id[1] == 1 && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0);
+    K* const Ax = *v + ldv * (m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1);
+    K* const s = Ax + lwork + (d && U && id[1] == HPDDM_VARIANT_RIGHT && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0);
     K* const tau = s + mu * ldh;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(tau + m[1] * N);
     bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
@@ -561,15 +561,15 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     int deflated = -1;
     while(j <= m[0]) {
         if(!excluded) {
-            A.GMV(x, !id[1] ? Ax : *v, mu);
-            Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, !id[1] ? Ax : *v, 1);
+            A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu);
+            Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
         }
-        if(!id[1])
+        if(id[1] == HPDDM_VARIANT_LEFT)
             A.template apply<excluded>(Ax, *v, mu);
         if(j == 1 && U) {
             K* pt;
             const int bK = mu * k;
-            if(id[1] == 1) {
+            if(id[1] == HPDDM_VARIANT_RIGHT) {
                 pt = *v + ldv;
                 if(id[4] / 4 == 0)
                     A.template apply<excluded>(U, pt, bK, C);
@@ -577,23 +577,23 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             else
                 pt = U;
             if(id[4] / 4 == 0) {
-                if(!id[1]) {
+                if(id[1] == HPDDM_VARIANT_LEFT) {
                     if(!excluded)
                         A.GMV(pt, *v + ldv, bK);
                     A.template apply<excluded>(*v + ldv, C, bK);
                 }
                 else if(!excluded)
                     A.GMV(pt, C, bK);
-                QR<excluded>((id[2] >> 2) & 7, n, bK, C, *save, bK, d, *v + ldv * (id[1] == 1 ? (k + 1) : 1), comm);
+                QR<excluded>((id[2] >> 2) & 7, n, bK, C, *save, bK, d, *v + ldv * (id[1] == HPDDM_VARIANT_RIGHT ? (k + 1) : 1), comm);
                 if(!excluded && n) {
-                    if(id[1] == 1)
+                    if(id[1] == HPDDM_VARIANT_RIGHT)
                         Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, pt, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *save, &bK, U, &n);
                 }
                 std::fill_n(*save, bK * bK, K());
             }
             blockOrthogonalization<excluded>(id[2] & 3, n, k, mu, C, *v, *H, ldh, d, Ax, comm);
-            if(id[1] != 1 || id[4] / 4 == 0) {
+            if(id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
                 if(!excluded && n)
                     Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), pt, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
             }
@@ -625,7 +625,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 H[i] = *H + i * deflated * ldh;
                 save[i] = *save + i * deflated * ldh;
             }
-            for(unsigned short i = 1; i < m[1] * (id[1] == 2 ? 2 : 1) + 1; ++i)
+            for(unsigned short i = 1; i < m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1; ++i)
                 v[i] = *v + i * ldv;
         }
         N *= 2;
@@ -643,15 +643,15 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(j == 1 && U)
             std::copy_n(C, k * ldv, *v);
         while(i < m[1] && j <= m[0]) {
-            if(!id[1]) {
+            if(id[1] == HPDDM_VARIANT_LEFT) {
                 if(!excluded)
                     A.GMV(v[i], Ax, deflated);
                 A.template apply<excluded>(Ax, v[i + 1], deflated);
             }
             else {
-                A.template apply<excluded>(v[i], id[1] == 2 ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);
+                A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);
                 if(!excluded)
-                    A.GMV(id[1] == 2 ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
+                    A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
             }
             if(U)
                 blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, d, Ax, comm);
@@ -747,7 +747,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     delete [] perm;
                     delete [] rwork;
                     delete [] w;
-                    Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1 : 0], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
+                    Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::gemm("N", "N", &row, &bK, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H, &ldh);
                     delete [] vr;
                     Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
@@ -769,7 +769,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 else {
                     std::copy_n(C, k * ldv, *v);
-                    if(id[1] == 2)
+                    if(id[1] == HPDDM_VARIANT_FLEXIBLE)
                         std::copy_n(v[m[1] + 1], k * ldv, U);
                     for(i = 0; i < m[1] - k; ++i)
                         for(unsigned short nu = 0; nu < deflated; ++nu)
@@ -870,8 +870,8 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
                     if(d)
                         std::copy_n(*v, k * ldv, C);
-                    std::copy_n(U, k * ldv, v[id[1] == 2 ? m[1] + 1 : 0]);
-                    Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[id[1] == 2 ? m[1] + 1 : 0], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
+                    std::copy_n(U, k * ldv, v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0]);
+                    Blas<K>::gemm("N", "N", &n, &bK, &bDim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0], &n, vr, &bDim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::trsm("R", "U", "N", "N", &n, &bK, &(Wrapper<K>::d__1), *H, &ldh, U, &n);
                     std::copy_n(C, k * ldv, *v);
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, *H, &ldh, Ax, *v, &n, work, &lwork, &info);

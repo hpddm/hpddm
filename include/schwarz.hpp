@@ -102,10 +102,10 @@ class Schwarz : public Preconditioner<
                 }
             }
             switch(m) {
-                case 2:  _type = (A ? Prcndtnr::OS : Prcndtnr::SY); break;
-                case 3:  _type = Prcndtnr::SY; break;
-                case 5:  _type = Prcndtnr::NO; return;
-                default: _type = (A && (m == 1 || m == 4) ? Prcndtnr::OG : Prcndtnr::GE);
+                case HPDDM_SCHWARZ_METHOD_SORAS: _type = (A ? Prcndtnr::OS : Prcndtnr::SY); break;
+                case HPDDM_SCHWARZ_METHOD_ASM:   _type = Prcndtnr::SY; break;
+                case HPDDM_SCHWARZ_METHOD_NONE:  _type = Prcndtnr::NO; return;
+                default:                         _type = (A && (m == HPDDM_SCHWARZ_METHOD_ORAS || m == HPDDM_SCHWARZ_METHOD_OSM) ? Prcndtnr::OG : Prcndtnr::GE);
             }
             m = opt.val<unsigned short>(prefix + "reuse_preconditioner");
             if(m <= 1)
@@ -239,12 +239,12 @@ class Schwarz : public Preconditioner<
                 unsigned short k = 1;
                 const std::string prefix = super::prefix();
                 Option& opt = *Option::get();
-                if(opt.any_of(prefix + "krylov_method", { 4, 5 }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
+                if(opt.any_of(prefix + "krylov_method", { HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
                     k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
                 super::start(mu * k);
-                if(opt.val<char>(prefix + "schwarz_coarse_correction") == 2) {
-                    if(opt.val<char>("geneo_force_uniformity") == 1)
-                        opt[prefix + "schwarz_coarse_correction"] = 0;
+                if(opt.val<char>(prefix + "schwarz_coarse_correction") == HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED) {
+                    if(opt.val<char>("geneo_force_uniformity") == HPDDM_GENEO_FORCE_UNIFORMITY_MAX)
+                        opt[prefix + "schwarz_coarse_correction"] = HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED;
                     else if(!excluded) {
                         K* tmp = new K[mu * Subdomain<K>::_dof];
                         GMV(x, tmp, mu);                                                  // tmp = A x
@@ -303,7 +303,7 @@ class Schwarz : public Preconditioner<
                     work = const_cast<K*>(in);
                 else if(!excluded)
                     std::copy_n(in, tmp, work);
-                if(correction == 1) {
+                if(correction == HPDDM_SCHWARZ_COARSE_CORRECTION_ADDITIVE) {
 #if HPDDM_ICOLLECTIVE
                     MPI_Request rq[2];
                     Ideflation<excluded>(in, out, mu, rq);
@@ -326,7 +326,7 @@ class Schwarz : public Preconditioner<
                     }
 #endif // HPDDM_ICOLLECTIVE
                 }
-                else if(correction == 2) {
+                else if(correction == HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED) {
                     if(!excluded) {
                         if(_type == Prcndtnr::OS)
                             Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
@@ -511,7 +511,7 @@ class Schwarz : public Preconditioner<
          *    norm           - l^2, l^1, or l^\infty norm.
          *
          * See also: <Schur::computeResidual>. */
-        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short mu = 1, const unsigned short norm = 0) const {
+        void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short mu = 1, const unsigned short norm = HPDDM_COMPUTE_RESIDUAL_L2) const {
             int dim = mu * Subdomain<K>::_dof;
             K* tmp = new K[dim];
             bool allocate = Subdomain<K>::setBuffer();
@@ -519,7 +519,7 @@ class Schwarz : public Preconditioner<
             Subdomain<K>::clearBuffer(allocate);
             Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
             std::fill_n(storage, 2 * mu, 0.0);
-            if(norm == 1) {
+            if(norm == HPDDM_COMPUTE_RESIDUAL_L1) {
                 for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
                     bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -532,7 +532,7 @@ class Schwarz : public Preconditioner<
                     }
                 }
             }
-            else if(norm == 2) {
+            else if(norm == HPDDM_COMPUTE_RESIDUAL_LINFTY) {
                 for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
                     bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -559,9 +559,9 @@ class Schwarz : public Preconditioner<
                 }
             }
             delete [] tmp;
-            if(norm == 0 || norm == 1) {
+            if(norm == HPDDM_COMPUTE_RESIDUAL_L2 || norm == HPDDM_COMPUTE_RESIDUAL_L1) {
                 MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
-                if(norm == 0)
+                if(norm == HPDDM_COMPUTE_RESIDUAL_L2)
                     std::for_each(storage, storage + 2 * mu, [](underlying_type<K>& b) { b = std::sqrt(b); });
             }
             else

@@ -192,7 +192,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 delete [] neighbors;
                 Option& opt = *Option::get();
                 _dof = on.size();
-                if(opt.template val<char>("master_krylov_method", 0) != 8) {
+                if(opt.template val<char>("master_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) {
                     accumulate = 0;
                     if(range.size() > 1) {
                         range.emplace_back(J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0));
@@ -399,7 +399,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 _x = new K[n * _dof * _bs]();
                 _mu = n;
             }
-            if(Option::get()->template val<char>("master_krylov_method", 0) != 8)
+            if(Option::get()->template val<char>("master_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE)
                 IterativeMethod::template solve<false>(*this, rhs, _x, n, _communicator);
             else
                 Solver<K>::solve(rhs, _x, n);
@@ -429,7 +429,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                 unsigned short k = 1;
                 const std::string prefix = OptionsPrefix::prefix();
                 const Option& opt = *Option::get();
-                if(opt.any_of(prefix + "krylov_method", { 4, 5 }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
+                if(opt.any_of(prefix + "krylov_method", { HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
                     k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
                 _o = new K[mu * k * _off * _bs]();
                 return true;

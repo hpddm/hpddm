@@ -1125,7 +1125,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     if(excluded < 2)
         delete [] *sendNeighbor;
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
-    DMatrix::_distribution = static_cast<DMatrix::Distribution>(opt.val<char>("master_distribution", 0));
+    DMatrix::_distribution = static_cast<DMatrix::Distribution>(opt.val<char>("master_distribution", HPDDM_MASTER_DISTRIBUTION_CENTRALIZED));
 #endif
     if(U != 2) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR

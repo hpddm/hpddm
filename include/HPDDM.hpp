@@ -45,7 +45,7 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000704
+#define HPDDM_VERSION         000800
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -291,6 +291,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   pragma GCC diagnostic pop
 #  endif
 # endif
+# include "enum.hpp"
 # include "matrix.hpp"
 # if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
 #  include "dmatrix.hpp"
@@ -336,7 +337,6 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 # endif
 # ifndef HPDDM_MINIMAL
 #  include "LAPACK.hpp"
-#  include "enum.hpp"
 #  if HPDDM_MPI
 #   if HPDDM_SCHWARZ
 #    ifndef EIGENSOLVER
