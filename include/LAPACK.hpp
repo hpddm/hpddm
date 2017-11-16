@@ -332,7 +332,7 @@ class LapackSub {
             }
             else {
                 for(unsigned int i = 0; i < A->_n; ++i) {
-                    for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1]; ++j)
+                    for(unsigned int j = A->_ia[i] - (N == 'F'); j < A->_ia[i + 1] - (N == 'F'); ++j)
                         _a[i + (A->_ja[j] - (N == 'F')) * _n] = A->_a[j];
                 }
             }

@@ -119,11 +119,20 @@ class IterativeMethod {
             }
             if(verbosity > 2) {
                 constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
-                underlying_type<K>* max = std::max_element(pt, pt + d / t);
-                if(tol > 0.0)
-                    std::cout << method << ": " << std::setw(3) << i << " " << *max << " " <<  norm[std::distance(pt, max)] << " " <<  *max / norm[std::distance(pt, max)] << " < " << tol;
-                else
+                underlying_type<K>* max;
+                if(tol > 0.0) {
+                    unsigned short j = 0;;
+                    for(unsigned short i = 1; i < d / t; ++i) {
+                        if(pt[j] / norm[j] < pt[i] / norm[i])
+                            j = i;
+                    }
+                    max = pt + j;
+                    std::cout << method << ": " << std::setw(3) << i << " " << *max << " " <<  norm[j] << " " <<  *max / norm[j] << " < " << tol;
+                }
+                else {
+                    max = std::max_element(pt, pt + d / t);
                     std::cout << method << ": " << std::setw(3) << i << " " << *max << " < " << -tol;
+                }
                 if(d != t || (d == t && t != mu)) {
                     std::cout << " (rhs #" << std::distance(pt, max) + 1;
                     if(conv > d)
