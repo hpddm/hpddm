@@ -52,10 +52,6 @@ class Dense : public Schwarz<
             MatrixCSR<K>* A = new MatrixCSR<K>(n, n, n * n, p, nullptr, nullptr, sym);
             Subdomain<K>::initialize(A, o, r, comm);
         }
-        template<char N = HPDDM_NUMBERING>
-        void callNumfact(MatrixCSR<K>* const& A = nullptr) {
-            super::_s.template numfact<N>(Subdomain<K>::_a);
-        }
         void setMatrix(MatrixCSR<K>* const& A) {
             super::setMatrix(A);
             super::destroySolver();
@@ -63,14 +59,7 @@ class Dense : public Schwarz<
         }
         void setMatrix(const int& n, const bool sym, K* const& p) {
             MatrixCSR<K>* A = new MatrixCSR<K>(n, n, n * n, p, nullptr, nullptr, sym);
-            super::setMatrix(A);
-            super::destroySolver();
-            super::_s.numfact(A);
-        }
-        template<bool excluded = false>
-        void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
-            super::_s.solve(in, out, mu);
-            super::scaledExchange(out, mu);
+            setMatrix(A);
         }
         static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
     private:
