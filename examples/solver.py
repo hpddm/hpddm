@@ -46,7 +46,10 @@ hpddm.csrmv(Mat, sol, tmp)
 tmp -= f
 nrmAx = numpy.linalg.norm(tmp)
 print(' --- residual = {:e} / {:e}'.format(nrmAx, nrmb))
-if nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
+if nrmb < 1.0e-12 or nrmAx / nrmb > (1.0e-8 if ctypes.sizeof(hpddm.underlying) == ctypes.sizeof(ctypes.c_double) else 1.0e-2):
     status = 1
+else:
+    status = 0
 hpddm.subdomainDestroy(ctypes.byref(S))
 hpddm.matrixCSRDestroy(ctypes.byref(Mat))
+sys.exit(status)
