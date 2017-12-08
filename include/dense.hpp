@@ -37,7 +37,7 @@ class Dense : public Schwarz<
 #endif
                 S, K> {
     public:
-        Dense() { }
+        Dense() : super() { }
         Dense(const Subdomain<K>& s) : super(s) { super::_d = nullptr; }
         ~Dense() { super::_d = nullptr; }
         /* Typedef: super

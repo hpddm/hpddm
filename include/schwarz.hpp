@@ -71,8 +71,8 @@ class Schwarz : public Preconditioner<
          *  Type of <Prcndtnr> used in <Schwarz::apply> and <Schwarz::deflation>. */
         Prcndtnr               _type;
     public:
-        Schwarz() : _d(), _hash() { }
-        Schwarz(const Subdomain<K>& s) : super(s), _d(), _hash() { }
+        Schwarz() : _d(), _hash(), _type(Prcndtnr::NO) { }
+        Schwarz(const Subdomain<K>& s) : super(s), _d(), _hash(), _type(Prcndtnr::NO) { }
         ~Schwarz() { _d = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
