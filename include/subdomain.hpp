@@ -287,17 +287,20 @@ class Subdomain : public OptionsPrefix {
         void destroyMatrix(void (*dtor)(void*)) {
             if(_a) {
                 int rankWorld;
-                MPI_Comm_rank(_communicator, &rankWorld);
-                const std::string prefix = OptionsPrefix::prefix();
-                const Option& opt = *Option::get();
-                std::string filename = opt.prefix(prefix + "dump_matrices", true);
-                if(filename.size() == 0)
-                    filename = opt.prefix(prefix + "dump_matrix_" + to_string(rankWorld), true);
-                if(filename.size() != 0) {
-                    int sizeWorld;
-                    MPI_Comm_size(_communicator, &sizeWorld);
-                    std::ofstream output { filename + "_" + to_string(rankWorld) + "_" + to_string(sizeWorld) + ".txt" };
-                    output << *_a;
+                MPI_Finalized(&rankWorld);
+                if(!rankWorld) {
+                    MPI_Comm_rank(_communicator, &rankWorld);
+                    const std::string prefix = OptionsPrefix::prefix();
+                    const Option& opt = *Option::get();
+                    std::string filename = opt.prefix(prefix + "dump_matrices", true);
+                    if(filename.size() == 0)
+                        filename = opt.prefix(prefix + "dump_matrix_" + to_string(rankWorld), true);
+                    if(filename.size() != 0) {
+                        int sizeWorld;
+                        MPI_Comm_size(_communicator, &sizeWorld);
+                        std::ofstream output { filename + "_" + to_string(rankWorld) + "_" + to_string(sizeWorld) + ".txt" };
+                        output << *_a;
+                    }
                 }
                 if(dtor)
                     _a->destroy(dtor);
