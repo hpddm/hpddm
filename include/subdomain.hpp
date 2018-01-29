@@ -211,8 +211,10 @@ class Subdomain : public OptionsPrefix {
             return allocate;
         }
         void clearBuffer(const bool free = true) const {
-            if(free && !_map.empty())
+            if(free && !_map.empty()) {
                 delete [] *_buff;
+                *_buff = nullptr;
+            }
         }
         void end(const bool free = true) const { clearBuffer(free); }
         /* Function: initialize(dummy)
@@ -602,6 +604,8 @@ class Subdomain : public OptionsPrefix {
                     ++between;
                 unsigned int size = 1 + ((2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) - 1) / sizeof(K));
                 unsigned int* rbuff = (size < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size() ? reinterpret_cast<unsigned int*>(_buff[0]) : new unsigned int[2 * (std::distance(_buff[0], _buff[_map.size()]) + 1)]);
+                if(_map.empty())
+                    rbuff = new unsigned int[1];
                 unsigned int* sbuff = rbuff + std::distance(_buff[0], _buff[_map.size()]) + 1;
                 size = 0;
                 MPI_Request* rq = new MPI_Request[2];
@@ -612,7 +616,7 @@ class Subdomain : public OptionsPrefix {
                 }
 
                 if(rankWorld && ((between && _map[between - 1].first != rankWorld - 1) || !between))
-                    MPI_Irecv(rbuff + size, 1, MPI_UNSIGNED, rankWorld - 1, 10, _communicator, rq);
+                    MPI_Irecv(rbuff + (_map.empty() ? 0 : size), 1, MPI_UNSIGNED, rankWorld - 1, 10, _communicator, rq);
                 else
                     rq[0] = MPI_REQUEST_NULL;
 
@@ -706,7 +710,7 @@ class Subdomain : public OptionsPrefix {
                 MPI_Waitall(_map.size(), _rq + between, MPI_STATUSES_IGNORE);
                 MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
                 delete [] rq;
-                if(rbuff != reinterpret_cast<unsigned int*>(_buff[0]))
+                if(_map.empty() || rbuff != reinterpret_cast<unsigned int*>(_buff[0]))
                     delete [] rbuff;
                 global = end - (N == 'F');
                 MPI_Bcast(&global, 1, MPI_UNSIGNED, sizeWorld - 1, _communicator);
@@ -733,7 +737,7 @@ class Subdomain : public OptionsPrefix {
          *
          * See also: <Subdomain::globalMapping>. */
         template<class T = K>
-        static bool distributedCSR(unsigned int* num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A) {
+        static bool distributedCSR(const unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A) {
             if(first != 0 || last != A->_n) {
                 std::vector<std::pair<unsigned int, unsigned int>> s;
                 s.reserve(A->_n);
@@ -780,7 +784,7 @@ class Subdomain : public OptionsPrefix {
          *
          * See also: <Subdomain::globalMapping>. */
         template<bool V, class T = K>
-        static void distributedVec(unsigned int* num, unsigned int first, unsigned int last, T* const& in, T*& out, const unsigned int n, const unsigned short bs = 1) {
+        static void distributedVec(const unsigned int* const num, unsigned int first, unsigned int last, T* const& in, T*& out, const unsigned int n, const unsigned short bs = 1) {
             if(first != 0 || last != n) {
                 if(!out) {
                     unsigned int dof = 0;
@@ -875,7 +879,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
                 displ = 0;
                 for(unsigned short i = 0; i < map.size(); ++i) {
                     if(rank < map[i].first)
-                        std::fill_n(buff + displ, map[i].second.size(), std::min(map[i].first / div, k - 1) + 1);
+                        std::fill_n(buff + displ, map[i].second.size(), std::min(static_cast<int>(map[i].first / div), static_cast<int>(k - 1)) + 1);
                     displ += map[i].second.size();
                 }
                 displ = 0;

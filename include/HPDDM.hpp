@@ -45,7 +45,7 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000800
+#define HPDDM_VERSION         000801
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -359,6 +359,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   define MPI_Comm_rank(a, b) *b = 0
 #   define MPI_COMM_SELF 0
 typedef int MPI_Comm;
+typedef int MPI_Request;
 #  endif
 #  include "GCRODR.hpp"
 #  include "CG.hpp"
@@ -367,39 +368,39 @@ typedef int MPI_Comm;
 #   undef MPI_Comm_rank
 #   undef MPI_Comm_size
 #   undef MPI_Allreduce
-#  endif
-
-#  include "schwarz.hpp"
+#  else
+#   include "schwarz.hpp"
 template<class K = double, char S = 'S'>
 using HpSchwarz = HPDDM::Schwarz<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     SUBDOMAIN, COARSEOPERATOR,
 #endif
     S, K>;
-#  include "schur.hpp"
+#   include "schur.hpp"
 template<class K = double>
 using HpSchur = HPDDM::Schur<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     SUBDOMAIN, COARSEOPERATOR<K>,
 #endif
     K>;
-#  if HPDDM_FETI
-#   include "FETI.hpp"
+#   if HPDDM_FETI
+#    include "FETI.hpp"
 template<HPDDM::FetiPrcndtnr P, class K = double, char S = 'S'>
 using HpFeti = HPDDM::Feti<SUBDOMAIN, COARSEOPERATOR, S, K, P>;
-#  endif
-#  if HPDDM_BDD
-#   include "BDD.hpp"
+#   endif
+#   if HPDDM_BDD
+#    include "BDD.hpp"
 template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
-#  endif
-#  include "dense.hpp"
+#   endif
+#   include "dense.hpp"
 template<class K = double, char S = 'S'>
 using HpDense = HPDDM::Dense<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     SUBDOMAIN, COARSEOPERATOR,
 #endif
     S, K>;
+#  endif // !HPDDM_MPI
 # endif // !HPDDM_MINIMAL
 # include "option_impl.hpp"
 #else

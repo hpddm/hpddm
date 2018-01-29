@@ -86,6 +86,17 @@ class Schwarz : public Preconditioner<
         void initialize(underlying_type<K>* const& d) {
             _d = d;
         }
+        /* Function: scaledExchange */
+        template<bool allocate = false>
+        void scaledExchange(K* const x, const unsigned short& mu = 1) const {
+            bool free = false;
+            if(allocate)
+                free = Subdomain<K>::setBuffer();
+            Wrapper<K>::diag(Subdomain<K>::_dof, _d, x, mu);
+            Subdomain<K>::exchange(x, mu);
+            if(allocate)
+                Subdomain<K>::clearBuffer(free);
+        }
 #if HPDDM_SCHWARZ
         /* Function: callNumfact
          *  Factorizes <Subdomain::a> or another user-supplied matrix, useful for <Prcndtnr::OS> and <Prcndtnr::OG>. */
@@ -150,17 +161,6 @@ class Schwarz : public Preconditioner<
             }
             MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
             Subdomain<K>::clearBuffer(allocate);
-        }
-        /* Function: scaledExchange */
-        template<bool allocate = false>
-        void scaledExchange(K* const x, const unsigned short& mu = 1) const {
-            bool free = false;
-            if(allocate)
-                free = Subdomain<K>::setBuffer();
-            Wrapper<K>::diag(Subdomain<K>::_dof, _d, x, mu);
-            Subdomain<K>::exchange(x, mu);
-            if(allocate)
-                Subdomain<K>::clearBuffer(free);
         }
         /* Function: deflation
          *
