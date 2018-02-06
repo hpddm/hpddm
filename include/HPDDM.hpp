@@ -45,7 +45,7 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000801
+#define HPDDM_VERSION         000802
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -92,6 +92,14 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # define HPDDM_LIBXSMM        0
 #endif
 
+#ifdef _MSC_VER
+# ifndef _CRT_SECURE_NO_WARNINGS
+#  define _CRT_SECURE_NO_WARNINGS
+# endif
+# ifndef _SCL_SECURE_NO_WARNINGS
+#  define _SCL_SECURE_NO_WARNINGS
+# endif
+#endif
 #ifdef __MINGW32__
 # include <inttypes.h>
 #endif
@@ -157,13 +165,13 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <vector>
 # include <numeric>
 # include <functional>
+# include <memory>
 # if !__cpp_rtti && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
 #  pragma message("Consider enabling RTTI support with your C++ compiler")
 # endif
 static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double) && sizeof(char) == 1, "Incorrect sizes");
 # ifdef __GNUG__
 #  include <cxxabi.h>
-#  include <memory>
 # endif
 
 namespace HPDDM {

@@ -154,7 +154,7 @@ class Option : private Singleton {
                 if(!s.empty()) {
                     char* endptr = nullptr;
                     int val = strtol(s.c_str(), &endptr, 10);
-                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(val) && val > 0)
+                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(float(val)) && val > 0)
                         return true;
                 }
                 if(verbose)
@@ -165,7 +165,7 @@ class Option : private Singleton {
                 if(!s.empty()) {
                     char* endptr = nullptr;
                     int val = strtol(s.c_str(), &endptr, 10);
-                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(val))
+                    if(endptr != s.c_str() && *endptr == 0 && !std::isnan(float(val)))
                         return true;
                 }
                 if(verbose)
