@@ -139,7 +139,8 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     }
     else
         i = -1;
-    convergence<2>(id[0], i + 1, it);
+    ++i;
+    convergence<2>(id[0], i, it);
     delete [] res;
     if(Wrapper<K>::is_complex)
         delete [] trash;
