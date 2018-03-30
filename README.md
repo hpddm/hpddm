@@ -43,9 +43,10 @@ If you use this software, please cite this [paper](http://dl.acm.org/citation.cf
 
 ###### Collaborators/contributors
 [Lea Conen](https://www.linkedin.com/in/lea-conen-789111a5)  
-[Victorita Dolean](http://www-math.unice.fr/~dolean/Home.html)  
-[Ryadh Haferssas](https://www.ljll.math.upmc.fr/~haferssas/)  
+[Victorita Dolean](http://dolean.blogspot.fr/)  
+Ryadh Haferssas  
 [Frédéric Hecht](https://www.ljll.math.upmc.fr/hecht/)  
-[Christophe Prud'homme](http://www.prudhomm.org/)  
+[Pierre Marchand](https://www.ljll.math.upmc.fr/marchandp/)  
+[Christophe Prud'homme](https://github.com/prudhomm)  
 [Nicole Spillane](http://www.cmap.polytechnique.fr/~spillane/)  
 Pierre-Henri Tournier

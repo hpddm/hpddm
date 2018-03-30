@@ -40,12 +40,13 @@
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
  *    HPDDM_BDD           - BDD methods enabled.
+ *    HPDDM_PETSC         - PETSc KSP interface enabled.
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000802
+#define HPDDM_VERSION         000803
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -77,6 +78,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #endif
 #ifndef HPDDM_BDD
 # define HPDDM_BDD            1
+#endif
+#ifndef HPDDM_PETSC
+# define HPDDM_PETSC          0
 #endif
 #define HPDDM_QR              2
 #ifndef HPDDM_ICOLLECTIVE
@@ -231,6 +235,16 @@ inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, std::
     T cplx;
     stm >> cplx;
     return cplx;
+}
+template<class T>
+inline std::string pts(const T* const s, const unsigned int k, typename std::enable_if<!std::is_same<T, void>::value>::type* = nullptr) {
+    std::ostringstream stm;
+    stm << s[k];
+    return stm.str();
+}
+template<class T>
+inline std::string pts(const T* const, const unsigned int, typename std::enable_if<std::is_same<T, void>::value>::type* = nullptr) {
+    return "";
 }
 template<class U, class V>
 inline U pow(U x, V y) {
@@ -415,5 +429,8 @@ using HpDense = HPDDM::Dense<
 # include "BLAS.hpp"
 # include "LAPACK.hpp"
 #endif // __cplusplus
+#if HPDDM_PETSC
+# include "PETSc.hpp"
+#endif
 
 #endif // _HPDDM_
