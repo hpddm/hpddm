@@ -122,9 +122,9 @@ class IterativeMethod {
                 underlying_type<K>* max;
                 if(tol > 0.0) {
                     unsigned short j = 0;;
-                    for(unsigned short i = 1; i < d / t; ++i) {
-                        if(pt[j] / norm[j] < pt[i] / norm[i])
-                            j = i;
+                    for(unsigned short k = 1; k < d / t; ++k) {
+                        if(pt[j] / norm[j] < pt[k] / norm[k])
+                            j = k;
                     }
                     max = pt + j;
                     std::cout << method << ": " << std::setw(3) << i << " " << *max << " " <<  norm[j] << " " <<  *max / norm[j] << " < " << tol;

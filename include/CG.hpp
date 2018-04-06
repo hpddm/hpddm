@@ -86,22 +86,6 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             }
             if(!excluded)
                 A.GMV(p, z, mu);
-            if(i) {
-                Wrapper<K>::diag(n, d, z, trash, mu);
-                for(unsigned short k = 0; k < i; ++k)
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
-                MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-                if(!excluded) {
-                    if(n)
-                        for(unsigned short nu = 0; nu < mu; ++nu) {
-                            for(unsigned short k = 0; k < i; ++k)
-                                trash[k] = dir[mu + k * mu + nu];
-                            Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
-                        }
-                    A.GMV(p, z, mu);
-                }
-            }
             Wrapper<K>::diag(n, d, p, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));

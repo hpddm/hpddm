@@ -91,7 +91,7 @@ void HPDDM_F77(B ## gesdd)(const char*, const int*, const int*, U*, const int*, 
 void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, U*, T*, const int*, T*,      \
                            const int*, T*, const int*, U*, int*, int*);
 
-#ifndef INTEL_MKL_VERSION
+#ifndef _MKL_H_
 # ifdef __cplusplus
 extern "C" {
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(c, std::complex<float>, s, float)
@@ -101,7 +101,7 @@ HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, std::complex<double>, d, double)
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(c, void, s, float)
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, void, d, double)
 # endif // __cplusplus
-#endif // INTEL_MKL_VERSION
+#endif // _MKL_H_
 
 #ifdef __cplusplus
 namespace HPDDM {

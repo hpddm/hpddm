@@ -370,17 +370,21 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             }
             delete [] _x;
             if(_communicator != MPI_COMM_NULL) {
-                MPI_Comm_size(_communicator, &_off);
+                int size;
+                MPI_Comm_size(_communicator, &size);
 #ifdef DMKL_PARDISO
-                if(_off > 1) {
+                if(size > 1) {
 #endif
                     delete [] _di;
-                    delete [] _da;
+#ifdef DMKL_PARDISO
+                    if(S != 'S' || _off > 0)
+#endif
+                        delete [] _da;
 #ifdef DMKL_PARDISO
                 }
                 else {
-                    MPI_Comm_size(DMatrix::_communicator, &_off);
-                    if((S == 'S' && Option::get()->val<char>("master_spd", 0) == 1) || _off > 1)
+                    MPI_Comm_size(DMatrix::_communicator, &size);
+                    if((S == 'S' && Option::get()->val<char>("master_spd", 0) == 1) || size > 1)
                         delete [] _da;
                 }
 #endif

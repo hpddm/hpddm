@@ -133,12 +133,20 @@ class Subdomain : public OptionsPrefix {
          *    r              - Local-to-neighbor mappings.
          *    comm           - MPI communicator of the domain decomposition. */
         template<class Neighbor, class Mapping>
-        void initialize(MatrixCSR<K>* const& a, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr) {
+        void initialize(MatrixCSR<K>* const& a, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr, const MatrixCSR<void>* const& restriction = nullptr) {
             if(comm)
                 _communicator = *comm;
             else
                 _communicator = MPI_COMM_WORLD;
-            _a = a;
+            unsigned int* perm = nullptr;
+            if(a && restriction) {
+                perm = new unsigned int[a->_n]();
+                for(unsigned int i = 0; i < restriction->_n; ++i)
+                    perm[restriction->_ja[i]] = i + 1;
+                _a = new MatrixCSR<K>(a, restriction, perm);
+            }
+            else
+                _a = a;
             if(_a)
                 _dof = _a->_n;
             std::vector<unsigned short> sortable;
@@ -158,6 +166,46 @@ class Subdomain : public OptionsPrefix {
                 }
                 ++j;
             }
+            if(perm) {
+                const int size = _map.size();
+                MPI_Request* rq = new MPI_Request[2 * size];
+                unsigned int space = 0;
+                for(unsigned short i = 0; i < size; ++i)
+                    space += _map[i].second.size();
+                unsigned char* send = new unsigned char[2 * space];
+                unsigned char* recv = send + space;
+                space = 0;
+                for(unsigned short i = 0; i < size; ++i) {
+                    MPI_Irecv(recv, _map[i].second.size(), MPI_UNSIGNED_CHAR, _map[i].first, 100, _communicator, rq + i);
+                    for(unsigned int j = 0; j < _map[i].second.size(); ++j)
+                        send[j] = (perm[_map[i].second[j]] > 0 ? 'a' : 'b');
+                    MPI_Isend(send, _map[i].second.size(), MPI_UNSIGNED_CHAR, _map[i].first, 100, _communicator, rq + size + i);
+                    send += _map[i].second.size();
+                    recv += _map[i].second.size();
+                    space += _map[i].second.size();
+                }
+                MPI_Waitall(2 * size, rq, MPI_STATUSES_IGNORE);
+                vectorNeighbor map;
+                map.reserve(size);
+                send -= space;
+                recv -= space;
+                for(unsigned short i = 0; i < size; ++i) {
+                    std::pair<unsigned short, std::vector<int>> c(_map[i].first, typename decltype(_map)::value_type::second_type());
+                    for(unsigned int j = 0; j < _map[i].second.size(); ++j) {
+                        if(recv[j] == 'a' && send[j] == 'a')
+                            c.second.emplace_back(perm[_map[i].second[j]] - 1);
+                    }
+                    if(!c.second.empty())
+                        map.emplace_back(c);
+                    send += _map[i].second.size();
+                    recv += _map[i].second.size();
+                }
+                send -= space;
+                delete [] send;
+                delete [] rq;
+                _map = map;
+            }
+            delete [] perm;
             _rq = new MPI_Request[2 * _map.size()];
             _buff = new K*[2 * _map.size()]();
         }
@@ -737,12 +785,14 @@ class Subdomain : public OptionsPrefix {
          *
          * See also: <Subdomain::globalMapping>. */
         template<class T = K>
-        static bool distributedCSR(const unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A) {
+        static bool distributedCSR(const unsigned int* const row, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A, const unsigned int* col = nullptr) {
             if(first != 0 || last != A->_n) {
+                if(!col)
+                    col = row;
                 std::vector<std::pair<unsigned int, unsigned int>> s;
                 s.reserve(A->_n);
                 for(unsigned int i = 0; i < A->_n; ++i)
-                    s.emplace_back(num[i], i);
+                    s.emplace_back(row[i], i);
                 std::sort(s.begin(), s.end());
                 std::vector<std::pair<unsigned int, unsigned int>>::iterator begin = std::lower_bound(s.begin(), s.end(), std::make_pair(first, static_cast<unsigned int>(0)));
                 std::vector<std::pair<unsigned int, unsigned int>>::iterator end = std::upper_bound(begin, s.end(), std::make_pair(last, static_cast<unsigned int>(0)));
@@ -754,7 +804,7 @@ class Subdomain : public OptionsPrefix {
                 ia[0] = 0;
                 for(std::vector<std::pair<unsigned int, unsigned int>>::iterator it = begin; it != end; it++) {
                     for(unsigned int j = A->_ia[it->second]; j < A->_ia[it->second + 1]; ++j)
-                        tmp.emplace_back(num[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
+                        tmp.emplace_back(col[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
                     std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<unsigned int, T>& lhs, const std::pair<unsigned int, T>& rhs) { return lhs.first < rhs.first; });
                     ia[std::distance(begin, it) + 1] = tmp.size();
                 }
