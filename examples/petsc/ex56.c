@@ -34,44 +34,8 @@ PetscErrorCode AssembleSystem(Mat, Vec, PetscScalar, PetscScalar, PetscScalar, P
                               PetscInt, PetscInt);
 PetscErrorCode ComputeError(Mat, Vec, Vec);
 
-struct HpddmCustomOperator {
-    Vec _b;
-    Vec _x;
-    Mat _A;
-    PC _M;
-    void (*_mv)(const HpddmCustomOperator* const, const K*, K*, int);
-    void (*_precond)(const HpddmCustomOperator* const, const K*, K*, int);
-};
-void mv(const HpddmCustomOperator* const H, const K* in, K* out, int mu)
-{
-    int n, nu;
-    MatGetLocalSize(H->_A, &n, NULL);
-    for (nu = 0; nu < mu; ++nu) {
-        VecPlaceArray(H->_b, in + nu * n);
-        VecPlaceArray(H->_x, out + nu * n);
-        MatMult(H->_A, H->_b, H->_x);
-        VecResetArray(H->_x);
-        VecResetArray(H->_b);
-    }
-}
-void precond(const HpddmCustomOperator* const H, const K* in, K* out, int mu)
-{
-    int n, nu;
-    MatGetLocalSize(H->_A, &n, NULL);
-    for (nu = 0; nu < mu; ++nu) {
-        VecPlaceArray(H->_b, in + nu * n);
-        VecPlaceArray(H->_x, out + nu * n);
-        PCApply(H->_M, H->_b, H->_x);
-        VecResetArray(H->_x);
-        VecResetArray(H->_b);
-    }
-}
-
-#undef __FUNCT__
-#define __FUNCT__ "main"
 int main(int argc, char** argv)
 {
-    PC pc;
     PetscErrorCode ierr;
     PetscInt m, nn, M, j, k, ne = 4;
     PetscReal* coords;
@@ -92,6 +56,8 @@ int main(int argc, char** argv)
         ierr = PetscOptionsInt("-ne", nestring, "", ne, &ne, NULL);
     }
     ierr = PetscOptionsEnd();
+    CHKERRQ(ierr);
+    ierr = HpddmRegisterKSP();
     CHKERRQ(ierr);
     const HpddmOption* const opt = HpddmOptionGet();
     {
@@ -232,10 +198,22 @@ int main(int argc, char** argv)
     CHKERRQ(ierr);
     float t_time[SIZE_ARRAY_R];
     int t_its[SIZE_ARRAY_R];
-    {
+    for (j = 0; j < 2; ++j) {
         {
+            if (j == 1) {
+                ierr = KSPSetType(ksp, "hpddm");
+                CHKERRQ(ierr);
+                ierr = KSPSetFromOptions(ksp);
+                CHKERRQ(ierr);
+                ierr = VecZeroEntries(x);
+                CHKERRQ(ierr);
+            }
             ierr = KSPSolve(ksp, rhs, x);
             CHKERRQ(ierr);
+            if (j == 1) {
+                int previous = HpddmOptionVal(opt, "krylov_method");
+                if (previous == HPDDM_KRYLOV_METHOD_GCRODR || previous == HPDDM_KRYLOV_METHOD_BGCRODR) HpddmDestroyRecycling();
+            }
             ierr = KSPReset(ksp);
             CHKERRQ(ierr);
             ierr = KSPSetOperators(ksp, A, A);
@@ -282,86 +260,6 @@ int main(int argc, char** argv)
             CHKERRQ(ierr);
         }
     }
-    {
-        ierr = KSPGetPC(ksp, &pc);
-        CHKERRQ(ierr);
-        HpddmCustomOperator H;
-        H._A = A;
-        H._M = pc;
-        H._mv = mv;
-        H._precond = precond;
-        H._b = rhs;
-        H._x = x;
-        int n;
-        MatGetLocalSize(A, &n, NULL);
-        {
-            ierr = VecZeroEntries(x);
-            K* pt_rhs;
-            K* pt_x;
-            VecGetArray(rhs, &pt_rhs);
-            VecGetArray(x, &pt_x);
-            int previous = HpddmOptionVal(opt, "verbosity");
-            if (previous > 0) HpddmOptionRemove(opt, "verbosity");
-            HpddmCustomOperatorSolve(&H, n, H._mv, H._precond, pt_rhs, pt_x, 1, &PETSC_COMM_WORLD);
-            if (previous > 0) {
-                char buffer[20];
-                snprintf(buffer, 20, "%d", previous);
-                char* concat = malloc(strlen("-hpddm_verbosity ") + strlen(buffer) + 1);
-                strcpy(concat, "-hpddm_verbosity ");
-                strcat(concat, buffer);
-                HpddmOptionParseString(opt, concat);
-                free(concat);
-            }
-            VecRestoreArray(x, &pt_x);
-            VecRestoreArray(rhs, &pt_rhs);
-            previous = HpddmOptionVal(opt, "krylov_method");
-            if(previous == 4 || previous == 5) HpddmDestroyRecycling();
-            ierr = KSPReset(ksp);
-            CHKERRQ(ierr);
-            ierr = KSPSetOperators(ksp, A, A);
-            CHKERRQ(ierr);
-            ierr = KSPSetInitialGuessNonzero(ksp, PETSC_TRUE);
-            CHKERRQ(ierr);
-            ierr = KSPSetUp(ksp);
-            CHKERRQ(ierr);
-        }
-        for (i = 0; i < SIZE_ARRAY_R; ++i) {
-            ierr = VecZeroEntries(x);
-            CHKERRQ(ierr);
-            K* pt_rhs;
-            K* pt_x;
-            VecGetArray(rhs, &pt_rhs);
-            VecGetArray(x, &pt_x);
-            MPI_Barrier(PETSC_COMM_WORLD);
-            time = MPI_Wtime();
-            t_its[i] = HpddmCustomOperatorSolve(&H, n, H._mv, H._precond, pt_rhs, pt_x, 1, &PETSC_COMM_WORLD);
-            MPI_Barrier(PETSC_COMM_WORLD);
-            t_time[i] = MPI_Wtime() - time;
-            VecRestoreArray(x, &pt_x);
-            VecRestoreArray(rhs, &pt_rhs);
-            ierr = ComputeError(A, rhs, x);
-            CHKERRQ(ierr);
-            if (i != (SIZE_ARRAY_R - 1)) {
-                AssembleSystem(A, rhs, s_r[i + 1], x_r[i + 1], y_r[i + 1], z_r[i + 1], r[i + 1], ne, npe, rank, nn, m);
-                ierr = KSPSetOperators(ksp, A, A);
-                CHKERRQ(ierr);
-                ierr = KSPSetUp(ksp);
-                CHKERRQ(ierr);
-            }
-        }
-        for (i = 0; i < SIZE_ARRAY_R; ++i) {
-            ierr = PetscPrintf(PETSC_COMM_WORLD, "%d\t%d\t%f\n", i + 1, t_its[i], t_time[i]);
-            CHKERRQ(ierr);
-            if (i > 0) {
-                t_its[0] += t_its[i];
-                t_time[0] += t_time[i];
-            }
-        }
-        if (SIZE_ARRAY_R > 1) {
-            ierr = PetscPrintf(PETSC_COMM_WORLD, "------------------------\n\t%d\t%f\n", t_its[0], t_time[0]);
-            CHKERRQ(ierr);
-        }
-    }
     ierr = KSPDestroy(&ksp);
     CHKERRQ(ierr);
     ierr = VecDestroy(&x);
@@ -373,11 +271,9 @@ int main(int argc, char** argv)
     ierr = PetscFree(coords);
     CHKERRQ(ierr);
     ierr = PetscFinalize();
-    return 0;
+    return ierr;
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "elem_3d_elast_v_25"
 PetscErrorCode elem_3d_elast_v_25(PetscScalar* dd)
 {
     PetscErrorCode ierr;
@@ -533,8 +429,6 @@ PetscErrorCode elem_3d_elast_v_25(PetscScalar* dd)
     PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "AssembleSystem"
 PetscErrorCode AssembleSystem(Mat A, Vec b, PetscScalar soft_alpha, PetscScalar x_r, PetscScalar y_r, PetscScalar z_r, PetscScalar r,
                               PetscInt ne, PetscMPIInt npe, PetscMPIInt rank, PetscInt nn, PetscInt m)
 {
@@ -659,8 +553,6 @@ PetscErrorCode AssembleSystem(Mat A, Vec b, PetscScalar soft_alpha, PetscScalar 
     PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "ComputeError"
 PetscErrorCode ComputeError(Mat A, Vec rhs, Vec x)
 {
     Vec err;

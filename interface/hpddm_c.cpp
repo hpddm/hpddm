@@ -203,3 +203,9 @@ underlying_type nrm2(const int* n, const K* x, const int* inc) {
 void axpy(const int* n, const K* const a, const K* const x, const int* incx, K* const y, const int* incy) {
     return HPDDM::Blas<cpp_type<K>>::axpy(n, reinterpret_cast<const cpp_type<K>*>(a), reinterpret_cast<const cpp_type<K>*>(x), incx, reinterpret_cast<cpp_type<K>*>(y), incy);
 }
+
+#if HPDDM_PETSC
+PetscErrorCode HpddmRegisterKSP() {
+    return KSPRegister("hpddm", HPDDM::KSPCreate_HPDDM);
+}
+#endif

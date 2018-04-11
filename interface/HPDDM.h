@@ -38,6 +38,7 @@
 #ifndef MPI_VERSION
 # include <mpi.h>
 #endif
+#include "../include/define.hpp"
 
 #ifdef FORCE_SINGLE
 #ifdef FORCE_COMPLEX
@@ -118,5 +119,10 @@ int HpddmCustomOperatorSolve(const HpddmCustomOperator* const, int, void (*)(con
 
 underlying_type nrm2(const int*, const K* const, const int*);
 void axpy(const int*, const K* const, const K* const, const int*, K* const, const int*);
+
+#if HPDDM_PETSC
+#include <petscsys.h>
+PetscErrorCode HpddmRegisterKSP();
+#endif
 
 #endif // _HPDDM_H_

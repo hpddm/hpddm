@@ -25,6 +25,8 @@
 #ifndef _HPDDM_ENUM_
 #define _HPDDM_ENUM_
 
+#include <define.hpp>
+
 namespace HPDDM {
 /* Enum: FetiPrcndtnr
  *
@@ -40,65 +42,4 @@ enum class FetiPrcndtnr : char {
     NONE, SUPERLUMPED, LUMPED, DIRICHLET
 };
 } // HPDDM
-
-#define HPDDM_COMPUTE_RESIDUAL_L2                               0
-#define HPDDM_COMPUTE_RESIDUAL_L1                               1
-#define HPDDM_COMPUTE_RESIDUAL_LINFTY                           2
-
-#define HPDDM_ORTHOGONALIZATION_CGS                             0
-#define HPDDM_ORTHOGONALIZATION_MGS                             1
-
-#define HPDDM_KRYLOV_METHOD_GMRES                               0
-#define HPDDM_KRYLOV_METHOD_BGMRES                              1
-#define HPDDM_KRYLOV_METHOD_CG                                  2
-#define HPDDM_KRYLOV_METHOD_BCG                                 3
-#define HPDDM_KRYLOV_METHOD_GCRODR                              4
-#define HPDDM_KRYLOV_METHOD_BGCRODR                             5
-#define HPDDM_KRYLOV_METHOD_BFBCG                               6
-#define HPDDM_KRYLOV_METHOD_RICHARDSON                          7
-#define HPDDM_KRYLOV_METHOD_NONE                                8
-
-#define HPDDM_VARIANT_LEFT                                      0
-#define HPDDM_VARIANT_RIGHT                                     1
-#define HPDDM_VARIANT_FLEXIBLE                                  2
-
-#define HPDDM_QR_CHOLQR                                         0
-#define HPDDM_QR_CGS                                            1
-#define HPDDM_QR_MGS                                            2
-
-#define HPDDM_RECYCLE_STRATEGY_A                                0
-#define HPDDM_RECYCLE_STRATEGY_B                                1
-
-#define HPDDM_RECYCLE_TARGET_SM                                 0
-#define HPDDM_RECYCLE_TARGET_LM                                 1
-#define HPDDM_RECYCLE_TARGET_SR                                 2
-#define HPDDM_RECYCLE_TARGET_LR                                 3
-#define HPDDM_RECYCLE_TARGET_SI                                 4
-#define HPDDM_RECYCLE_TARGET_LI                                 5
-
-#define HPDDM_GENEO_FORCE_UNIFORMITY_MIN                        0
-#define HPDDM_GENEO_FORCE_UNIFORMITY_MAX                        1
-
-#define HPDDM_MASTER_DISTRIBUTION_CENTRALIZED                   0
-#define HPDDM_MASTER_DISTRIBUTION_SOL                           1
-
-#define HPDDM_SCHWARZ_METHOD_RAS                                0
-#define HPDDM_SCHWARZ_METHOD_ORAS                               1
-#define HPDDM_SCHWARZ_METHOD_SORAS                              2
-#define HPDDM_SCHWARZ_METHOD_ASM                                3
-#define HPDDM_SCHWARZ_METHOD_OSM                                4
-#define HPDDM_SCHWARZ_METHOD_NONE                               5
-
-#define HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED                0
-#define HPDDM_SCHWARZ_COARSE_CORRECTION_ADDITIVE                1
-#define HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED                2
-
-#define HPDDM_SUBSTRUCTURING_SCALING_MULTIPLICITY               0
-#define HPDDM_SUBSTRUCTURING_SCALING_STIFFNESS                  1
-#define HPDDM_SUBSTRUCTURING_SCALING_COEFFICIENT                2
-
-#define HPDDM_MASTER_HYPRE_SOLVER_FGMRES                        0
-#define HPDDM_MASTER_HYPRE_SOLVER_PCG                           1
-#define HPDDM_MASTER_HYPRE_SOLVER_AMG                           2
-
 #endif // _HPDDM_ENUM_

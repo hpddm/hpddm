@@ -37,21 +37,13 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
         KSPGetOperators(_ksp, &A, NULL);
         PetscInt N;
         MatGetSize(A, &N, NULL);
-        MatType type;
-        MatGetType(A, &type);
-        PetscBool noMatMult = PETSC_FALSE;
-        PetscStrcmp(type, MATMPIBAIJ, &noMatMult);
-#ifdef PETSC_HAVE_MKL_SPARSE_OPTIMIZE
-        if(!noMatMult)
-            PetscStrcmp(type, MATMPIBAIJMKL, &noMatMult);
-#endif
-        if(!noMatMult)
-            PetscStrcmp(type, MATSHELL, &noMatMult);
+        PetscBool hasMatMatMult;
+        MatHasOperation(A, MATOP_MATMAT_MULT, &hasMatMatMult);
         MPI_Comm comm;
         PetscObjectGetComm((PetscObject)A, &comm);
         PetscMPIInt size;
         MPI_Comm_size(comm, &size);
-        if(mu == 1 || noMatMult || size == 1) {
+        if(mu == 1 || !hasMatMatMult || size == 1) {
             Vec right, left;
             VecCreateMPIWithArray(comm, _bs, HPDDM::EmptyOperator<PetscScalar>::_n, N, NULL, &right);
             VecCreateMPIWithArray(comm, _bs, HPDDM::EmptyOperator<PetscScalar>::_n, N, NULL, &left);

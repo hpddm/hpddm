@@ -377,7 +377,7 @@ inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const
             }                                                                                                \
         }                                                                                                    \
         else                                                                                                 \
-        bsrmv<N>(trans, m, k, bs, alpha, sym, a, ia, ja, x, beta, y);                                        \
+            bsrmv<N>(trans, m, k, bs, alpha, sym, a, ia, ja, x, beta, y);                                    \
     }                                                                                                        \
 }
 #else

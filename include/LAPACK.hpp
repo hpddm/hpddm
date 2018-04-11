@@ -339,13 +339,12 @@ class LapackSub {
             const Option& opt = *Option::get();
             int info;
             if(!A->_sym) {
-                _type = 1;
                 _ipiv = new int[_n];
                 Lapack<K>::getrf(&_n, &_n, _a, &_n, _ipiv, &info);
             }
             else {
-                _type = 2 + (opt.val<char>("local_operator_spd", 0) && !detection);
-                if(_type == 2) {
+                _type = 1 + (opt.val<char>("local_operator_spd", 0) && !detection);
+                if(_type == 1) {
                     K* work;
                     int lwork = -1;
                     _ipiv = new int[_n];
@@ -369,11 +368,11 @@ class LapackSub {
         void solve(K* const x, const unsigned short& n = 1) const {
             int nrhs = n, info;
             if(_type == 1)
-                Lapack<K>::getrs("N", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
-            else if(_type == 2)
                 Lapack<K>::sytrs("L", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
-            else if(_type == 3)
+            else if(_type == 2)
                 Lapack<K>::potrs("L", &_n, &nrhs, _a, &_n, x, &_n, &info);
+            else
+                Lapack<K>::getrs("N", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
         }
         void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
             std::copy_n(b, n * _n, x);
