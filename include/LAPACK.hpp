@@ -39,11 +39,14 @@ void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int
 void HPDDM_F77(C ## getrf)(const int*, const int*, T*, const int*, int*, int*);                              \
 void HPDDM_F77(C ## getrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
                            const int*, int*);                                                                \
+void HPDDM_F77(C ## getri)(const int*, T*, const int*, const int*, T*, const int*, int*);                    \
 void HPDDM_F77(C ## sytrf)(const char*, const int*, T*, const int*, int*, T*, int*, int*);                   \
 void HPDDM_F77(C ## sytrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
                            const int*, int*);                                                                \
+void HPDDM_F77(C ## sytri)(const char*, const int*, T*, const int*, int*, T*, int*);                         \
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*); \
+void HPDDM_F77(C ## potri)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## pstrf)(const char*, const int*, T*, const int*, int*, int*, const U*, U*, int*);         \
 void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, const int*, const T*,          \
                            const int*, T*, const int*, int*);                                                \
@@ -128,12 +131,18 @@ struct Lapack {
     /* Function: getrs
      *  Solves a system of linear equations with an LU-factored matrix. */
     static void getrs(const char*, const int*, const int*, const K*, const int*, const int*, K*, const int*, int*);
+    /* Function: getri
+     *  Computes the inverse of an LU-factored matrix. */
+    static void getri(const int*, K*, const int*, int*, K*, const int*, int*);
     /* Function: sytrf
      *  Computes the Bunch--Kaufman factorization of a symmetric matrix. */
     static void sytrf(const char*, const int*, K*, const int*, int*, K*, int*, int*);
     /* Function: sytrs
      *  Solves a system of linear equations with an LDLT-factored matrix. */
     static void sytrs(const char*, const int*, const int*, const K*, const int*, const int*, K*, const int*, int*);
+    /* Function: sytri
+     *  Computes the inverse of an LDLT-factored matrix. */
+    static void sytri(const char*, const int*, K*, const int*, int*, K*, int*);
     /* Function: potrf
      *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
     static void potrf(const char*, const int*, K*, const int*, int*);
@@ -143,6 +152,9 @@ struct Lapack {
     /* Function: potrs
      *  Solves a system of linear equations with a Cholesky-factored matrix. */
     static void potrs(const char*, const int*, const int*, const K*, const int*, K*, const int*, int*);
+    /* Function: potri
+     *  Computes the inverse of a Cholesky-factored matrix. */
+    static void potri(const char*, const int*, K*, const int*, int*);
     /* Function: pstrf
      *  Computes the Cholesky factorization of a symmetric or Hermitian positive semidefinite matrix with pivoting. */
     static void pstrf(const char*, const int*, K*, const int*, int*, int*, const underlying_type<K>*, underlying_type<K>*, int*);
@@ -435,6 +447,11 @@ inline void Lapack<T>::getrs(const char* trans, const int* n, const int* nrhs, c
     HPDDM_F77(C ## getrs)(trans, n, nrhs, a, lda, ipiv, b, ldb, info);                                       \
 }                                                                                                            \
 template<>                                                                                                   \
+inline void Lapack<T>::getri(const int* n, T* a, const int* lda, int* ipiv, T* work, const int* lwork,       \
+                             int* info) {                                                                    \
+    HPDDM_F77(C ## getri)(n, a, lda, ipiv, work, lwork, info);                                               \
+}                                                                                                            \
+template<>                                                                                                   \
 inline void Lapack<T>::sytrf(const char* uplo, const int* n, T* a, const int* lda, int* ipiv, T* work,       \
                              int* lwork, int* info) {                                                        \
     HPDDM_F77(C ## sytrf)(uplo, n, a, lda, ipiv, work, lwork, info);                                         \
@@ -445,6 +462,11 @@ inline void Lapack<T>::sytrs(const char* uplo, const int* n, const int* nrhs, co
     HPDDM_F77(C ## sytrs)(uplo, n, nrhs, a, lda, ipiv, b, ldb, info);                                        \
 }                                                                                                            \
 template<>                                                                                                   \
+inline void Lapack<T>::sytri(const char* uplo, const int* n, T* a, const int* lda, int* ipiv, T* work,       \
+                             int* info) {                                                                    \
+    HPDDM_F77(C ## sytri)(uplo, n, a, lda, ipiv, work, info);                                                \
+}                                                                                                            \
+template<>                                                                                                   \
 inline void Lapack<T>::potrf(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \
     HPDDM_F77(C ## potrf)(uplo, n, a, lda, info);                                                            \
 }                                                                                                            \
@@ -452,6 +474,10 @@ template<>                                                                      
 inline void Lapack<T>::potrs(const char* uplo, const int* n, const int* nrhs, const T* a, const int* lda,    \
                              T* b, const int* ldb, int* info) {                                              \
     HPDDM_F77(C ## potrs)(uplo, n, nrhs, a, lda, b, ldb, info);                                              \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::potri(const char* uplo, const int* n, T* a, const int* lda, int* info) {              \
+    HPDDM_F77(C ## potri)(uplo, n, a, lda, info);                                                            \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<T>::pstrf(const char* uplo, const int* n, T* a, const int* lda, int* piv, int* rank,      \
