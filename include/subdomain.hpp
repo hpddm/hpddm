@@ -288,13 +288,11 @@ class Subdomain : public OptionsPrefix {
             const int shift = _a->_ia[0];
             unsigned int stop;
             if(_a->_ia[i] != _a->_ia[i + 1]) {
-                if(!_a->_sym) {
-                    int* const bound = std::upper_bound(_a->_ja + _a->_ia[i] - shift, _a->_ja + _a->_ia[i + 1] - shift, i + shift);
-                    stop = std::distance(_a->_ja, bound);
-                }
+                if(!_a->_sym)
+                    stop = std::distance(_a->_ja, std::upper_bound(_a->_ja + _a->_ia[i] - shift, _a->_ja + _a->_ia[i + 1] - shift, i + shift));
                 else
                     stop = _a->_ia[i + 1] - shift;
-                if((_a->_sym || stop < _a->_ia[i + 1] - shift) && _a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
+                if((_a->_sym || stop < _a->_ia[i + 1] - shift || _a->_ja[_a->_ia[i + 1] - shift - 1] == i + shift) && _a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
                     for(unsigned int j = _a->_ia[i] - shift; j < stop; ++j) {
                         if(i != _a->_ja[j] - shift && std::abs(_a->_a[j]) > HPDDM_EPS)
                             return K();

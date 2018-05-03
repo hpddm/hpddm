@@ -36,6 +36,9 @@ void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*,
                            const int*, T*, const int*, U*, int*, int*, int*);                                \
 void HPDDM_F77(C ## ORT ## mtr)(const char*, const char*, const char*, const int*, const int*,               \
                                 const T*, const int*, const T*, T*, const int*, T*, const int*, int*);       \
+void HPDDM_F77(C ## gehrd)(const int*, const int*, const int*, T*, const int*, T*, T*, const int*, int*);    \
+void HPDDM_F77(C ## ORT ## mhr)(const char*, const char*, const int*, const int*, const int*, const int*,    \
+                                const T*, const int*, const T*, T*, const int*, T*, const int*, int*);       \
 void HPDDM_F77(C ## getrf)(const int*, const int*, T*, const int*, int*, int*);                              \
 void HPDDM_F77(C ## getrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
                            const int*, int*);                                                                \
@@ -187,12 +190,18 @@ struct Lapack {
     /* Function: mqr
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geq>. */
     static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
+    /* Function: gehrd
+     *  Reduces a matrix to an upper Hessenberg matrix. */
+    static void gehrd(const int*, const int*, const int*, K*, const int*, K*, K*, const int*, int*);
     /* Function: hseqr
      *  Computes all eigenvalues and (optionally) the Schur factorization of an upper Hessenberg matrix. */
     static void hseqr(const char*, const char*, const int*, const int*, const int*, K*, const int*, K*, K*, K*, const int*, K*, const int*, int*);
     /* Function: hsein
      *  Computes selected eigenvectors of an upper Hessenberg matrix that correspond to specified eigenvalues. */
     static void hsein(const char*, const char*, const char*, int*, const int*, K*, const int*, K*, const K*, K*, const int*, K*, const int*, const int*, int*, K*, underlying_type<K>*, int*, int*, int*);
+    /* Function: mhr
+     *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::gehrd>. */
+    static void mhr(const char*, const char*, const int*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
     /* Function: geev
      *  Computes the eigenvalues and the eigenvectors of a nonsymmetric eigenvalue problem. */
     static void geev(const char*, const char*, const int*, K*, const int*, K*, K*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
@@ -438,6 +447,11 @@ inline void Lapack<T>::mtr(const char* side, const char* uplo, const char* trans
     HPDDM_F77(C ## ORT ## mtr)(side, uplo, trans, m, n, a, lda, tau, c, ldc, work, lwork, info);             \
 }                                                                                                            \
 template<>                                                                                                   \
+inline void Lapack<T>::gehrd(const int* n, const int* ilo, const int* ihi, T* a, const int* lda, T* tau,     \
+                             T* work, const int* lwork, int* info) {                                         \
+    HPDDM_F77(C ## gehrd)(n, ilo, ihi, a, lda, tau, work, lwork, info);                                      \
+}                                                                                                            \
+template<>                                                                                                   \
 inline void Lapack<T>::getrf(const int* m, const int* n, T* a, const int* lda, int* ipiv, int* info) {       \
     HPDDM_F77(C ## getrf)(m, n, a, lda, ipiv, info);                                                         \
 }                                                                                                            \
@@ -563,6 +577,18 @@ inline void Lapack<T>::mqr(const char* side, const char* trans, const int* m, co
                            const T* a, const int* lda, const T* tau, T* c, const int* ldc, T* work,          \
                            const int* lwork, int* info) {                                                    \
     HPDDM_F77(C ## unmqr)(side, trans, m, n, k, a, lda, tau, c, ldc, work, lwork, info);                     \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<U>::mhr(const char* side, const char* trans, const int* m, const int* n, const int* ilo,  \
+                           const int* ihi, const U* a,  const int* lda, const U* tau, U* c, const int* ldc,  \
+                           U* work, const int* lwork, int* info) {                                           \
+    HPDDM_F77(B ## ormhr)(side, trans, m, n, ilo, ihi, a, lda, tau, c, ldc, work, lwork, info);              \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::mhr(const char* side, const char* trans, const int* m, const int* n, const int* ilo,  \
+                           const int* ihi, const T* a,  const int* lda, const T* tau, T* c, const int* ldc,  \
+                           T* work, const int* lwork, int* info) {                                           \
+    HPDDM_F77(C ## unmhr)(side, trans, m, n, ilo, ihi, a, lda, tau, c, ldc, work, lwork, info);              \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<U>::hseqr(const char* job, const char* compz, const int* n, const int* ilo,               \

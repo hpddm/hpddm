@@ -250,15 +250,15 @@ inline void Blas<T>::lacpy(const char* const uplo, const int* const m, const int
                                                                                                              \
 template<>                                                                                                   \
 inline void Blas<T>::gemv(const char* const trans, const int* const m, const int* const n,                   \
-                          const T* const alpha, const T* const a, const int* const lda, const T* const b,    \
-                          const int* const ldb, const T* const beta, T* const c, const int* const ldc) {     \
-    HPDDM_F77(C ## gemv)(trans, m, n, alpha, a, lda, b, ldb, beta, c, ldc);                                  \
+                          const T* const alpha, const T* const a, const int* const lda, const T* const x,    \
+                          const int* const incx, const T* const beta, T* const y, const int* const incy) {   \
+    HPDDM_F77(C ## gemv)(trans, m, n, alpha, a, lda, x, incx, beta, y, incy);                                \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Blas<T>::symv(const char* const uplo, const int* const n, const T* const alpha, const T* const a,\
-                          const int* const lda, const T* const b, const int* const ldb, const T* const beta, \
-                          T* const c, const int* const ldc) {                                                \
-    HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, b, ldb, beta, c, ldc);                                      \
+                          const int* const lda, const T* const x, const int* const incx, const T* const beta,\
+                          T* const y, const int* const incy) {                                               \
+    HPDDM_F77(C ## symv)(uplo, n, alpha, a, lda, x, incx, beta, y, incy);                                    \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Blas<T>::trsv(const char* const uplo, const char* const trans, const char* const diag,           \

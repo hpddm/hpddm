@@ -199,7 +199,7 @@ class Preconditioner : public Subdomain<K> {
         void callSolve(K* const x, const unsigned short& n = 1) const { _s.solve(x, n); }
         /* Function: getVectors
          *  Returns a constant pointer to <Preconditioner::ev>. */
-        K** getVectors() const { return _ev; }
+        const K* const* getVectors() const { return _ev; }
         /* Function: setVectors
          *  Sets the pointer <Preconditioner::ev>. */
         void setVectors(K** const& ev) { _ev = ev; }
