@@ -54,14 +54,14 @@ class OperatorBase : protected Members<P != 's'> {
         offsetDeflation() {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
-                std::for_each(_deflation, _deflation + _local, [&](K*& v) { v -= offset; });
+                std::for_each(const_cast<K**>(_deflation), const_cast<K**>(_deflation) + _local, [&](K*& v) { v -= offset; });
             return true;
         }
         template<class Q = Preconditioner> typename std::enable_if<!has_LDR<typename std::remove_reference<Q>::type>::value, bool>::type
         offsetDeflation() { return false; }
     protected:
         const Preconditioner&                 _p;
-        K** const                     _deflation;
+        const K* const* const         _deflation;
         const vectorNeighbor&               _map;
         std::vector<unsigned short>    _sparsity;
         const int                             _n;
@@ -80,7 +80,7 @@ class OperatorBase : protected Members<P != 's'> {
         OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max + std::max(1, (c - 1)) * (max & 4095)), _signed(_p.getSigned()), _connectivity(c) {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
-                std::for_each(_deflation, _deflation + _local, [&](K*& v) { v += offset; });
+                std::for_each(const_cast<K**>(_deflation), const_cast<K**>(_deflation) + _local, [&](K*& v) { v += offset; });
             static_assert(Q == P, "Wrong sparsity pattern");
             if(!_map.empty()) {
                 unsigned short** recvSparsity = new unsigned short*[_map.size() + 1];
