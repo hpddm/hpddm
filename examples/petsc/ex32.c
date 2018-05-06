@@ -25,6 +25,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define HPDDM_PETSC 1
 #include <HPDDM.h>
 #include <petsc.h>
 #define SIZE_ARRAY_NU 4
@@ -47,13 +48,6 @@ int main(int argc, char** argv)
     CHKERRQ(ierr);
     ierr = HpddmRegisterKSP();
     CHKERRQ(ierr);
-    const HpddmOption* const opt = HpddmOptionGet();
-    {
-        int rank;
-        MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-        HpddmOptionParse(opt, argc, argv, rank == 0);
-        if (rank) HpddmOptionRemove(opt, "verbosity");
-    }
     MPI_Barrier(PETSC_COMM_WORLD);
     double time = MPI_Wtime();
     ierr = DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, 10, 10, PETSC_DECIDE, PETSC_DECIDE, 1, 1,
@@ -115,6 +109,7 @@ int main(int argc, char** argv)
             ierr = KSPSolve(ksp, rhs, x);
             CHKERRQ(ierr);
             if (j == 1) {
+                const HpddmOption* const opt = HpddmOptionGet();
                 int previous = HpddmOptionVal(opt, "krylov_method");
                 if (previous == HPDDM_KRYLOV_METHOD_GCRODR || previous == HPDDM_KRYLOV_METHOD_BGCRODR) HpddmDestroyRecycling();
             }
