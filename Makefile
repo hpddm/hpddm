@@ -100,6 +100,10 @@ ifeq (${SUBSOLVER}, DISSECTION)
     INCS += ${DISSECTION_INCS}
     LIBS += ${DISSECTION_LIBS}
 endif
+ifeq (${SOLVER}, ELEMENTAL)
+    INCS += ${EL_INCS}
+    LIBS += ${EL_LIBS}
+endif
 ifeq (${EIGENSOLVER}, ARPACK)
     LIBS += ${ARPACK_LIBS}
 endif

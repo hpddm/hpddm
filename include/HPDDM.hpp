@@ -40,13 +40,14 @@
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
  *    HPDDM_BDD           - BDD methods enabled.
+ *    HPDDM_DENSE         - Methods for dense matrices enabled. Users must provide their own matrix--vector products.
  *    HPDDM_PETSC         - PETSc KSP interface enabled.
  *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
  *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         000901
+#define HPDDM_VERSION            990
 #define HPDDM_EPS             1.0e-12
 #define HPDDM_PEN             1.0e+30
 #define HPDDM_GRANULARITY     50000
@@ -78,6 +79,20 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #endif
 #ifndef HPDDM_BDD
 # define HPDDM_BDD            1
+#endif
+#ifndef HPDDM_DENSE
+# define HPDDM_DENSE          0
+#elif HPDDM_DENSE
+# if defined(HPDDM_INEXACT_COARSE_OPERATOR) && HPDDM_INEXACT_COARSE_OPERATOR
+#  undef HPDDM_INEXACT_COARSE_OPERATOR
+#  pragma message("HPDDM_DENSE and HPDDM_INEXACT_COARSE_OPERATOR are mutually exclusive")
+# endif
+# if defined(HPDDM_SCHWARZ) && !HPDDM_SCHWARZ
+#  undef HPDDM_SCHWARZ
+# endif
+# ifndef HPDDM_SCHWARZ
+#  define HPDDM_SCHWARZ       1
+# endif
 #endif
 #ifndef HPDDM_PETSC
 # define HPDDM_PETSC          0
@@ -348,14 +363,19 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  ifdef LAPACKSUB
 #   include "LAPACK.hpp"
 #  endif
+#  ifdef DELEMENTAL
+#   include "Elemental.hpp"
+#  endif
 # endif
 # if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
 #  undef HPDDM_SCHWARZ
 #  undef HPDDM_FETI
 #  undef HPDDM_BDD
+#  undef HPDDM_DENSE
 #  define HPDDM_SCHWARZ       0
 #  define HPDDM_FETI          0
 #  define HPDDM_BDD           0
+#  define HPDDM_DENSE         0
 # endif
 # ifndef HPDDM_MINIMAL
 #  include "LAPACK.hpp"
@@ -415,13 +435,11 @@ using HpFeti = HPDDM::Feti<SUBDOMAIN, COARSEOPERATOR, S, K, P>;
 template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #   endif
-#   include "dense.hpp"
+#   if HPDDM_DENSE
+#    include "dense.hpp"
 template<class K = double, char S = 'S'>
-using HpDense = HPDDM::Dense<
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
-    SUBDOMAIN, COARSEOPERATOR,
-#endif
-    S, K>;
+using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
+#   endif
 #  endif // !HPDDM_MPI
 # endif // !HPDDM_MINIMAL
 # include "option_impl.hpp"

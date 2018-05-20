@@ -238,7 +238,7 @@ template<template<class> class Solver, char S, class K>
 template<unsigned short U, unsigned short excluded, class Operator>
 inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construction(Operator&& v, const MPI_Comm& comm) {
     static_assert(super::_numbering == 'C' || super::_numbering == 'F', "Unknown numbering");
-    static_assert(Operator::_pattern == 's' || Operator::_pattern == 'c', "Unknown pattern");
+    static_assert(Operator::_pattern == 's' || Operator::_pattern == 'c' || Operator::_pattern == 'u', "Unknown pattern");
     constructionCommunicator<excluded != 0>(comm);
     if(excluded > 0 && DMatrix::_communicator != MPI_COMM_NULL) {
         int result;
@@ -250,18 +250,19 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         v.adjustConnectivity(_scatterComm);
     if(U == 2 && _local == 0)
         _offset = true;
+    MPI_Comm_size(_scatterComm, &_sizeSplit);
     switch(Option::get()->val<char>("master_topology", 0)) {
 #ifndef HPDDM_CONTIGUOUS
-        case  1: return constructionMatrix<1, U, excluded>(v);
+        case  1: return constructionMatrix<1, U, excluded, Operator>(v);
 #endif
-        case  2: return constructionMatrix<2, U, excluded>(v);
-        default: return constructionMatrix<0, U, excluded>(v);
+        case  2: return constructionMatrix<2, U, excluded, Operator>(v);
+        default: return constructionMatrix<0, U, excluded, Operator>(v);
     }
 }
 
 template<template<class> class Solver, char S, class K>
 template<char T, unsigned short U, unsigned short excluded, class Operator>
-inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::constructionMatrix(Operator& v) {
+inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::constructionMatrix(typename std::enable_if<Operator::_pattern != 'u', Operator>::type& v) {
     unsigned short* const info = new unsigned short[(U != 1 ? 3 : 1) + v.getConnectivity()];
     const std::vector<unsigned short>& sparsity = v.getPattern();
     info[0] = sparsity.size(); // number of intersections
@@ -269,7 +270,6 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     MPI_Comm_rank(v._p.getCommunicator(), &rank);
     const unsigned short first = (S == 'S' ? std::distance(sparsity.cbegin(), std::upper_bound(sparsity.cbegin(), sparsity.cend(), rank)) : 0);
     int rankSplit;
-    MPI_Comm_size(_scatterComm, &_sizeSplit);
     MPI_Comm_rank(_scatterComm, &rankSplit);
     unsigned short* infoNeighbor;
 
@@ -281,7 +281,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     const Option& opt = *Option::get();
     const unsigned short p = opt.val<unsigned short>("master_p", 1);
     constexpr bool blocked =
-#if defined(DMKL_PARDISO) || HPDDM_INEXACT_COARSE_OPERATOR
+#if defined(DMKL_PARDISO) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
                              (U == 1 && Operator::_pattern == 's');
 #else
                              false;
@@ -1108,7 +1108,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #  if defined(DSUITESPARSE)
         super::template numfact<S>(nrow, I, J, pt);
         delete [] loc2glob;
-#  elif defined(DMKL_PARDISO)
+#  elif defined(DMKL_PARDISO) || defined(DELEMENTAL)
         super::template numfact<S>(!blocked ? 1 : _local, I, loc2glob, J, pt);
         C = reinterpret_cast<K*>(pt);
 #  else
@@ -1124,8 +1124,251 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     }
     if(excluded < 2)
         delete [] *sendNeighbor;
+    finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
+    return ret;
+}
+
+template<template<class> class Solver, char S, class K>
+template<char T, unsigned short U, unsigned short excluded, class Operator>
+inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::constructionMatrix(typename std::enable_if<Operator::_pattern == 'u', Operator>::type& v) {
+    unsigned short* const info = new unsigned short[(U != 1 ? 3 : 1) + v.getConnectivity()];
+    const std::vector<unsigned short>& sparsity = v.getPattern();
+    info[0] = sparsity.size(); // number of intersections
+    int rank;
+    MPI_Comm_rank(v._p.getCommunicator(), &rank);
+    const unsigned short first = (S == 'S' ? std::distance(sparsity.cbegin(), std::upper_bound(sparsity.cbegin(), sparsity.cend(), rank)) : 0);
+    int rankSplit;
+    MPI_Comm_rank(_scatterComm, &rankSplit);
+    unsigned short* infoNeighbor;
+
+    unsigned int size = 0;
+
+    const Option& opt = *Option::get();
+    const unsigned short p = opt.val<unsigned short>("master_p", 1);
+    constexpr bool blocked = false;
+    if(U != 1) {
+        infoNeighbor = new unsigned short[info[0]];
+        info[1] = (excluded == 2 ? 0 : _local); // number of eigenvalues
+        std::vector<MPI_Request> rqInfo;
+        rqInfo.reserve(2 * info[0]);
+        MPI_Request rq;
+        if(excluded == 0) {
+            if(T != 2) {
+                for(unsigned short i = 0; i < info[0]; ++i)
+                    if(!(T == 1 && sparsity[i] < p) &&
+                       !(T == 0 && (sparsity[i] % (_sizeWorld / p) == 0) && sparsity[i] < p * (_sizeWorld / p))) {
+                        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
+                        rqInfo.emplace_back(rq);
+                    }
+            }
+            else {
+                for(unsigned short i = 0; i < info[0]; ++i)
+                    if(!std::binary_search(DMatrix::_ldistribution, DMatrix::_ldistribution + p, sparsity[i])) {
+                        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
+                        rqInfo.emplace_back(rq);
+                    }
+            }
+        }
+        else if(excluded < 2)
+            for(unsigned short i = 0; i < info[0]; ++i) {
+                MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
+                rqInfo.emplace_back(rq);
+            }
+        if(rankSplit) {
+            for(unsigned short i = 0; i < info[0]; ++i) {
+                MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v._p.getCommunicator(), &rq);
+                rqInfo.emplace_back(rq);
+            }
+            size = (S != 'S' ? _local : 0);
+            for(unsigned short i = 0; i < info[0]; ++i) {
+                int index;
+                MPI_Waitany(info[0], &rqInfo.back() - info[0] + 1, &index, MPI_STATUS_IGNORE);
+                if(!(S == 'S' && sparsity[index] < rank))
+                    size += infoNeighbor[index];
+            }
+            rqInfo.resize(rqInfo.size() - info[0]);
+            info[2] = size;
+            size *= _local;
+            if(S == 'S') {
+                info[0] -= first;
+                size += _local * (_local + 1) / 2;
+            }
+            if(_local) {
+                if(excluded == 0)
+                    std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
+                else {
+                    if(T != 1) {
+                        for(unsigned short i = 0; i < info[0]; ++i) {
+                            info[(U != 1 ? 3 : 1) + i] = sparsity[i + first] + 1;
+                            for(unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (_sizeWorld / p) * (j + 1) : DMatrix::_ldistribution[j + 1]); ++j)
+                                ++info[(U != 1 ? 3 : 1) + i];
+                        }
+                    }
+                    else {
+                        for(unsigned short i = 0; i < info[0]; ++i)
+                            info[(U != 1 ? 3 : 1) + i] = p + sparsity[i + first];
+                    }
+                }
+            }
+        }
+        MPI_Waitall(rqInfo.size(), rqInfo.data(), MPI_STATUSES_IGNORE);
+    }
+    else {
+        infoNeighbor = nullptr;
+        if(rankSplit) {
+            if(S == 'S') {
+                info[0] -= first;
+                size = _local * _local * info[0] + (!blocked ? _local * (_local + 1) / 2 : _local * _local);
+            }
+            else
+                size = _local * _local * (1 + info[0]);
+            std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
+        }
+    }
+    unsigned short** infoSplit;
+    unsigned int*    offsetIdx;
+    unsigned short*  infoWorld = nullptr;
+#ifdef HPDDM_CSR_CO
+    unsigned int nrow;
+    int* loc2glob;
+#endif
+    if(rankSplit)
+        MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, NULL, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+    else {
+        size = 0;
+        infoSplit = new unsigned short*[_sizeSplit];
+        *infoSplit = new unsigned short[_sizeSplit * ((U != 1 ? 3 : 1) + v.getConnectivity()) + (U != 1) * _sizeWorld];
+        MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0, _scatterComm);
+        for(unsigned int i = 1; i < _sizeSplit; ++i)
+            infoSplit[i] = *infoSplit + i * ((U != 1 ? 3 : 1) + v.getConnectivity());
+        if(S == 'S' && Operator::_pattern == 's')
+            **infoSplit -= first;
+        offsetIdx = new unsigned int[std::max(_sizeSplit - 1, 2 * p)];
+        if(U != 1) {
+            infoWorld = *infoSplit + _sizeSplit * (3 + v.getConnectivity());
+            int* recvcounts = reinterpret_cast<int*>(offsetIdx);
+            int* displs = recvcounts + p;
+            displs[0] = 0;
+            if(T == 2) {
+                std::adjacent_difference(DMatrix::_ldistribution + 1, DMatrix::_ldistribution + p, recvcounts);
+                recvcounts[p - 1] = _sizeWorld - DMatrix::_ldistribution[p - 1];
+            }
+            else {
+                std::fill_n(recvcounts, p - 1, _sizeWorld / p);
+                recvcounts[p - 1] = _sizeWorld - (p - 1) * (_sizeWorld / p);
+            }
+            std::partial_sum(recvcounts, recvcounts + p - 1, displs + 1);
+            for(unsigned int i = 0; i < _sizeSplit; ++i)
+                infoWorld[displs[DMatrix::_rank] + i] = infoSplit[i][1];
+#ifdef HPDDM_CSR_CO
+            nrow = std::accumulate(infoWorld + displs[DMatrix::_rank], infoWorld + displs[DMatrix::_rank] + _sizeSplit, 0);
+#endif
+            MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, DMatrix::_communicator);
+            if(T == 1) {
+                unsigned int i = (p - 1) * (_sizeWorld / p);
+                for(unsigned short k = p - 1, j = 1; k-- > 0; i -= _sizeWorld / p, ++j) {
+                    recvcounts[k] = infoWorld[i];
+                    std::copy_backward(infoWorld + k * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p), infoWorld + (k + 1) * (_sizeWorld / p) + j);
+                }
+                std::copy_n(recvcounts, p - 1, infoWorld + 1);
+            }
+            v._max = std::accumulate(infoWorld, infoWorld + _rankWorld, 0);
+            DMatrix::_n = std::accumulate(infoWorld + _rankWorld, infoWorld + _sizeWorld, v._max);
+            if(super::_numbering == 'F')
+                ++v._max;
+            unsigned short tmp = 0;
+            for(unsigned short i = 0; i < info[0]; ++i) {
+                infoNeighbor[i] = infoWorld[sparsity[i]];
+                if(!(S == 'S' && i < first))
+                    tmp += infoNeighbor[i];
+            }
+            for(unsigned short k = 1; k < _sizeSplit; ++k) {
+                offsetIdx[k - 1] = size;
+                size += infoSplit[k][2] * infoSplit[k][1] + (S == 'S' ? infoSplit[k][1] * (infoSplit[k][1] + 1) / 2 : 0);
+            }
+            if(excluded < 2)
+                size += _local * tmp + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local);
+            if(S == 'S')
+                info[0] -= first;
+        }
+        else {
+            DMatrix::_n = (_sizeWorld - (excluded == 2 ? p : 0)) * _local;
+            v._max = (_rankWorld - (excluded == 2 ? rank : 0)) * _local + (super::_numbering == 'F');
+#ifdef HPDDM_CSR_CO
+            nrow = (_sizeSplit - (excluded == 2)) * _local;
+#endif
+            if(S == 'S') {
+                for(unsigned short i = 1; i < _sizeSplit; size += infoSplit[i++][0])
+                    offsetIdx[i - 1] = size * _local * _local + (i - 1) * (!blocked ? _local * (_local + 1) / 2 : _local * _local);
+                info[0] -= first;
+                size = (size + info[0]) * _local * _local + (_sizeSplit - (excluded == 2)) * (!blocked ? _local * (_local + 1) / 2 : _local * _local);
+            }
+            else {
+                for(unsigned short i = 1; i < _sizeSplit; size += infoSplit[i++][0])
+                    offsetIdx[i - 1] = (i - 1 + size) * _local * _local;
+                size = (size + info[0] + _sizeSplit - (excluded == 2)) * _local * _local;
+            }
+            if(_sizeSplit == 1)
+                offsetIdx[0] = size;
+        }
+    }
+    if(rankSplit) {
+        delete [] info;
+        _sizeRHS = _local;
+        if(U != 1)
+            delete [] infoNeighbor;
+        if(U == 0)
+            DMatrix::_displs = &_rankWorld;
+    }
+    else {
+#ifdef HPDDM_CONTIGUOUS
+        loc2glob = new int[2];
+        const unsigned short relative = (T == 1 ? p + _rankWorld * ((_sizeWorld / p) - 1) - 1 : _rankWorld);
+        if(excluded == 2 || _sizeSplit > 1) {
+            unsigned int* offsetPosition = nullptr;
+            if(U != 1) {
+                offsetPosition = new unsigned int[_sizeSplit];
+                offsetPosition[0] = std::accumulate(infoWorld, infoWorld + relative, static_cast<unsigned int>(super::_numbering == 'F'));
+                if(T != 1)
+                    for(unsigned int k = 1; k < _sizeSplit; ++k)
+                        offsetPosition[k] = offsetPosition[k - 1] + infoSplit[k - 1][1];
+                else
+                    for(unsigned int k = 1; k < _sizeSplit; ++k)
+                        offsetPosition[k] = offsetPosition[k - 1] + infoWorld[relative + k - 1];
+            }
+            if(excluded == 2)
+                loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[1]);
+            if(_sizeSplit > 1)
+                loc2glob[1] = (U == 1 ? (relative + _sizeSplit - 1 - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? _local : 1) + (super::_numbering == 'F') : offsetPosition[_sizeSplit - 1]) + (!blocked ? (U == 1 ? _local : infoSplit[_sizeSplit - 1][1]) - 1 : 0);
+            delete [] offsetPosition;
+        }
+        if(excluded < 2) {
+            loc2glob[0] = ((!blocked || _local == 1) ? v._max : v._max / _local + (super::_numbering == 'F'));
+            if(_sizeSplit == 1)
+                loc2glob[1] = ((!blocked || _local == 1) ? v._max + _local - 1 : v._max / _local + (super::_numbering == 'F'));
+        }
+        else if(_sizeSplit == 1) {
+            loc2glob[0] = 2;
+            loc2glob[1] = 1;
+        }
+#endif
+        delete [] info;
+        if(U != 1)
+            delete [] infoNeighbor;
+        const K* const E = v._p.getOperator();
+#ifdef HPDDM_CONTIGUOUS
+        super::template numfact<S>(!blocked ? 1 : _local, nullptr, loc2glob, nullptr, const_cast<K*&>(E));
+#endif
+    }
+    finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
+    return nullptr;
+}
+
+template<template<class> class Solver, char S, class K>
+template<char T, unsigned short U, unsigned short excluded, bool blocked>
+inline void CoarseOperator<Solver, S, K>::finishSetup(unsigned short*& infoWorld, const int rankSplit, const unsigned short p, unsigned short**& infoSplit, const int rank) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
-    DMatrix::_distribution = static_cast<DMatrix::Distribution>(opt.val<char>("master_distribution", HPDDM_MASTER_DISTRIBUTION_CENTRALIZED));
+    DMatrix::_distribution = static_cast<DMatrix::Distribution>(Option::get()->val<char>("master_distribution", HPDDM_MASTER_DISTRIBUTION_CENTRALIZED));
 #endif
     if(U != 2) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
@@ -1136,17 +1379,18 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
     }
     else {
+        unsigned int size;
         unsigned short* pt;
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
             if(rankSplit)
                 infoWorld = new unsigned short[_sizeWorld];
             pt = infoWorld;
-            v._max = _sizeWorld;
+            size = _sizeWorld;
         }
         else {
-            v._max = _sizeWorld + _sizeSplit;
-            pt = new unsigned short[v._max];
+            size = _sizeWorld + _sizeSplit;
+            pt = new unsigned short[size];
             if(rankSplit == 0) {
                 std::copy_n(infoWorld, _sizeWorld, pt);
                 for(unsigned int i = 0; i < _sizeSplit; ++i)
@@ -1163,14 +1407,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         else
             infoMaster = new unsigned short[_sizeSplit];
         pt = infoMaster;
-        v._max = _sizeSplit;
+        size = _sizeSplit;
 #endif
-        MPI_Bcast(pt, v._max, MPI_UNSIGNED_SHORT, 0, _scatterComm);
+        MPI_Bcast(pt, size, MPI_UNSIGNED_SHORT, 0, _scatterComm);
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
-            constructionCommunicatorCollective<(excluded > 0)>(pt, v._max, _gatherComm, &_scatterComm);
+            constructionCommunicatorCollective<(excluded > 0)>(pt, size, _gatherComm, &_scatterComm);
 #else
-            constructionCommunicatorCollective<false>(pt, v._max, _scatterComm);
+            constructionCommunicatorCollective<false>(pt, size, _scatterComm);
 #endif
             _gatherComm = _scatterComm;
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
@@ -1259,7 +1503,6 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #endif
                     (!blocked ? 1 : _local);
     }
-    return ret;
 }
 
 template<template<class> class Solver, char S, class K>

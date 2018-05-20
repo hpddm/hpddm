@@ -327,6 +327,8 @@ inline void Option::version() const {
         " │  Schwarz module activated? " + std::string(bool(HPDDM_SCHWARZ) ? "true" : "false"),
         " │  FETI module activated? " + std::string(bool(HPDDM_FETI) ? "true" : "false"),
         " │  BDD module activated? " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
+        " │  Dense module activated? " + std::string(bool(HPDDM_DENSE) ? "true" : "false"),
+        " │  PETSc module activated? " + std::string(bool(HPDDM_PETSC) ? "true" : "false"),
         " │  QR algorithm: " + std::string(HPDDM_STR(HPDDM_QR)),
         " │  asynchronous collectives? " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
         " │  mixed precision arithmetic? " + std::string(bool(HPDDM_MIXED_PRECISION) ? "true" : "false"),

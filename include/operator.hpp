@@ -38,7 +38,7 @@ template<> class Members<true> {
         Members(unsigned short r) : _rank(r), _consolidate() { }
 };
 template<char P, class Preconditioner, class K>
-class OperatorBase : protected Members<P != 's'> {
+class OperatorBase : protected Members<P != 's' && P != 'u'> {
     private:
         template<class T>
         class has_LDR {
@@ -69,14 +69,14 @@ class OperatorBase : protected Members<P != 's'> {
         unsigned int                        _max;
         unsigned short                   _signed;
         unsigned short             _connectivity;
-        template<char Q = P, typename std::enable_if<Q == 's'>::type* = nullptr>
+        template<char Q = P, typename std::enable_if<Q == 's' || Q == 'u'>::type* = nullptr>
         OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max), _connectivity(c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _sparsity.reserve(_map.size());
             for(const pairNeighbor& n : _map)
                 _sparsity.emplace_back(n.first);
         }
-        template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
+        template<char Q = P, typename std::enable_if<Q != 's' && Q != 'u'>::type* = nullptr>
         OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max + std::max(1, (c - 1)) * (max & 4095)), _signed(_p.getSigned()), _connectivity(c) {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
@@ -301,7 +301,7 @@ class OperatorBase : protected Members<P != 's'> {
             }
         }
     public:
-        static constexpr char _pattern = P != 's' ? 'c' : 's';
+        static constexpr char _pattern = (P != 's' && P != 'u') ? 'c' : (P == 's' ? 's' : 'u');
         void adjustConnectivity(const MPI_Comm& comm) {
             if(P == 'c') {
 #if 0
@@ -316,6 +316,15 @@ class OperatorBase : protected Members<P != 's'> {
         unsigned short getConnectivity() const { return _connectivity; }
         template<char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
         void initialize(unsigned int, K*&, unsigned short) { }
+};
+
+template<class Preconditioner, class K>
+class UserCoarseOperator : public OperatorBase<'u', Preconditioner, K> {
+    private:
+        typedef OperatorBase<'u', Preconditioner, K> super;
+    public:
+        template<template<class> class Solver, char S, class T> friend class CoarseOperator;
+        UserCoarseOperator(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max)  { }
 };
 
 #if HPDDM_SCHWARZ

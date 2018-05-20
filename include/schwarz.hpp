@@ -30,6 +30,9 @@
 #include "preconditioner.hpp"
 
 namespace HPDDM {
+#if HPDDM_DENSE
+template<template<class> class, template<class> class, char, class> class Dense;
+#endif
 /* Class: Schwarz
  *
  *  A class for solving problems using Schwarz methods that inherits from <Preconditioner>.
@@ -345,12 +348,21 @@ class Schwarz : public Preconditioner<
                 else {
                     deflation<excluded>(in, out, mu);                                                                  // out = Z E \ Z^T in
                     if(!excluded) {
-                        if(HPDDM_NUMBERING == Wrapper<K>::I)
-                            Wrapper<K>::csrmm("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
-                        else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
-                            Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
-                        else
-                            Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                        if(!Subdomain<K>::_a->_ia && !Subdomain<K>::_a->_ja) {
+                            int n = mu * Subdomain<K>::_dof;
+                            K* workBis = new K[n];
+                            GMV(out, workBis, mu);
+                            Blas<K>::axpby(n, -1.0, workBis, 1, 1.0, work, 1);
+                            delete [] workBis;
+                        }
+                        else {
+                            if(HPDDM_NUMBERING == Wrapper<K>::I)
+                                Wrapper<K>::csrmm("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                            else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
+                                Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                            else
+                                Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                        }
                         scaledExchange(work, mu);                                                                      //  in = (I - A Z E \ Z^T) in
                         if(_type == Prcndtnr::OS)
                             Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
@@ -478,6 +490,9 @@ class Schwarz : public Preconditioner<
          * Parameters:
          *    in             - Input vector.
          *    out            - Output vector. */
+#if HPDDM_DENSE
+        virtual void GMV(const K* const in, K* const out, const int& mu = 1) const = 0;
+#else
         void GMV(const K* const in, K* const out, const int& mu = 1, MatrixCSR<K>* const& A = nullptr) const {
 #if 0
             K* tmp = new K[mu * Subdomain<K>::_dof];
@@ -502,6 +517,7 @@ class Schwarz : public Preconditioner<
             scaledExchange(out, mu);
 #endif
         }
+#endif
         /* Function: computeResidual
          *
          *  Computes the norms of right-hand sides and residual vectors.

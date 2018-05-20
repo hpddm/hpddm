@@ -40,10 +40,10 @@ template<template<class> class Solver, char S, class K>
 class InexactCoarseOperator;
 }
 #endif
-#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || HPDDM_INEXACT_COARSE_OPERATOR
+#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CSR_CO
 #endif
-#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || HPDDM_INEXACT_COARSE_OPERATOR
+#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CONTIGUOUS
 #endif
 
@@ -115,7 +115,11 @@ class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>
          *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
          *    Operator       - Operator used in the definition of the Galerkin matrix. */
         template<char T, unsigned short U, unsigned short excluded, class Operator>
-        std::pair<MPI_Request, const K*>* constructionMatrix(Operator&);
+        std::pair<MPI_Request, const K*>* constructionMatrix(typename std::enable_if<Operator::_pattern != 'u', Operator>::type&);
+        template<char T, unsigned short U, unsigned short excluded, class Operator>
+        std::pair<MPI_Request, const K*>* constructionMatrix(typename std::enable_if<Operator::_pattern == 'u', Operator>::type&);
+        template<char T, unsigned short U, unsigned short excluded, bool blocked>
+        void finishSetup(unsigned short*&, const int, const unsigned short, unsigned short**&, const int);
         /* Function: constructionCommunicatorCollective
          *
          *  Builds both communicators <Coarse operator::gatherComm> and <DMatrix::scatterComm> needed for coarse corrections.
@@ -218,11 +222,17 @@ class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>
             static_assert(!Wrapper<K>::is_complex || S != 'S', "Symmetric complex coarse operators are not supported");
         }
         ~CoarseOperator() {
-            if(_gatherComm != _scatterComm && _gatherComm != MPI_COMM_NULL)
-                MPI_Comm_free(&_gatherComm);
-            if(_scatterComm != MPI_COMM_NULL)
-                MPI_Comm_free(&_scatterComm);
-            _gatherComm = _scatterComm = MPI_COMM_NULL;
+            int isFinalized;
+            MPI_Finalized(&isFinalized);
+            if(isFinalized)
+                std::cerr << "Function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << " should be called before MPI_Finalize()" << std::endl;
+            else {
+                if(_gatherComm != _scatterComm && _gatherComm != MPI_COMM_NULL)
+                    MPI_Comm_free(&_gatherComm);
+                if(_scatterComm != MPI_COMM_NULL)
+                    MPI_Comm_free(&_scatterComm);
+                _gatherComm = _scatterComm = MPI_COMM_NULL;
+            }
         }
         /* Typedef: super
          *  Type of the immediate parent class <Solver>. */

@@ -338,7 +338,9 @@ class LapackSub {
         LapackSub(const LapackSub&) = delete;
         ~LapackSub() {
             delete [] _a;
+            _a = nullptr;
             delete [] _ipiv;
+            _ipiv = nullptr;
         }
         static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING>

@@ -35,7 +35,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
-        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
+        if((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
         options<2>(prefix, &tol, nullptr, &it, id);
     }
@@ -140,7 +140,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
-        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
+        if((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
         options<3>(prefix, &tol, nullptr, m, id);
         if(opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE)
@@ -286,7 +286,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     {
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
-        if(hpddm_method_id<Operator>::value == 1 && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
+        if((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
         options<6>(prefix, tol, nullptr, m, id);
         if(opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE)

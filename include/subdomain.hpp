@@ -68,8 +68,10 @@ class Subdomain : public OptionsPrefix {
         }
         ~Subdomain() {
             delete [] _rq;
+            _rq = nullptr;
             vectorNeighbor().swap(_map);
             delete [] _buff;
+            _buff = nullptr;
             destroyMatrix(nullptr);
         }
         /* Function: getCommunicator
@@ -285,24 +287,28 @@ class Subdomain : public OptionsPrefix {
             return result != MPI_CONGRUENT && result != MPI_IDENT;
         }
         K boundaryCond(const unsigned int i) const {
-            const int shift = _a->_ia[0];
-            unsigned int stop;
-            if(_a->_ia[i] != _a->_ia[i + 1]) {
-                if(!_a->_sym)
-                    stop = std::distance(_a->_ja, std::upper_bound(_a->_ja + _a->_ia[i] - shift, _a->_ja + _a->_ia[i + 1] - shift, i + shift));
+            if(_a->_ia) {
+                const int shift = _a->_ia[0];
+                unsigned int stop;
+                if(_a->_ia[i] != _a->_ia[i + 1]) {
+                    if(!_a->_sym)
+                        stop = std::distance(_a->_ja, std::upper_bound(_a->_ja + _a->_ia[i] - shift, _a->_ja + _a->_ia[i + 1] - shift, i + shift));
+                    else
+                        stop = _a->_ia[i + 1] - shift;
+                    if((_a->_sym || stop < _a->_ia[i + 1] - shift || _a->_ja[_a->_ia[i + 1] - shift - 1] == i + shift) && _a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
+                        for(unsigned int j = _a->_ia[i] - shift; j < stop; ++j) {
+                            if(i != _a->_ja[j] - shift && std::abs(_a->_a[j]) > HPDDM_EPS)
+                                return K();
+                            else if(i == _a->_ja[j] - shift && std::abs(_a->_a[j] - K(1.0)) > HPDDM_EPS)
+                                return K();
+                        }
+                }
                 else
-                    stop = _a->_ia[i + 1] - shift;
-                if((_a->_sym || stop < _a->_ia[i + 1] - shift || _a->_ja[_a->_ia[i + 1] - shift - 1] == i + shift) && _a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
-                    for(unsigned int j = _a->_ia[i] - shift; j < stop; ++j) {
-                        if(i != _a->_ja[j] - shift && std::abs(_a->_a[j]) > HPDDM_EPS)
-                            return K();
-                        else if(i == _a->_ja[j] - shift && std::abs(_a->_a[j] - K(1.0)) > HPDDM_EPS)
-                            return K();
-                    }
+                    return K();
+                return _a->_a[stop - 1];
             }
             else
                 return K();
-            return _a->_a[stop - 1];
         }
         std::unordered_map<unsigned int, K> boundaryConditions() const {
             std::unordered_map<unsigned int, K> map;
@@ -334,9 +340,10 @@ class Subdomain : public OptionsPrefix {
          *  Destroys the pointer <Subdomain::a> using a custom deallocator. */
         void destroyMatrix(void (*dtor)(void*)) {
             if(_a) {
-                int rankWorld;
-                MPI_Finalized(&rankWorld);
-                if(!rankWorld) {
+                int isFinalized;
+                MPI_Finalized(&isFinalized);
+                if(!isFinalized) {
+                    int rankWorld;
                     MPI_Comm_rank(_communicator, &rankWorld);
                     const std::string prefix = OptionsPrefix::prefix();
                     const Option& opt = *Option::get();
