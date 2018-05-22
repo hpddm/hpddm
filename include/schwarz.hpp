@@ -349,10 +349,9 @@ class Schwarz : public Preconditioner<
                     deflation<excluded>(in, out, mu);                                                                  // out = Z E \ Z^T in
                     if(!excluded) {
                         if(!Subdomain<K>::_a->_ia && !Subdomain<K>::_a->_ja) {
-                            int n = mu * Subdomain<K>::_dof;
-                            K* workBis = new K[n];
+                            K* workBis = new K[mu * Subdomain<K>::_dof];
                             GMV(out, workBis, mu);
-                            Blas<K>::axpby(n, -1.0, workBis, 1, 1.0, work, 1);
+                            Blas<K>::axpby(mu * Subdomain<K>::_dof, -1.0, workBis, 1, 1.0, work, 1);
                             delete [] workBis;
                         }
                         else {

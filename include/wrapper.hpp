@@ -69,9 +69,9 @@ HPDDM_GENERATE_EXTERN_MKL(d, double)
 HPDDM_GENERATE_EXTERN_MKL(c, std::complex<float>)
 HPDDM_GENERATE_EXTERN_MKL(z, std::complex<double>)
 }
+#  include <mkl_version.h>
 #  endif
 # endif
-# include <mkl_version.h>
 #endif // HPDDM_MKL
 
 namespace HPDDM {
