@@ -23,6 +23,13 @@ Create a `./Makefile.inc` by copying one from the folder `./Make.inc` and adapt 
 #### May HPDDM be embedded inside C, Python, or Fortran codes?
 Yes, as long as you have a modern C++ compiler (cf. the previous paragraph). With Python, [NumPy](http://www.numpy.org/) and [mpi4py](https://bitbucket.org/mpi4py/) must also be available.
 
+##### What if I don't want to deal with the library API myself?
+You may access some functionalities of HPDDM through the following software:
+* [FreeFem++](http://www.freefem.org/ff++/), all features of HPDDM,
+* [Feel++](http://www.feelpp.org/), substructuring preconditioners,
+* [PETSc](http://www.mcs.anl.gov/petsc/), advanced Krylov methods,
+* [htool](https://github.com/PierreMarchand20/htool), overlapping Schwarz preconditioners for dense operators.
+
 #### Who is behind HPDDM?
 If you need help or have questions regarding HPDDM, feel free to contact [Pierre Jolivet](http://jolivet.perso.enseeiht.fr/) or [Frédéric Nataf](https://www.ljll.math.upmc.fr/nataf/).
 

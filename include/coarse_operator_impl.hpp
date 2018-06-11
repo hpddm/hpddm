@@ -1122,8 +1122,10 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(!treeDimension)
             delete [] rqRecv;
     }
-    if(excluded < 2)
+    if(excluded < 2) {
         delete [] *sendNeighbor;
+        *sendNeighbor = nullptr;
+    }
     finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
     return ret;
 }

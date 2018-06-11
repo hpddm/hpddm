@@ -261,7 +261,7 @@ class Subdomain : public OptionsPrefix {
             return allocate;
         }
         void clearBuffer(const bool free = true) const {
-            if(free && !_map.empty()) {
+            if(free && !_map.empty() && _buff) {
                 delete [] *_buff;
                 *_buff = nullptr;
             }

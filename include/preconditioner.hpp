@@ -115,12 +115,10 @@ class Preconditioner : public Subdomain<K> {
             }
             if(nu > 0 || allUniform[2] != 0 || allUniform[3] != std::numeric_limits<unsigned short>::max()) {
                 bool uniformity = (N == 3 && opt.set("geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
-                if(!_co) {
-                    _co = new CoarseOperator;
-                    _co->setLocal(uniformity ? allUniform[1] : nu);
-                }
-                else
-                    _co->~CoarseOperator();
+                if(_co)
+                    delete _co;
+                _co = new CoarseOperator;
+                _co->setLocal(uniformity ? allUniform[1] : nu);
                 double construction = MPI_Wtime();
                 if((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
                     ret = _co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
