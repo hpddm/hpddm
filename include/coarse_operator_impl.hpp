@@ -35,7 +35,7 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
     MPI_Comm_rank(comm, &_rankWorld);
     Option& opt = *Option::get();
     unsigned short p = opt.val<unsigned short>("master_p", 1);
-#ifndef DSUITESPARSE
+#if !defined(DSUITESPARSE) && !defined(DLAPACK)
     if(p > _sizeWorld / 2 && _sizeWorld > 1) {
         p = opt["master_p"] = _sizeWorld / 2;
         if(_rankWorld == 0)
@@ -1105,7 +1105,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
 #  ifndef DHYPRE
          std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
 #  endif
-#  if defined(DSUITESPARSE)
+#  if defined(DSUITESPARSE) || defined(DLAPACK)
         super::template numfact<S>(nrow, I, J, pt);
         delete [] loc2glob;
 #  elif defined(DMKL_PARDISO) || defined(DELEMENTAL)
@@ -1358,7 +1358,9 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         if(U != 1)
             delete [] infoNeighbor;
         const K* const E = v._p.getOperator();
-#ifdef HPDDM_CONTIGUOUS
+#if defined(DSUITESPARSE) || defined(DLAPACK)
+        super::template numfact<S>(DMatrix::_n, nullptr, nullptr, const_cast<K*&>(E));
+#elif defined(HPDDM_CONTIGUOUS)
         super::template numfact<S>(!blocked ? 1 : _local, nullptr, loc2glob, nullptr, const_cast<K*&>(E));
 #endif
     }

@@ -210,11 +210,9 @@ class Option : private Singleton {
                 pIt[0] = _app->cbegin();
                 pIt[1] = _app->cend();
             }
-            std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { return std::mismatch(pre.begin(), pre.end(), p.first.begin()).first == pre.end(); });
-            if(it != pIt[1] && it->first.size() > pre.size() + 1) {
-                std::string res = it->first.substr(pre.size() + 1);
-                return res.find('#') == std::string::npos ? res : std::string();
-            }
+            std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { bool match = std::mismatch(pre.begin(), pre.end(), p.first.begin()).first == pre.end(); if(match && p.first.size() > pre.size() + 1) { match = (p.first[pre.size()] == '#'); } return match; });
+            if(it != pIt[1])
+                return it->first.substr(pre.size() + 1);
             else
                 return std::string();
         }

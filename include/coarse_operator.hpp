@@ -40,10 +40,10 @@ template<template<class> class Solver, char S, class K>
 class InexactCoarseOperator;
 }
 #endif
-#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
+#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DLAPACK) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CSR_CO
 #endif
-#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
+#if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DLAPACK) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
 # define HPDDM_CONTIGUOUS
 #endif
 

@@ -321,29 +321,31 @@ class QR {
         }
 };
 
+#if defined(DLAPACK) || defined(LAPACKSUB)
 #ifdef LAPACKSUB
 #undef HPDDM_CHECK_COARSEOPERATOR
 #define HPDDM_CHECK_SUBDOMAIN
 #include "preprocessor_check.hpp"
-#define SUBDOMAIN HPDDM::LapackSub
+#define SUBDOMAIN HPDDM::LapackTRSub
+#endif
 template<class K>
-class LapackSub {
+class LapackTRSub {
     private:
         K*                _a;
         int*           _ipiv;
         int               _n;
         unsigned short _type;
     public:
-        LapackSub() : _a(), _ipiv(), _n(), _type() { }
-        LapackSub(const LapackSub&) = delete;
-        ~LapackSub() {
+        LapackTRSub() : _a(), _ipiv(), _n(), _type() { }
+        LapackTRSub(const LapackTRSub&) = delete;
+        ~LapackTRSub() {
             delete [] _a;
             _a = nullptr;
             delete [] _ipiv;
             _ipiv = nullptr;
         }
         static constexpr char _numbering = 'F';
-        template<char N = HPDDM_NUMBERING>
+        template<char N = HPDDM_NUMBERING, bool transpose = false>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             _n = A->_n;
             _a = new K[_n * _n]();
@@ -355,18 +357,21 @@ class LapackSub {
             }
             else {
                 for(unsigned int i = 0; i < A->_n; ++i) {
-                    for(unsigned int j = A->_ia[i] - (N == 'F'); j < A->_ia[i + 1] - (N == 'F'); ++j)
-                        _a[i + (A->_ja[j] - (N == 'F')) * _n] = A->_a[j];
+                    for(unsigned int j = A->_ia[i] - (N == 'F'); j < A->_ia[i + 1] - (N == 'F'); ++j) {
+                        if(!transpose)
+                            _a[i + (A->_ja[j] - (N == 'F')) * _n] = A->_a[j];
+                        else
+                            _a[i * _n + (A->_ja[j] - (N == 'F'))] = A->_a[j];
+                    }
                 }
             }
-            const Option& opt = *Option::get();
             int info;
             if(!A->_sym) {
                 _ipiv = new int[_n];
                 Lapack<K>::getrf(&_n, &_n, _a, &_n, _ipiv, &info);
             }
             else {
-                _type = 1 + (opt.val<char>("local_operator_spd", 0) && !detection);
+                _type = 1 + (Option::get()->val<char>("local_operator_spd", 0) && !detection);
                 if(_type == 1) {
                     K* work;
                     int lwork = -1;
@@ -402,7 +407,47 @@ class LapackSub {
             solve(x, n);
         }
 };
-#endif // LapackSub
+
+#ifdef DLAPACK
+#undef HPDDM_CHECK_SUBDOMAIN
+#define HPDDM_CHECK_COARSEOPERATOR
+#include "preprocessor_check.hpp"
+#define COARSEOPERATOR HPDDM::LapackTR
+template<class K>
+class LapackTR : public DMatrix, public LapackTRSub<K> {
+    private:
+        typedef LapackTRSub<K> super;
+    protected:
+        /* Variable: numbering
+         *  0-based indexing. */
+        static constexpr char _numbering = 'C';
+    public:
+        template<char S>
+        void numfact(unsigned int n, int* I, int* J, K* C) {
+            MatrixCSR<K>* E;
+            if(I == nullptr && J == nullptr)
+                E = new MatrixCSR<K>(n, n, n * n, C, nullptr, nullptr, S == 'S');
+            else
+                E = new MatrixCSR<K>(n, n, I[n] - (_numbering == 'F'), C, I, J, S == 'S');
+            Option& opt = *Option::get();
+            const char master = opt.val<char>("master_spd", 2);
+            const char local = opt.val<char>("local_operator_spd", 2);
+            if(master == 1)
+                opt["local_operator_spd"] = 1;
+            this->super::template numfact<_numbering, true>(E);
+            if(master == 1) {
+                if(local == 2)
+                    opt.remove("local_operator_spd");
+                else
+                    opt["local_operator_spd"] = local;
+            }
+            delete E;
+            delete [] I;
+        }
+
+};
+#endif
+#endif
 
 # define HPDDM_GENERATE_LAPACK(C, T, B, U, SYM, ORT)                                                         \
 template<>                                                                                                   \

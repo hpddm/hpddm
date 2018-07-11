@@ -133,7 +133,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("dissection_kkt_scaling=(0|1)", "Turn on KKT scaling instead of the default diagonal scaling", Arg::argument),
 #endif
         std::forward_as_tuple("", "", Arg::anything),
-#if !defined(DSUITESPARSE)
+#if !defined(DSUITESPARSE) && !defined(DLAPACK)
         std::forward_as_tuple("master_p=<1>", "Number of master processes", Arg::positive),
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         std::forward_as_tuple("master_distribution=(centralized|sol)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
@@ -150,7 +150,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #endif
         std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
         std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
-#if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO)
+#if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DLAPACK)
       , std::forward_as_tuple("master_spd=(0|1)", "Assume the coarse operator is symmetric positive definite", Arg::argument)
 #endif
 #endif
