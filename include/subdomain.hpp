@@ -791,7 +791,7 @@ class Subdomain : public OptionsPrefix {
          * See also: <Subdomain::globalMapping>. */
         template<class T = K>
         static bool distributedCSR(const unsigned int* const row, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A, const unsigned int* col = nullptr) {
-            if(first != 0 || last != A->_n) {
+            if(first != 0 || last != A->_n || col) {
                 if(!col)
                     col = row;
                 std::vector<std::pair<unsigned int, unsigned int>> s;
