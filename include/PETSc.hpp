@@ -74,19 +74,21 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
         KSPGetPC(_ksp, &pc);
         PCType type;
         PCGetType(pc, &type);
-        PetscBool isBJacobi, isDirectSolve;
+        PetscBool isBJacobi, isSolve;
         if(mu > 1) {
             PetscStrcmp(type, PCBJACOBI, &isBJacobi);
             if(!isBJacobi) {
-                PetscStrcmp(type, PCLU, &isDirectSolve);
-                if(!isDirectSolve)
-                    PetscStrcmp(type, PCCHOLESKY, &isDirectSolve);
+                for(const PCType& t : { PCLU, PCCHOLESKY, PCILU, PCICC }) {
+                    PetscStrcmp(type, t, &isSolve);
+                    if(isSolve)
+                        break;
+                }
             }
             else
-                isDirectSolve = PETSC_FALSE;
+                isSolve = PETSC_FALSE;
         }
         else
-            isBJacobi = isDirectSolve = PETSC_FALSE;
+            isBJacobi = isSolve = PETSC_FALSE;
         Mat F = NULL;
         if(isBJacobi) {
             KSP* subksp;
@@ -99,14 +101,17 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
                 PC subpc;
                 KSPGetPC(subksp[0], &subpc);
                 PCGetType(subpc, &type);
-                PetscStrcmp(type, PCLU, &isBJacobi);
-                if(!isBJacobi)
-                    PetscStrcmp(type, PCCHOLESKY, &isBJacobi);
-                if(isBJacobi)
-                    PCFactorGetMatrix(subpc, &F);
+                isBJacobi = PETSC_FALSE;
+                for(const PCType& t : { PCLU, PCCHOLESKY, PCILU, PCICC }) {
+                    PetscStrcmp(type, t, &isBJacobi);
+                    if(isBJacobi) {
+                        PCFactorGetMatrix(subpc, &F);
+                        break;
+                    }
+                }
             }
         }
-        else if(isDirectSolve)
+        else if(isSolve)
             PCFactorGetMatrix(pc, &F);
         MPI_Comm comm;
         if(F) {

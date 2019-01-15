@@ -179,7 +179,7 @@ class Schur : public Preconditioner<
                     }
                 K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 exchangeSchurComplement<L>(send, recv, res);
-                unsigned short nu = opt.template val<unsigned short>(prefix + "geneo_nu", 20);
+                unsigned short nu = opt.val<unsigned short>(prefix + "geneo_nu", 20);
                 const underlying_type<K> threshold = opt.val(prefix + "geneo_threshold", 0.0);
                 Eigensolver<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
                 K* A;
