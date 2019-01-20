@@ -26,20 +26,21 @@
 #define _HPDDM_ITERATIVE_
 
 namespace HPDDM {
-template<class K>
+template<class K, class T = int>
 struct EmptyOperator : OptionsPrefix {
-    const int _n;
-    EmptyOperator(int n) : OptionsPrefix(), _n(n) { }
-    int getDof() const { return _n; }
+    typedef T integer_type;
+    const T _n;
+    EmptyOperator(T n) : OptionsPrefix(), _n(n) { }
+    T getDof() const { return _n; }
     static constexpr underlying_type<K>* getScaling() { return nullptr; }
     template<bool = true> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
     static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
     static constexpr bool end(const bool) { return false; }
 };
-template<class Operator, class K>
+template<class Operator, class K, class T = int>
 struct CustomOperator : EmptyOperator<K> {
     const Operator* const _A;
-    CustomOperator(const Operator* const A, int n) : EmptyOperator<K>(n), _A(A) { }
+    CustomOperator(const Operator* const A, T n) : EmptyOperator<K, T>(n), _A(A) { }
     void GMV(const K* const in, K* const out, const int& mu = 1) const;
 };
 template<class K>

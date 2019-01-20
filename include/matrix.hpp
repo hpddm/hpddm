@@ -129,7 +129,7 @@ class MatrixBase {
             unsigned int k = MatrixBase<K>::_ia[0] - (N == 'F');
             for(unsigned int i = 0; i < MatrixBase<K>::_n; ++i)
                 for(unsigned int ke = MatrixBase<K>::_ia[i + 1] - (N == 'F'); k < ke; ++k)
-                    f << std::setw(9) << i + 1 << std::setw(9) << MatrixBase<K>::_ja[k] + (N == 'C') << " " << std::setw(13) << pts(a, k) << "\n";
+                    f << std::setw(9) << i + 1 << " " << std::setw(9) << MatrixBase<K>::_ja[k] + (N == 'C') << " " << pts(a, k) << "\n";
             f.flags(ff);
             return f;
         }

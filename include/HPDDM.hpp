@@ -254,6 +254,7 @@ inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, std::
 template<class T>
 inline std::string pts(const T* const s, const unsigned int k, typename std::enable_if<!std::is_same<T, void>::value>::type* = nullptr) {
     std::ostringstream stm;
+    stm << std::scientific;
     stm << s[k];
     return stm.str();
 }

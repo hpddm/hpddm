@@ -105,7 +105,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
 #endif
 #ifdef MUMPSSUB
-        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[3789]|35)=<val>", "Integer control parameters of MUMPS for the subdomain solvers", Arg::integer),
+        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[34789]|35)=<val>", "Integer control parameters of MUMPS for the subdomain solvers", Arg::integer),
         std::forward_as_tuple("mumps_cntl_([123457])=<val>", "Real control parameters of MUMPS for the subdomain solvers", Arg::numeric),
 #endif
 #ifdef DMUMPS
@@ -231,7 +231,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::cout << "WARNING -- too many prefixes have been pushed" << std::endl;
     if(display && _opt.find("help") != _opt.cend()) {
         size_t max = 0;
-        int col = getenv("COLUMNS") ? sto<int>(std::getenv("COLUMNS")) : 200;
+        size_t col = getenv("COLUMNS") ? sto<int>(std::getenv("COLUMNS")) : 200;
         for(const auto& x : option)
             max = std::max(max, std::get<0>(x).size() + std::string(HPDDM_PREFIX).size());
         std::function<void(const std::string&)> wrap = [&](const std::string& text) {
@@ -329,6 +329,7 @@ inline void Option::version() const {
         " │  BDD module activated? " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
         " │  Dense module activated? " + std::string(bool(HPDDM_DENSE) ? "true" : "false"),
         " │  PETSc module activated? " + std::string(bool(HPDDM_PETSC) ? "true" : "false"),
+        " │  Inexact coarse spaces? " + std::string(bool(HPDDM_INEXACT_COARSE_OPERATOR) ? "true" : "false"),
         " │  QR algorithm: " + std::string(HPDDM_STR(HPDDM_QR)),
         " │  asynchronous collectives? " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
         " │  mixed precision arithmetic? " + std::string(bool(HPDDM_MIXED_PRECISION) ? "true" : "false"),

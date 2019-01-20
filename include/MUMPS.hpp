@@ -255,7 +255,7 @@ class MumpsSub {
                 std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
                 _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
-                for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28, 34 }) {
+                for(unsigned short i : { 5, 6, 7, 11, 12, 22, 23, 26, 27, 28, 34 }) {
                     int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                     if(val != std::numeric_limits<int>::lowest())
                         _id->icntl[i] = val;

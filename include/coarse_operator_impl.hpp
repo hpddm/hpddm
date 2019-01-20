@@ -1376,10 +1376,17 @@ inline void CoarseOperator<Solver, S, K>::finishSetup(unsigned short*& infoWorld
 #endif
     if(U != 2) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
-        if(DMatrix::_distribution == DMatrix::CENTRALIZED)
-            _scatterComm = _gatherComm;
+        if(DMatrix::_distribution == DMatrix::CENTRALIZED) {
+            if(_gatherComm != _scatterComm) {
+                MPI_Comm_free(&_scatterComm);
+                _scatterComm = _gatherComm;
+            }
+        }
 #else
-        _gatherComm = _scatterComm;
+        if(_gatherComm != _scatterComm) {
+            MPI_Comm_free(&_gatherComm);
+            _gatherComm = _scatterComm;
+        }
 #endif
     }
     else {
@@ -1420,7 +1427,10 @@ inline void CoarseOperator<Solver, S, K>::finishSetup(unsigned short*& infoWorld
 #else
             constructionCommunicatorCollective<false>(pt, size, _scatterComm);
 #endif
-            _gatherComm = _scatterComm;
+            if(_gatherComm != _scatterComm) {
+                MPI_Comm_free(&_gatherComm);
+                _gatherComm = _scatterComm;
+            }
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         }
         else {

@@ -74,6 +74,7 @@ class Subdomain : public OptionsPrefix {
             _buff = nullptr;
             destroyMatrix(nullptr);
         }
+        typedef int integer_type;
         /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
         const MPI_Comm& getCommunicator() const { return _communicator; }
@@ -192,7 +193,7 @@ class Subdomain : public OptionsPrefix {
                 send -= space;
                 recv -= space;
                 for(unsigned short i = 0; i < size; ++i) {
-                    std::pair<unsigned short, std::vector<int>> c(_map[i].first, typename decltype(_map)::value_type::second_type());
+                    std::pair<unsigned short, typename decltype(_map)::value_type::second_type> c(_map[i].first, typename decltype(_map)::value_type::second_type());
                     for(unsigned int j = 0; j < _map[i].second.size(); ++j) {
                         if(recv[j] == 'a' && send[j] == 'a')
                             c.second.emplace_back(perm[_map[i].second[j]] - 1);
@@ -891,7 +892,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
         unsigned int* global = local + k;
         const int n = excluded ? 0 : A.getDof();
         const vectorNeighbor& map = A.getMap();
-        int displ = 0;
+        int accumulate = 0;
         std::unordered_set<int> redundant;
         unsigned short j = std::min(k - 1, rank / (size / k));
         std::function<void ()> check_size = [&] {
@@ -907,7 +908,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
         };
         if(!excluded)
             for(const auto& i : map) {
-                displ += i.second.size();
+                accumulate += i.second.size();
                 for(const int& k : i.second)
                     redundant.emplace(k);
             }
@@ -924,23 +925,23 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
             }
         }
         if(k > 1) {
-            unsigned short* idx = new unsigned short[n + displ];
+            unsigned short* idx = new unsigned short[n + accumulate];
             unsigned short* buff = idx + n;
             sx = new K[k * n]();
             sb = new K[k * n]();
             const int div = size / k;
             if(!excluded) {
-                std::fill_n(idx, n + displ, std::min(rank / div, k - 1) + 1);
-                displ = 0;
+                std::fill_n(idx, n + accumulate, std::min(rank / div, k - 1) + 1);
+                accumulate = 0;
                 for(unsigned short i = 0; i < map.size(); ++i) {
                     if(rank < map[i].first)
-                        std::fill_n(buff + displ, map[i].second.size(), std::min(static_cast<int>(map[i].first / div), static_cast<int>(k - 1)) + 1);
-                    displ += map[i].second.size();
+                        std::fill_n(buff + accumulate, map[i].second.size(), std::min(static_cast<int>(map[i].first / div), static_cast<int>(k - 1)) + 1);
+                    accumulate += map[i].second.size();
                 }
-                displ = 0;
+                accumulate = 0;
                 for(unsigned short i = 0; i < map.size(); ++i) {
-                    Wrapper<unsigned short>::sctr(map[i].second.size(), buff + displ, map[i].second.data(), idx);
-                    displ += map[i].second.size();
+                    Wrapper<unsigned short>::sctr(map[i].second.size(), buff + accumulate, map[i].second.data(), idx);
+                    accumulate += map[i].second.size();
                 }
                 for(unsigned int i = 0; i < n; ++i) {
                     sx[i + (idx[i] - 1) * n] = x[i];

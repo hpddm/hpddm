@@ -388,6 +388,8 @@ class DMatrix {
             delete [] _ldistribution;
             delete [] _gatherCounts;
             delete [] _gatherSplitCounts;
+            if(_communicator != MPI_COMM_NULL && _communicator != MPI_COMM_SELF)
+                MPI_Comm_free(&_communicator);
         }
 };
 } // HPDDM

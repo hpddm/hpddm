@@ -88,7 +88,7 @@ class Dense : public Schwarz<
             if(threshold > 0.0)
                 k = std::distance(q.begin(), std::lower_bound(q.begin() + 1, q.end(), std::pair<unsigned short, std::complex<underlying_type<K>>>(0, threshold), [](const std::pair<unsigned short, std::complex<underlying_type<K>>>& lhs, const std::pair<unsigned short, std::complex<underlying_type<K>>>& rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }));
             else
-                k = opt.template val<int>(prefix + "geneo_nu", 20);
+                k = opt.val<int>(prefix + "geneo_nu", 20);
             q.resize(k);
             int mm = Wrapper<K>::is_complex ? k : 0;
             int* select = new int[Subdomain<K>::_dof]();

@@ -26,12 +26,13 @@
 #include "petsc/private/kspimpl.h"
 
 namespace HPDDM {
-struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
+struct PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
+    typedef EmptyOperator<PetscScalar, PetscInt> super;
     const KSP     _ksp;
     const PetscInt _bs;
     PetscErrorCode (*const _apply)(PC, Mat, Mat);
     PETScOperator(const PETScOperator&) = delete;
-    PETScOperator(const KSP& ksp, int n, PetscInt bs, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : HPDDM::EmptyOperator<PetscScalar>(bs * n), _ksp(ksp), _bs(bs), _apply(apply) { }
+    PETScOperator(const KSP& ksp, PetscInt n, PetscInt bs, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : super(bs * n), _ksp(ksp), _bs(bs), _apply(apply) { }
     void GMV(const PetscScalar* const in, PetscScalar* const out, const int& mu = 1) const {
         Mat A;
         KSPGetOperators(_ksp, &A, NULL);
@@ -45,11 +46,11 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
         MPI_Comm_size(comm, &size);
         if(mu == 1 || !hasMatMatMult || size == 1) {
             Vec right, left;
-            VecCreateMPIWithArray(comm, _bs, HPDDM::EmptyOperator<PetscScalar>::_n, N, NULL, &right);
-            VecCreateMPIWithArray(comm, _bs, HPDDM::EmptyOperator<PetscScalar>::_n, N, NULL, &left);
+            VecCreateMPIWithArray(comm, _bs, super::_n, N, NULL, &right);
+            VecCreateMPIWithArray(comm, _bs, super::_n, N, NULL, &left);
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                VecPlaceArray(right, in + nu * HPDDM::EmptyOperator<PetscScalar>::_n);
-                VecPlaceArray(left, out + nu * HPDDM::EmptyOperator<PetscScalar>::_n);
+                VecPlaceArray(right, in + nu * super::_n);
+                VecPlaceArray(left, out + nu * super::_n);
                 MatMult(A, right, left);
                 VecResetArray(left);
                 VecResetArray(right);
@@ -61,8 +62,8 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
             PetscInt N;
             MatGetSize(A, &N, NULL);
             Mat B, C;
-            MatCreateDense(comm, HPDDM::EmptyOperator<PetscScalar>::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
-            MatCreateDense(comm, HPDDM::EmptyOperator<PetscScalar>::_n, PETSC_DECIDE, N, mu, out, &C);
+            MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
+            MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, out, &C);
             MatMatMult(A, B, MAT_REUSE_MATRIX, PETSC_DEFAULT, &C);
             MatDestroy(&C);
             MatDestroy(&B);
@@ -119,8 +120,8 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
             MatGetSize(F, &N, NULL);
             Mat B, C;
             PetscObjectGetComm((PetscObject)F, &comm);
-            MatCreateDense(comm, HPDDM::EmptyOperator<PetscScalar>::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
-            MatCreateDense(comm, HPDDM::EmptyOperator<PetscScalar>::_n, PETSC_DECIDE, N, mu, out, &C);
+            MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
+            MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, out, &C);
             MatMatSolve(F, B, C);
             MatDestroy(&C);
             MatDestroy(&B);
@@ -133,19 +134,19 @@ struct PETScOperator : public HPDDM::EmptyOperator<PetscScalar> {
             MatGetSize(A, &N, NULL);
             if(_apply) {
                 Mat B, C;
-                MatCreateDense(comm, HPDDM::EmptyOperator<PetscScalar>::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
-                MatCreateDense(comm, HPDDM::EmptyOperator<PetscScalar>::_n, PETSC_DECIDE, N, mu, out, &C);
+                MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
+                MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, out, &C);
                 _apply(pc, B, C);
                 MatDestroy(&C);
                 MatDestroy(&B);
             }
             else {
                 Vec right, left;
-                VecCreateMPIWithArray(comm, _bs, HPDDM::EmptyOperator<PetscScalar>::_n, N, NULL, &right);
-                VecCreateMPIWithArray(comm, _bs, HPDDM::EmptyOperator<PetscScalar>::_n, N, NULL, &left);
+                VecCreateMPIWithArray(comm, _bs, super::_n, N, NULL, &right);
+                VecCreateMPIWithArray(comm, _bs, super::_n, N, NULL, &left);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
-                    VecPlaceArray(right, in + nu * HPDDM::EmptyOperator<PetscScalar>::_n);
-                    VecPlaceArray(left, out + nu * HPDDM::EmptyOperator<PetscScalar>::_n);
+                    VecPlaceArray(right, in + nu * super::_n);
+                    VecPlaceArray(left, out + nu * super::_n);
                     PCApply(pc, right, left);
                     VecResetArray(left);
                     VecResetArray(right);

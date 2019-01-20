@@ -431,7 +431,7 @@ class Schwarz : public Preconditioner<
             const std::string prefix = super::prefix();
             Option& opt = *Option::get();
             const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", 0.0);
-            Eps<K> evp(threshold, Subdomain<K>::_dof, opt.template val<unsigned short>(prefix + "geneo_nu", 20));
+            Eps<K> evp(threshold, Subdomain<K>::_dof, opt.val<unsigned short>(prefix + "geneo_nu", 20));
 #ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
 #else
@@ -448,7 +448,7 @@ class Schwarz : public Preconditioner<
                 delete [] super::_ev;
             }
 #if defined(MUMPSSUB) || defined(MKL_PARDISOSUB)
-            if(threshold > 0.0 && opt.template val<char>(prefix + "geneo_estimate_nu", 0) && (!B || B->hashIndices() == A->hashIndices())) {
+            if(threshold > 0.0 && opt.val<char>(prefix + "geneo_estimate_nu", 0) && (!B || B->hashIndices() == A->hashIndices())) {
                 K* difference = new K[A->_nnz];
                 std::copy_n(A->_a, A->_nnz, difference);
                 for(unsigned int i = 0; i < A->_n; ++i) {
