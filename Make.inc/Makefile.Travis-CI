@@ -4,7 +4,7 @@ EIGENSOLVER ?= ARPACK
 MPICXX ?= mpic++
 MPICC ?= mpicc
 MPIF90 ?= mpif90
-MPIRUN ?= mpirun -np
+MPIRUN ?= mpirun -mca btl ^openib -np
 
 override CXXFLAGS += -std=c++11 -O3 -fPIC
 override CFLAGS += -std=c99 -O3
