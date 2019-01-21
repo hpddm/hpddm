@@ -1,6 +1,8 @@
 os:
   - linux
 
+dist: xenial
+
 git:
   depth: 1
   submodules: false
@@ -61,14 +63,16 @@ matrix:
 
 addons:
   apt:
-    sources:
-      - ubuntu-toolchain-r-test
     packages:
+      - wget
+      - bzip2
+      - make
       - gfortran-4.8
       - g++-4.9
       - libmumps-dev
       - libarpack2-dev
       - libhypre-dev
+      - libmetis-dev
       - libparmetis-dev
 
 cache:
