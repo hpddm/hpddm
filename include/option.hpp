@@ -47,6 +47,7 @@ class Option : private Singleton {
         /* Variable: app
          *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
         std::unordered_map<std::string, double>* _app;
+        std::string                           _prefix;
         static bool hasEnding(const std::string& str, const std::string& ending) {
             return str.length() >= ending.length() ? str.compare(str.length() - ending.length(), ending.length(), ending) == 0 : false;
         }
@@ -117,7 +118,7 @@ class Option : private Singleton {
         /* Function: app
          *  Returns a constant reference of <Option::app>. */
         std::unordered_map<std::string, double>& app() const { return *_app; }
-        bool set(const std::string& key) const { return _opt.find(key) != _opt.cend(); }
+        bool set(const std::string& key) const { return _opt.find(_prefix + key) != _opt.cend(); }
         /* Function: remove
          *
          *  Removes a key from the unordered map <Option::opt>.
@@ -125,7 +126,7 @@ class Option : private Singleton {
          * Parameter:
          *    key            - Key to remove from <Option::opt>. */
         void remove(const std::string& key) {
-            std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
+            std::unordered_map<std::string, double>::const_iterator it = _opt.find(_prefix + key);
             if(it != _opt.cend())
                 _opt.erase(it);
         }
@@ -133,7 +134,7 @@ class Option : private Singleton {
          *  Returns the value of the key given as an argument, or use a default value if the key is not in <Option::opt>. */
         template<class T = double>
         T val(const std::string& key, T d = std::numeric_limits<T>::lowest()) const {
-            std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
+            std::unordered_map<std::string, double>::const_iterator it = _opt.find(_prefix + key);
             if(it == _opt.cend())
                 return d;
             else
@@ -141,14 +142,14 @@ class Option : private Singleton {
         }
         const double& operator[](const std::string& key) const {
             try {
-                return _opt.at(key);
+                return _opt.at(_prefix + key);
             }
             catch(const std::out_of_range& oor) {
-                std::cerr << "out_of_range error: " << oor.what() << " (key: " << key << ")" << std::endl;
+                std::cerr << "out_of_range error: " << oor.what() << " (key: " << _prefix + key << ")" << std::endl;
                 return _opt.cbegin()->second;
             }
         }
-        double& operator[](const std::string& key) { return _opt[key]; }
+        double& operator[](const std::string& key) { return _opt[_prefix + key]; }
         struct Arg {
             static bool positive(const std::string& opt, const std::string& s, bool verbose) {
                 if(!s.empty()) {
@@ -210,9 +211,10 @@ class Option : private Singleton {
                 pIt[0] = _app->cbegin();
                 pIt[1] = _app->cend();
             }
-            std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { bool match = std::mismatch(pre.begin(), pre.end(), p.first.begin()).first == pre.end(); if(match && p.first.size() > pre.size() + 1) { match = (p.first[pre.size()] == '#'); } return match; });
+            const std::string prefix = _prefix + pre;
+            std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { bool match = std::mismatch(prefix.cbegin(), prefix.cend(), p.first.cbegin()).first == prefix.cend(); if(match && p.first.size() > prefix.size() + 1) { match = (p.first[prefix.size()] == '#'); } return match; });
             if(it != pIt[1])
-                return it->first.substr(pre.size() + 1);
+                return it->first.substr(prefix.size() + 1);
             else
                 return std::string();
         }
@@ -297,7 +299,7 @@ class Option : private Singleton {
                         return exact ? str.compare(std::get<0>(tuple).substr(0, del)) == 0 : true;
                     else {
 #ifndef HPDDM_NO_REGEX
-                        std::regex words_regex("^" + std::get<0>(tuple).substr(0, del) + "$");
+                        std::regex words_regex(std::get<0>(tuple).substr(0, del) + "$");
                         return std::sregex_iterator(str.cbegin(), str.cend(), words_regex) != std::sregex_iterator();
 #else
                         return false;
@@ -358,7 +360,7 @@ class Option : private Singleton {
                         success = false;
                     if(!empty.empty()) {
 #ifndef HPDDM_NO_REGEX
-                        std::regex words_regex("^" + empty + "$", std::regex_constants::icase);
+                        std::regex words_regex(empty + "$", std::regex_constants::icase);
                         auto words_begin = std::sregex_iterator(val.cbegin(), val.cend(), words_regex);
                         if(std::distance(words_begin, std::sregex_iterator()) == 1) {
 #else
@@ -399,7 +401,7 @@ class Option : private Singleton {
                             map[key] = sto<double>(val);
                         else {
                             for(const auto& x : map)
-                                if(x.first.find(str) == 0) {
+                                if(x.first.find(str + "#") == 0) {
                                     map.erase(x.first);
                                     break;
                                 }
@@ -425,6 +427,12 @@ class Option : private Singleton {
             else if(internal && !exact)
                 std::cout << "WARNING -- '-hpddm_" << str << "' is not a registered HPDDM option" << std::endl;
             return false;
+        }
+        void setPrefix(const std::string& pre) {
+            _prefix = pre;
+        }
+        std::string getPrefix() const {
+            return _prefix;
         }
 };
 

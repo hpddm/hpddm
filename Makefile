@@ -289,7 +289,7 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -distributed_sol -hpddm_orthogonalization   mgs -hpddm_gmres_restart=25
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -hpddm_master_distribution sol -hpddm_orthogonalization   mgs -hpddm_gmres_restart=25
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -hpddm_gmres_restart=25
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_master_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_deflation_tol=1e-4 -hpddm_gmres_restart=25
 	@if test ! $(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS}) && test ! $(findstring -DFORCE_SINGLE, ${HPDDMFLAGS}); then \
