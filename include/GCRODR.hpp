@@ -722,17 +722,17 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     int bK = deflated * k;
                     K* w = new K[Wrapper<K>::is_complex ? dim : (2 * dim)];
                     K* vr = new K[std::max(2, dim * dim)];
-                    underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * n] : nullptr;
-                    {
-                        Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, rwork, &info);
-                        vr[1] = std::max(static_cast<int>(std::real(*vr)), Wrapper<K>::is_complex ? dim * dim : (dim * (dim + 2)));
-                        Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, vr, &lwork, &info);
-                        vr[1] = std::max(std::real(*vr), std::real(vr[1]));
-                        Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, vr, &lwork, &info);
-                        lwork = std::max(std::real(*vr), std::real(vr[1]));
-                    }
+                    underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * dim] : nullptr;
+                    Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, rwork, &info);
+                    lwork = std::real(*vr);
                     K* work = new K[lwork];
                     Lapack<K>::geev("N", "V", &dim, *H, &ldh, w, w + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
+                    delete [] work;
+                    lwork = -1;
+                    Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, vr, &lwork, &info);
+                    Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, vr + 1, &lwork, &info);
+                    lwork = std::max(std::real(vr[0]), std::real(vr[1]));
+                    work = new K[lwork];
                     std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                     q.reserve(dim);
                     selectNu(id[3], q, dim, w, w + dim);
