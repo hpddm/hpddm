@@ -52,11 +52,18 @@ int main(int argc, char** argv) {
         std::forward_as_tuple("Ny=<100>", "Number of grid points in the y-direction.", HPDDM::Option::Arg::positive),
         std::forward_as_tuple("generate_random_rhs=<0>", "Number of generated random right-hand sides.", HPDDM::Option::Arg::integer),
         std::forward_as_tuple("symmetric_csr=(0|1)", "Assemble symmetric matrices.", HPDDM::Option::Arg::argument),
-        std::forward_as_tuple("nonuniform=(0|1)", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::argument)
+        std::forward_as_tuple("nonuniform=(0|1)", "Use a different number of eigenpairs to compute on each subdomain.", HPDDM::Option::Arg::argument),
+        std::forward_as_tuple("prefix=<string>", "Use a prefix.", HPDDM::Option::Arg::argument)
 #endif
     });
-    if(rankWorld != 0)
+    std::string prefix;
+    if(opt.prefix("prefix").size())
+        prefix = opt.prefix("prefix");
+    if(rankWorld != 0) {
         opt.remove("verbosity");
+        if(prefix.size() > 0)
+            opt.remove(prefix + "verbosity");
+    }
     std::vector<std::vector<int>> mapping;
     mapping.reserve(8);
     std::list<int> o; // at most eight neighbors in 2D
@@ -75,6 +82,8 @@ int main(int argc, char** argv) {
         /*# Creation #*/
         HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> A;
         /*# CreationEnd #*/
+        if(prefix.size() > 0)
+            A.setPrefix(prefix);
         /*# Initialization #*/
         A.Subdomain::initialize(Mat, o, mapping);
         decltype(mapping)().swap(mapping);
@@ -85,15 +94,15 @@ int main(int argc, char** argv) {
         else
             mu = 1;
         /*# InitializationEnd #*/
-        if(opt.set("schwarz_coarse_correction")) {
+        if(opt.set(prefix + "schwarz_coarse_correction")) {
             /*# Factorization #*/
-            double& ref = opt["geneo_nu"];
+            double& ref = opt[prefix + "geneo_nu"];
             unsigned short nu = ref;
             if(nu > 0) {
                 if(opt.app().find("nonuniform") != opt.app().cend())
                     ref += std::max(static_cast<int>(-ref + 1), HPDDM::pow(-1, rankWorld) * rankWorld);
                 A.solveGEVP<EIGENSOLVER>(MatNeumann);
-                nu = opt["geneo_nu"];
+                nu = opt[prefix + "geneo_nu"];
             }
             else {
                 nu = 1;
@@ -123,7 +132,7 @@ int main(int argc, char** argv) {
                     std::cout << " (rhs #" << nu + 1 << ")";
                 std::cout << std::endl;
             }
-        if(it > ((HPDDM_MIXED_PRECISION || opt.val<char>("krylov_method", HPDDM_KRYLOV_METHOD_GMRES) == HPDDM_KRYLOV_METHOD_BFBCG) ? 60 : 45))
+        if(it > ((HPDDM_MIXED_PRECISION || opt.val<char>(prefix + "krylov_method", HPDDM_KRYLOV_METHOD_GMRES) == HPDDM_KRYLOV_METHOD_BFBCG) ? 60 : 45))
             status = 1;
         else {
             for(unsigned short nu = 0; nu < mu; ++nu)
@@ -135,12 +144,12 @@ int main(int argc, char** argv) {
     else {
         mu = std::max(1, mu);
         int it = 0;
-        std::string filename = opt.prefix("dump_matrices", true);
+        std::string filename = opt.prefix(prefix + "dump_matrices", true);
         if(!filename.empty()) {
             std::ofstream output { filename };
             output << *Mat;
         }
-        if(opt["schwarz_method"] != HPDDM_SCHWARZ_METHOD_NONE) {
+        if(opt[prefix + "schwarz_method"] != HPDDM_SCHWARZ_METHOD_NONE) {
             SUBDOMAIN<K> S;
             S.numfact(Mat);
             S.solve(f, sol, mu);
@@ -177,7 +186,7 @@ int main(int argc, char** argv) {
     }
     delete [] d;
 
-    if(opt.set("schwarz_coarse_correction") && opt["geneo_nu"] > 0)
+    if(opt.set(prefix + "schwarz_coarse_correction") && opt[prefix + "geneo_nu"] > 0)
         delete MatNeumann;
     delete [] sol;
     delete [] f;

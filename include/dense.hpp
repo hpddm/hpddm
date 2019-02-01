@@ -53,9 +53,15 @@ class Dense : public Schwarz<
             Subdomain<K>::initialize(A, o, r, comm);
         }
         void setMatrix(MatrixCSR<K>* const& A) {
+            Option& opt = *Option::get();
+            const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
+            if(resetPrefix)
+                opt.setPrefix(super::prefix());
             super::setMatrix(A);
             super::destroySolver();
             super::_s.numfact(A);
+            if(resetPrefix)
+                opt.setPrefix("");
         }
         void setMatrix(const int& n, const bool sym, K* const& p) {
             MatrixCSR<K>* A = new MatrixCSR<K>(n, n, n * n, p, nullptr, nullptr, sym);

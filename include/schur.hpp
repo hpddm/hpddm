@@ -159,8 +159,10 @@ class Schur : public Preconditioner<
          *    d              - Constant pointer to a partition of unity of the primal unknowns, cf. <Bdd::m>. */
         template<char L>
         void solveGEVP(const underlying_type<K>* const d) {
-            const std::string prefix = super::prefix();
             Option& opt = *Option::get();
+            const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
+            if(resetPrefix)
+                opt.setPrefix(super::prefix());
             if(_schur) {
                 K** send = Subdomain<K>::_buff;
                 unsigned int size = std::accumulate(Subdomain<K>::_map.cbegin(), Subdomain<K>::_map.cend(), 0, [](unsigned int sum, const pairNeighbor& n) { return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size()); });
@@ -179,8 +181,8 @@ class Schur : public Preconditioner<
                     }
                 K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                 exchangeSchurComplement<L>(send, recv, res);
-                unsigned short nu = opt.val<unsigned short>(prefix + "geneo_nu", 20);
-                const underlying_type<K> threshold = opt.val(prefix + "geneo_threshold", 0.0);
+                unsigned short nu = opt.val<unsigned short>("geneo_nu", 20);
+                const underlying_type<K> threshold = opt.val("geneo_threshold", 0.0);
                 Eigensolver<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
                 K* A;
                 if(size < Subdomain<K>::_dof * Subdomain<K>::_dof)
@@ -270,7 +272,7 @@ class Schur : public Preconditioner<
                 evp.dump(work + lwork, super::_ev, Subdomain<K>::_communicator);
                 if(threshold > 0.0)
                     evp.template selectNu<K, true>(work + lwork, super::_ev, Subdomain<K>::_communicator, _deficiency);
-                opt[prefix + "geneo_nu"] = evp._nu;
+                opt["geneo_nu"] = evp._nu;
                 if(super::_co)
                     super::_co->setLocal(evp._nu);
                 if(A != *recv)
@@ -283,7 +285,9 @@ class Schur : public Preconditioner<
                 delete [] *send;
             }
             else
-                opt[prefix + "geneo_nu"] = 0;
+                opt["geneo_nu"] = 0;
+            if(resetPrefix)
+                opt.setPrefix("");
         }
         template<unsigned short excluded, class Operator, class Prcndtnr>
         std::pair<MPI_Request, const K*>* buildTwo(Prcndtnr* B, const MPI_Comm& comm) {

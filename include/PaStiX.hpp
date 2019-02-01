@@ -173,7 +173,7 @@ class Pastix : public DMatrix {
             _iparm[IPARM_END_TASK]            = API_TASK_INIT;
             if(S == 'S') {
                 _iparm[IPARM_SYM]             = API_SYM_YES;
-                _iparm[IPARM_FACTORIZATION]   = opt.val<char>("master_spd", 0) ? API_FACT_LLT : API_FACT_LDLT;
+                _iparm[IPARM_FACTORIZATION]   = opt.val<char>("operator_spd", 0) ? API_FACT_LLT : API_FACT_LDLT;
             }
             else {
                 _iparm[IPARM_SYM]             = API_SYM_NO;
@@ -314,7 +314,7 @@ class PastixSub {
             }
             const MatrixCSR<K>* B = A->_sym ? nullptr : A->template symmetrizedStructure<N, 'F'>();
             if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = (Option::get()->val<char>("local_operator_spd", 0) && !detection) ? API_FACT_LLT : API_FACT_LDLT;
+                _iparm[IPARM_FACTORIZATION]       = (Option::get()->val<char>("operator_spd", 0) && !detection) ? API_FACT_LLT : API_FACT_LDLT;
                 Wrapper<K>::template csrcsc<N, 'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
             }
             else {

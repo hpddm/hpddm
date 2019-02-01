@@ -42,8 +42,8 @@
 \definecolor{LightRed}{rgb}{1,0.88,0.88}
 \begin{document}
 \begin{center} {\LARGE --- $\quad$ HPDDM $\quad$ ---} \\[5pt] \url{https://github.com/hpddm/hpddm} \end{center}
-    All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified in the column ``Default'', this value is used when the corresponding option is not set by the user. When no default value is specified but the corresponding option is set by the user, the option is true (represented internally by 1). If the option is not set, its value is false (represented internally by 0). Options highlighted in \colorbox{LightRed}{red} should be reserved to expert users.
-\vspace*{-0.6cm}
+    All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified in the column \emph{Default}, this value is used when the corresponding option is not set by the user. When no default value is specified but the corresponding option is set by the user, the option is true (represented internally by 1). If the option is not set, its value is false (represented internally by 0). Options highlighted in \colorbox{LightRed}{red} should be reserved to expert users.
+\vspace*{\parspace}
 \newdimen\origiwspc
 \origiwspc=\fontdimen2\font
 \newlength\LTbackup
@@ -51,7 +51,7 @@
 \setlength{\LTleft}{0.15cm}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.225\textwidth} | p{.5\textwidth}| p{.145\textwidth}| >{\tt}p{.05\textwidth} | @{}m{0pt}@{}} \hline
-        \normalfont{Keyword} & Description & Possible values & \normalfont{Default} & \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \normalfont{\emph{Default}} & \\ \hline
         help & Display available options & Anything & & \\ \hline
         version & Display information about HPDDM & Anything & & \\ \hline
         config\_file & Load options from a file saved on disk & String & & \\ \hline
@@ -61,11 +61,11 @@
         compute\_residual & Print the residual after convergence & \texttt{l2}, \texttt{l1}, \texttt{linfty} & & \\ \hline
         push\_prefix & Prepend a prefix for all following options (use \verb!-hpddm_pop_prefix! when done) & & & \\ \hline
         \cellcolor{LightRed}reuse\_preconditioner & Do not factorize again the local matrices when solving subsequent systems & Boolean & & \\ \hline
-        local\_operator\_spd & Assume the local operator is symmetric positive definite & Boolean & & \\ \hline
+        operator\_spd & Assume the operator is symmetric positive definite & Boolean & & \\ \hline
         orthogonalization & Method used to orthogonalize a vector against an orthogonal basis & \texttt{cgs}, \texttt{mgs} & cgs & \\ \hline
         dump\_matri(ces|x\_[[:digit:]]+) & Save either one or all local matrices to disk & String & & \\ \hline
         dump\_eigenvectors(\_[[:digit:]]+)? & Save either one or all local eigenvectors to disk & String & & \\ \hline
-        krylov\_method & Type of iterative method used to solve linear systems & \begin{parbox}{.145\textwidth}{\fontdimen2\font=2.5pt\texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr}, \texttt{bfbcg}, \texttt{richardson}, \texttt{none}\fontdimen2\font=\origiwspc}\end{parbox} & gmres & \\[0.85cm] \hline
+        krylov\_method & Type of iterative method used to solve linear systems & \begin{parbox}{.145\textwidth}{\fontdimen2\font=2.5pt\texttt{gmres}, \texttt{bgmres}, \texttt{cg}, \texttt{bcg}, \texttt{gcrodr}, \texttt{bgcrodr}, \texttt{bfbcg}, \texttt{richardson}, \texttt{none}\fontdimen2\font=\origiwspc}\end{parbox} & gmres & \\ \hline
         enlarge\_krylov\_subspace & Split the initial right-hand side into multiple vectors & Integer & $1$ & \\ \hline
         gmres\_restart & Maximum number of Arnoldi vectors generated per cycle & Integer & $40$ & \\ \hline
         variant & Left, right, or variable preconditioning & \texttt{left},~\texttt{right},~\texttt{flexible} & right & \\ \hline
@@ -81,15 +81,24 @@
         \cellcolor{LightRed}geneo\_threshold & Threshold for selecting local eigenvectors for adaptive methods & Numeric & & \\ \hline
         \cellcolor{LightRed}geneo\_estimate\_nu & Estimate the number of eigenvalues below a threshold using the inertia of the stencil & Numeric & & \\ \hline
         geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & \texttt{min}, \texttt{max} & & \\ \hline
-        master\_p & Number of master processes & Integer & $1$ & \\ \hline
-        \cellcolor{LightRed}master\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol} & \begin{parbox}{.05\textwidth}{cen\-tra\-li\-zed}\end{parbox} & \\[0.35cm] \hline
-        \cellcolor{LightRed}master\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 & \\ \hline
-        \cellcolor{LightRed}master\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & & \\ \hline
-        \cellcolor{LightRed}master\_aggregate\_size & Number of master processes per MPI sub-communicators & Integer & \texttt{master\_p} & \\ \hline
-        master\_dump\_matrix & Save the coarse operator to disk & String & & \\ \hline
-        \cellcolor{LightRed}master\_exclude & Exclude the master processes from the domain decomposition & Boolean & & \\ \hline
-        master\_spd & Assume the coarse operator is symmetric positive definite & Boolean & & \\ \hline
     \end{longtable}
+\vspace*{\parspace}
+\end{center}
+\noindent{
+When using multilevel methods, there are additional options, that are all prefixed by \texttt{-hpddm\_level\_}$N$\texttt{\_}, with $N > 1$.}
+\vspace*{\parspace}
+\begin{center}
+    \begin{longtable}{| >{\tt}p{.305\textwidth} | p{.4\textwidth}| p{.12\textwidth}| >{\tt}p{.095\textwidth} | @{}m{0pt}@{}} \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \normalfont{\emph{Default}} & \\ \hline
+        level\_([2-9]|[1-9]\textbackslash{}d+)\_p & Number of master processes & Integer & $1$ & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol} & cen\-tra\-li\-zed & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_aggregate\_size & Number of master processes per MPI sub-communicators & Integer & \texttt{p} & \\ \hline
+        level\_([2-9]|[1-9]\textbackslash{}d+)\_dump\_matrix & Save the coarse operator to disk & String & & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_exclude & Exclude the master processes from the domain decomposition & Boolean & & \\ \hline
+    \end{longtable}
+\vspace*{\parspace}
 \end{center}
 \setlength{\LTleft}{\LTbackup}
 \noindent{
@@ -97,7 +106,7 @@ When using Schwarz methods, there are additional options.}
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.4\textwidth}| p{.20\textwidth} | p{.04\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values & Default \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \normalfont{\emph{Default}} \\ \hline
         schwarz\_method & Type of Schwarz preconditioner used to solve linear systems & \texttt{ras}, \texttt{oras}, \texttt{soras}, \texttt{asm}, \texttt{osm}, \texttt{none} & \texttt{ras} \\ \hline
         schwarz\_coarse\_correction & Type of coarse correction used in two-level methods & \texttt{deflated}, \texttt{additive}, \texttt{balanced} & \\ \hline
     \end{longtable}
@@ -107,30 +116,27 @@ When using substructuring methods, there is an additional option.
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.15\textwidth} | p{.42\textwidth}| p{.25\textwidth} | p{.085\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values & Default \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \normalfont{\emph{Default}} \\ \hline
         substructuring\_scaling & Scaling used in the definition of the Schur complement preconditioner & \texttt{multiplicity}, \texttt{stiffness}, \texttt{coefficient} & \texttt{multiplicity} \\ \hline
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
-When using MKL PARDISO as a subdomain solver (resp. coarse operator solver), there are additional options, cf. \url{https://software.intel.com/en-us/node/470298} (resp. \url{https://software.intel.com/en-us/node/590089}).
+When using MKL PARDISO as a subdomain or coarse operator solver, there are additional options, cf. \url{https://software.intel.com/en-us/node/470298} (resp. \url{https://software.intel.com/en-us/node/590089}).
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values \\ \hline
-        \cellcolor{LightRed}mkl\_pardiso\_iparm\_(2|8|1[013]|2[147]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
-        \cellcolor{LightRed}master\_mkl\_pardiso\_iparm\_(2|1[013]|2[17]) & Integer control parameters of MKL PARDISO for the coarse operator solver & Integer \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} \\ \hline
+        \cellcolor{LightRed}mkl\_pardiso\_iparm\_(2|1[013]|2[1457]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
-When using MUMPS as a subdomain solver (resp. coarse operator solver), there are additional options, cf. \url{http://mumps.enseeiht.fr/index.php?page=doc}.
+When using MUMPS as a subdomain or coarse operator solver, there are additional options, cf. \url{http://mumps.enseeiht.fr/index.php?page=doc}.
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values \\ \hline
-        \cellcolor{LightRed}mumps\_icntl\_([678]|1[234]|2[3789]|35) & Integer control parameters of MUMPS for the subdomain solvers & Integer \\ \hline
-        \cellcolor{LightRed}mumps\_cntl\_([123457]) & Real control parameters of MUMPS for the subdomain solvers & Numeric \\ \hline
-        \cellcolor{LightRed}master\_mumps\_icntl\_([678]|1[234]|2[3789]|35) & Integer control parameters of MUMPS for the coarse operator solver & Integer \\ \hline
-        \cellcolor{LightRed}master\_mumps\_cntl\_([123457]) & Real control parameters of MUMPS for the coarse operator solver & Numeric \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} \\ \hline
+        \cellcolor{LightRed}mumps\_icntl\_([678]|1[234]|2[34789]|35) & Integer control parameters & Integer \\ \hline
+        \cellcolor{LightRed}mumps\_cntl\_([123457]) & Real control parameters & Numeric \\ \hline
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
@@ -138,25 +144,24 @@ When using \textit{hypre} as a coarse operator solver, there are additional opti
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.49\textwidth}| p{.115\textwidth}| p{.05\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values & Default \\ \hline
-        \cellcolor{LightRed}master\_hypre\_solver & Solver used by \textit{hypre} to solve coarse linear systems & \texttt{fgmres}, \texttt{pcg}, \texttt{amg} & \texttt{fgmres} \\ \hline
-        \cellcolor{LightRed}master\_hypre\_tol & Relative convergence tolerance & Numeric & $10^{-12}$ \\ \hline
-        \cellcolor{LightRed}master\_hypre\_max\_it & Maximum number of iterations & Integer & 500 \\ \hline
-        \cellcolor{LightRed}master\_hypre\_gmres\_restart & Maximum number of Arnoldi vectors generated per cycle when using FlexGMRES & Integer & 100 \\ \hline
-        \cellcolor{LightRed}master\_boomeramg\_num\_sweeps & Number of sweeps & Integer & 1 \\ \hline
-        \cellcolor{LightRed}master\_boomeramg\_max\_levels & Maximum number of multigrid levels & Integer & 10 \\ \hline
-        \cellcolor{LightRed}master\_boomeramg\_coarsen\_type & Parallel coarsening algorithm & Integer & 6 \\ \hline
-        \cellcolor{LightRed}master\_boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
-        \cellcolor{LightRed}master\_boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \emph{Default} \\ \hline
+        \cellcolor{LightRed}hypre\_solver & Solver used by \textit{hypre} to solve coarse linear systems & \texttt{fgmres}, \texttt{pcg}, \texttt{amg} & \texttt{fgmres} \\ \hline
+        \cellcolor{LightRed}hypre\_tol & Relative convergence tolerance & Numeric & $10^{-12}$ \\ \hline
+        \cellcolor{LightRed}hypre\_max\_it & Maximum number of iterations & Integer & 500 \\ \hline
+        \cellcolor{LightRed}hypre\_gmres\_restart & Maximum number of Arnoldi vectors generated per cycle when using FGMRES & Integer & 100 \\ \hline
+        \cellcolor{LightRed}boomeramg\_num\_sweeps & Number of sweeps & Integer & 1 \\ \hline
+        \cellcolor{LightRed}boomeramg\_max\_levels & Maximum number of multigrid levels & Integer & 10 \\ \hline
+        \cellcolor{LightRed}boomeramg\_coarsen\_type & Parallel coarsening algorithm & Integer & 6 \\ \hline
+        \cellcolor{LightRed}boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
+        \cellcolor{LightRed}boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
-\newpage
 When using ARPACK as an eigensolver, there is an additional option.
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
-        \normalfont{Keyword} & Description & Possible values \\ \hline
+        \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} \\ \hline
         \cellcolor{LightRed}arpack\_ncv & Number of Lanczos basis vectors generated in one iteration & Integer \\ \hline
     \end{longtable}
 \vspace*{\parspace}
@@ -181,7 +186,7 @@ For the keyword \texttt{qr}:
         \item value \texttt{mgs}, see Algorithm 4 on page 4.
     \end{itemize}
 For the keyword \texttt{deflation\_tol}, see section 12 of \fullcitecolor{gutknecht2006block}. \\[0.5\baselineskip]
-For the keywords \texttt{geneo\_nu}, \texttt{geneo\_threshold}, \texttt{master\_p}, and \texttt{master\_topology} see respectively eq.~(8), eq.~(9), section 3.1.1, and figure 5 of \fullcitecolor{jolivet2013scalable}. \\[0.5\baselineskip]
+For the keywords \texttt{geneo\_nu}, \texttt{geneo\_threshold}, \texttt{p}, and \texttt{topology} see respectively eq.~(8), eq.~(9), section 3.1.1, and figure 5 of \fullcitecolor{jolivet2013scalable}. \\[0.5\baselineskip]
 For the keyword \texttt{schwarz\_method}:
     \begin{itemize}
         \item value \texttt{ras}, see \fullcitecolor{cai1999restricted},

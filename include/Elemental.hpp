@@ -136,7 +136,7 @@ class Elemental : public DMatrix {
             _loc2glob = loc2glob;
             _bs = bs;
             if(S == 'S')
-                _type = Option::get()->val<char>("master_spd", 0) ? 1 : 2;
+                _type = Option::get()->val<char>("operator_spd", 0) ? 1 : 2;
             if(_type == 1) {
                 _P = new El::DistPermutation(*_grid);
                 El::Cholesky(El::LOWER, *_A, *_P);

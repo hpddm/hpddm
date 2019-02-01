@@ -105,9 +105,11 @@ class Schwarz : public Preconditioner<
          *  Factorizes <Subdomain::a> or another user-supplied matrix, useful for <Prcndtnr::OS> and <Prcndtnr::OG>. */
         template<char N = HPDDM_NUMBERING>
         void callNumfact(MatrixCSR<K>* const& A = nullptr) {
-            const std::string prefix = super::prefix();
             Option& opt = *Option::get();
-            unsigned short m = opt.val<unsigned short>(prefix + "schwarz_method");
+            const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
+            if(resetPrefix)
+                opt.setPrefix(super::prefix());
+            unsigned short m = opt.val<unsigned short>("schwarz_method");
             if(A) {
                 std::size_t hash = A->hashIndices();
                 if(_hash != hash) {
@@ -121,17 +123,25 @@ class Schwarz : public Preconditioner<
                 case HPDDM_SCHWARZ_METHOD_NONE:  _type = Prcndtnr::NO; return;
                 default:                         _type = (A && (m == HPDDM_SCHWARZ_METHOD_ORAS || m == HPDDM_SCHWARZ_METHOD_OSM) ? Prcndtnr::OG : Prcndtnr::GE);
             }
-            m = opt.val<unsigned short>(prefix + "reuse_preconditioner");
+            m = opt.val<unsigned short>("reuse_preconditioner");
             if(m <= 1)
                 super::_s.template numfact<N>(_type == Prcndtnr::OS || _type == Prcndtnr::OG ? A : Subdomain<K>::_a);
             if(m >= 1)
-                opt[prefix + "reuse_preconditioner"] += 1;
+                opt["reuse_preconditioner"] += 1;
+            if(resetPrefix)
+                opt.setPrefix("");
         }
         void setMatrix(MatrixCSR<K>* const& a) {
             bool fact = super::setMatrix(a) && _type != Prcndtnr::OS && _type != Prcndtnr::OG;
             if(fact) {
+                Option& opt = *Option::get();
+                const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
+                if(resetPrefix)
+                    opt.setPrefix(super::prefix());
                 super::destroySolver();
                 super::_s.numfact(a);
+                if(resetPrefix)
+                    opt.setPrefix("");
             }
         }
         /* Function: multiplicityScaling
@@ -428,10 +438,12 @@ class Schwarz : public Preconditioner<
          *    B              - Right-hand side matrix (optional). */
         template<template<class> class Eps>
         void solveGEVP(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B = nullptr, const MatrixCSR<K>* const& pattern = nullptr) {
-            const std::string prefix = super::prefix();
             Option& opt = *Option::get();
-            const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", 0.0);
-            Eps<K> evp(threshold, Subdomain<K>::_dof, opt.val<unsigned short>(prefix + "geneo_nu", 20));
+            const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
+            if(resetPrefix)
+                opt.setPrefix(super::prefix());
+            const underlying_type<K>& threshold = opt.val("geneo_threshold", 0.0);
+            Eps<K> evp(threshold, Subdomain<K>::_dof, opt.val<unsigned short>("geneo_nu", 20));
 #ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
 #else
@@ -448,7 +460,7 @@ class Schwarz : public Preconditioner<
                 delete [] super::_ev;
             }
 #if defined(MUMPSSUB) || defined(MKL_PARDISOSUB)
-            if(threshold > 0.0 && opt.val<char>(prefix + "geneo_estimate_nu", 0) && (!B || B->hashIndices() == A->hashIndices())) {
+            if(threshold > 0.0 && opt.val<char>("geneo_estimate_nu", 0) && (!B || B->hashIndices() == A->hashIndices())) {
                 K* difference = new K[A->_nnz];
                 std::copy_n(A->_a, A->_nnz, difference);
                 for(unsigned int i = 0; i < A->_n; ++i) {
@@ -472,11 +484,13 @@ class Schwarz : public Preconditioner<
                 A->_ia = nullptr;
                 A->_ja = nullptr;
             }
-            opt[prefix + "geneo_nu"] = evp._nu;
+            opt["geneo_nu"] = evp._nu;
             if(super::_co)
                 super::_co->setLocal(evp._nu);
             const int n = Subdomain<K>::_dof;
             std::for_each(super::_ev, super::_ev + evp._nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
+            if(resetPrefix)
+                opt.setPrefix("");
         }
         template<bool sorted = true, bool scale = false>
         void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {

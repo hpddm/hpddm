@@ -94,8 +94,8 @@ class Preconditioner : public Subdomain<K> {
             constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value ? 3 : 4;
             unsigned short allUniform[N + 1];
             allUniform[0] = Subdomain<K>::_map.size();
-            const std::string prefix = super::prefix();
-            const Option& opt = *Option::get();
+            Option& opt = *Option::get();
+            const std::string prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
             unsigned short nu = allUniform[1] = allUniform[2] = (_co ? _co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", opt.set(prefix + "geneo_threshold") ? 0 : 20));
             allUniform[3] = static_cast<unsigned short>(~nu);
             if(N == 4)
@@ -114,28 +114,42 @@ class Preconditioner : public Subdomain<K> {
                 MPI_Op_free(&op);
             }
             if(nu > 0 || allUniform[2] != 0 || allUniform[3] != std::numeric_limits<unsigned short>::max()) {
-                bool uniformity = (N == 3 && opt.set("geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
+                bool uniformity = (N == 3 && opt.set(prefix + "geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
                 if(_co)
                     delete _co;
                 _co = new CoarseOperator;
                 _co->setLocal(uniformity ? allUniform[1] : nu);
                 double construction = MPI_Wtime();
+                const std::string prev = opt.getPrefix();
+                std::string level;
+                unsigned short M = 1;
+                if(prev.size() == 0)
+                    level = prefix + "level_2_";
+                else {
+                    std::string sub = prev.substr(6, std::string::npos);
+                    std::size_t find = sub.find("_", 0);
+                    sub = sub.substr(0, find);
+                    M = std::stoi(sub);
+                    level = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(M + 1) + "_";
+                }
+                opt.setPrefix(level);
                 if((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
                     ret = _co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
                 else if(N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))
                     ret = _co->template construction<2, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
                 else
                     ret = _co->template construction<0, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
-                construction = MPI_Wtime() - construction;
-                if(_co->getRank() == 0 && opt.val<char>(prefix + "verbosity", 0) > 1) {
+                if(_co->getRank() == 0 && opt.val<char>("verbosity", 0) > 1) {
                     std::stringstream ss;
+                    construction = MPI_Wtime() - construction;
                     ss << std::setprecision(3) << construction;
-                    unsigned short p = opt.val<unsigned short>("master_p", 1);
+                    const unsigned short p = opt.val<unsigned short>("p", 1);
                     std::string line = " --- coarse operator transferred and factorized by " + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
                     std::cout << line << std::endl;
                     std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -_co->getLocal() : (uniformity ? allUniform[1] : 0))) + ")" << std::endl;
                     std::cout.unsetf(std::ios_base::adjustfield);
                 }
+                opt.setPrefix(prev);
             }
             else {
                 delete _co;
@@ -153,6 +167,13 @@ class Preconditioner : public Subdomain<K> {
             if(_uc)
                 delete [] _uc;
             _uc = new K[mu * _co->getSizeRHS()];
+        }
+        void destroySolver() {
+            using type = alias<Solver<K>>;
+            _s.~type();
+            Option& opt = *Option::get();
+            if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
+                opt["reuse_preconditioner"] = 1;
         }
     public:
         Preconditioner() : _co(), _ev(), _uc() { }
@@ -178,14 +199,6 @@ class Preconditioner : public Subdomain<K> {
                 _co = new CoarseOperator;
                 _co->setLocal(deflation);
             }
-        }
-        void destroySolver() {
-            using type = alias<Solver<K>>;
-            _s.~type();
-            const std::string prefix = super::prefix();
-            Option& opt = *Option::get();
-            if(opt.val<unsigned short>(prefix + "reuse_preconditioner") >= 1)
-                opt[prefix + "reuse_preconditioner"] = 1;
         }
         /* Function: callSolve
          *

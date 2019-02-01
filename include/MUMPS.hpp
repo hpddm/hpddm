@@ -103,7 +103,7 @@ class Mumps : public DMatrix {
             _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
             const Option& opt = *Option::get();
             if(S == 'S')
-                _id->sym = opt.val<char>("master_spd", 0) ? 1 : 2;
+                _id->sym = opt.val<char>("operator_spd", 0) ? 1 : 2;
             else
                 _id->sym = 0;
             MUMPS_STRUC_C<K>::mumps_c(_id);
@@ -119,15 +119,15 @@ class Mumps : public DMatrix {
             _id->icntl[20] = 0;
 #endif
             _id->icntl[4]  = 0;
-            _id->icntl[13] = opt.val<int>("master_mumps_icntl_14", 80);
+            _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
             _id->icntl[17] = 3;
-            for(unsigned short i : { 5, 6, 7, 11, 12, 22, 26, 27, 28, 34 }) {
-                int val = opt.val<int>("master_mumps_icntl_" + to_string(i + 1));
+            for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34 }) {
+                int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
                     _id->icntl[i] = val;
             }
             for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
-                double val = opt.val("master_mumps_cntl_" + to_string(i + 1));
+                double val = opt.val("mumps_cntl_" + to_string(i + 1));
                 if(val >= std::numeric_limits<double>::lowest() / 10.0)
                     _id->cntl[i] = val;
             }
@@ -240,7 +240,7 @@ class MumpsSub {
                 _id->job = -1;
                 _id->par = 1;
                 _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
-                _id->sym = A->_sym ? 2 - (opt.val<char>("local_operator_spd", 0) && !detection) : 0;
+                _id->sym = A->_sym ? 2 - (opt.val<char>("operator_spd", 0) && !detection) : 0;
                 MUMPS_STRUC_C<K>::mumps_c(_id);
             }
             _id->icntl[23] = detection;
@@ -252,10 +252,11 @@ class MumpsSub {
             int* listvar = nullptr;
             if(_id->job == -1) {
                 _id->nrhs = 1;
-                std::fill_n(_id->icntl, 5, 0);
+                if(opt.val<char>("verbosity", 0) < 3)
+                    std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
                 _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
-                for(unsigned short i : { 5, 6, 7, 11, 12, 22, 23, 26, 27, 28, 34 }) {
+                for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34 }) {
                     int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                     if(val != std::numeric_limits<int>::lowest())
                         _id->icntl[i] = val;
@@ -290,6 +291,7 @@ class MumpsSub {
             delete [] listvar;
             if(_id->infog[0] != 0)
                 std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
+            _id->icntl[2] = 0;
             if(N == 'C')
                 std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
         }

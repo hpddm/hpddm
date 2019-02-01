@@ -266,7 +266,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
             }
         }
     }
-    if(sizeWorld > 1 && opt.set("schwarz_coarse_correction") && opt["geneo_nu"] > 0) {
+    if(sizeWorld > 1 && opt.set(opt.prefix("prefix") + "schwarz_coarse_correction") && opt[opt.prefix("prefix") + "geneo_nu"] > 0) {
         if(sym) {
             int nnzNeumann = 2 * nnz - ndof;
             in = new int[ndof + 1];

@@ -61,8 +61,8 @@
 #define HPDDM_GENEO_FORCE_UNIFORMITY_MIN                        0
 #define HPDDM_GENEO_FORCE_UNIFORMITY_MAX                        1
 
-#define HPDDM_MASTER_DISTRIBUTION_CENTRALIZED                   0
-#define HPDDM_MASTER_DISTRIBUTION_SOL                           1
+#define HPDDM_DISTRIBUTION_CENTRALIZED                          0
+#define HPDDM_DISTRIBUTION_SOL                                  1
 
 #define HPDDM_SCHWARZ_METHOD_RAS                                0
 #define HPDDM_SCHWARZ_METHOD_ORAS                               1
@@ -79,8 +79,8 @@
 #define HPDDM_SUBSTRUCTURING_SCALING_STIFFNESS                  1
 #define HPDDM_SUBSTRUCTURING_SCALING_COEFFICIENT                2
 
-#define HPDDM_MASTER_HYPRE_SOLVER_FGMRES                        0
-#define HPDDM_MASTER_HYPRE_SOLVER_PCG                           1
-#define HPDDM_MASTER_HYPRE_SOLVER_AMG                           2
+#define HPDDM_HYPRE_SOLVER_FGMRES                               0
+#define HPDDM_HYPRE_SOLVER_PCG                                  1
+#define HPDDM_HYPRE_SOLVER_AMG                                  2
 
 #endif // _HPDDM_DEFINE_

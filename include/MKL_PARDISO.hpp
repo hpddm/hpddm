@@ -127,24 +127,24 @@ class MklPardiso : public DMatrix {
             _C = C;
             const Option& opt = *Option::get();
             if(S == 'S')
-                _mtype = opt.val<char>("master_spd", 0) ? prds<K>::SPD : prds<K>::SYM;
+                _mtype = opt.val<char>("operator_spd", 0) ? prds<K>::SPD : prds<K>::SYM;
             else
                 _mtype = prds<K>::SSY;
             int phase, error;
             K ddum;
             std::fill_n(_iparm, 64, 0);
             _iparm[0]  = 1;
-            _iparm[1]  = opt.val<int>("master_mkl_pardiso_iparm_2", 2);
+            _iparm[1]  = opt.val<int>("mkl_pardiso_iparm_2", 2);
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             _iparm[5]  = 1;
 #else
             _iparm[5]  = 0;
 #endif
-            _iparm[9]  = opt.val<int>("master_mkl_pardiso_iparm_10", S != 'S' ? 13 : 8);
-            _iparm[10] = opt.val<int>("master_mkl_pardiso_iparm_11", S != 'S' ? 1 : 0);
-            _iparm[12] = opt.val<int>("master_mkl_pardiso_iparm_13", S != 'S' ? 1 : 0);
-            _iparm[20] = opt.val<int>("master_mkl_pardiso_iparm_21", 1);
-            _iparm[26] = opt.val<int>("master_mkl_pardiso_iparm_27", 0);
+            _iparm[9]  = opt.val<int>("mkl_pardiso_iparm_10", S != 'S' ? 13 : 8);
+            _iparm[10] = opt.val<int>("mkl_pardiso_iparm_11", S != 'S' ? 1 : 0);
+            _iparm[12] = opt.val<int>("mkl_pardiso_iparm_13", S != 'S' ? 1 : 0);
+            _iparm[20] = opt.val<int>("mkl_pardiso_iparm_21", 1);
+            _iparm[26] = opt.val<int>("mkl_pardiso_iparm_27", 0);
             _iparm[27] = std::is_same<double, underlying_type<K>>::value ? 0 : 1;
             _iparm[34] = (_numbering == 'C');
             _iparm[36] = bs;
@@ -278,7 +278,7 @@ class MklPardisoSub {
                 phase = 22;
             }
             if(A->_sym) {
-                _mtype = (opt.val<char>("local_operator_spd", 0) && !detection) ? prds<K>::SPD : prds<K>::SYM;
+                _mtype = (opt.val<char>("operator_spd", 0) && !detection) ? prds<K>::SPD : prds<K>::SYM;
                 Wrapper<K>::template csrcsc<N, N>(&_n, A->_a, A->_ja, A->_ia, _C, _J, _I);
             }
             else {
@@ -287,10 +287,7 @@ class MklPardisoSub {
                 _C = A->_a;
             }
             PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase,
-                    const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, schur, &error);
-            phase = opt.val<int>("mkl_pardiso_iparm_8");
-            if(phase != std::numeric_limits<int>::lowest())
-                _iparm[7] = phase;
+                    const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, schur, &error);
             delete [] perm;
             if(_mtype == prds<K>::SPD)
                 delete [] _C;

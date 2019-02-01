@@ -371,7 +371,7 @@ class LapackTRSub {
                 Lapack<K>::getrf(&_n, &_n, _a, &_n, _ipiv, &info);
             }
             else {
-                _type = 1 + (Option::get()->val<char>("local_operator_spd", 0) && !detection);
+                _type = 1 + (Option::get()->val<char>("operator_spd", 0) && !detection);
                 if(_type == 1) {
                     K* work;
                     int lwork = -1;
@@ -429,18 +429,7 @@ class LapackTR : public DMatrix, public LapackTRSub<K> {
                 E = new MatrixCSR<K>(n, n, n * n, C, nullptr, nullptr, S == 'S');
             else
                 E = new MatrixCSR<K>(n, n, I[n] - (_numbering == 'F'), C, I, J, S == 'S');
-            Option& opt = *Option::get();
-            const char master = opt.val<char>("master_spd", 2);
-            const char local = opt.val<char>("local_operator_spd", 2);
-            if(master == 1)
-                opt["local_operator_spd"] = 1;
             this->super::template numfact<_numbering, true>(E);
-            if(master == 1) {
-                if(local == 2)
-                    opt.remove("local_operator_spd");
-                else
-                    opt["local_operator_spd"] = local;
-            }
             delete E;
             delete [] I;
         }

@@ -24,6 +24,12 @@
 #ifndef _HPDDM_OPTION_IMPL_
 #define _HPDDM_OPTION_IMPL_
 
+#ifndef HPDDM_NO_REGEX
+#define HPDDM_REGEX_LEVEL "level_([2-9]|[1-9]\\d+)_"
+#else
+#define HPDDM_REGEX_LEVEL ""
+#endif
+
 namespace HPDDM {
 template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
@@ -43,7 +49,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("compute_residual=(l2|l1|linfty)", "Print the residual after convergence", Arg::argument),
         std::forward_as_tuple("push_prefix", "Prepend the according prefix for all following options (use -" + std::string(HPDDM_PREFIX) + "pop_prefix when done)", Arg::anything),
         std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems", Arg::argument),
-        std::forward_as_tuple("local_operator_spd=(0|1)", "Assume the local operator is symmetric positive definite", Arg::argument),
+        std::forward_as_tuple("operator_spd=(0|1)", "Assume the operator is symmetric positive definite", Arg::argument),
         std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
 #ifndef HPDDM_NO_REGEX
         std::forward_as_tuple("dump_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),
@@ -94,37 +100,26 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #ifndef HPDDM_NO_REGEX
 #if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MKL PARDISO-specific options:"; return true; }),
-#endif
-#ifdef MKL_PARDISOSUB
-        std::forward_as_tuple("mkl_pardiso_iparm_(2|8|1[013]|2[1457])=<val>", "Integer control parameters of MKL PARDISO for the subdomain solvers", Arg::integer),
-#endif
-#ifdef DMKL_PARDISO
-        std::forward_as_tuple("master_mkl_pardiso_iparm_(2|1[013]|2[17])=<val>", "Integer control parameters of MKL PARDISO for the coarse operator solver", Arg::integer),
+        std::forward_as_tuple("mkl_pardiso_iparm_(2|1[013]|2[1457])=<val>", "Integer control parameters", Arg::integer),
 #endif
 #if defined(DMUMPS) || defined(MUMPSSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
-#endif
-#ifdef MUMPSSUB
-        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[34789]|35)=<val>", "Integer control parameters of MUMPS for the subdomain solvers", Arg::integer),
-        std::forward_as_tuple("mumps_cntl_([123457])=<val>", "Real control parameters of MUMPS for the subdomain solvers", Arg::numeric),
-#endif
-#ifdef DMUMPS
-        std::forward_as_tuple("master_mumps_icntl_([678]|1[234]|2[3789]|35)=<val>", "Integer control parameters of MUMPS for the coarse operator solver", Arg::integer),
-        std::forward_as_tuple("master_mumps_cntl_([123457])=<val>", "Real control parameters of MUMPS for the coarse operator solver", Arg::numeric),
+        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[34789]|35)=<val>", "Integer control parameters", Arg::integer),
+        std::forward_as_tuple("mumps_cntl_([123457])=<val>", "Real control parameters", Arg::numeric),
 #endif
 #endif
 #ifdef DHYPRE
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Hypre-specific options:"; return true; }),
-        std::forward_as_tuple("master_hypre_solver=(fgmres|pcg|amg)", "Solver used by Hypre to solve coarse systems", Arg::argument),
-        std::forward_as_tuple("master_hypre_tol=<1.0e-12>", "Relative convergence tolerance", Arg::numeric),
-        std::forward_as_tuple("master_hypre_max_it=<500>", "Maximum number of iterations", Arg::positive),
-        std::forward_as_tuple("master_hypre_gmres_restart=<100>", "Maximum size of the Krylov subspace when using FlexGMRES", Arg::positive),
-        std::forward_as_tuple("master_boomeramg_num_sweeps=<1>", "Number of sweeps", Arg::positive),
-        std::forward_as_tuple("master_boomeramg_max_levels=<10>", "Maximum number of multigrid levels", Arg::positive),
+        std::forward_as_tuple("hypre_solver=(fgmres|pcg|amg)", "Iterative method used by Hypre", Arg::argument),
+        std::forward_as_tuple("hypre_tol=<1.0e-12>", "Relative convergence tolerance", Arg::numeric),
+        std::forward_as_tuple("hypre_max_it=<500>", "Maximum number of iterations", Arg::positive),
+        std::forward_as_tuple("hypre_gmres_restart=<100>", "Maximum size of the Krylov subspace when using FlexGMRES", Arg::positive),
+        std::forward_as_tuple("boomeramg_num_sweeps=<1>", "Number of sweeps", Arg::positive),
+        std::forward_as_tuple("boomeramg_max_levels=<10>", "Maximum number of multigrid levels", Arg::positive),
 #ifndef HPDDM_NO_REGEX
-        std::forward_as_tuple("master_boomeramg_coarsen_type=([0136-9]|1[01]|2[12])", "Parallel coarsening algorithm", Arg::integer),
-        std::forward_as_tuple("master_boomeramg_relax_type=([0-9]|1[5-8])", "Smoother", Arg::integer),
-        std::forward_as_tuple("master_boomeramg_interp_type=([0-9]|1[0-4])", "Parallel interpolation operator", Arg::integer),
+        std::forward_as_tuple("boomeramg_coarsen_type=([0136-9]|1[01]|2[12])", "Parallel coarsening algorithm", Arg::integer),
+        std::forward_as_tuple("boomeramg_relax_type=([0-9]|1[5-8])", "Smoother", Arg::integer),
+        std::forward_as_tuple("boomeramg_interp_type=([0-9]|1[0-4])", "Parallel interpolation operator", Arg::integer),
 #endif
 #endif
 #ifdef DISSECTIONSUB
@@ -134,25 +129,22 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #endif
         std::forward_as_tuple("", "", Arg::anything),
 #if !defined(DSUITESPARSE) && !defined(DLAPACK)
-        std::forward_as_tuple("master_p=<1>", "Number of master processes", Arg::positive),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "p=<1>", "Number of master processes", Arg::positive),
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
-        std::forward_as_tuple("master_distribution=(centralized|sol)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "distribution=(centralized|sol)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
 #endif
-        std::forward_as_tuple("master_topology=(0|" +
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "topology=(0|" +
 #if !defined(HPDDM_CONTIGUOUS)
             std::string("1|") +
 #endif
             std::string("2)"), "Distribution of the master processes", Arg::integer),
 #endif
-        std::forward_as_tuple("master_assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator", Arg::positive),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator", Arg::positive),
 #if HPDDM_INEXACT_COARSE_OPERATOR
-        std::forward_as_tuple("master_aggregate_size=<val>", "Number of master processes per MPI sub-communicators", Arg::positive),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "aggregate_size=<val>", "Number of master processes per MPI sub-communicators", Arg::positive),
 #endif
-        std::forward_as_tuple("master_dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
-        std::forward_as_tuple("master_exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
-#if defined(DMUMPS) || defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DLAPACK)
-      , std::forward_as_tuple("master_spd=(0|1)", "Assume the coarse operator is symmetric positive definite", Arg::argument)
-#endif
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
 #endif
     };
 
@@ -300,39 +292,39 @@ inline void Option::version() const {
         " │  epsilon: " + std::string(HPDDM_STR(HPDDM_EPS)),
         " │  penalization: " + std::string(HPDDM_STR(HPDDM_PEN)),
         " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
-        " │  OpenMP activated? "
+        " │  OpenMP activated: "
 #ifdef _OPENMP
             "true",
 #else
             "false",
 #endif
         " │  numbering: '" + std::string(1, HPDDM_NUMBERING) + "'",
-        " │  regular expression support? "
+        " │  regular expression support: "
 #ifdef HPDDM_NO_REGEX
             "false",
 #else
             "true",
 #endif
-        " │  C++ RTTI support? "
+        " │  C++ RTTI support: "
 #if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
             "true",
 #else
             "false",
 #endif
-        " │  MPI support? " + std::string(bool(HPDDM_MPI) ? "true" : "false"),
-        " │  MKL support? " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
+        " │  MPI support: " + std::string(bool(HPDDM_MPI) ? "true" : "false"),
+        " │  MKL support: " + std::string(bool(HPDDM_MKL) ? "true" : "false"),
 #ifdef INTEL_MKL_VERSION
         " │  MKL version: " + to_string(INTEL_MKL_VERSION),
 #endif
-        " │  Schwarz module activated? " + std::string(bool(HPDDM_SCHWARZ) ? "true" : "false"),
-        " │  FETI module activated? " + std::string(bool(HPDDM_FETI) ? "true" : "false"),
-        " │  BDD module activated? " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
-        " │  Dense module activated? " + std::string(bool(HPDDM_DENSE) ? "true" : "false"),
-        " │  PETSc module activated? " + std::string(bool(HPDDM_PETSC) ? "true" : "false"),
-        " │  Inexact coarse spaces? " + std::string(bool(HPDDM_INEXACT_COARSE_OPERATOR) ? "true" : "false"),
+        " │  Schwarz module activated: " + std::string(bool(HPDDM_SCHWARZ) ? "true" : "false"),
+        " │  FETI module activated: " + std::string(bool(HPDDM_FETI) ? "true" : "false"),
+        " │  BDD module activated: " + std::string(bool(HPDDM_BDD) ? "true" : "false"),
+        " │  Dense module activated: " + std::string(bool(HPDDM_DENSE) ? "true" : "false"),
+        " │  PETSc module activated: " + std::string(bool(HPDDM_PETSC) ? "true" : "false"),
+        " │  Inexact coarse spaces: " + std::string(bool(HPDDM_INEXACT_COARSE_OPERATOR) ? "true" : "false"),
         " │  QR algorithm: " + std::string(HPDDM_STR(HPDDM_QR)),
-        " │  asynchronous collectives? " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
-        " │  mixed precision arithmetic? " + std::string(bool(HPDDM_MIXED_PRECISION) ? "true" : "false"),
+        " │  asynchronous collectives: " + std::string(bool(HPDDM_ICOLLECTIVE) ? "true" : "false"),
+        " │  mixed precision arithmetic: " + std::string(bool(HPDDM_MIXED_PRECISION) ? "true" : "false"),
         " │  subdomain solver: " + std::string(HPDDM_STR(SUBDOMAIN)),
         " │  coarse operator solver: " + std::string(HPDDM_STR(COARSEOPERATOR)),
         " │  eigensolver: " + std::string(HPDDM_STR(EIGENSOLVER)),

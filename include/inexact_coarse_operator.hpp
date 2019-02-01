@@ -46,6 +46,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
         unsigned short     _mu;
         template<char T>
         void numfact(unsigned int nrow, int* I, int* loc2glob, int* J, K* C, unsigned short* neighbors) {
+            Option& opt = *Option::get();
             _da = C;
             _dj = J;
             MPI_Comm_dup(DMatrix::_communicator, &_communicator);
@@ -191,9 +192,8 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     I[i + 1] += I[i] - (_di[i + 1] - _di[i]);
                 }
                 delete [] neighbors;
-                Option& opt = *Option::get();
                 _dof = on.size();
-                if(opt.template val<char>("master_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) {
+                if(opt.val<char>("krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) {
                     accumulate = 0;
                     if(range.size() > 1) {
                         range.emplace_back(J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0));
@@ -331,7 +331,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     _oj = J + _di[nrow] - (Solver<K>::_numbering == 'F');
                     _off = off.size();
                     if(DMatrix::_rank != 0)
-                        opt.remove("master_verbosity");
+                        opt.remove("verbosity");
                 }
                 else {
                     delete [] _di;
@@ -360,7 +360,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
 #endif
             }
             _mu = 0;
-            OptionsPrefix::setPrefix("master_");
+            OptionsPrefix::setPrefix(opt.getPrefix());
         }
     public:
         InexactCoarseOperator() : OptionsPrefix(), Solver<K>(), _buff(), _x(), _di(), _oi(), _rq(), _off(), _communicator(MPI_COMM_NULL), _mu() { }
@@ -398,17 +398,18 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
             vectorNeighbor().swap(_recv);
         }
         int getDof() const { return _dof * _bs; }
-        void solve(K* rhs, const unsigned short& n) {
-            if(_mu != n) {
+        void solve(K* rhs, const unsigned short& mu) {
+            if(_mu != mu) {
                 delete [] _x;
-                _x = new K[n * _dof * _bs]();
-                _mu = n;
+                _x = new K[mu * _dof * _bs]();
+                _mu = mu;
             }
-            if(Option::get()->template val<char>("master_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE)
-                IterativeMethod::template solve<false>(*this, rhs, _x, n, _communicator);
+            const std::string prefix = OptionsPrefix::prefix();
+            if(Option::get()->val<char>(prefix + "krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE)
+                IterativeMethod::solve(*this, rhs, _x, mu, _communicator);
             else
-                Solver<K>::solve(rhs, _x, n);
-            std::copy_n(_x, n * _dof * _bs, rhs);
+                Solver<K>::solve(rhs, _x, mu);
+            std::copy_n(_x, mu * _dof * _bs, rhs);
         }
         void GMV(const K* const in, K* const out, const int& mu = 1) const {
             exchange<'N'>(in, nullptr, mu);

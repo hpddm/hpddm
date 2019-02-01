@@ -34,16 +34,17 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
     MPI_Comm_size(comm, &_sizeWorld);
     MPI_Comm_rank(comm, &_rankWorld);
     Option& opt = *Option::get();
-    unsigned short p = opt.val<unsigned short>("master_p", 1);
+    unsigned short p = opt.val<unsigned short>("p", 1);
 #if !defined(DSUITESPARSE) && !defined(DLAPACK)
     if(p > _sizeWorld / 2 && _sizeWorld > 1) {
-        p = opt["master_p"] = _sizeWorld / 2;
+        p = opt["p"] = _sizeWorld / 2;
         if(_rankWorld == 0)
             std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
     }
 #else
-    p = opt["master_p"] = 1;
+    p = opt["p"] = 1;
 #endif
+    DMatrix::_ldistribution = new int[p]();
     if(p == 1) {
         MPI_Comm_dup(comm, &_scatterComm);
         _gatherComm = _scatterComm;
@@ -52,7 +53,6 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
         else
             DMatrix::_communicator = MPI_COMM_SELF;
         DMatrix::_rank = 0;
-        DMatrix::_ldistribution = new int[1]();
     }
     else {
         MPI_Group master, split;
@@ -60,8 +60,7 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
         MPI_Comm_group(comm, &world);
         int* ps;
         unsigned int tmp;
-        DMatrix::_ldistribution = new int[p];
-        const char T = opt.val<char>("master_topology", 0);
+        const char T = opt.val<char>("topology", 0);
         if(T == 2) {
             // Here, it is assumed that all subdomains have the same number of coarse degrees of freedom as the rank 0 ! (only true when the distribution is uniform)
             float area = _sizeWorld *_sizeWorld / (2.0 * p);
@@ -97,7 +96,7 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
 #endif
         else {
             if(T != 0)
-                opt["master_topology"] = 0;
+                opt["topology"] = 0;
             if(_rankWorld < (p - 1) * (_sizeWorld / p))
                 tmp = _sizeWorld / p;
             else
@@ -251,7 +250,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     if(U == 2 && _local == 0)
         _offset = true;
     MPI_Comm_size(_scatterComm, &_sizeSplit);
-    switch(Option::get()->val<char>("master_topology", 0)) {
+    switch(Option::get()->val<char>("topology", 0)) {
 #ifndef HPDDM_CONTIGUOUS
         case  1: return constructionMatrix<1, U, excluded, Operator>(v);
 #endif
@@ -279,14 +278,14 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     K*   C;
 
     const Option& opt = *Option::get();
-    const unsigned short p = opt.val<unsigned short>("master_p", 1);
+    const unsigned short p = opt.val<unsigned short>("p", 1);
     constexpr bool blocked =
 #if defined(DMKL_PARDISO) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
                              (U == 1 && Operator::_pattern == 's');
 #else
                              false;
 #endif
-    unsigned short treeDimension = opt.val<unsigned short>("master_assembly_hierarchy"), currentHeight = 0;
+    unsigned short treeDimension = opt.val<unsigned short>("assembly_hierarchy"), currentHeight = 0;
     if(treeDimension <= 1 || treeDimension >= _sizeSplit)
         treeDimension = 0;
     unsigned short treeHeight = treeDimension ? std::ceil(std::log(_sizeSplit) / std::log(treeDimension)) : 0;
@@ -1004,7 +1003,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         }
         delete [] work;
         downscaled_type<K>* pt = reinterpret_cast<downscaled_type<K>*>(C);
-        std::string filename = opt.prefix("master_dump_matrix", true);
+        std::string filename = opt.prefix("dump_matrix", true);
         if(filename.size() > 0) {
             if(excluded == 2)
                 filename += "_excluded";
@@ -1054,7 +1053,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
             delete [] backup;
         }
-        super::_mu = std::min(p, opt.val<unsigned short>("master_aggregate_size", p));
+        super::_mu = std::min(p, opt.val<unsigned short>("aggregate_size", p));
         rank = DMatrix::_n;
         if(super::_mu < p) {
             super::_di = new int[T == 1 ? 3 : 1];
@@ -1146,7 +1145,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     unsigned int size = 0;
 
     const Option& opt = *Option::get();
-    const unsigned short p = opt.val<unsigned short>("master_p", 1);
+    const unsigned short p = opt.val<unsigned short>("p", 1);
     constexpr bool blocked = false;
     if(U != 1) {
         infoNeighbor = new unsigned short[info[0]];
@@ -1372,7 +1371,7 @@ template<template<class> class Solver, char S, class K>
 template<char T, unsigned short U, unsigned short excluded, bool blocked>
 inline void CoarseOperator<Solver, S, K>::finishSetup(unsigned short*& infoWorld, const int rankSplit, const unsigned short p, unsigned short**& infoSplit, const int rank) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
-    DMatrix::_distribution = static_cast<DMatrix::Distribution>(Option::get()->val<char>("master_distribution", HPDDM_MASTER_DISTRIBUTION_CENTRALIZED));
+    DMatrix::_distribution = static_cast<DMatrix::Distribution>(Option::get()->val<char>("distribution", HPDDM_DISTRIBUTION_CENTRALIZED));
 #endif
     if(U != 2) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
