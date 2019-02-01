@@ -725,17 +725,19 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * dim] : nullptr;
                     Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, rwork, &info);
                     lwork = std::real(*vr);
-                    K* work = new K[lwork];
+                    K* work = new K[std::max(2, lwork)];
                     Lapack<K>::geev("N", "V", &dim, *H, &ldh, w, w + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
-                    delete [] work;
+                    delete [] rwork;
                     lwork = -1;
-                    Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, vr, &lwork, &info);
-                    Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, vr + 1, &lwork, &info);
-                    lwork = std::max(std::real(vr[0]), std::real(vr[1]));
+                    Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, &lwork, &info);
+                    Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, &lwork, &info);
+                    lwork = std::max(std::real(work[0]), std::real(work[1]));
+                    delete [] work;
                     work = new K[lwork];
                     std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
                     q.reserve(dim);
                     selectNu(id[3], q, dim, w, w + dim);
+                    delete [] w;
                     info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
                     for(i = bK; info != (bK * (bK - 1)) / 2 && i < dim; ++i)
                         info += q[i].first;
@@ -745,8 +747,6 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     decltype(q)().swap(q);
                     Lapack<K>::lapmt(&i__1, &dim, &(info = i), vr, &dim, perm);
                     delete [] perm;
-                    delete [] rwork;
-                    delete [] w;
                     Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::gemm("N", "N", &row, &bK, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H, &ldh);
                     delete [] vr;
