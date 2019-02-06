@@ -104,7 +104,7 @@ HpddmSchwarz* HpddmSchwarzCreate(HpddmMatrixCSR*, int, int*, int*, int**);
 void HpddmSchwarzInitialize(HpddmSchwarz*, underlying_type*);
 HpddmPreconditioner* HpddmSchwarzPreconditioner(HpddmSchwarz*);
 void HpddmSchwarzMultiplicityScaling(HpddmSchwarz*, underlying_type*);
-void HpddmSchwarzScaledExchange(HpddmSchwarz*, K* const, unsigned short);
+void HpddmSchwarzExchange(HpddmSchwarz*, K* const, unsigned short);
 void HpddmSchwarzCallNumfact(HpddmSchwarz*);
 void HpddmSchwarzSolveGEVP(HpddmSchwarz*, HpddmMatrixCSR*);
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz*, MPI_Comm);

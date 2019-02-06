@@ -49,7 +49,7 @@ If you use this software, please cite this [paper](http://dl.acm.org/citation.cf
 [Fondation Sciences Mathématiques de Paris](http://www.sciencesmaths-paris.fr/en/), France
 
 ###### Collaborators/contributors
-[Lea Conen](https://www.linkedin.com/in/lea-conen-789111a5)  
+[Lea Conen](https://www.linkedin.com/in/lea-conen)  
 [Victorita Dolean](http://dolean.blogspot.fr/)  
 Ryadh Haferssas  
 [Frédéric Hecht](https://www.ljll.math.upmc.fr/hecht/)  

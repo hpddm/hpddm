@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
         A.multiplicityScaling(d);
         A.initialize(d);
         if(mu != 0)
-            A.scaledExchange<true>(f, mu);
+            A.exchange<true>(f, mu);
         else
             mu = 1;
         /*# InitializationEnd #*/

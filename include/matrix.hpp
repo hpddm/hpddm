@@ -316,7 +316,7 @@ class MatrixCSR : public MatrixBase<K> {
                         A->_a = a;
                         A->MatrixBase<K>::_ia = MatrixBase<K>::_ia;
                         A->MatrixBase<K>::_ja = MatrixBase<K>::_ja;
-                        A->MatrixBase<K>::_free = false;
+                        A->MatrixBase<K>::_free = true;
                     }
                     else
                         delete [] a;

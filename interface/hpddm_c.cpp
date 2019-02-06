@@ -166,8 +166,8 @@ HpddmPreconditioner* HpddmSchwarzPreconditioner(HpddmSchwarz* A) {
 void HpddmSchwarzMultiplicityScaling(HpddmSchwarz* A, underlying_type* d) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->multiplicityScaling(d);
 }
-void HpddmSchwarzScaledExchange(HpddmSchwarz* A, K* const x, unsigned short mu) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->scaledExchange<true>(reinterpret_cast<cpp_type<K>*>(x), mu);
+void HpddmSchwarzExchange(HpddmSchwarz* A, K* const x, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->exchange<true>(reinterpret_cast<cpp_type<K>*>(x), mu);
 }
 void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->callNumfact();

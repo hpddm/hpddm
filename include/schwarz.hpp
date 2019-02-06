@@ -89,9 +89,9 @@ class Schwarz : public Preconditioner<
         void initialize(underlying_type<K>* const& d) {
             _d = d;
         }
-        /* Function: scaledExchange */
+        /* Function: exchange */
         template<bool allocate = false>
-        void scaledExchange(K* const x, const unsigned short& mu = 1) const {
+        void exchange(K* const x, const unsigned short& mu = 1) const {
             bool free = false;
             if(allocate)
                 free = Subdomain<K>::setBuffer();
@@ -99,6 +99,93 @@ class Schwarz : public Preconditioner<
             Subdomain<K>::exchange(x, mu);
             if(allocate)
                 Subdomain<K>::clearBuffer(free);
+        }
+        void exchange() const {
+            std::vector<K>* send = new std::vector<K>[Subdomain<K>::_map.size()];
+            unsigned int* sizes = new unsigned int[Subdomain<K>::_map.size()]();
+            for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j) {
+                    if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
+                        send[i].emplace_back(j);
+                        unsigned int nnz = 0, n = send[i].size();
+                        send[i].emplace_back(0);
+                        for(unsigned int k = Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
+                            std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'));
+                            if(it != Subdomain<K>::_map[i].second.cend() && *it == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F')) {
+                                send[i].emplace_back(std::distance(Subdomain<K>::_map[i].second.cbegin(), it));
+                                send[i].emplace_back(Subdomain<K>::_a->_a[k]);
+                                ++nnz;
+                            }
+                        }
+                        if(Subdomain<K>::_a->_sym) {
+                            for(unsigned int r = Subdomain<K>::_map[i].second[j] + 1; r < Subdomain<K>::_dof; ++r) {
+                                int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1], Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F'));
+                                if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1] && *pt == Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F')) {
+                                    std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), r + (HPDDM_NUMBERING == 'F'));
+                                    if(it != Subdomain<K>::_map[i].second.cend() && *it == r + (HPDDM_NUMBERING == 'F')) {
+                                        send[i].emplace_back(std::distance(Subdomain<K>::_map[i].second.cbegin(), it));
+                                        send[i].emplace_back(Subdomain<K>::_a->_a[std::distance(Subdomain<K>::_a->_ja, pt)]);
+                                        ++nnz;
+                                    }
+                                }
+                            }
+                        }
+                        send[i][n] = nnz;
+                    }
+                    if(_d[Subdomain<K>::_map[i].second[j]] < 1.0 - HPDDM_EPS) {
+                        sizes[i] += 2;
+                        for(unsigned int k = Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
+                            std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'));
+                            if(it != Subdomain<K>::_map[i].second.cend() && *it == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'))
+                                sizes[i] += 2;
+                        }
+                        if(Subdomain<K>::_a->_sym) {
+                            for(unsigned int r = Subdomain<K>::_map[i].second[j] + 1; r < Subdomain<K>::_dof; ++r) {
+                                int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1], Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F'));
+                                if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1] && *pt == Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F')) {
+                                    std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), r + (HPDDM_NUMBERING == 'F'));
+                                    if(it != Subdomain<K>::_map[i].second.cend() && *it == r + (HPDDM_NUMBERING == 'F'))
+                                        sizes[i] += 2;
+                                }
+                            }
+                        }
+                    }
+                }
+                MPI_Isend(send[i].data(), send[i].size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 13, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);
+            }
+            K** recv = new K*[Subdomain<K>::_map.size()]();
+            for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                if(sizes[i]) {
+                    recv[i] = new K[sizes[i]];
+                    MPI_Irecv(recv[i], sizes[i], Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 13, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
+                }
+                else
+                    Subdomain<K>::_rq[i] = MPI_REQUEST_NULL;
+            }
+            for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                int index;
+                MPI_Status st;
+                MPI_Waitany(size, Subdomain<K>::_rq, &index, &st);
+                if(st.MPI_SOURCE != MPI_ANY_SOURCE && st.MPI_TAG == 13) {
+                    int size;
+                    MPI_Get_count(&st, Wrapper<K>::mpi_type(), &size);
+                    for(unsigned int j = 0; j < size; ) {
+                        const unsigned int row = Subdomain<K>::_map[index].second[std::lround(std::abs(recv[index][j]))];
+                        const unsigned int nnz = std::lround(std::abs(recv[index][j + 1]));
+                        j += 2;
+                        for(unsigned int k = 0; k < nnz; ++k, j += 2) {
+                            int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[row] - (HPDDM_NUMBERING == 'F'), Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[row + 1] - (HPDDM_NUMBERING == 'F'), Subdomain<K>::_map[index].second[std::lround(std::abs(recv[index][j]))] + (HPDDM_NUMBERING == 'F'));
+                            if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[row + 1] - (HPDDM_NUMBERING == 'F') && *pt == Subdomain<K>::_map[index].second[std::lround(std::abs(recv[index][j]))] + (HPDDM_NUMBERING == 'F'))
+                                Subdomain<K>::_a->_a[std::distance(Subdomain<K>::_a->_ja, pt)] = recv[index][j + 1];
+                        }
+                    }
+                }
+            }
+            std::for_each(recv, recv + Subdomain<K>::_map.size(), std::default_delete<K[]>());
+            delete [] recv;
+            MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
+            delete [] send;
+            delete [] sizes;
         }
 #if HPDDM_SCHWARZ
         /* Function: callNumfact
@@ -199,7 +286,7 @@ class Schwarz : public Preconditioner<
                 super::_co->template callSolver<excluded>(super::_uc, mu);                                                                                                                                                        // _uc = E \ _ev^T D in
                 if(local)
                     Blas<K>::gemm("N", "N", &(Subdomain<K>::_dof), &tmp, &local, &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &local, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));                   // out = _ev E \ _ev^T D in
-                scaledExchange(out, mu);
+                exchange(out, mu);
             }
         }
 #if HPDDM_ICOLLECTIVE
@@ -250,7 +337,7 @@ class Schwarz : public Preconditioner<
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         x[nu * Subdomain<K>::_dof + p.first] = b[nu * Subdomain<K>::_dof + p.first] / p.second;
             }
-            scaledExchange(x, mu);
+            exchange(x, mu);
             if(super::_co) {
                 unsigned short k = 1;
                 const std::string prefix = super::prefix();
@@ -297,7 +384,7 @@ class Schwarz : public Preconditioner<
                 else if(_type == Prcndtnr::GE || _type == Prcndtnr::OG) {
                     if(!excluded) {
                         super::_s.solve(in, out, mu);
-                        scaledExchange(out, mu);         // out = D A \ in
+                        exchange(out, mu);               // out = D A \ in
                     }
                 }
                 else {
@@ -324,12 +411,12 @@ class Schwarz : public Preconditioner<
                     MPI_Request rq[2];
                     Ideflation<excluded>(in, out, mu, rq);
                     if(!excluded) {
-                        super::_s.solve(work, mu);                                                                                                                                                         // out = A \ in
+                        super::_s.solve(work, mu); // out = A \ in
                         MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
                         int k = mu;
-                        Blas<K>::gemm("N", "N", &(Subdomain<K>::_dof), &k, super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, super::getAddrLocal(), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));                   // out = _ev E \ _ev^T D in
+                        Blas<K>::gemm("N", "N", &(Subdomain<K>::_dof), &k, super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, super::getAddrLocal(), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof)); // out = _ev E \ _ev^T D in
                         Blas<K>::axpy(&tmp, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
-                        scaledExchange(out, mu);                                                                                                                                                                                                              // out = Z E \ Z^T in + A \ in
+                        exchange(out, mu); // out = Z E \ Z^T in + A \ in
                     }
                     else
                         MPI_Wait(rq + 1, MPI_STATUS_IGNORE);
@@ -338,7 +425,7 @@ class Schwarz : public Preconditioner<
                     if(!excluded) {
                         super::_s.solve(work, mu);
                         Blas<K>::axpy(&tmp, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
-                        scaledExchange(out, mu);
+                        exchange(out, mu);
                     }
 #endif // HPDDM_ICOLLECTIVE
                 }
@@ -347,7 +434,7 @@ class Schwarz : public Preconditioner<
                         if(_type == Prcndtnr::OS)
                             Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
                         super::_s.solve(work, out, mu);
-                        scaledExchange(out, mu);
+                        exchange(out, mu);
                         GMV(out, work, mu);
                         deflation<excluded>(nullptr, work, mu);
                         Blas<K>::axpy(&tmp, &(Wrapper<K>::d__2), work, &i__1, out, &i__1);
@@ -372,11 +459,11 @@ class Schwarz : public Preconditioner<
                             else
                                 Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
                         }
-                        scaledExchange(work, mu);                                                                      //  in = (I - A Z E \ Z^T) in
+                        exchange(work, mu);                                                                            //  in = (I - A Z E \ Z^T) in
                         if(_type == Prcndtnr::OS)
                             Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
                         super::_s.solve(work, mu);
-                        scaledExchange(work, mu);                                                                      //  in = D A \ (I - A Z E \ Z^T) in
+                        exchange(work, mu);                                                                            //  in = D A \ (I - A Z E \ Z^T) in
                         Blas<K>::axpy(&(tmp = mu * Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
                     }
                 }
@@ -527,7 +614,7 @@ class Schwarz : public Preconditioner<
                 Wrapper<K>::template csrmm<'C'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             else
                 Wrapper<K>::template csrmm<'F'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
-            scaledExchange(out, mu);
+            exchange(out, mu);
 #endif
         }
 #endif

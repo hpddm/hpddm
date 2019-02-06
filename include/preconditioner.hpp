@@ -127,12 +127,18 @@ class Preconditioner : public Subdomain<K> {
                     level = prefix + "level_2_";
                 else {
                     std::string sub = prev.substr(6, std::string::npos);
-                    std::size_t find = sub.find("_", 0);
+                    const std::size_t find = sub.find("_", 0);
                     sub = sub.substr(0, find);
                     M = std::stoi(sub);
                     level = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(M + 1) + "_";
                 }
-                opt.setPrefix(level);
+                {
+                    const unsigned short verbosity = opt.val<unsigned short>(prefix + "verbosity");
+                    opt.setPrefix(level);
+                    if(!opt.set("verbosity") && verbosity) {
+                        opt["verbosity"] = verbosity;
+                    }
+                }
                 if((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
                     ret = _co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0]), comm);
                 else if(N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))

@@ -221,8 +221,8 @@ void* schwarzPreconditioner(void* A) {
 void schwarzMultiplicityScaling(void* A, HPDDM::underlying_type<K>* d) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->multiplicityScaling(d);
 }
-void schwarzScaledExchange(void* A, HPDDM::pod_type<K>* x, unsigned short mu) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->scaledExchange<true>(reinterpret_cast<K*>(x), mu);
+void schwarzExchange(void* A, HPDDM::pod_type<K>* x, unsigned short mu) {
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->exchange<true>(reinterpret_cast<K*>(x), mu);
 }
 void schwarzCallNumfact(void* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->callNumfact();

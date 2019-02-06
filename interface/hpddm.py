@@ -225,15 +225,15 @@ schwarzPreconditioner.argtypes = [ ctypes.POINTER(Schwarz) ]
 schwarzMultiplicityScaling = lib.schwarzMultiplicityScaling
 schwarzMultiplicityScaling.restype = None
 schwarzMultiplicityScaling.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, ndim = 1, flags = 'F_CONTIGUOUS') ]
-_schwarzScaledExchange = lib.schwarzScaledExchange
-_schwarzScaledExchange.restype = None
-_schwarzScaledExchange.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
-def schwarzScaledExchange(A, x):
+_schwarzExchange = lib.schwarzExchange
+_schwarzExchange.restype = None
+_schwarzExchange.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
+def schwarzExchange(A, x):
     try:
         mu = ctypes.c_ushort(x.shape[1])
     except IndexError:
         mu = ctypes.c_ushort(1)
-    _schwarzScaledExchange(A, x, mu)
+    _schwarzExchange(A, x, mu)
 schwarzCallNumfact = lib.schwarzCallNumfact
 schwarzCallNumfact.restype = None
 schwarzCallNumfact.argtypes = [ ctypes.POINTER(Schwarz) ]

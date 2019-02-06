@@ -57,7 +57,7 @@ if sizeWorld > 1:
     hpddm.schwarzMultiplicityScaling(A, d)
     hpddm.schwarzInitialize(A, d)
     if mu != 0:
-        hpddm.schwarzScaledExchange(A, f)
+        hpddm.schwarzExchange(A, f)
     else:
         mu = 1
     if hpddm.optionSet(opt, b'schwarz_coarse_correction'):

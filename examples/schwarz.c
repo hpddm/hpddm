@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
         HpddmSchwarzMultiplicityScaling(A, d);
         HpddmSchwarzInitialize(A, d);
         if(mu != 0)
-            HpddmSchwarzScaledExchange(A, f, mu);
+            HpddmSchwarzExchange(A, f, mu);
         else
             mu = 1;
         if(HpddmOptionSet(opt, "schwarz_coarse_correction")) {
