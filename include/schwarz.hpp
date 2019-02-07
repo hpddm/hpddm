@@ -104,52 +104,46 @@ class Schwarz : public Preconditioner<
             std::vector<K>* send = new std::vector<K>[Subdomain<K>::_map.size()];
             unsigned int* sizes = new unsigned int[Subdomain<K>::_map.size()]();
             for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                std::vector<int> idx(Subdomain<K>::_map[i].second.size());
+                std::iota(idx.begin(), idx.end(), 0);
+                std::sort(idx.begin(), idx.end(), [&](int lhs, int rhs) { return Subdomain<K>::_map[i].second[lhs] < Subdomain<K>::_map[i].second[rhs]; });
                 for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j) {
+                    unsigned int nnz = 0, n = send[i].size() + 1;
                     if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
                         send[i].emplace_back(j);
-                        unsigned int nnz = 0, n = send[i].size();
                         send[i].emplace_back(0);
-                        for(unsigned int k = Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
-                            std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'));
-                            if(it != Subdomain<K>::_map[i].second.cend() && *it == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F')) {
-                                send[i].emplace_back(std::distance(Subdomain<K>::_map[i].second.cbegin(), it));
+                    }
+                    sizes[i] += 2;
+                    std::vector<int>::const_iterator it = idx.cbegin();
+                    for(int k = Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
+                        it = std::lower_bound(it, idx.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'), [&](int lhs, int rhs) { return Subdomain<K>::_map[i].second[lhs] < rhs; });
+                        if(it != idx.cend() && Subdomain<K>::_map[i].second[*it] == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F')) {
+                            if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
+                                send[i].emplace_back(*it);
                                 send[i].emplace_back(Subdomain<K>::_a->_a[k]);
                                 ++nnz;
                             }
+                            sizes[i] += 2;
                         }
-                        if(Subdomain<K>::_a->_sym) {
-                            for(unsigned int r = Subdomain<K>::_map[i].second[j] + 1; r < Subdomain<K>::_dof; ++r) {
-                                int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1], Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F'));
-                                if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1] && *pt == Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F')) {
-                                    std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), r + (HPDDM_NUMBERING == 'F'));
-                                    if(it != Subdomain<K>::_map[i].second.cend() && *it == r + (HPDDM_NUMBERING == 'F')) {
+                    }
+                    if(Subdomain<K>::_a->_sym) {
+                        for(int r = Subdomain<K>::_map[i].second[j] + 1; r < Subdomain<K>::_dof; ++r) {
+                            int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1], Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F'));
+                            if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1] && *pt == Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F')) {
+                                std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), r + (HPDDM_NUMBERING == 'F'));
+                                if(it != Subdomain<K>::_map[i].second.cend() && *it == r + (HPDDM_NUMBERING == 'F')) {
+                                    if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
                                         send[i].emplace_back(std::distance(Subdomain<K>::_map[i].second.cbegin(), it));
                                         send[i].emplace_back(Subdomain<K>::_a->_a[std::distance(Subdomain<K>::_a->_ja, pt)]);
                                         ++nnz;
                                     }
+                                    sizes[i] += 2;
                                 }
                             }
                         }
+                    }
+                    if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS)
                         send[i][n] = nnz;
-                    }
-                    if(_d[Subdomain<K>::_map[i].second[j]] < 1.0 - HPDDM_EPS) {
-                        sizes[i] += 2;
-                        for(unsigned int k = Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
-                            std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'));
-                            if(it != Subdomain<K>::_map[i].second.cend() && *it == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'))
-                                sizes[i] += 2;
-                        }
-                        if(Subdomain<K>::_a->_sym) {
-                            for(unsigned int r = Subdomain<K>::_map[i].second[j] + 1; r < Subdomain<K>::_dof; ++r) {
-                                int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1], Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F'));
-                                if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1] && *pt == Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F')) {
-                                    std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), r + (HPDDM_NUMBERING == 'F'));
-                                    if(it != Subdomain<K>::_map[i].second.cend() && *it == r + (HPDDM_NUMBERING == 'F'))
-                                        sizes[i] += 2;
-                                }
-                            }
-                        }
-                    }
                 }
                 MPI_Isend(send[i].data(), send[i].size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 13, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);
             }
