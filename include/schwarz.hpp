@@ -103,6 +103,13 @@ class Schwarz : public Preconditioner<
         void exchange() const {
             std::vector<K>* send = new std::vector<K>[Subdomain<K>::_map.size()];
             unsigned int* sizes = new unsigned int[Subdomain<K>::_map.size()]();
+            std::vector<std::pair<int, int>>* transpose = nullptr;
+            if(Subdomain<K>::_a->_sym) {
+                transpose = new std::vector<std::pair<int, int>>[Subdomain<K>::_dof]();
+                for(int i = 0; i < Subdomain<K>::_dof; ++i)
+                    for(int j = Subdomain<K>::_a->_ia[i] - (HPDDM_NUMBERING == 'F'); j < Subdomain<K>::_a->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+                        transpose[Subdomain<K>::_a->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
+            }
             for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
                 std::vector<int> idx(Subdomain<K>::_map[i].second.size());
                 std::iota(idx.begin(), idx.end(), 0);
@@ -127,18 +134,15 @@ class Schwarz : public Preconditioner<
                         }
                     }
                     if(Subdomain<K>::_a->_sym) {
-                        for(int r = Subdomain<K>::_map[i].second[j] + 1; r < Subdomain<K>::_dof; ++r) {
-                            int* const pt = std::lower_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1], Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F'));
-                            if(pt != Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[r + 1] && *pt == Subdomain<K>::_map[i].second[j] + (HPDDM_NUMBERING == 'F')) {
-                                std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), r + (HPDDM_NUMBERING == 'F'));
-                                if(it != Subdomain<K>::_map[i].second.cend() && *it == r + (HPDDM_NUMBERING == 'F')) {
-                                    if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
-                                        send[i].emplace_back(std::distance(Subdomain<K>::_map[i].second.cbegin(), it));
-                                        send[i].emplace_back(Subdomain<K>::_a->_a[std::distance(Subdomain<K>::_a->_ja, pt)]);
-                                        ++nnz;
-                                    }
-                                    sizes[i] += 2;
+                        for(int k = 0; k < transpose[Subdomain<K>::_map[i].second[j]].size(); ++k) {
+                            std::vector<int>::const_iterator first = std::lower_bound(it, idx.cend(), transpose[Subdomain<K>::_map[i].second[j]][k].first, [&](int lhs, int rhs) { return Subdomain<K>::_map[i].second[lhs] < rhs; });
+                            if(first != idx.cend() && Subdomain<K>::_map[i].second[*first] == transpose[Subdomain<K>::_map[i].second[j]][k].first) {
+                                if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
+                                    send[i].emplace_back(*first);
+                                    send[i].emplace_back(Subdomain<K>::_a->_a[transpose[Subdomain<K>::_map[i].second[j]][k].second]);
+                                    ++nnz;
                                 }
+                                sizes[i] += 2;
                             }
                         }
                     }
@@ -147,6 +151,7 @@ class Schwarz : public Preconditioner<
                 }
                 MPI_Isend(send[i].data(), send[i].size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 13, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);
             }
+            delete [] transpose;
             K** recv = new K*[Subdomain<K>::_map.size()]();
             for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
                 if(sizes[i]) {
