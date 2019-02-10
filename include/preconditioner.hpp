@@ -114,7 +114,7 @@ class Preconditioner : public Subdomain<K> {
                 MPI_Op_free(&op);
             }
             if(nu > 0 || allUniform[2] != 0 || allUniform[3] != std::numeric_limits<unsigned short>::max()) {
-                bool uniformity = (N == 3 && opt.set(prefix + "geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
+                const bool uniformity = (N == 3 && opt.set(prefix + "geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
                 if(_co)
                     delete _co;
                 _co = new CoarseOperator;
@@ -230,7 +230,7 @@ class Preconditioner : public Subdomain<K> {
         }
         /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
-        unsigned short getLocal() const { return _co ? _co->getLocal() : 0; }
+        constexpr unsigned short getLocal() const { return _co ? _co->getLocal() : 0; }
         /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local> or <i__0> if <Preconditioner::co> is not allocated. */
         const int* getAddrLocal() const { return _co ? _co->getAddrLocal() : &i__0; }

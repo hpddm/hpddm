@@ -709,54 +709,56 @@ template<class K>
 template<char N>
 inline void Wrapper<K>::bsrmm(const char* const trans, const int* const m, const int* const n, const int* const k, const int* const bs, const K* const alpha, bool sym,
                               const K* const a, const int* const ia, const int* const ja, const K* const x,  const K* const beta, K* const y) {
-    if(*trans == 'N' && !sym) {
-        const int ldb = *bs * *k;
-        const int ldc = *bs * *m;
-        int j = ldc * *n;
-        if(beta == &d__0)
-            std::fill_n(y, j, K());
-        else if(beta != &d__1)
-            Blas<K>::scal(&j, beta, y, &i__1);
+    if(*k) {
+        if(*trans == 'N' && !sym) {
+            const int ldb = *bs * *k;
+            const int ldc = *bs * *m;
+            int j = ldc * *n;
+            if(beta == &d__0)
+                std::fill_n(y, j, K());
+            else if(beta != &d__1)
+                Blas<K>::scal(&j, beta, y, &i__1);
 #ifdef _OPENMP
 #pragma omp for schedule(static, HPDDM_GRANULARITY)
 #endif
-        for(int i = 0; i < *m; ++i) {
-            for(j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
-                Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<K>::d__1), y + *bs * i, &ldc);
-        }
-    }
-    else {
-        const int ldb = *bs * *m;
-        const int ldc = *bs * *k;
-        int j = ldc * *n;
-        if(beta == &d__0)
-            std::fill_n(y, j, K());
-        else if(beta != &d__1)
-            Blas<K>::scal(&j, beta, y, &i__1);
-        if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
-            K* const c = const_cast<K* const>(a);
-            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
-                c[i] = conj(c[i]);
-        }
-        if(sym) {
             for(int i = 0; i < *m; ++i) {
-                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
-                    j = ja[l] - (N == 'F');
-                    Blas<K>::gemm("T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * j, &ldc);
-                    if(i != j)
-                        Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * j, &ldb, &(Wrapper<K>::d__1), y + *bs * i, &ldc);
-                }
+                for(j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+                    Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<K>::d__1), y + *bs * i, &ldc);
             }
         }
         else {
-            for(int i = 0; i < *m; ++i)
-                for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
-                    Blas<K>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * (ja[l] - (N == 'F')), &ldc);
-        }
-        if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
-            K* const c = const_cast<K* const>(a);
-            for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
-                c[i] = conj(c[i]);
+            const int ldb = *bs * *m;
+            const int ldc = *bs * *k;
+            int j = ldc * *n;
+            if(beta == &d__0)
+                std::fill_n(y, j, K());
+            else if(beta != &d__1)
+                Blas<K>::scal(&j, beta, y, &i__1);
+            if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
+                K* const c = const_cast<K* const>(a);
+                for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
+                    c[i] = conj(c[i]);
+            }
+            if(sym) {
+                for(int i = 0; i < *m; ++i) {
+                    for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) {
+                        j = ja[l] - (N == 'F');
+                        Blas<K>::gemm("T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * j, &ldc);
+                        if(i != j)
+                            Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * j, &ldb, &(Wrapper<K>::d__1), y + *bs * i, &ldc);
+                    }
+                }
+            }
+            else {
+                for(int i = 0; i < *m; ++i)
+                    for(int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
+                        Blas<K>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * (ja[l] - (N == 'F')), &ldc);
+            }
+            if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
+                K* const c = const_cast<K* const>(a);
+                for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
+                    c[i] = conj(c[i]);
+            }
         }
     }
 }

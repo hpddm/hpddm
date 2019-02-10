@@ -566,7 +566,7 @@ class Schwarz : public Preconditioner<
             evp.template solve<Solver>(A, rhs, super::_ev, Subdomain<K>::_communicator, free ? &(super::_s) : nullptr);
             if(rhs != B)
                 delete rhs;
-            if(free) {
+            if(free && A->getFree()) {
                 A->_ia = nullptr;
                 A->_ja = nullptr;
             }

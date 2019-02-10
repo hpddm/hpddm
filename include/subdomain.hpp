@@ -323,7 +323,7 @@ class Subdomain : public OptionsPrefix {
         }
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */
-        int getDof() const { return _dof; }
+        constexpr int getDof() const { return _dof; }
         /* Function: getMatrix
          *  Returns a pointer to <Subdomain::a>. */
         const MatrixCSR<K>* getMatrix() const { return _a; }

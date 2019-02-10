@@ -255,10 +255,10 @@ class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>
 #endif
         /* Function: getRank
          *  Simple accessor that returns <Coarse operator::rankWorld>. */
-        int getRank() const { return _rankWorld; }
+        constexpr int getRank() const { return _rankWorld; }
         /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
-        int getLocal() const { return _local; }
+        constexpr int getLocal() const { return _local; }
         /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local>. */
         const int* getAddrLocal() const { return &_local; }
@@ -267,7 +267,7 @@ class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>
         void setLocal(int l) { _local = l; }
         /* Function: getSizeRHS
          *  Returns the value of <Coarse operator::sizeRHS>. */
-        unsigned int getSizeRHS() const { return _sizeRHS; }
+        constexpr unsigned int getSizeRHS() const { return _sizeRHS; }
 };
 } // HPDDM
 #endif // _HPDDM_COARSE_OPERATOR_

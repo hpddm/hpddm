@@ -291,8 +291,6 @@ class MatrixCSR : public MatrixBase<K> {
             if(A->MatrixBase<K>::_sym == MatrixBase<K>::_sym && A->MatrixBase<K>::_nnz >= MatrixBase<K>::_nnz) {
                 if(A->MatrixBase<K>::_ia == MatrixBase<K>::_ia && A->MatrixBase<K>::_ja == MatrixBase<K>::_ja)
                     return true;
-                else if(!A->MatrixBase<K>::_free)
-                    return false;
                 else {
                     bool same = true;
                     K* a = new K[MatrixBase<K>::_nnz];
@@ -301,14 +299,14 @@ class MatrixCSR : public MatrixBase<K> {
                             while(k < MatrixBase<K>::_ia[i + 1] && MatrixBase<K>::_ja[k] < A->MatrixBase<K>::_ja[j])
                                 a[k++] = K();
                             if(MatrixBase<K>::_ja[k] != A->MatrixBase<K>::_ja[j]) {
-                                if(std::abs(A->_a[j]) > HPDDM_EPS)
+                                if(std::abs(A->_a[j]) > HPDDM_EPS || !A->MatrixBase<K>::_free)
                                     same = false;
                             }
                             else
                                 a[k++] = A->_a[j];
                         }
                     }
-                    if(same) {
+                    if(same && A->MatrixBase<K>::_free) {
                         A->MatrixBase<K>::_nnz = MatrixBase<K>::_nnz;
                         delete [] A->MatrixBase<K>::_ja;
                         delete [] A->MatrixBase<K>::_ia;
@@ -388,6 +386,9 @@ class MatrixCSR : public MatrixBase<K> {
                 }
                 return ret;
             }
+        }
+        constexpr bool getFree() const {
+            return MatrixBase<K>::_free;
         }
         template<char N>
         std::ostream& dump(std::ostream& f) const {

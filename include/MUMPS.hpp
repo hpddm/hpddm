@@ -250,22 +250,30 @@ class MumpsSub {
             _id->jcn = A->_ja;
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
+            if(opt.val<char>("verbosity", 0) >= 3) {
+                _id->icntl[0] = 6;
+                _id->icntl[2] = 6;
+                _id->icntl[3] = 2;
+            }
+            else {
+                _id->icntl[0] = 0;
+                _id->icntl[2] = 0;
+                _id->icntl[3] = 0;
+            }
+            _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
+            for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34 }) {
+                int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
+                if(val != std::numeric_limits<int>::lowest())
+                    _id->icntl[i] = val;
+            }
+            for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
+                double val = opt.val("mumps_cntl_" + to_string(i + 1));
+                if(val >= std::numeric_limits<double>::lowest() / 10.0)
+                    _id->cntl[i] = val;
+            }
             if(_id->job == -1) {
                 _id->nrhs = 1;
-                if(opt.val<char>("verbosity", 0) < 3)
-                    std::fill_n(_id->icntl, 5, 0);
                 _id->n = A->_n;
-                _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
-                for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34 }) {
-                    int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
-                    if(val != std::numeric_limits<int>::lowest())
-                        _id->icntl[i] = val;
-                }
-                for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
-                    double val = opt.val("mumps_cntl_" + to_string(i + 1));
-                    if(val >= std::numeric_limits<double>::lowest() / 10.0)
-                        _id->cntl[i] = val;
-                }
                 _id->lrhs = A->_n;
                 _I = new int[A->_nnz];
                 _id->nz = A->_nnz;
