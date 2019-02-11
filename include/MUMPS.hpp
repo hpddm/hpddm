@@ -250,7 +250,7 @@ class MumpsSub {
             _id->jcn = A->_ja;
             _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
             int* listvar = nullptr;
-            if(opt.val<char>("verbosity", 0) >= 3) {
+            if(opt.val<char>("verbosity", 0) >= 4) {
                 _id->icntl[0] = 6;
                 _id->icntl[2] = 6;
                 _id->icntl[3] = 2;

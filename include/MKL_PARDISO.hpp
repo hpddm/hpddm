@@ -287,7 +287,7 @@ class MklPardisoSub {
                 _C = A->_a;
             }
             PARDISO(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase,
-                    const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, schur, &error);
+                    const_cast<int*>(&_n), _C, _I, _J, perm, const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) >= 4 ? const_cast<int*>(&i__1) : const_cast<int*>(&i__0), &ddum, schur, &error);
             delete [] perm;
             if(_mtype == prds<K>::SPD)
                 delete [] _C;
