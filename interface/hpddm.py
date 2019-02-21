@@ -180,91 +180,96 @@ def csrmv(Mat, x, y):
         m = 1
     wrapperCSRMM(Mat, x, y, m)
 
-class Subdomain(ctypes.Structure):
-    pass
-subdomainNumfact = lib.subdomainNumfact
-subdomainNumfact.restype = None
-subdomainNumfact.argtypes = [ ctypes.POINTER(ctypes.POINTER(Subdomain)), ctypes.POINTER(MatrixCSR) ]
-_subdomainSolve = lib.subdomainSolve
-_subdomainSolve.restype = None
-def subdomainSolve(S, f, sol):
-    try:
-        n = ctypes.c_ushort(sol.shape[1])
-    except IndexError:
-        n = ctypes.c_ushort(1)
-    _subdomainSolve(S, f, sol, n)
-_subdomainSolve.argtypes = [ ctypes.POINTER(Subdomain), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
-subdomainDestroy = lib.subdomainDestroy
-subdomainDestroy.restype = None
-subdomainDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Subdomain)) ]
+if ctypes.c_ushort.in_dll(lib, 'subdomain').value == 1:
+    class Subdomain(ctypes.Structure):
+        pass
+    subdomainNumfact = lib.subdomainNumfact
+    subdomainNumfact.restype = None
+    subdomainNumfact.argtypes = [ ctypes.POINTER(ctypes.POINTER(Subdomain)), ctypes.POINTER(MatrixCSR) ]
+    _subdomainSolve = lib.subdomainSolve
+    _subdomainSolve.restype = None
+    def subdomainSolve(S, f, sol):
+        try:
+            n = ctypes.c_ushort(sol.shape[1])
+        except IndexError:
+            n = ctypes.c_ushort(1)
+        _subdomainSolve(S, f, sol, n)
+    _subdomainSolve.argtypes = [ ctypes.POINTER(Subdomain), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
+    subdomainDestroy = lib.subdomainDestroy
+    subdomainDestroy.restype = None
+    subdomainDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Subdomain)) ]
 
 
-class Preconditioner(ctypes.Structure):
-    pass
-initializeCoarseOperator = lib.initializeCoarseOperator
-initializeCoarseOperator.restype = None
-initializeCoarseOperator.argtypes = [ ctypes.POINTER(Preconditioner), ctypes.c_ushort ]
-setVectors = lib.setVectors
-setVectors.restype = None
-setVectors.argtypes = [ ctypes.POINTER(Preconditioner), ctypes.c_int, numpy.ctypeslib.ndpointer(scalar, ndim = 2, flags = 'F_CONTIGUOUS') ]
-getCommunicator = lib.getCommunicator
-getCommunicator.restype = ctypes.POINTER(MPI_Comm)
-getCommunicator.argtypes = [ ctypes.POINTER(Preconditioner) ]
+    class Preconditioner(ctypes.Structure):
+        pass
+    initializeCoarseOperator = lib.initializeCoarseOperator
+    initializeCoarseOperator.restype = None
+    initializeCoarseOperator.argtypes = [ ctypes.POINTER(Preconditioner), ctypes.c_ushort ]
+    setVectors = lib.setVectors
+    setVectors.restype = None
+    setVectors.argtypes = [ ctypes.POINTER(Preconditioner), ctypes.c_int, numpy.ctypeslib.ndpointer(scalar, ndim = 2, flags = 'F_CONTIGUOUS') ]
+    getCommunicator = lib.getCommunicator
+    getCommunicator.restype = ctypes.POINTER(MPI_Comm)
+    getCommunicator.argtypes = [ ctypes.POINTER(Preconditioner) ]
 
-class Schwarz(ctypes.Structure):
-    pass
-schwarzCreate = lib.schwarzCreate
-schwarzCreate.restype = ctypes.POINTER(Schwarz)
-schwarzCreate.argtypes = [ ctypes.POINTER(MatrixCSR), ctypes.py_object, ctypes.py_object ]
-schwarzInitialize = lib.schwarzInitialize
-schwarzInitialize.restype = None
-schwarzInitialize.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, ndim = 1, flags = 'F_CONTIGUOUS') ]
-schwarzPreconditioner = lib.schwarzPreconditioner
-schwarzPreconditioner.restype = ctypes.POINTER(Preconditioner)
-schwarzPreconditioner.argtypes = [ ctypes.POINTER(Schwarz) ]
-schwarzMultiplicityScaling = lib.schwarzMultiplicityScaling
-schwarzMultiplicityScaling.restype = None
-schwarzMultiplicityScaling.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, ndim = 1, flags = 'F_CONTIGUOUS') ]
-_schwarzExchange = lib.schwarzExchange
-_schwarzExchange.restype = None
-_schwarzExchange.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
-def schwarzExchange(A, x):
-    try:
-        mu = ctypes.c_ushort(x.shape[1])
-    except IndexError:
-        mu = ctypes.c_ushort(1)
-    _schwarzExchange(A, x, mu)
-schwarzCallNumfact = lib.schwarzCallNumfact
-schwarzCallNumfact.restype = None
-schwarzCallNumfact.argtypes = [ ctypes.POINTER(Schwarz) ]
-schwarzSolveGEVP = lib.schwarzSolveGEVP
-schwarzSolveGEVP.restype = None
-schwarzSolveGEVP.argtypes = [ ctypes.POINTER(Schwarz), ctypes.POINTER(MatrixCSR) ]
-schwarzBuildCoarseOperator = lib.schwarzBuildCoarseOperator
-schwarzBuildCoarseOperator.restype = None
-schwarzBuildCoarseOperator.argtypes = [ ctypes.POINTER(Schwarz), MPI_Comm ]
-_schwarzComputeResidual = lib.schwarzComputeResidual
-_schwarzComputeResidual.restype = None
-_schwarzComputeResidual.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(underlying, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
-def schwarzComputeResidual(A, sol, f, storage):
-    try:
-        mu = sol.shape[1]
-    except IndexError:
-        mu = 1
-    _schwarzComputeResidual(A, sol, f, storage, mu)
-schwarzDestroy = lib.schwarzDestroy
-schwarzDestroy.restype = None
-schwarzDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Schwarz)) ]
+    class Schwarz(ctypes.Structure):
+        pass
+    schwarzCreate = lib.schwarzCreate
+    schwarzCreate.restype = ctypes.POINTER(Schwarz)
+    schwarzCreate.argtypes = [ ctypes.POINTER(MatrixCSR), ctypes.py_object, ctypes.py_object ]
+    schwarzInitialize = lib.schwarzInitialize
+    schwarzInitialize.restype = None
+    schwarzInitialize.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, ndim = 1, flags = 'F_CONTIGUOUS') ]
+    schwarzPreconditioner = lib.schwarzPreconditioner
+    schwarzPreconditioner.restype = ctypes.POINTER(Preconditioner)
+    schwarzPreconditioner.argtypes = [ ctypes.POINTER(Schwarz) ]
+    schwarzMultiplicityScaling = lib.schwarzMultiplicityScaling
+    schwarzMultiplicityScaling.restype = None
+    schwarzMultiplicityScaling.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(underlying, ndim = 1, flags = 'F_CONTIGUOUS') ]
+    _schwarzExchange = lib.schwarzExchange
+    _schwarzExchange.restype = None
+    _schwarzExchange.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
+    def schwarzExchange(A, x):
+        try:
+            mu = ctypes.c_ushort(x.shape[1])
+        except IndexError:
+            mu = ctypes.c_ushort(1)
+        _schwarzExchange(A, x, mu)
+    schwarzCallNumfact = lib.schwarzCallNumfact
+    schwarzCallNumfact.restype = None
+    schwarzCallNumfact.argtypes = [ ctypes.POINTER(Schwarz) ]
+    schwarzSolveGEVP = lib.schwarzSolveGEVP
+    schwarzSolveGEVP.restype = None
+    schwarzSolveGEVP.argtypes = [ ctypes.POINTER(Schwarz), ctypes.POINTER(MatrixCSR) ]
+    schwarzBuildCoarseOperator = lib.schwarzBuildCoarseOperator
+    schwarzBuildCoarseOperator.restype = None
+    schwarzBuildCoarseOperator.argtypes = [ ctypes.POINTER(Schwarz), MPI_Comm ]
+    _schwarzComputeResidual = lib.schwarzComputeResidual
+    _schwarzComputeResidual.restype = None
+    _schwarzComputeResidual.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(underlying, flags = 'F_CONTIGUOUS'), ctypes.c_ushort ]
+    def schwarzComputeResidual(A, sol, f, storage):
+        try:
+            mu = sol.shape[1]
+        except IndexError:
+            mu = 1
+        _schwarzComputeResidual(A, sol, f, storage, mu)
+    schwarzDestroy = lib.schwarzDestroy
+    schwarzDestroy.restype = None
+    schwarzDestroy.argtypes = [ ctypes.POINTER(ctypes.POINTER(Schwarz)) ]
 
-precondFunc = ctypes.CFUNCTYPE(None, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int)
-_solve = lib.solve
-_solve.restype = ctypes.c_int
-_solve.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
+    _solve = lib.solve
+    _solve.restype = ctypes.c_int
+    _solve.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
 destroyRecycling = lib.destroyRecycling
 destroyRecycling.restype = None
-destroyRecycling.argtypes = [ ctypes.c_int ]
+destroyRecycling.argtypes = None
+if ctypes.c_ushort.in_dll(lib, 'withPETSc').value == 1:
+    registerKSP = lib.registerKSP
+    registerKSP.restype = None
+    registerKSP.argtypes = None
 _CustomOperatorSolve = lib.CustomOperatorSolve
 _CustomOperatorSolve.restype = ctypes.c_int
+precondFunc = ctypes.CFUNCTYPE(None, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int)
 _CustomOperatorSolve.argtypes = [ ctypes.POINTER(MatrixCSR), precondFunc, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int ]
 def solve(A, f, sol, comm):
     try:

@@ -119,7 +119,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                         _communicator = DMatrix::_communicator;
                         accumulate = std::accumulate(I + 1, I + 1 + nrow, 0);
                     }
-                    int* ja = ia + nrow + 1;
+                    int* ja;
                     if(!ia) {
                         ia = new int[nrow + 1 + (_mu < _off ? accumulate : 0)];
                         std::partial_sum(I, I + nrow + 1, ia);
@@ -138,6 +138,8 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                             ja = I + nrow + 1;
                         a = C;
                     }
+                    else
+                        ja = ia + nrow + 1;
                     if(_mu < _off) {
                         loc2glob[0] -= _di[0];
                         loc2glob[1] -= _di[0];

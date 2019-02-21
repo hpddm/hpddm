@@ -7,7 +7,7 @@
   Copyright (C) 2016-     Centre National de la Recherche Scientifique
 
   Note:      Reference PETSc implementation available at
-                                                        http://goo.gl/i9b4AK
+                                                      https://bit.ly/2GB8ATC
              Contributed by
                                                                   Mark Adams
 

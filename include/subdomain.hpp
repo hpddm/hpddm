@@ -808,7 +808,7 @@ class Subdomain : public OptionsPrefix {
                 if(!ia)
                     ia = new int[dof + 1];
                 ia[0] = 0;
-                for(std::vector<std::pair<unsigned int, unsigned int>>::iterator it = begin; it != end; it++) {
+                for(std::vector<std::pair<unsigned int, unsigned int>>::iterator it = begin; it != end; ++it) {
                     for(unsigned int j = A->_ia[it->second]; j < A->_ia[it->second + 1]; ++j)
                         tmp.emplace_back(col[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
                     std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<unsigned int, T>& lhs, const std::pair<unsigned int, T>& rhs) { return lhs.first < rhs.first; });

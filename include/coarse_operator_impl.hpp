@@ -34,15 +34,15 @@ inline void CoarseOperator<Solver, S, K>::constructionCommunicator(const MPI_Com
     MPI_Comm_size(comm, &_sizeWorld);
     MPI_Comm_rank(comm, &_rankWorld);
     Option& opt = *Option::get();
-    unsigned short p = opt.val<unsigned short>("p", 1);
 #if !defined(DSUITESPARSE) && !defined(DLAPACK)
+    unsigned short p = opt.val<unsigned short>("p", 1);
     if(p > _sizeWorld / 2 && _sizeWorld > 1) {
         p = opt["p"] = _sizeWorld / 2;
         if(_rankWorld == 0)
             std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
     }
 #else
-    p = opt["p"] = 1;
+    const unsigned short p = opt["p"] = 1;
 #endif
     DMatrix::_ldistribution = new int[p]();
     if(p == 1) {
@@ -1427,7 +1427,8 @@ inline void CoarseOperator<Solver, S, K>::finishSetup(unsigned short*& infoWorld
             constructionCommunicatorCollective<false>(pt, size, _scatterComm);
 #endif
             if(_gatherComm != _scatterComm) {
-                MPI_Comm_free(&_gatherComm);
+                if(_scatterComm != MPI_COMM_NULL)
+                    MPI_Comm_free(&_gatherComm);
                 _gatherComm = _scatterComm;
             }
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
@@ -1767,12 +1768,13 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
     else if(DMatrix::_communicator != MPI_COMM_NULL) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         if(DMatrix::_distribution == DMatrix::DISTRIBUTED_SOL)
-            super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu); break;
+            super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
         else
-            super::template solve<DMatrix::CENTRALIZED>(rhs, mu); break;
+            super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
 #else
-            super::solve(rhs, mu); break;
+            super::solve(rhs, mu);
 #endif
+        return;
     }
     if(!std::is_same<downscaled_type<K>, K>::value)
         for(unsigned int i = mu * _local; i-- > 0; )

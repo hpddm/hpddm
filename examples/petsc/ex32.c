@@ -7,7 +7,7 @@
    Copyright (C) 2016-     Centre National de la Recherche Scientifique
 
    Note:      Reference PETSc implementation available at
-                                                         http://goo.gl/2sXsYP
+                                                       https://bit.ly/2BJC7GM
               Contributed by
                                                             Andrei Draganescu
 
