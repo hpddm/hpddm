@@ -170,7 +170,7 @@ class Dense : public Schwarz<
             return super::super::template buildTwo<excluded, UserCoarseOperator<ClassWithPtr, K>>(&Op, comm);
         }
         static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
-        virtual void GMV(const K* const in, K* const out, const int& mu = 1) const = 0;
+        virtual void GMV(const K* const in, K* const out, const int& mu = 1) const override = 0;
 };
 
 template<

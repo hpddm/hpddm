@@ -57,7 +57,7 @@ class Eigensolver {
         /* Variable: nu
          *  Number of desired eigenvalues. */
         int                       _nu;
-        Eigensolver(int n)                                                               : _tol(), _threshold(), _n(n), _nu() { }
+        explicit Eigensolver(int n)                                                      : _tol(), _threshold(), _n(n), _nu() { }
         Eigensolver(int n, int nu)                                                       : _tol(Option::get()->val("eigensolver_tol", 1.0e-6)), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { }
         Eigensolver(underlying_type<K> threshold, int n, int nu)                         : _tol(threshold > 0.0 ? HPDDM_EPS : Option::get()->val("eigensolver_tol", 1.0e-6)), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }
         Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : _tol(threshold > 0.0 ? HPDDM_EPS : tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }

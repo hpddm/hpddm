@@ -30,7 +30,7 @@ template<class K, class T = int>
 struct EmptyOperator : OptionsPrefix {
     typedef T integer_type;
     const T _n;
-    EmptyOperator(T n) : OptionsPrefix(), _n(n) { }
+    explicit EmptyOperator(T n) : OptionsPrefix(), _n(n) { }
     T getDof() const { return _n; }
     static constexpr underlying_type<K>* getScaling() { return nullptr; }
     template<bool = true> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
@@ -46,7 +46,7 @@ struct CustomOperator : EmptyOperator<K> {
 template<class K>
 struct CustomOperator<MatrixCSR<K>, K> : EmptyOperator<K> {
     const MatrixCSR<K>* const _A;
-    CustomOperator(const MatrixCSR<K>* const A) : EmptyOperator<K>(A ? A->_n : 0), _A(A) { }
+    explicit CustomOperator(const MatrixCSR<K>* const A) : EmptyOperator<K>(A ? A->_n : 0), _A(A) { }
     void GMV(const K* const in, K* const out, const int& mu = 1) const {
         Wrapper<K>::csrmm(_A->_sym, &(EmptyOperator<K>::_n), &mu, _A->_a, _A->_ia, _A->_ja, in, out);
     }
@@ -134,7 +134,7 @@ class IterativeMethod {
                     max = std::max_element(pt, pt + d / t);
                     std::cout << method << ": " << std::setw(3) << i << " " << *max << " < " << -tol;
                 }
-                if(d != t || (d == t && t != mu)) {
+                if(d != t || t != mu) {
                     std::cout << " (rhs #" << std::distance(pt, max) + 1;
                     if(conv > d)
                         std::cout << ", " << t * conv - d << " converged rhs";

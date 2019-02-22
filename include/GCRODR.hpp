@@ -32,7 +32,7 @@ class Recycling : private Singleton {
         std::unordered_map<std::string, K*> _storage;
     public:
         template<int N>
-        Recycling(Singleton::construct_key<N>) { }
+        explicit Recycling(Singleton::construct_key<N>) { }
         ~Recycling() {
             for(std::pair<std::string, K*> const& p : _storage)
                 delete [] p.second;

@@ -122,15 +122,13 @@ class Preconditioner : public Subdomain<K> {
                 double construction = MPI_Wtime();
                 const std::string prev = opt.getPrefix();
                 std::string level;
-                unsigned short M = 1;
                 if(prev.size() == 0)
                     level = prefix + "level_2_";
                 else {
                     std::string sub = prev.substr(6, std::string::npos);
                     const std::size_t find = sub.find("_", 0);
                     sub = sub.substr(0, find);
-                    M = std::stoi(sub);
-                    level = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(M + 1) + "_";
+                    level = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(std::stoi(sub) + 1) + "_";
                 }
                 {
                     const unsigned short verbosity = opt.val<unsigned short>(prefix + "verbosity");
@@ -239,7 +237,7 @@ class Preconditioner : public Subdomain<K> {
         Preconditioner() { };
 #endif
     protected:
-        Preconditioner(const Subdomain<K>& s) : super(s) { };
+        explicit Preconditioner(const Subdomain<K>& s) : super(s) { };
     public:
         /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */

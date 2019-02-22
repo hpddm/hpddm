@@ -35,7 +35,7 @@ template<> class Members<true> {
         std::vector<std::vector<unsigned short>>     _vecSparsity;
         const unsigned short                                _rank;
         unsigned short                               _consolidate;
-        Members(unsigned short r) : _rank(r), _consolidate() { }
+        explicit Members(unsigned short r) : _rank(r), _consolidate() { }
 };
 template<char P, class Preconditioner, class K>
 class OperatorBase : protected Members<P != 's' && P != 'u'> {

@@ -373,15 +373,15 @@ class LapackTRSub {
             else {
                 _type = 1 + (Option::get()->val<char>("operator_spd", 0) && !detection);
                 if(_type == 1) {
-                    K* work;
                     int lwork = -1;
                     _ipiv = new int[_n];
                     K wkopt;
                     Lapack<K>::sytrf("L", &_n, _a, &_n, _ipiv, &wkopt, &lwork, &info);
                     if(info == 0) {
                         lwork = static_cast<int>(std::real(wkopt));
-                        work = new K[lwork];
+                        K* work = new K[lwork];
                         Lapack<K>::sytrf("L", &_n, _a, &_n, _ipiv, work, &lwork, &info);
+                        delete [] work;
                     }
                 }
                 else

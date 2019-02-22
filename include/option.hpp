@@ -53,7 +53,7 @@ class Option : private Singleton {
         }
     public:
         template<int N>
-        Option(Singleton::construct_key<N>);
+        explicit Option(Singleton::construct_key<N>);
         ~Option() {
             std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
             if(show != _opt.cend()) {

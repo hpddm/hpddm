@@ -172,7 +172,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
     }
     std::stack<std::string> pre;
     std::string p = std::string(HPDDM_PREFIX) + (exact ? prefix : "");
-    for(std::vector<std::string>::const_iterator itArg = args.cbegin(); itArg != args.cend(); ++itArg) {
+    for(std::vector<std::string>::const_iterator itArg = args.cbegin(); itArg < args.cend(); ++itArg) {
         if(pre.empty())
             p = std::string(HPDDM_PREFIX) + (exact ? prefix : "");
         std::string::size_type n = itArg->find("-" + (pre.empty() ? p : std::string(HPDDM_PREFIX)));

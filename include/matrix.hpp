@@ -165,7 +165,7 @@ class MatrixCSR : public MatrixBase<K> {
         MatrixCSR(const int& n, const int& m, const bool& sym) : MatrixBase<K>(n, m, sym), _a() { }
         MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : MatrixBase<K>(n, m, nnz, sym), _a(new K[nnz]) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : MatrixBase<K>(n, m, nnz, ia, ja, sym, takeOwnership), _a(a) { }
-        MatrixCSR(std::ifstream& file) {
+        explicit MatrixCSR(std::ifstream& file) {
             if(!file.good()) {
                 _a = nullptr;
                 MatrixBase<K>::_ia = MatrixBase<K>::_ja = nullptr;

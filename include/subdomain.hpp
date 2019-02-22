@@ -58,14 +58,7 @@ class Subdomain : public OptionsPrefix {
         int                        _dof;
     public:
         Subdomain() : OptionsPrefix(), _a(), _buff(), _map(), _rq(), _dof() { }
-        Subdomain(const Subdomain<K>& s) {
-            _a = nullptr;
-            _map = s._map;
-            _communicator = s._communicator;
-            _dof = s._dof;
-            _rq = new MPI_Request[2 * _map.size()];
-            _buff = new K*[2 * _map.size()];
-        }
+        Subdomain(const Subdomain<K>& s) : OptionsPrefix(), _a(), _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
         ~Subdomain() {
             delete [] _rq;
             _rq = nullptr;
@@ -642,7 +635,6 @@ class Subdomain : public OptionsPrefix {
          *    d             - Local partition of unity (optional). */
         template<char N, class It>
         void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const underlying_type<K>* const d = nullptr, const unsigned int* const list = nullptr) const {
-            unsigned int between = 0;
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);
             MPI_Comm_size(_communicator, &sizeWorld);
@@ -654,6 +646,7 @@ class Subdomain : public OptionsPrefix {
             }
             if(sizeWorld > 1) {
                 setBuffer();
+                unsigned int between = 0;
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
                 unsigned int size = 1 + ((2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) - 1) / sizeof(K));
