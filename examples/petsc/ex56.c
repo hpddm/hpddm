@@ -50,11 +50,14 @@ int main(int argc, char** argv)
     ierr = MPI_Comm_size(PETSC_COMM_WORLD, &npe);
     CHKERRQ(ierr);
     ierr = PetscOptionsBegin(PETSC_COMM_WORLD, NULL, "Linear elasticity in 3D", "");
+    CHKERRQ(ierr);
     {
         char nestring[256];
         ierr = PetscSNPrintf(nestring, sizeof nestring, "number of elements in each direction, ne+1 must be a multiple of %D (sizes^{1/3})",
                              (PetscInt)(PetscPowReal((PetscReal)npe, 1.0 / 3.0) + 0.5));
+        CHKERRQ(ierr);
         ierr = PetscOptionsInt("-ne", nestring, "", ne, &ne, NULL);
+        CHKERRQ(ierr);
     }
     ierr = PetscOptionsEnd();
     CHKERRQ(ierr);

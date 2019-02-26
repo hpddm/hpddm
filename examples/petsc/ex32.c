@@ -44,6 +44,7 @@ int main(int argc, char** argv)
     ierr = PetscInitialize(&argc, &argv, NULL, NULL);
     CHKERRQ(ierr);
     ierr = PetscOptionsBegin(PETSC_COMM_WORLD, NULL, "Laplacian in 2D", "");
+    CHKERRQ(ierr);
     ierr = PetscOptionsEnd();
     CHKERRQ(ierr);
     ierr = HpddmRegisterKSP();

@@ -190,7 +190,7 @@ class Hypre : public DMatrix {
             const Option& opt = *Option::get();
             const char solver = opt.val<char>("hypre_solver", HPDDM_HYPRE_SOLVER_FGMRES);
             hypre_Vector* loc = hypre_ParVectorLocalVector(reinterpret_cast<hypre_ParVector*>(hypre_IJVectorObject(reinterpret_cast<hypre_IJVector*>(_b))));
-            K* b = loc->data;
+            const K* b = loc->data;
             for(unsigned short nu = 0; nu < n; ++nu) {
                 loc->data = rhs + nu * _local;
                 if(solver == HPDDM_HYPRE_SOLVER_AMG) {
@@ -209,7 +209,7 @@ class Hypre : public DMatrix {
                 if(DMatrix::_rank == 0 && opt.val<char>("verbosity", 0) > 3)
                     std::cout << " --- BoomerAMG performed " << num_iterations << " iteration" << (num_iterations > 1 ? "s" : "") << std::endl;
             }
-            loc->data = b;
+            loc->data = const_cast<K*>(b);
         }
 };
 #endif // DHYPRE

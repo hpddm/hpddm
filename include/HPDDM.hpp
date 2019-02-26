@@ -251,17 +251,6 @@ inline T sto(const std::string& s, typename std::enable_if<std::is_same<T, std::
     stm >> cplx;
     return cplx;
 }
-template<class T>
-inline std::string pts(const T* const s, const unsigned int k, typename std::enable_if<!std::is_same<T, void>::value>::type* = nullptr) {
-    std::ostringstream stm;
-    stm << std::scientific;
-    stm << s[k];
-    return stm.str();
-}
-template<class T>
-inline std::string pts(const T* const, const unsigned int, typename std::enable_if<std::is_same<T, void>::value>::type* = nullptr) {
-    return "";
-}
 template<class U, class V>
 inline U pow(U x, V y) {
     static_assert(std::is_integral<U>::value && std::is_integral<V>::value, "Only integral types are supported, consider using std::pow(base, exp)");
@@ -291,6 +280,18 @@ template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 template<class T>
 using downscaled_type = typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<underlying_type<T>, T>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION, std::complex<float>, T>::type>::type;
+
+template<class T>
+inline std::string pts(const T* const s, const unsigned int k, typename std::enable_if<!std::is_same<T, void>::value>::type* = nullptr) {
+    std::ostringstream stm;
+    stm << std::scientific << std::setprecision(std::is_same<underlying_type<T>, float>::value ? 22 : 44);
+    stm << s[k];
+    return stm.str();
+}
+template<class T>
+inline std::string pts(const T* const, const unsigned int, typename std::enable_if<std::is_same<T, void>::value>::type* = nullptr) {
+    return "";
+}
 
 template<class>
 struct hpddm_method_id { static constexpr char value = 0; };

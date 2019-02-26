@@ -292,8 +292,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                         for(unsigned int i = 0; i < infoRecv.size(); ++i) {
                             int index;
                             MPI_Waitany(infoRecv.size(), rq, &index, MPI_STATUS_IGNORE);
-                            for(int& j : _send[infoRecv[index]])
-                                j = g2l[j];
+                            std::for_each(_send[infoRecv[index]].begin(), _send[infoRecv[index]].end(), [&g2l](int& j) { j = g2l.at(j); });
                         }
                         MPI_Waitall(size - infoRecv.size(), rq + infoRecv.size(), MPI_STATUSES_IGNORE);
                         delete [] sendIdx;
@@ -301,8 +300,7 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                     }
                     else
                         for(std::pair<const unsigned short, std::vector<int>>& i : _send)
-                            for(int& j : i.second)
-                                j = g2l[j];
+                            std::for_each(i.second.begin(), i.second.end(), [&g2l](int& j) { j = g2l.at(j); });
                     accumulate = 0;
                     for(std::pair<const int, unsigned short>& i : off)
                         g2l.emplace(i.first - (Solver<K>::_numbering == 'F'), accumulate++);
@@ -311,11 +309,8 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                             j -= _dof;
                     std::for_each(J, J + I[nrow] + _di[nrow] - (Solver<K>::_numbering == 'F' ? 2 : 0), [&](int& i) { i = g2l[i - (Solver<K>::_numbering == 'F')] + (Solver<K>::_numbering == 'F'); });
                     _buff = new K*[_send.size() + _recv.size()];
-                    accumulate = 0;
-                    for(const std::pair<unsigned short, std::vector<int>>& i : _recv)
-                        accumulate += i.second.size();
-                    for(const std::pair<unsigned short, std::vector<int>>& i : _send)
-                        accumulate += i.second.size();
+                    accumulate = std::accumulate(_recv.cbegin(), _recv.cend(), 0, [](unsigned int init, const std::pair<unsigned short, std::vector<int>>& i) { return init + i.second.size(); });
+                    accumulate = std::accumulate(_send.cbegin(), _send.cend(), accumulate, [](unsigned int init, const std::pair<unsigned short, std::vector<int>>& i) { return init + i.second.size(); });
                     *_buff = new K[accumulate * _bs];
                     accumulate = 0;
                     _off = 0;

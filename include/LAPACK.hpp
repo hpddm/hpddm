@@ -275,6 +275,7 @@ class QR {
                         _a[j * _n + i] = _a[i * _n + j] = cpy[i * _n + j];
                 }
         }
+        QR(const QR&) = delete;
         ~QR() {
             delete [] _a;
         }

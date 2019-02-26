@@ -146,8 +146,7 @@ class Subdomain : public OptionsPrefix {
             if(_a)
                 _dof = _a->_n;
             std::vector<unsigned short> sortable;
-            for(const auto& i : o)
-                sortable.emplace_back(i);
+            std::copy(o.begin(), o.end(), std::back_inserter(sortable));
             _map.reserve(sortable.size());
             std::vector<unsigned short> idx(sortable.size());
             std::iota(idx.begin(), idx.end(), 0);
@@ -231,9 +230,7 @@ class Subdomain : public OptionsPrefix {
             _buff = new K*[2 * _map.size()];
         }
         bool setBuffer(K* wk = nullptr, const int& space = 0) const {
-            unsigned int n = 0;
-            for(const auto& i : _map)
-                n += i.second.size();
+            unsigned int n = std::accumulate(_map.cbegin(), _map.cend(), 0, [](unsigned int init, const pairNeighbor& i) { return init + i.second.size(); });
             if(n == 0)
                 return false;
             bool allocate;

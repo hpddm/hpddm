@@ -400,11 +400,9 @@ class Option : private Singleton {
                         if(!target || *target != Arg::argument)
                             map[key] = sto<double>(val);
                         else {
-                            for(const auto& x : map)
-                                if(x.first.find(str + "#") == 0) {
-                                    map.erase(x.first);
-                                    break;
-                                }
+                            const std::unordered_map<std::string, double>::const_iterator it = std::find_if(map.cbegin(), map.cend(), [&str](const std::pair<std::string, double>& x) { return x.first.find(str + "#") == 0; });
+                            if(it != map.cend())
+                                map.erase(it);
                             map[key + "#" + val] = -static_cast<int>(key.size()) - 10000000;
                         }
                         if(sep)

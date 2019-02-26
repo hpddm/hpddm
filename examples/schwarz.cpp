@@ -24,7 +24,7 @@
 #include "schwarz.hpp"
 
 struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
-    CustomOperator(const HPDDM::MatrixCSR<K>* const A) : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A) { }
+    explicit CustomOperator(const HPDDM::MatrixCSR<K>* const A) : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A) { }
     template<bool = true>
     void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         for(int i = 0; i < _n; ++i) {

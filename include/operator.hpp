@@ -73,8 +73,7 @@ class OperatorBase : protected Members<P != 's' && P != 'u'> {
         OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max), _connectivity(c) {
             static_assert(Q == P, "Wrong sparsity pattern");
             _sparsity.reserve(_map.size());
-            for(const pairNeighbor& n : _map)
-                _sparsity.emplace_back(n.first);
+            std::transform(_map.cbegin(), _map.cend(), std::back_inserter(_sparsity), [](const pairNeighbor& n) { return n.first; });
         }
         template<char Q = P, typename std::enable_if<Q != 's' && Q != 'u'>::type* = nullptr>
         OperatorBase(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : Members<true>(p.getRank()), _p(p), _deflation(p.getVectors()), _map(p.getMap()), _n(p.getDof()), _local(p.getLocal()), _max(max + std::max(1, (c - 1)) * (max & 4095)), _signed(_p.getSigned()), _connectivity(c) {
@@ -128,8 +127,7 @@ class OperatorBase : protected Members<P != 's' && P != 'u'> {
                     }
                 }
                 else {
-                    for(const pairNeighbor& n : _map)
-                        _sparsity.emplace_back(n.first);
+                    std::transform(_map.cbegin(), _map.cend(), std::back_inserter(_sparsity), [](const pairNeighbor& n) { return n.first; });
                     for(std::vector<unsigned short>& v : Members<true>::_vecSparsity) {
                         unsigned short i = 0, j = 0, k = 0;
                         while(i < v.size() && j < _sparsity.size()) {
