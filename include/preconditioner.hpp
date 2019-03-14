@@ -237,7 +237,11 @@ class Preconditioner : public Subdomain<K> {
         Preconditioner() { };
 #endif
     protected:
-        explicit Preconditioner(const Subdomain<K>& s) : super(s) { };
+        explicit Preconditioner(const Subdomain<K>& s) : super(s)
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+                                                                 , _co(), _ev(), _uc()
+#endif
+                                                                                       { };
     public:
         /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */

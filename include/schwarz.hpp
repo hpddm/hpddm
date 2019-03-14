@@ -226,6 +226,7 @@ class Schwarz : public Preconditioner<
                     opt.setPrefix(super::prefix());
                 super::destroySolver();
                 super::_s.numfact(a);
+                _hash = a->hashIndices();
                 if(resetPrefix)
                     opt.setPrefix("");
             }

@@ -90,7 +90,7 @@ class MklPardiso : public DMatrix {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             _w(),
 #endif
-            _comm(-1) { }
+            _mtype(), _iparm(), _comm(-1) { }
         ~MklPardiso() {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             delete [] _w;
@@ -210,7 +210,7 @@ class MklPardisoSub {
         int                 _n;
         int           _partial;
     public:
-        MklPardisoSub() : _pt(), _C(), _I(), _J(), _w(), _partial() { }
+        MklPardisoSub() : _pt(), _C(), _I(), _J(), _w(), _mtype(), _iparm(), _n(), _partial() { }
         MklPardisoSub(const MklPardisoSub&) = delete;
         ~MklPardisoSub() {
             delete [] _w;
