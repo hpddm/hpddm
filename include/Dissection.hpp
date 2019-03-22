@@ -45,8 +45,9 @@ class DissectionSub {
     public:
         DissectionSub() : _dslv() { }
         DissectionSub(const DissectionSub&) = delete;
-        ~DissectionSub() { delete  _dslv; }
+        ~DissectionSub() { dtor(); }
         static constexpr char _numbering = 'C';
+        void dtor() { delete _dslv; }
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool = false, K* const& = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");

@@ -173,8 +173,7 @@ class Preconditioner : public Subdomain<K> {
             _uc = new K[mu * _co->getSizeRHS()];
         }
         void destroySolver() {
-            using type = alias<Solver<K>>;
-            _s.~type();
+            _s.dtor();
             Option& opt = *Option::get();
             if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
                 opt["reuse_preconditioner"] = 1;

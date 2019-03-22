@@ -268,7 +268,9 @@ class PastixSub {
     public:
         PastixSub() : _data(), _values(), _dparm(), _colptr(), _rows(), _iparm() { }
         PastixSub(const PastixSub&) = delete;
-        ~PastixSub() {
+        ~PastixSub() { dtor(); }
+        static constexpr char _numbering = 'F';
+        void dtor() {
             if(_iparm) {
                 if(_iparm[IPARM_SYM] == API_SYM_YES || _iparm[IPARM_SYM] == API_SYM_HER) {
                     delete [] _rows;
@@ -285,7 +287,6 @@ class PastixSub {
                 delete [] _dparm;
             }
         }
-        static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");

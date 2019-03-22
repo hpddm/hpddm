@@ -161,8 +161,8 @@ class Dense : public Schwarz<
                     S, K>* const A, const K* const E) : _A(A), _E(E) { }
                 const MPI_Comm& getCommunicator() const { return _A->getCommunicator(); }
                 const vectorNeighbor& getMap() const { return _A->getMap(); }
-                int getDof() const { return _A->getDof(); }
-                unsigned short getLocal() const { return _A->getLocal(); }
+                constexpr int getDof() const { return _A->getDof(); }
+                constexpr unsigned short getLocal() const { return _A->getLocal(); }
                 const K* const* getVectors() const { return _A->getVectors(); }
                 const K* getOperator() const { return _E; }
             };

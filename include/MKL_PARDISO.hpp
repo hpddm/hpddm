@@ -212,7 +212,9 @@ class MklPardisoSub {
     public:
         MklPardisoSub() : _pt(), _C(), _I(), _J(), _w(), _mtype(), _iparm(), _n(), _partial() { }
         MklPardisoSub(const MklPardisoSub&) = delete;
-        ~MklPardisoSub() {
+        ~MklPardisoSub() { dtor(); }
+        static constexpr char _numbering = 'F';
+        void dtor() {
             delete [] _w;
             _w = nullptr;
             int phase = -1;
@@ -232,7 +234,6 @@ class MklPardisoSub {
                 _C = nullptr;
             }
         }
-        static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");

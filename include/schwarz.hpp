@@ -111,21 +111,22 @@ class Schwarz : public Preconditioner<
                         transpose[Subdomain<K>::_a->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
             }
             for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
-                std::vector<int> idx(Subdomain<K>::_map[i].second.size());
+                const pairNeighbor& pair = Subdomain<K>::_map[i];
+                std::vector<int> idx(pair.second.size());
                 std::iota(idx.begin(), idx.end(), 0);
-                std::sort(idx.begin(), idx.end(), [&](int lhs, int rhs) { return Subdomain<K>::_map[i].second[lhs] < Subdomain<K>::_map[i].second[rhs]; });
-                for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j) {
+                std::sort(idx.begin(), idx.end(), [&pair](int lhs, int rhs) { return pair.second[lhs] < pair.second[rhs]; });
+                for(unsigned int j = 0; j < pair.second.size(); ++j) {
                     unsigned int nnz = 0, n = send[i].size() + 1;
-                    if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
+                    if(_d[pair.second[j]] > HPDDM_EPS) {
                         send[i].emplace_back(j);
                         send[i].emplace_back(0);
                     }
                     sizes[i] += 2;
                     std::vector<int>::const_iterator it = idx.cbegin();
-                    for(int k = Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[Subdomain<K>::_map[i].second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
-                        it = std::lower_bound(it, idx.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'), [&](int lhs, int rhs) { return Subdomain<K>::_map[i].second[lhs] < rhs; });
-                        if(it != idx.cend() && Subdomain<K>::_map[i].second[*it] == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F')) {
-                            if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
+                    for(int k = Subdomain<K>::_a->_ia[pair.second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::_a->_ia[pair.second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
+                        it = std::lower_bound(it, idx.cend(), Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F'), [&pair](int lhs, int rhs) { return pair.second[lhs] < rhs; });
+                        if(it != idx.cend() && pair.second[*it] == Subdomain<K>::_a->_ja[k] - (HPDDM_NUMBERING == 'F')) {
+                            if(_d[pair.second[j]] > HPDDM_EPS) {
                                 send[i].emplace_back(*it);
                                 send[i].emplace_back(Subdomain<K>::_a->_a[k]);
                                 ++nnz;
@@ -134,19 +135,19 @@ class Schwarz : public Preconditioner<
                         }
                     }
                     if(Subdomain<K>::_a->_sym) {
-                        for(int k = 0; k < transpose[Subdomain<K>::_map[i].second[j]].size(); ++k) {
-                            std::vector<int>::const_iterator first = std::lower_bound(it, idx.cend(), transpose[Subdomain<K>::_map[i].second[j]][k].first, [&](int lhs, int rhs) { return Subdomain<K>::_map[i].second[lhs] < rhs; });
-                            if(first != idx.cend() && Subdomain<K>::_map[i].second[*first] == transpose[Subdomain<K>::_map[i].second[j]][k].first) {
-                                if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS) {
+                        for(int k = 0; k < transpose[pair.second[j]].size(); ++k) {
+                            std::vector<int>::const_iterator first = std::lower_bound(it, idx.cend(), transpose[pair.second[j]][k].first, [&pair](int lhs, int rhs) { return pair.second[lhs] < rhs; });
+                            if(first != idx.cend() && pair.second[*first] == transpose[pair.second[j]][k].first) {
+                                if(_d[pair.second[j]] > HPDDM_EPS) {
                                     send[i].emplace_back(*first);
-                                    send[i].emplace_back(Subdomain<K>::_a->_a[transpose[Subdomain<K>::_map[i].second[j]][k].second]);
+                                    send[i].emplace_back(Subdomain<K>::_a->_a[transpose[pair.second[j]][k].second]);
                                     ++nnz;
                                 }
                                 sizes[i] += 2;
                             }
                         }
                     }
-                    if(_d[Subdomain<K>::_map[i].second[j]] > HPDDM_EPS)
+                    if(_d[pair.second[j]] > HPDDM_EPS)
                         send[i][n] = nnz;
                 }
                 MPI_Isend(send[i].data(), send[i].size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 13, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);

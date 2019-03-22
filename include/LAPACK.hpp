@@ -339,13 +339,14 @@ class LapackTRSub {
     public:
         LapackTRSub() : _a(), _ipiv(), _n(), _type() { }
         LapackTRSub(const LapackTRSub&) = delete;
-        ~LapackTRSub() {
+        ~LapackTRSub() { dtor(); }
+        static constexpr char _numbering = 'F';
+        void dtor() {
             delete [] _a;
             _a = nullptr;
             delete [] _ipiv;
             _ipiv = nullptr;
         }
-        static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING, bool transpose = false>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             _n = A->_n;

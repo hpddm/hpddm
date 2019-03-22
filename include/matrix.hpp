@@ -62,6 +62,7 @@ class MatrixBase {
         MatrixBase(const int& n, const int& m, const bool& sym) : _ia(new int[n + 1]), _ja(), _n(n), _m(m), _nnz(0),  _sym(sym), _free(true) { }
         MatrixBase(const int& n, const int& m, const int& nnz, const bool& sym) : _ia(new int[n + 1]), _ja(new int[nnz]), _n(n), _m(m), _nnz(nnz), _sym(sym), _free(true) { }
         MatrixBase(const int& n, const int& m, const int& nnz, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : _ia(ia), _ja(ja), _n(n), _m(m), _nnz(nnz), _sym(sym), _free(takeOwnership) { }
+        MatrixBase(const MatrixBase&) = delete;
         ~MatrixBase() {
             destroy();
         }
@@ -165,6 +166,7 @@ class MatrixCSR : public MatrixBase<K> {
         MatrixCSR(const int& n, const int& m, const bool& sym) : MatrixBase<K>(n, m, sym), _a() { }
         MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : MatrixBase<K>(n, m, nnz, sym), _a(new K[nnz]) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : MatrixBase<K>(n, m, nnz, ia, ja, sym, takeOwnership), _a(a) { }
+        MatrixCSR(const MatrixCSR&) = delete;
         explicit MatrixCSR(std::ifstream& file) {
             if(!file.good()) {
                 _a = nullptr;

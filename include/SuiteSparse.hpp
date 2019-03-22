@@ -255,7 +255,9 @@ class SuiteSparseSub {
     public:
         SuiteSparseSub() : _L(), _c(), _b(), _x(), _Y(), _E(), _numeric(), _control(), _pattern(), _W(), _tmp() { }
         SuiteSparseSub(const SuiteSparseSub&) = delete;
-        ~SuiteSparseSub() {
+        ~SuiteSparseSub() { dtor(); }
+        static constexpr char _numbering = 'C';
+        void dtor() {
             delete [] _tmp;
             _tmp = nullptr;
             if(_c) {
@@ -275,7 +277,6 @@ class SuiteSparseSub {
                 stsprs<K>::umfpack_free_numeric(&_numeric);
             }
         }
-        static constexpr char _numbering = 'C';
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false) {
             static_assert(N == 'C', "Unsupported numbering");

@@ -220,11 +220,9 @@ class MumpsSub {
     public:
         MumpsSub() : _id(), _I() { }
         MumpsSub(const MumpsSub&) = delete;
-#if defined(__GNUC__) && defined(__GNUG__) && !(defined(__clang__) || defined(__INTEL_COMPILER))
-#pragma GCC push_options
-#pragma GCC optimize ("O0")
-#endif
-        ~MumpsSub() {
+        ~MumpsSub() { dtor(); }
+        static constexpr char _numbering = 'F';
+        void dtor() {
             delete [] _I;
             if(_id) {
                 _id->job = -2;
@@ -234,10 +232,6 @@ class MumpsSub {
                 _I = nullptr;
             }
         }
-#if defined(__GNUC__) && defined(__GNUG__) && !(defined(__clang__) || defined(__INTEL_COMPILER))
-#pragma GCC pop_options
-#endif
-        static constexpr char _numbering = 'F';
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
