@@ -32,7 +32,12 @@ struct PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
     const PetscInt _bs;
     PetscErrorCode (*const _apply)(PC, Mat, Mat);
     PETScOperator(const PETScOperator&) = delete;
-    PETScOperator(const KSP& ksp, PetscInt n, PetscInt bs, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : super(bs * n), _ksp(ksp), _bs(bs), _apply(apply) { }
+    PETScOperator(const KSP& ksp, PetscInt n, PetscInt bs, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : super(bs * n), _ksp(ksp), _bs(bs), _apply(apply) {
+        PC pc;
+        KSPGetPC(ksp, &pc);
+        PCSetFromOptions(pc);
+        PCSetUp(pc);
+    }
     void GMV(const PetscScalar* const in, PetscScalar* const out, const int& mu = 1) const {
         Mat A;
         KSPGetOperators(_ksp, &A, NULL);

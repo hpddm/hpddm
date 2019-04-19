@@ -253,22 +253,30 @@ class MatrixCSR : public MatrixBase<K> {
             tmp.reserve(a->MatrixBase<K>::_nnz);
             MatrixBase<K>::_n = restriction->_n;
             MatrixBase<K>::_m = MatrixBase<K>::_n;
-            MatrixBase<K>::_ia = new int[restriction->_n + 1]();
-            for(int i = 0; i < MatrixBase<K>::_n; ++i) {
-                for(int j = a->MatrixBase<K>::_ia[restriction->_ja[i]]; j < a->MatrixBase<K>::_ia[restriction->_ja[i] + 1]; ++j) {
-                    unsigned int col = perm[a->MatrixBase<K>::_ja[j]];
-                    if(col > 0)
-                        tmp.emplace_back(std::make_pair(col - 1, a->_a[j]));
+            if(a->MatrixBase<K>::_ia) {
+                MatrixBase<K>::_ia = new int[restriction->_n + 1]();
+                for(int i = 0; i < MatrixBase<K>::_n; ++i) {
+                    for(int j = a->MatrixBase<K>::_ia[restriction->_ja[i]]; j < a->MatrixBase<K>::_ia[restriction->_ja[i] + 1]; ++j) {
+                        unsigned int col = perm[a->MatrixBase<K>::_ja[j]];
+                        if(col > 0)
+                            tmp.emplace_back(std::make_pair(col - 1, a->_a[j]));
+                    }
+                    std::sort(tmp.begin() + MatrixBase<K>::_ia[i], tmp.end(), [](const std::pair<int, K>& lhs, const std::pair<int, K>& rhs) { return lhs.first < rhs.first; });
+                    MatrixBase<K>::_ia[i + 1] = tmp.size();
                 }
-                std::sort(tmp.begin() + MatrixBase<K>::_ia[i], tmp.end(), [](const std::pair<int, K>& lhs, const std::pair<int, K>& rhs) { return lhs.first < rhs.first; });
-                MatrixBase<K>::_ia[i + 1] = tmp.size();
+                MatrixBase<K>::_nnz = tmp.size();
+                MatrixBase<K>::_ja = new int[tmp.size()];
+                _a = new K[tmp.size()];
+                for(unsigned int i = 0; i < tmp.size(); ++i) {
+                    MatrixBase<K>::_ja[i] = tmp[i].first;
+                    _a[i] = tmp[i].second;
+                }
             }
-            MatrixBase<K>::_nnz = tmp.size();
-            MatrixBase<K>::_ja = new int[tmp.size()];
-            _a = new K[tmp.size()];
-            for(unsigned int i = 0; i < tmp.size(); ++i) {
-                MatrixBase<K>::_ja[i] = tmp[i].first;
-                _a[i] = tmp[i].second;
+            else {
+                MatrixBase<K>::_ia = nullptr;
+                MatrixBase<K>::_nnz = 0;
+                MatrixBase<K>::_ja = nullptr;
+                _a = nullptr;
             }
         }
         ~MatrixCSR() {
