@@ -187,6 +187,56 @@ class Schwarz : public Preconditioner<
             delete [] send;
             delete [] sizes;
         }
+        bool restrict(underlying_type<K>* const D) const {
+            unsigned int n = 0;
+            for(const auto& i : Subdomain<K>::_map)
+                n += i.second.size();
+            std::vector<int> p;
+            if(n && !Subdomain<K>::_map.empty()) {
+                underlying_type<K>** const buff = new underlying_type<K>*[2 * Subdomain<K>::_map.size()];
+                *buff = new underlying_type<K>[2 * n];
+                buff[Subdomain<K>::_map.size()] = *buff + n;
+                n = 0;
+                for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                    buff[i] = *buff + n;
+                    buff[size + i] = buff[size] + n;
+                    MPI_Irecv(buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
+                    Wrapper<underlying_type<K>>::gthr(Subdomain<K>::_map[i].second.size(), D, buff[size + i], Subdomain<K>::_map[i].second.data());
+                    MPI_Isend(buff[size + i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);
+                    n += Subdomain<K>::_map[i].second.size();
+                }
+                underlying_type<K>* const d = new underlying_type<K>[Subdomain<K>::_dof];
+                std::copy_n(D, Subdomain<K>::_dof, d);
+                for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                    int index;
+                    MPI_Waitany(size, Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
+                    for(int j = 0; j < Subdomain<K>::_map[index].second.size(); ++j)
+                        d[Subdomain<K>::_map[index].second[j]] += buff[index][j];
+                }
+                p.reserve(Subdomain<K>::_dof);
+                for(int i = 0; i < Subdomain<K>::_dof; ++i)
+                    if((std::abs(D[i] - 1.0) > HPDDM_EPS && std::abs(D[i]) > HPDDM_EPS) || std::abs(d[i] - 1.0) > HPDDM_EPS)
+                        p.emplace_back(i);
+                delete [] d;
+                int rank;
+                MPI_Comm_rank(Subdomain<K>::_communicator, &rank);
+                for(int k = 0; k < p.size(); ++k) {
+                    bool largest = true;
+                    for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size && largest; ++i) {
+                        std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), p[k]);
+                        if(it != Subdomain<K>::_map[i].second.cend()) {
+                            const underlying_type<K> v = D[p[k]] - buff[i][std::distance(Subdomain<K>::_map[i].second.cbegin(), it)];
+                            largest = (v > HPDDM_EPS || (std::abs(v) < HPDDM_EPS && rank > Subdomain<K>::_map[i].first));
+                        }
+                    }
+                    D[p[k]] = (largest ? 1.0 : 0.0);
+                }
+                MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
+                delete [] *buff;
+                delete [] buff;
+            }
+            return p.size() > 0;
+        }
 #if HPDDM_SCHWARZ
         /* Function: callNumfact
          *  Factorizes <Subdomain::a> or another user-supplied matrix, useful for <Prcndtnr::OS> and <Prcndtnr::OG>. */
