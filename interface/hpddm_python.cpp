@@ -230,7 +230,9 @@ void schwarzCallNumfact(void* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->callNumfact();
 }
 void schwarzSolveGEVP(void* A, void* neumann) {
+#ifdef EIGENSOLVER
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<K>*>(neumann));
+#endif
 }
 void schwarzBuildCoarseOperator(void* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->buildTwo(comm);

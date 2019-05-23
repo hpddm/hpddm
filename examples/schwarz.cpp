@@ -101,7 +101,9 @@ int main(int argc, char** argv) {
             if(nu > 0) {
                 if(opt.app().find("nonuniform") != opt.app().cend())
                     ref += std::max(static_cast<int>(-ref + 1), HPDDM::pow(-1, rankWorld) * rankWorld);
+#ifdef EIGENSOLVER
                 A.solveGEVP<EIGENSOLVER>(MatNeumann);
+#endif
                 nu = opt[prefix + "geneo_nu"];
             }
             else {

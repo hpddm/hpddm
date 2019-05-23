@@ -173,7 +173,9 @@ void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->callNumfact();
 }
 void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann) {
+#ifdef EIGENSOLVER
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(neumann));
+#endif
 }
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->buildTwo(comm);
@@ -206,6 +208,6 @@ void axpy(const int* n, const K* const a, const K* const x, const int* incx, K* 
 
 #if HPDDM_PETSC
 PetscErrorCode HpddmRegisterKSP() {
-    return KSPRegister("hpddm", HPDDM::KSPCreate_HPDDM);
+    return KSPRegister(KSPHPDDM, HPDDM::KSPCreate_HPDDM);
 }
 #endif

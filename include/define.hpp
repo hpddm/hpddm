@@ -83,4 +83,6 @@
 #define HPDDM_HYPRE_SOLVER_PCG                                  1
 #define HPDDM_HYPRE_SOLVER_AMG                                  2
 
+#define KSPHPDDM                                                "hpddm"
+
 #endif // _HPDDM_DEFINE_

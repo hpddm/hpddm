@@ -450,6 +450,10 @@ using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
 # include "LAPACK.hpp"
 #endif // __cplusplus
 #if HPDDM_PETSC
+# ifdef HPDDM_MINIMAL
+#  include "LAPACK.hpp"
+#  include "iterative.hpp"
+# endif
 # include "PETSc.hpp"
 #endif
 
