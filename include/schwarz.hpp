@@ -187,7 +187,7 @@ class Schwarz : public Preconditioner<
             delete [] send;
             delete [] sizes;
         }
-        bool restrict(underlying_type<K>* const D) const {
+        bool restriction(underlying_type<K>* const D) const {
             unsigned int n = 0;
             for(const auto& i : Subdomain<K>::_map)
                 n += i.second.size();
