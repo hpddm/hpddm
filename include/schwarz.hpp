@@ -376,8 +376,60 @@ class Schwarz : public Preconditioner<
          *
          * See also: <Bdd::buildTwo>, <Feti::buildTwo>. */
         template<unsigned short excluded = 0>
-        std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm) {
-            return super::template buildTwo<excluded, MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm);
+        std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, MatrixCSR<K>* const& A = nullptr) {
+#if HPDDM_INEXACT_COARSE_OPERATOR
+            Option& opt = *Option::get();
+            const std::string prefix = super::prefix();
+            if(opt.val<unsigned short>(prefix + "level_2_aggregate_size") != 1)
+                opt.remove(prefix + "level_2_schwarz_method");
+#endif
+            std::pair<MPI_Request, const K*>* ret = super::template buildTwo<excluded, MatrixMultiplication<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm);
+#if HPDDM_INEXACT_COARSE_OPERATOR
+            if(super::_co) {
+                super::_co->setParent(this);
+                const unsigned short p = opt.val<unsigned short>(prefix + "level_2_p", 1);
+                const unsigned short method = opt.val<unsigned short>(prefix + "level_2_schwarz_method", HPDDM_SCHWARZ_METHOD_NONE);
+                if(super::_co && p > 1 && opt.val<unsigned short>(prefix + "level_2_aggregate_size", p) == 1 && (method == HPDDM_SCHWARZ_METHOD_RAS || method == HPDDM_SCHWARZ_METHOD_ASM) && opt.val<char>(prefix + "level_2_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) {
+                    CoarseOperator<CoarseSolver, S, K>* coNeumann  = nullptr;
+                    std::vector<K> overlap;
+                    std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
+                    std::map<std::pair<unsigned short, unsigned short>, unsigned short> sizes;
+                    std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
+                    MPI_Request rs = MPI_REQUEST_NULL;
+                    if(opt.set(prefix + "level_2_schwarz_coarse_correction") && A) {
+                        MatrixCSR<K>* backup = Subdomain<K>::_a;
+                        Subdomain<K>::_a = A;
+                        coNeumann = new CoarseOperator<CoarseSolver, S, K>;
+                        std::string filename = opt.prefix(prefix + "level_2_dump_matrix", true);
+                        std::string filenameNeumann = std::string("-hpddm_") + prefix + std::string("level_2_dump_matrix ") + filename + std::string("_Neumann");
+                        if(filename.size() > 0)
+                            opt.parse(filenameNeumann);
+                        if(!A->_ia && !A->_ja && A->_nnz == backup->_nnz) {
+                            A->_ia = backup->_ia;
+                            A->_ja = backup->_ja;
+                        }
+                        super::template buildTwo<excluded, MatrixAccumulation<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm, coNeumann, overlap, reduction, sizes, extra);
+                        if(A->_ia == backup->_ia && A->_ja == backup->_ja && A->_nnz == backup->_nnz) {
+                            A->_ia = nullptr;
+                            A->_ja = nullptr;
+                        }
+                        if(overlap.size())
+                            MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);
+                        if(filename.size() > 0) {
+                            filenameNeumann = std::string("-hpddm_") + prefix + std::string("level_2_dump_matrix ") + filename;
+                            opt.parse(filenameNeumann);
+                        }
+                        Subdomain<K>::_a = backup;
+                    }
+                    opt.setPrefix(prefix + "level_2_");
+                    super::_co->buildThree(coNeumann, reduction, sizes, extra);
+                    delete coNeumann;
+                    MPI_Wait(&rs, MPI_STATUS_IGNORE);
+                }
+                opt.setPrefix(std::string());
+            }
+#endif
+            return ret;
         }
         template<bool excluded = false>
         bool start(const K* const b, K* const x, const unsigned short& mu = 1) const {

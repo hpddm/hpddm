@@ -158,10 +158,7 @@ class MklPardiso : public DMatrix {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
 #endif
-            if((S == 'S' && opt.val<char>("master_spd", 0) == 1) || *loc2glob != _iparm[41] - _iparm[40] + 1)
-                _C = nullptr;
-            else
-                C = nullptr;
+            C = nullptr;
             delete [] loc2glob;
         }
         /* Function: solve

@@ -353,24 +353,25 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             info[2] = size;
             size *= _local;
             if(S == 'S') {
-                info[0] -= first;
+                if(Operator::_factorize)
+                    info[0] -= first;
                 size += _local * (_local + 1) / 2;
             }
-            if(_local) {
-                if(excluded == 0)
-                    std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
+        }
+        if(_local && (rankSplit || !Operator::_factorize)) {
+            if(excluded == 0)
+                std::copy_n(sparsity.cbegin() + (Operator::_factorize ? first : 0), info[0], info + (U != 1 ? 3 : 1));
+            else {
+                if(T != 1) {
+                    for(unsigned short i = 0; i < info[0]; ++i) {
+                        info[(U != 1 ? 3 : 1) + i] = sparsity[i + (Operator::_factorize ? first : 0)] + 1;
+                        for(unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (_sizeWorld / p) * (j + 1) : DMatrix::_ldistribution[j + 1]); ++j)
+                            ++info[(U != 1 ? 3 : 1) + i];
+                    }
+                }
                 else {
-                    if(T != 1) {
-                        for(unsigned short i = 0; i < info[0]; ++i) {
-                            info[(U != 1 ? 3 : 1) + i] = sparsity[i + first] + 1;
-                            for(unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (_sizeWorld / p) * (j + 1) : DMatrix::_ldistribution[j + 1]); ++j)
-                                ++info[(U != 1 ? 3 : 1) + i];
-                        }
-                    }
-                    else {
-                        for(unsigned short i = 0; i < info[0]; ++i)
-                            info[(U != 1 ? 3 : 1) + i] = p + sparsity[i + first];
-                    }
+                    for(unsigned short i = 0; i < info[0]; ++i)
+                        info[(U != 1 ? 3 : 1) + i] = p + sparsity[i + (Operator::_factorize ? first : 0)];
                 }
             }
         }
@@ -385,7 +386,13 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
             else
                 size = _local * _local * (1 + info[0]);
-            std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
+            if(Operator::_factorize)
+                std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
+        }
+        if(!Operator::_factorize) {
+            if(S == 'S' && rankSplit)
+                info[0] += first;
+            std::copy_n(sparsity.cbegin(), info[0], info + (U != 1 ? 3 : 1));
         }
     }
     unsigned short** infoSplit;
@@ -398,8 +405,21 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
     unsigned int nrow;
     int* loc2glob;
 #endif
-    if(rankSplit)
+    if(rankSplit) {
         MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, NULL, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
+        if(!Operator::_factorize) {
+            v.template setPattern<S, U == 1>(DMatrix::_ldistribution, p, _sizeSplit);
+            if(S == 'S') {
+                info[0] -= first;
+                if(U)
+                    std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
+                else {
+                    for(unsigned short i = 0; i < info[0]; ++i)
+                        info[(U != 1 ? 3 : 1) + i] = info[(U != 1 ? 3 : 1) + first + i];
+                }
+            }
+        }
+    }
     else {
         size = 0;
         infoSplit = new unsigned short*[_sizeSplit];
@@ -407,7 +427,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
         MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0, _scatterComm);
         for(unsigned int i = 1; i < _sizeSplit; ++i)
             infoSplit[i] = *infoSplit + i * ((U != 1 ? 3 : 1) + v.getConnectivity());
-        if(S == 'S' && Operator::_pattern == 's')
+        if(S == 'S' && Operator::_pattern == 's' && Operator::_factorize)
             **infoSplit -= first;
         offsetIdx = new unsigned int[std::max(_sizeSplit - 1, 2 * p)];
         if(U != 1) {
@@ -456,8 +476,12 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
                 size += _local * tmp + (S == 'S' ? _local * (_local + 1) / 2 : _local * _local);
             if(S == 'S')
                 info[0] -= first;
+            if(!Operator::_factorize)
+                v.template setPattern<S, U == 1>(DMatrix::_ldistribution, p, _sizeSplit, infoSplit, infoWorld);
         }
         else {
+            if(!Operator::_factorize)
+                v.template setPattern<S, U == 1>(DMatrix::_ldistribution, p, _sizeSplit, infoSplit, infoWorld);
             DMatrix::_n = (_sizeWorld - (excluded == 2 ? p : 0)) * _local;
             v._max = (_rankWorld - (excluded == 2 ? rank : 0)) * _local + (super::_numbering == 'F');
 #ifdef HPDDM_CSR_CO
@@ -1092,7 +1116,7 @@ inline std::pair<MPI_Request, const K*>* CoarseOperator<Solver, S, K>::construct
             }
         }
         super::_bs = (!blocked ? 1 : _local);
-        super::template numfact<T>(nrow / (!blocked ? 1 : _local), I, loc2glob, J, pt, neighbors);
+        super::template numfact<T, Operator::_factorize>(nrow / (!blocked ? 1 : _local), I, loc2glob, J, pt, neighbors);
         std::swap(DMatrix::_n, rank);
         if(T == 1)
             std::iota(DMatrix::_ldistribution + 1, DMatrix::_ldistribution + p, 1);

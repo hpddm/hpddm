@@ -268,6 +268,7 @@ class CoarseOperator : public coarse_operator_type<Solver, S, downscaled_type<K>
         /* Function: getSizeRHS
          *  Returns the value of <Coarse operator::sizeRHS>. */
         constexpr unsigned int getSizeRHS() const { return _sizeRHS; }
+        const MPI_Comm& getCommunicator() const { return _scatterComm; }
 };
 } // HPDDM
 #endif // _HPDDM_COARSE_OPERATOR_
