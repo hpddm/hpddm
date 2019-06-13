@@ -448,21 +448,6 @@ class Schwarz : public Preconditioner<
                 if(opt.any_of(prefix + "krylov_method", { HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
                     k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
                 super::start(mu * k);
-                if(opt.val<char>(prefix + "schwarz_coarse_correction") == HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED) {
-                    if(opt.val<char>("geneo_force_uniformity") == HPDDM_GENEO_FORCE_UNIFORMITY_MAX)
-                        opt[prefix + "schwarz_coarse_correction"] = HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED;
-                    else if(!excluded) {
-                        K* tmp = new K[mu * Subdomain<K>::_dof];
-                        GMV(x, tmp, mu);                                                  // tmp = A x
-                        Blas<K>::axpby(mu * Subdomain<K>::_dof, 1.0, b, 1, -1.0, tmp, 1); // tmp = b - A x
-                        deflation<excluded>(nullptr, tmp, mu);                            // tmp = Z E \ Z^T (b - A x)
-                        int dim = mu * Subdomain<K>::_dof;
-                        Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), tmp, &i__1, x, &i__1);   //   x = x + Z E \ Z^T (b - A x)
-                        delete [] tmp;
-                    }
-                    else
-                        deflation<excluded>(nullptr, nullptr, mu);
-                }
             }
             return allocate;
         }
@@ -504,11 +489,11 @@ class Schwarz : public Preconditioner<
                 }
             }
             else {
-                int tmp = mu * Subdomain<K>::_dof;
+                int n = mu * Subdomain<K>::_dof;
                 if(!work)
                     work = const_cast<K*>(in);
                 else if(!excluded)
-                    std::copy_n(in, tmp, work);
+                    std::copy_n(in, n, work);
                 if(correction == HPDDM_SCHWARZ_COARSE_CORRECTION_ADDITIVE) {
 #if HPDDM_ICOLLECTIVE
                     MPI_Request rq[2];
@@ -516,9 +501,9 @@ class Schwarz : public Preconditioner<
                     if(!excluded) {
                         super::_s.solve(work, mu); // out = A \ in
                         MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
-                        int k = mu;
+                        const int k = mu;
                         Blas<K>::gemm("N", "N", &(Subdomain<K>::_dof), &k, super::getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, super::getAddrLocal(), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof)); // out = _ev E \ _ev^T D in
-                        Blas<K>::axpy(&tmp, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
                         exchange(out, mu); // out = Z E \ Z^T in + A \ in
                     }
                     else
@@ -527,47 +512,45 @@ class Schwarz : public Preconditioner<
                     deflation<excluded>(in, out, mu);
                     if(!excluded) {
                         super::_s.solve(work, mu);
-                        Blas<K>::axpy(&tmp, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
                         exchange(out, mu);
                     }
 #endif // HPDDM_ICOLLECTIVE
-                }
-                else if(correction == HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED) {
-                    if(!excluded) {
-                        if(_type == Prcndtnr::OS)
-                            Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
-                        super::_s.solve(work, out, mu);
-                        exchange(out, mu);
-                        GMV(out, work, mu);
-                        deflation<excluded>(nullptr, work, mu);
-                        Blas<K>::axpy(&tmp, &(Wrapper<K>::d__2), work, &i__1, out, &i__1);
-                    }
-                    else
-                        deflation<excluded>(nullptr, nullptr, mu);
                 }
                 else {
                     deflation<excluded>(in, out, mu);                                                                  // out = Z E \ Z^T in
                     if(!excluded) {
                         if(!Subdomain<K>::_a->_ia && !Subdomain<K>::_a->_ja) {
-                            K* workBis = new K[mu * Subdomain<K>::_dof];
-                            GMV(out, workBis, mu);
-                            Blas<K>::axpby(mu * Subdomain<K>::_dof, -1.0, workBis, 1, 1.0, work, 1);
-                            delete [] workBis;
+                            K* tmp = new K[mu * Subdomain<K>::_dof];
+                            GMV(out, tmp, mu);
+                            Blas<K>::axpby(n, -1.0, tmp, 1, 1.0, work, 1);
+                            delete [] tmp;
                         }
                         else {
                             if(HPDDM_NUMBERING == Wrapper<K>::I)
-                                Wrapper<K>::csrmm("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                                Wrapper<K>::csrmm("N", &(Subdomain<K>::_dof), &(n = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
                             else if(Subdomain<K>::_a->_ia[Subdomain<K>::_dof] == Subdomain<K>::_a->_nnz)
-                                Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                                Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::_dof), &(n = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
                             else
-                                Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::_dof), &(tmp = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
+                                Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::_dof), &(n = mu), &(Subdomain<K>::_dof), &(Wrapper<K>::d__2), Subdomain<K>::_a->_sym, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, out, &(Wrapper<K>::d__1), work);
                         }
                         exchange(work, mu);                                                                            //  in = (I - A Z E \ Z^T) in
                         if(_type == Prcndtnr::OS)
                             Wrapper<K>::diag(Subdomain<K>::_dof, _d, work, mu);
                         super::_s.solve(work, mu);
                         exchange(work, mu);                                                                            //  in = D A \ (I - A Z E \ Z^T) in
-                        Blas<K>::axpy(&(tmp = mu * Subdomain<K>::_dof), &(Wrapper<K>::d__1), work, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
+                        n = mu * Subdomain<K>::_dof;
+                        if(correction == HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED) {
+                            if(!excluded) {
+                                K* tmp = new K[n];
+                                GMV(work, tmp, mu);
+                                deflation<excluded>(nullptr, tmp, mu);
+                                Blas<K>::axpy(&n, &(Wrapper<K>::d__2), tmp, &i__1, out, &i__1);
+                            }
+                            else
+                                deflation<excluded>(nullptr, nullptr, mu);
+                        }
+                        Blas<K>::axpy(&n, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);   // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
                     }
                 }
             }
