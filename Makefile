@@ -309,10 +309,6 @@ ifdef EIGENSOLVER
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
 		examples/solver.py ${TRASH_DIR}/output_2_4.txt; \
 	fi
-	${MPIRUN} 8 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_tol=1.0e-4 -hpddm_schwarz_coarse_correction balanced -hpddm_geneo_nu=0 -hpddm_verbosity=2 -Nx 40 -Ny 40 -symmetric_csr -hpddm_dump_matrices ${TRASH_DIR}/output
-	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
-		examples/solver.py ${TRASH_DIR}/output_2_8.txt; \
-	fi
 endif
 
 test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp

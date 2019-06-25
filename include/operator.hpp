@@ -708,9 +708,8 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 int index;
                 MPI_Waitany(super::_map.size(), rq, &index, MPI_STATUS_IGNORE);
-                if(std::binary_search(overlap.cbegin(), overlap.cend(), index))
-                    for(unsigned short k = 0; k < (U ? super::_local : info[index]); ++k)
-                        Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), tmp[index] + k * omap.size());
+                for(unsigned short k = 0; k < (U ? super::_local : info[index]); ++k)
+                    Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), tmp[index] + k * omap.size());
             }
             for(unsigned short i = 0; i < super::_map.size(); ++i)
                 MPI_Irecv(buff[i], super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 21, super::_p.getCommunicator(), rq + i);
@@ -743,9 +742,8 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             MPI_Waitall(super::_map.size(), rq + super::_map.size(), MPI_STATUSES_IGNORE);
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 m = (U == 1 ? super::_local : info[i]);
-                if(std::binary_search(overlap.cbegin(), overlap.cend(), i))
-                    for(unsigned short j = 0; j < m; ++j)
-                        Wrapper<K>::gthr(nmap[i].size(), tmp[super::_map.size() + i] + j * omap.size(), buff[super::_map.size() + i] + j * nmap[i].size(), nmap[i].data());
+                for(unsigned short j = 0; j < m; ++j)
+                    Wrapper<K>::gthr(nmap[i].size(), tmp[super::_map.size() + i] + j * omap.size(), buff[super::_map.size() + i] + j * nmap[i].size(), nmap[i].data());
                 MPI_Isend(buff[super::_map.size() + i], super::_map[i].second.size() * m, Wrapper<K>::mpi_type(), super::_map[i].first, 21, super::_p.getCommunicator(), rq + super::_map.size() + i);
             }
             K* pt = _overlap.data();

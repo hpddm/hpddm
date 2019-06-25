@@ -1141,7 +1141,26 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
 #ifdef DMKL_PARDISO
                     delete [] A->_da;
 #endif
-                    _s->template solveGEVP<EIGENSOLVER>(overlapNeumann);
+                    {
+                        std::vector<int> ia, ja;
+                        ia.reserve(overlapDirichlet->_n + 1);
+                        ia.emplace_back(HPDDM_NUMBERING == 'F');
+                        std::vector<K> a;
+                        ja.reserve(overlapDirichlet->_nnz);
+                        a.reserve(overlapDirichlet->_nnz);
+                        for(unsigned int i = 0; i < overlapDirichlet->_n; ++i) {
+                            if(std::abs(d[i]) > HPDDM_EPS)
+                                for(unsigned int j = overlapDirichlet->_ia[i] - (HPDDM_NUMBERING == 'F'); j < overlapDirichlet->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j) {
+                                    if(std::abs(d[overlapDirichlet->_ja[j]]) > HPDDM_EPS) {
+                                        ja.emplace_back(overlapDirichlet->_ja[j]);
+                                        a.emplace_back(overlapDirichlet->_a[j] * d[i] * d[ja.back() - (HPDDM_NUMBERING == 'F')]);
+                                    }
+                                }
+                            ia.emplace_back(ja.size() + (HPDDM_NUMBERING == 'F'));
+                        }
+                        MatrixCSR<K> weighted(overlapDirichlet->_n, overlapDirichlet->_m, a.size(), a.data(), ia.data(), ja.data(), overlapDirichlet->_sym);
+                        _s->template solveGEVP<EIGENSOLVER>(overlapNeumann, &weighted);
+                    }
                     delete overlapNeumann;
                     _s->template buildTwo<0>(_communicator, nullptr);
                 }
