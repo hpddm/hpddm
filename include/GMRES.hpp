@@ -121,7 +121,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
     }
     if(!excluded && j == m[0] + 1) {
         const int rem = m[0] % m[1];
-        std::for_each(hasConverged, hasConverged + mu, [&](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
+        std::for_each(hasConverged, hasConverged + mu, [&rem](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
     }
     updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0), hasConverged, mu, Ax);
     convergence<0>(id[0], j, m[0]);
