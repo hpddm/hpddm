@@ -50,7 +50,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("push_prefix", "Prepend the according prefix for all following options (use -" + std::string(HPDDM_PREFIX) + "pop_prefix when done)", Arg::anything),
         std::forward_as_tuple("reuse_preconditioner=(0|1)", "Do not factorize again the local matrices when solving subsequent systems", Arg::argument),
         std::forward_as_tuple("operator_spd=(0|1)", "Assume the operator is symmetric positive definite", Arg::argument),
-        std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram-Schmidt process", Arg::argument),
+        std::forward_as_tuple("orthogonalization=(cgs|mgs)", "Classical (faster) or Modified (more robust) Gram--Schmidt process", Arg::argument),
 #ifndef HPDDM_NO_REGEX
         std::forward_as_tuple("dump_matri(ces|x_[[:digit:]]+)=<output_file>", "Save either one or all local matrices to disk", Arg::argument),
 #if defined(EIGENSOLVER) || HPDDM_FETI || HPDDM_BDD
@@ -66,13 +66,13 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         std::forward_as_tuple("enlarge_krylov_subspace=<val>", "Split the initial right-hand side into multiple vectors", Arg::positive),
         std::forward_as_tuple("gmres_restart=<40>", "Maximum number of Arnoldi vectors generated per cycle", Arg::positive),
         std::forward_as_tuple("variant=(left|right|flexible)", "Left, right, or variable preconditioning", Arg::argument),
-        std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram-Schmidt process", Arg::argument),
+        std::forward_as_tuple("qr=(cholqr|cgs|mgs)", "Distributed QR factorizations computed with Cholesky QR, Classical or Modified Gram--Schmidt process", Arg::argument),
         std::forward_as_tuple("deflation_tol=<val>", "Tolerance when deflating right-hand sides inside block methods", Arg::numeric),
         std::forward_as_tuple("recycle=<val>", "Number of harmonic Ritz vectors to compute", Arg::positive),
         std::forward_as_tuple("recycle_same_system=(0|1)", "Assume the system is the same as the one for which Ritz vectors have been computed", Arg::argument),
         std::forward_as_tuple("recycle_strategy=(A|B)", "Generalized eigenvalue problem to solve for recycling", Arg::argument),
         std::forward_as_tuple("recycle_target=(SM|LM|SR|LR|SI|LI)", "Criterion to select harmonic Ritz vectors", Arg::argument),
-        std::forward_as_tuple("richardson_damping_factor=<1.0>", "Damping factor using in Richardson iterations", Arg::argument),
+        std::forward_as_tuple("richardson_damping_factor=<1.0>", "Damping factor used in Richardson iterations", Arg::argument),
 #if HPDDM_SCHWARZ
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n Overlapping Schwarz methods options:"; return true; }),
         std::forward_as_tuple("schwarz_method=(ras|oras|soras|asm|osm|none)", "Symmetric or not, Optimized or Additive, Restricted or not", Arg::argument),

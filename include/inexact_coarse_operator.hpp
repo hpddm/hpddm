@@ -676,13 +676,13 @@ class InexactCoarseOperator : public OptionsPrefix, public Solver<K> {
                             if(pt != in->_dj + in->_di[p.second[i] + 1] - (Solver<K>::_numbering == 'F') && *pt == p.second[k] + (Solver<K>::_numbering == 'F')) {
                                 send.back().first[2 * i]++;
                                 col.emplace_back(k);
-                                val.insert(val.cend(), in->_da + std::distance(in->_dj, pt) * bss, in->_da + (std::distance(in->_dj, pt) + 1) * bss);
+                                val.insert(val.end(), in->_da + std::distance(in->_dj, pt) * bss, in->_da + (std::distance(in->_dj, pt) + 1) * bss);
                             }
                         }
                         send.back().first[2 * i + 1] = in->_oi[p.second[i] + 1] - in->_oi[p.second[i]];
                         for(unsigned int k = in->_oi[p.second[i]] - (Solver<K>::_numbering == 'F'); k < in->_oi[p.second[i] + 1] - (Solver<K>::_numbering == 'F'); ++k) {
                             col.emplace_back(in->_ogj[k] - (Solver<K>::_numbering == 'F'));
-                            val.insert(val.cend(), in->_oa + k * bss, in->_oa + (k + 1) * bss);
+                            val.insert(val.end(), in->_oa + k * bss, in->_oa + (k + 1) * bss);
                         }
                     }
                     MPI_Isend(send.back().first, 2 * p.second.size(), MPI_INT, p.first, 322, in->_communicator, rqSend);
