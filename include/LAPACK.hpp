@@ -92,6 +92,10 @@ void HPDDM_F77(B ## ggev)(const char*, const char*, const int*, U*, const int*, 
                           U*, const int*, U*, const int*, U*, const int*, int*);                             \
 void HPDDM_F77(C ## ggev)(const char*, const char*, const int*, T*, const int*, T*, const int*, T*, T*,      \
                           T*, const int*, T*, const int*, T*, const int*, U*, int*);                         \
+void HPDDM_F77(B ## gesvd)(const char*, const char*, const int*, const int*, U*, const int*, U*, U*,         \
+                           const int*, U*, const int*, U*, const int*, int*);                                \
+void HPDDM_F77(C ## gesvd)(const char*, const char*, const int*, const int*, T*, const int*, U*, T*,         \
+                           const int*, T*, const int*, T*, const int*, U*, int*);                            \
 void HPDDM_F77(B ## gesdd)(const char*, const int*, const int*, U*, const int*, U*, U*, const int*, U*,      \
                            const int*, U*, const int*, int*, int*);                                          \
 void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, U*, T*, const int*, T*,      \
@@ -223,6 +227,9 @@ struct Lapack {
     /* Function: mtr
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::trd>. */
     static void mtr(const char*, const char*, const char*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
+    /* Function: gesvd
+     *  Computes the singular value decomposition of a rectangular matrix. */
+    static void gesvd(const char*, const char*, const int*, const int*, K*, const int*, underlying_type<K>*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*);
     /* Function: gesdd
      *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
     static void gesdd(const char*, const int*, const int*, K*, const int*, underlying_type<K>*, K*, const int*, K*, const int*, K*, const int*, underlying_type<K>*, int*, int*);
@@ -681,6 +688,18 @@ inline void Lapack<T>::ggev(const char* jobvl, const char* jobvr, const int* n, 
                             const int* ldvr, T* work, const int* lwork, U* rwork, int* info) {               \
     HPDDM_F77(C ## ggev)(jobvl, jobvr, n, a, lda, b, ldb, alpha, beta, vl, ldvl, vr, ldvr, work, lwork,      \
                          rwork, info);                                                                       \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<U>::gesvd(const char* jobu, const char* jobvt, const int* m, const int* n, U* a,          \
+                             const int* lda, U* s, U* u, const int* ldu, U* vt, const int* ldvt, U* work,    \
+                             const int* lwork, U*, int* info) {                                              \
+    HPDDM_F77(B ## gesvd)(jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, info);                \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::gesvd(const char* jobu, const char* jobvt, const int* m, const int* n, T* a,          \
+                             const int* lda, U* s, T* u, const int* ldu, T* vt, const int* ldvt, T* work,    \
+                             const int* lwork, U* rwork, int* info) {                                        \
+    HPDDM_F77(C ## gesvd)(jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, info);         \
 }                                                                                                            \
 template<>                                                                                                   \
 inline void Lapack<U>::gesdd(const char* jobz, const int* m, const int* n, U* a, const int* lda, U* s,       \
