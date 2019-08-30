@@ -191,7 +191,18 @@ class Preconditioner : public Subdomain<K> {
                 opt["reuse_preconditioner"] = 1;
         }
     public:
-        Preconditioner() : _co(), _ev(), _uc() { }
+#if !HPDDM_PETSC
+        struct CoarseCorrection {
+            virtual void operator()(const K* const in, K* const out) = 0;
+            virtual ~CoarseCorrection() { };
+        };
+        CoarseCorrection*  _cc;
+#endif
+        Preconditioner() : _co(), _ev(), _uc() {
+#if !HPDDM_PETSC
+            _cc = nullptr;
+#endif
+        }
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
             delete _co;
@@ -202,6 +213,10 @@ class Preconditioner : public Subdomain<K> {
             _ev = nullptr;
             delete [] _uc;
             _uc = nullptr;
+#if !HPDDM_PETSC
+            delete _cc;
+            _cc = nullptr;
+#endif
         }
         /* Function: initialize
          *

@@ -326,6 +326,13 @@ class Schwarz : public Preconditioner<
          *    mu             - Number of vectors. */
         template<bool excluded>
         void deflation(const K* const in, K* const out, const unsigned short& mu) const {
+#if !HPDDM_PETSC
+            if(super::_cc) {
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    (*super::_cc)(in + nu * Subdomain<K>::_dof, out + nu * Subdomain<K>::_dof);
+                return;
+            }
+#endif
             if(excluded)
                 super::_co->template callSolver<excluded>(super::_uc, mu);
             else {
@@ -466,7 +473,11 @@ class Schwarz : public Preconditioner<
         template<bool excluded = false>
         void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
             const char correction = Option::get()->val<char>(super::prefix("schwarz_coarse_correction"), -1);
+#if !HPDDM_PETSC
+            if((!super::_co && !super::_cc) || correction == -1) {
+#else
             if(!super::_co || correction == -1) {
+#endif
                 if(_type == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::_dof, out);
                 else if(_type == Prcndtnr::GE || _type == Prcndtnr::OG) {
