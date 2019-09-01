@@ -134,8 +134,21 @@ class Preconditioner : public Subdomain<K> {
                 double construction = MPI_Wtime();
                 const std::string prev = opt.getPrefix();
                 std::string level;
-                if(prev.size() == 0)
-                    level = prefix + "level_2_";
+                if(prev.size() == 0) {
+                    std::string sub;
+                    if(prefix.size() >= 8) {
+                        sub = prefix.substr(prefix.size() - 8, std::string::npos);
+                        const std::size_t find = sub.find("level_", 0);
+                        if(find == std::string::npos)
+                            level = prefix + "level_2_";
+                        else {
+                            sub = sub.substr(6, 1);
+                            level = prefix.substr(0, prefix.size() - 2) + std::to_string(std::stoi(sub) + 1) + "_";
+                        }
+                    }
+                    else
+                        level = prefix + "level_2_";
+                }
                 else {
                     std::string sub = prev.substr(6, std::string::npos);
                     const std::size_t find = sub.find("_", 0);
