@@ -31,15 +31,15 @@
 #define HPDDM_MINIMAL
 #include <HPDDM.hpp>
 #ifdef MUMPSSUB
-# include "MUMPS.hpp"
+# include "HPDDM_MUMPS.hpp"
 #elif defined(MKL_PARDISOSUB)
-# include "MKL_PARDISO.hpp"
+# include "HPDDM_MKL_PARDISO.hpp"
 #elif defined(PASTIXSUB)
-# include "PaStiX.hpp"
+# include "HPDDM_PaStiX.hpp"
 #elif defined(SUITESPARSESUB)
-# include "SuiteSparse.hpp"
+# include "HPDDM_SuiteSparse.hpp"
 #elif defined(DISSECTIONSUB)
-# include "Dissection.hpp"
+# include "HPDDM_Dissection.hpp"
 #endif
 
 #ifdef FORCE_SINGLE

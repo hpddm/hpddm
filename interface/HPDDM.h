@@ -38,7 +38,7 @@
 #ifndef MPI_VERSION
 # include <mpi.h>
 #endif
-#include "../include/define.hpp"
+#include "../include/HPDDM_define.hpp"
 
 #ifdef FORCE_SINGLE
 #ifdef FORCE_COMPLEX
@@ -112,7 +112,6 @@ void HpddmSchwarzComputeResidual(HpddmSchwarz*, const K* const, const K* const, 
 void HpddmSchwarzDestroy(HpddmSchwarz*);
 
 int HpddmSolve(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
-void HpddmDestroyRecycling();
 struct HpddmCustomOperator;
 typedef struct HpddmCustomOperator HpddmCustomOperator;
 int HpddmCustomOperatorSolve(const HpddmCustomOperator* const, int, void (*)(const HpddmCustomOperator* const, const K*, K*, int), void (*)(const HpddmCustomOperator* const, const K*, K*, int), const K* const, K* const, int, const MPI_Comm*);

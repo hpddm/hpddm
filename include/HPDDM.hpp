@@ -28,88 +28,7 @@
 
 /* Title: HPDDM */
 
-/* Constants: C-style preprocessor variables
- *
- *    HPDDM_VERSION       - Version of the framework.
- *    HPDDM_EPS           - Small positive number used internally for dropping values.
- *    HPDDM_PEN           - Large positive number used externally for penalization, e.g. for imposing Dirichlet boundary conditions.
- *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
- *    HPDDM_MPI           - If not set to zero, MPI is supposed to be activated during compilation and for running the library.
- *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra backend.
- *    HPDDM_NUMBERING     - 0- or 1-based indexing of user-supplied matrices.
- *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
- *    HPDDM_FETI          - FETI methods enabled.
- *    HPDDM_BDD           - BDD methods enabled.
- *    HPDDM_DENSE         - Methods for dense matrices enabled. Users must provide their own matrix--vector products.
- *    HPDDM_PETSC         - PETSc KSP interface enabled.
- *    HPDDM_QR            - If not set to zero, pseudo-inverses of Schur complements are computed using dense QR decompositions (with pivoting if set to one, without pivoting otherwise).
- *    HPDDM_ICOLLECTIVE   - If possible, use nonblocking MPI collective operations.
- *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
- *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
- *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION         1900
-#define HPDDM_EPS             1.0e-12
-#define HPDDM_PEN             1.0e+30
-#define HPDDM_GRANULARITY     50000
-#ifndef HPDDM_NUMBERING
-# pragma message("The numbering of user-supplied matrices has not been set, assuming 0-based indexing")
-# define HPDDM_NUMBERING      'C'
-#elif defined(__cplusplus)
-static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numbering");
-#endif
-#ifndef HPDDM_MPI
-# define HPDDM_MPI            1
-#elif !HPDDM_MPI && defined(MPI_VERSION)
-# pragma message("You cannot deactivate MPI support and still include MPI headers")
-# undef HPDDM_MPI
-# define HPDDM_MPI            1
-#endif
-#ifndef HPDDM_MKL
-# ifdef INTEL_MKL_VERSION
-#  define HPDDM_MKL           1
-# else
-#  define HPDDM_MKL           0
-# endif
-#endif
-#ifndef HPDDM_SCHWARZ
-# define HPDDM_SCHWARZ        1
-#endif
-#ifndef HPDDM_FETI
-# define HPDDM_FETI           1
-#endif
-#ifndef HPDDM_BDD
-# define HPDDM_BDD            1
-#endif
-#ifndef HPDDM_DENSE
-# define HPDDM_DENSE          0
-#elif HPDDM_DENSE
-# if defined(HPDDM_INEXACT_COARSE_OPERATOR) && HPDDM_INEXACT_COARSE_OPERATOR
-#  undef HPDDM_INEXACT_COARSE_OPERATOR
-#  pragma message("HPDDM_DENSE and HPDDM_INEXACT_COARSE_OPERATOR are mutually exclusive")
-# endif
-# if defined(HPDDM_SCHWARZ) && !HPDDM_SCHWARZ
-#  undef HPDDM_SCHWARZ
-# endif
-# ifndef HPDDM_SCHWARZ
-#  define HPDDM_SCHWARZ       1
-# endif
-#endif
-#ifndef HPDDM_PETSC
-# define HPDDM_PETSC          0
-#endif
-#define HPDDM_QR              2
-#ifndef HPDDM_ICOLLECTIVE
-# define HPDDM_ICOLLECTIVE    0
-#endif
-#ifndef HPDDM_MIXED_PRECISION
-# define HPDDM_MIXED_PRECISION 0
-#endif
-#ifndef HPDDM_INEXACT_COARSE_OPERATOR
-# define HPDDM_INEXACT_COARSE_OPERATOR 0
-#endif
-#ifndef HPDDM_LIBXSMM
-# define HPDDM_LIBXSMM        0
-#endif
+#include "HPDDM_define.hpp"
 
 #ifdef _MSC_VER
 # ifndef _CRT_SECURE_NO_WARNINGS
@@ -123,7 +42,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <inttypes.h>
 #endif
 #if HPDDM_MPI
-# ifndef MPI_VERSION
+# if !defined(MPI_VERSION) && !defined(PETSC_HAVE_MPIUNI)
 #  include <mpi.h>
 # endif
 # if HPDDM_ICOLLECTIVE
@@ -173,7 +92,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #endif // HPDDM_MKL
 
-#include "preprocessor_check.hpp"
+#include "HPDDM_preprocessor_check.hpp"
 #ifdef __cplusplus
 # include <iostream>
 # include <fstream>
@@ -185,6 +104,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # include <numeric>
 # include <functional>
 # include <memory>
+# include <set>
 # if !__cpp_rtti && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
 #  pragma message("Consider enabling RTTI support with your C++ compiler")
 # endif
@@ -311,7 +231,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   pragma message("Consider updating libstdc++ to a version that implements <regex> functionalities")
 #  endif
 # endif
-# include "option.hpp"
+# include "HPDDM_option.hpp"
 # if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201 && !defined(__INTEL_COMPILER)
 #  ifdef __clang__
 #   pragma clang diagnostic push
@@ -321,8 +241,8 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   pragma GCC diagnostic ignored "-Wwrite-strings"
 #  endif
 # endif
-# include "BLAS.hpp"
-# include "wrapper.hpp"
+# include "HPDDM_BLAS.hpp"
+# include "HPDDM_wrapper.hpp"
 # if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110201 && !defined(__INTEL_COMPILER)
 #  ifdef __clang__
 #   pragma clang diagnostic pop
@@ -330,10 +250,10 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   pragma GCC diagnostic pop
 #  endif
 # endif
-# include "enum.hpp"
-# include "matrix.hpp"
+# include "HPDDM_enum.hpp"
+# include "HPDDM_matrix.hpp"
 # if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
-#  include "dmatrix.hpp"
+#  include "HPDDM_dmatrix.hpp"
 #  if !HPDDM_MKL
 #   ifdef MKL_PARDISOSUB
 #    undef MKL_PARDISOSUB
@@ -345,28 +265,28 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #   endif
 #  endif // HPDDM_MKL
 #  if defined(DMUMPS) || defined(MUMPSSUB)
-#   include "MUMPS.hpp"
+#   include "HPDDM_MUMPS.hpp"
 #  endif
 #  if defined(DMKL_PARDISO) || defined(MKL_PARDISOSUB)
-#   include "MKL_PARDISO.hpp"
+#   include "HPDDM_MKL_PARDISO.hpp"
 #  endif
 #  if defined(DPASTIX) || defined(PASTIXSUB)
-#   include "PaStiX.hpp"
+#   include "HPDDM_PaStiX.hpp"
 #  endif
 #  if defined(DHYPRE)
-#   include "hypre.hpp"
+#   include "HPDDM_hypre.hpp"
 #  endif
 #  if defined(DSUITESPARSE) || defined(SUITESPARSESUB)
-#   include "SuiteSparse.hpp"
+#   include "HPDDM_SuiteSparse.hpp"
 #  endif
 #  ifdef DISSECTIONSUB
-#   include "Dissection.hpp"
+#   include "HPDDM_Dissection.hpp"
 #  endif
 #  if defined(DLAPACK) || defined(LAPACKSUB)
-#   include "LAPACK.hpp"
+#   include "HPDDM_LAPACK.hpp"
 #  endif
 #  ifdef DELEMENTAL
-#   include "Elemental.hpp"
+#   include "HPDDM_Elemental.hpp"
 #  endif
 # endif
 # if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
@@ -380,7 +300,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  define HPDDM_DENSE         0
 # endif
 # ifndef HPDDM_MINIMAL
-#  include "LAPACK.hpp"
+#  include "HPDDM_LAPACK.hpp"
 #  if HPDDM_MPI
 #   if HPDDM_SCHWARZ
 #    ifndef EIGENSOLVER
@@ -389,9 +309,9 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #      define HPDDM_F77(func) func ## _
 #     endif
 #     ifdef MU_ARPACK
-#      include "ARPACK.hpp"
+#      include "HPDDM_ARPACK.hpp"
 #     elif defined(MU_FEAST)
-#      include "FEAST.hpp"
+#      include "HPDDM_FEAST.hpp"
 #     endif
 #    endif
 #   endif
@@ -405,22 +325,22 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 typedef int MPI_Comm;
 typedef int MPI_Request;
 #  endif
-#  include "GCRODR.hpp"
-#  include "CG.hpp"
+#  include "HPDDM_GCRODR.hpp"
+#  include "HPDDM_CG.hpp"
 #  if !HPDDM_MPI
 #   undef MPI_COMM_SELF
 #   undef MPI_Comm_rank
 #   undef MPI_Comm_size
 #   undef MPI_Allreduce
 #  else
-#   include "schwarz.hpp"
+#   include "HPDDM_schwarz.hpp"
 template<class K = double, char S = 'S'>
 using HpSchwarz = HPDDM::Schwarz<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
-    SUBDOMAIN, COARSEOPERATOR,
+    SUBDOMAIN, COARSEOPERATOR, S,
 #endif
-    S, K>;
-#   include "schur.hpp"
+    K>;
+#   include "HPDDM_schur.hpp"
 template<class K = double>
 using HpSchur = HPDDM::Schur<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
@@ -428,33 +348,33 @@ using HpSchur = HPDDM::Schur<
 #endif
     K>;
 #   if HPDDM_FETI
-#    include "FETI.hpp"
+#    include "HPDDM_FETI.hpp"
 template<HPDDM::FetiPrcndtnr P, class K = double, char S = 'S'>
 using HpFeti = HPDDM::Feti<SUBDOMAIN, COARSEOPERATOR, S, K, P>;
 #   endif
 #   if HPDDM_BDD
-#    include "BDD.hpp"
+#    include "HPDDM_BDD.hpp"
 template<class K = double, char S = 'S'>
 using HpBdd = HPDDM::Bdd<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #   endif
 #   if HPDDM_DENSE
-#    include "dense.hpp"
+#    include "HPDDM_dense.hpp"
 template<class K = double, char S = 'S'>
 using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #   endif
 #  endif // !HPDDM_MPI
 # endif // !HPDDM_MINIMAL
-# include "option_impl.hpp"
+# include "HPDDM_option_impl.hpp"
 #else
-# include "BLAS.hpp"
-# include "LAPACK.hpp"
+# include "HPDDM_BLAS.hpp"
+# include "HPDDM_LAPACK.hpp"
 #endif // __cplusplus
 #if HPDDM_PETSC
 # ifdef HPDDM_MINIMAL
-#  include "LAPACK.hpp"
-#  include "iterative.hpp"
+#  include "HPDDM_LAPACK.hpp"
+#  include "HPDDM_iterative.hpp"
 # endif
-# include "PETSc.hpp"
+# include "HPDDM_PETSc.hpp"
 #endif
 
 #endif // _HPDDM_

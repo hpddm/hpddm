@@ -30,21 +30,21 @@
 #define HPDDM_MINIMAL
 #include <HPDDM.hpp>
 #ifdef MUMPSSUB
-# include "MUMPS.hpp"
+# include "HPDDM_MUMPS.hpp"
 #elif defined(MKL_PARDISOSUB)
-# include "MKL_PARDISO.hpp"
+# include "HPDDM_MKL_PARDISO.hpp"
 #elif defined(PASTIXSUB)
-# include "PaStiX.hpp"
+# include "HPDDM_PaStiX.hpp"
 #elif defined(SUITESPARSESUB)
-# include "SuiteSparse.hpp"
+# include "HPDDM_SuiteSparse.hpp"
 #elif defined(DISSECTIONSUB)
-# include "Dissection.hpp"
+# include "HPDDM_Dissection.hpp"
 #endif
-#include "eigensolver.hpp"
+#include "HPDDM_eigensolver.hpp"
 #ifdef MU_ARPACK
-# include "ARPACK.hpp"
+# include "HPDDM_ARPACK.hpp"
 #elif defined(MU_FEAST)
-# include "FEAST.hpp"
+# include "HPDDM_FEAST.hpp"
 #endif
 
 #ifdef FORCE_SINGLE

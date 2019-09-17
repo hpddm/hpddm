@@ -63,7 +63,6 @@ struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
 
 extern "C" {
 char numbering = HPDDM_NUMBERING;
-unsigned short withPETSc = HPDDM_PETSC;
 unsigned short scalar = std::is_same<K, float>::value ? 0 : std::is_same<K, double>::value ? 1 : std::is_same<K, std::complex<float>>::value ? 2 : 3;
 
 void* optionGet() {
@@ -253,17 +252,6 @@ int solve(void* A, HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu, MPI_C
 #else
 unsigned short subdomain = 0;
 #endif
-#if HPDDM_PETSC
-PetscErrorCode registerKSP() {
-    PetscErrorCode ierr;
-    PetscFunctionBegin;
-    ierr = KSPRegister("hpddm", HPDDM::KSPCreate_HPDDM);
-    PetscFunctionReturn(0);
-}
-#endif
-void destroyRecycling() {
-    HPDDM::Recycling<K>::get()->destroy();
-}
 int CustomOperatorSolve(void* Mat, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int), HPDDM::pod_type<K>* f, HPDDM::pod_type<K>* sol, int mu) {
     return HPDDM::IterativeMethod::solve(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat), precond), reinterpret_cast<K*>(f), reinterpret_cast<K*>(sol), mu, MPI_COMM_SELF);
 }
