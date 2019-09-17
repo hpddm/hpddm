@@ -27,11 +27,11 @@ Yes, as long as you have a modern C++ compiler (cf. the previous paragraph). Wit
 You may access some functionalities of HPDDM through the following software:
 * [FreeFEM](https://freefem.org/), all features of HPDDM
 * [Feel++](http://www.feelpp.org/), substructuring preconditioners
-* [PETSc](http://www.mcs.anl.gov/petsc/), advanced Krylov methods
+* [PETSc](http://www.mcs.anl.gov/petsc/), overlapping Schwarz preconditioners and advanced Krylov methods
 * [htool](https://github.com/PierreMarchand20/htool), overlapping Schwarz preconditioners for dense operators
 
 #### Who is behind HPDDM?
-If you need help or have questions regarding HPDDM, feel free to contact [Pierre Jolivet](http://jolivet.perso.enseeiht.fr/) or [Frédéric Nataf](https://www.ljll.math.upmc.fr/nataf/).
+This project was initiated by [Pierre Jolivet](http://jolivet.perso.enseeiht.fr/) and [Frédéric Nataf](https://www.ljll.math.upmc.fr/nataf/). [Stefano Zampini](https://www.researchgate.net/profile/Stefano_Zampini) later played an integral role in the development of the PETSc interface.
 
 #### How to cite HPDDM?
 If you use this software, please cite this [paper](http://dl.acm.org/citation.cfm?doid=2503210.2503212) and this [book](http://www.siam.org/books/ot144/), thank you.

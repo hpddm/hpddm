@@ -209,11 +209,6 @@ int main(int argc, char** argv)
             }
             ierr = KSPSolve(ksp, rhs, x);
             CHKERRQ(ierr);
-            if (j == 1) {
-                const HpddmOption* const opt = HpddmOptionGet();
-                int previous = HpddmOptionVal(opt, "krylov_method");
-                if (previous == HPDDM_KRYLOV_METHOD_GCRODR || previous == HPDDM_KRYLOV_METHOD_BGCRODR) HpddmDestroyRecycling();
-            }
             ierr = KSPReset(ksp);
             CHKERRQ(ierr);
             ierr = KSPSetOperators(ksp, A, A);

@@ -50,12 +50,14 @@ struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
         HPDDM::Option& opt = *HPDDM::Option::get();
         if(opt.app()["diagonal_scaling"] == 0)
             std::copy_n(in, mu * _n, out);
-        else
+        else {
+            const HPDDM::MatrixCSR<K>* const A = getMatrix();
             for(int i = 0; i < _n; ++i) {
-                int mid = std::distance(_A->_ja, std::upper_bound(_A->_ja + _A->_ia[i] - _A->_ia[0], _A->_ja + _A->_ia[i + 1] - _A->_ia[0], i + _A->_ia[0])) - 1;
+                int mid = std::distance(A->_ja, std::upper_bound(A->_ja + A->_ia[i] - A->_ia[0], A->_ja + A->_ia[i + 1] - A->_ia[0], i + A->_ia[0])) - 1;
                 for(unsigned short nu = 0; nu < mu; ++nu)
-                    out[nu * _n + i] = in[nu * _n + i] / _A->_a[mid];
+                    out[nu * _n + i] = in[nu * _n + i] / A->_a[mid];
             }
+        }
     }
 };
 
@@ -79,8 +81,9 @@ int main(int argc, char** argv) {
     }
     int status = 0;
     unsigned int it = 0;
+    CustomOperator* A = nullptr;
+    HPDDM::MatrixCSR<K>* Mat = nullptr;
     do {
-        HPDDM::MatrixCSR<K>* Mat = nullptr;
         K* rhs = nullptr;
         int mu = opt.app()["mu"];
         {
@@ -113,12 +116,16 @@ int main(int argc, char** argv) {
                 rhs[i] = HPDDM::template sto<double>(s[2 * nnz + n + 4 + i]);
             t.close();
         }
-        CustomOperator A(Mat);
+        if(A)
+            A->setMatrix(Mat);
+        else {
+            A = new CustomOperator(Mat);
+        }
         K* x = new K[mu * Mat->_n]();
         if(mu > 1)
             for(unsigned short nu = 1; nu < mu; ++nu)
                 std::copy_n(rhs, Mat->_n, rhs + nu * Mat->_n);
-        it += HPDDM::IterativeMethod::solve(A, rhs, x, mu, MPI_COMM_SELF);
+        it += HPDDM::IterativeMethod::solve(*A, rhs, x, mu, MPI_COMM_SELF);
         HPDDM::underlying_type<K>* nrmb = new HPDDM::underlying_type<K>[2 * mu];
         int n = Mat->_n;
         for(unsigned short nu = 0; nu < mu; ++nu)
@@ -146,8 +153,9 @@ int main(int argc, char** argv) {
         delete [] nrmb;
         delete [] x;
         delete [] rhs;
-        delete Mat;
     } while(t.open(opt.prefix("path") + "/40" + HPDDM::to_string(no++) + ".txt"), t.good());
+    delete Mat;
+    delete A;
     std::cout << "Total number of iterations: " << it << std::endl;
     MPI_Finalize();
     if(status == 0 && opt.any_of("krylov_method", { HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR })) {

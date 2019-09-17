@@ -260,13 +260,6 @@ if ctypes.c_ushort.in_dll(lib, 'subdomain').value == 1:
     _solve = lib.solve
     _solve.restype = ctypes.c_int
     _solve.argtypes = [ ctypes.POINTER(Schwarz), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.POINTER(MPI_Comm) ]
-destroyRecycling = lib.destroyRecycling
-destroyRecycling.restype = None
-destroyRecycling.argtypes = None
-if ctypes.c_ushort.in_dll(lib, 'withPETSc').value == 1:
-    registerKSP = lib.registerKSP
-    registerKSP.restype = None
-    registerKSP.argtypes = None
 _CustomOperatorSolve = lib.CustomOperatorSolve
 _CustomOperatorSolve.restype = ctypes.c_int
 precondFunc = ctypes.CFUNCTYPE(None, numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), numpy.ctypeslib.ndpointer(scalar, flags = 'F_CONTIGUOUS'), ctypes.c_int, ctypes.c_int)
