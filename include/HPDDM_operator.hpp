@@ -327,7 +327,7 @@ class UserCoarseOperator : public OperatorBase<'u', Preconditioner, K> {
     private:
         typedef OperatorBase<'u', Preconditioner, K> super;
     public:
-        template<template<class> class Solver, char S, class T> friend class CoarseOperator;
+        HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
         UserCoarseOperator(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max)  { }
 };
 
@@ -1086,7 +1086,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
             }
         }
     public:
-        template<template<class> class Solver, char S, class T> friend class CoarseOperator;
+        HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
         FetiProjection(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max) { }
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {
@@ -1305,7 +1305,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             }
         }
     public:
-        template<template<class> class Solver, char S, class T> friend class CoarseOperator;
+        HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
         BddProjection(const Preconditioner& p, const unsigned short& c, const int& max) : super(p, c, max) { }
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T const& out = nullptr, MPI_Request* const& rqRecv = nullptr) {

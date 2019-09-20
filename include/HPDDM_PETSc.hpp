@@ -42,7 +42,7 @@ struct PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
         PetscInt N;
         MatGetSize(A, &N, NULL);
         PetscBool hasMatMatMult;
-        MatHasOperation(A, MATOP_MATMAT_MULT, &hasMatMatMult);
+        MatHasOperation(A, MATOP_MAT_MULT, &hasMatMatMult);
         MPI_Comm comm;
         PetscObjectGetComm((PetscObject)A, &comm);
         PetscMPIInt size;
