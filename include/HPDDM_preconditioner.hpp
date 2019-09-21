@@ -266,6 +266,10 @@ class Preconditioner : public Subdomain<K> {
     public:
         struct CoarseCorrection {
             virtual void operator()(const K* const in, K* const out) = 0;
+            virtual void operator()(const K* const in, K* const out, int n, unsigned short mu) {
+                for(unsigned short nu = 0; nu < mu; ++nu)
+                    operator()(in + nu * n, out + nu * n);
+            }
             virtual ~CoarseCorrection() { };
         };
         CoarseCorrection*  _cc;

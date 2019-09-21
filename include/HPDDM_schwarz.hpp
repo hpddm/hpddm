@@ -1158,8 +1158,7 @@ class Schwarz : public Preconditioner<
         template<bool excluded>
         void deflation(const K* const in, K* const out, const unsigned short& mu) const {
             if(super::_cc) {
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    (*super::_cc)(in + nu * Subdomain<K>::_dof, out + nu * Subdomain<K>::_dof);
+                (*super::_cc)(in, out, Subdomain<K>::_dof, mu);
                 return;
             }
             if(excluded)
