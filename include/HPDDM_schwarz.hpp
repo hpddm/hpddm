@@ -278,18 +278,10 @@ class Schwarz : public Preconditioner<
                 opt.setPrefix("");
         }
         void setMatrix(MatrixCSR<K>* const& a) {
-            bool fact = super::setMatrix(a) && _type != Prcndtnr::OS && _type != Prcndtnr::OG;
-            if(fact) {
-                Option& opt = *Option::get();
-                const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
-                if(resetPrefix)
-                    opt.setPrefix(super::prefix());
-                super::destroySolver();
-                super::_s.numfact(a);
-                _hash = a->hashIndices();
-                if(resetPrefix)
-                    opt.setPrefix("");
-            }
+            const std::string prefix = super::prefix();
+            const bool fact = super::setMatrix(a) && !Option::get()->any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_ORAS, HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_OSM, HPDDM_SCHWARZ_METHOD_NONE });
+            if(fact)
+                callNumfact(a);
         }
         /* Function: multiplicityScaling
          *
