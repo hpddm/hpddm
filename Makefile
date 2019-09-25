@@ -32,8 +32,8 @@ $(shell mkdir -p ${TOP_DIR}/${BIN_DIR} > /dev/null)
 $(shell mkdir -p ${TOP_DIR}/${LIB_DIR} > /dev/null)
 $(shell mkdir -p ${TOP_DIR}/${TRASH_DIR} > /dev/null)
 
-DEPFLAGS = -MT $@ -MMD -MP -MF ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td
-POSTCOMPILE = mv -f ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td ${TOP_DIR}/${TRASH_DIR}/$(subst lib,,$(notdir $(basename $@))).d
+DEPFLAGS ?= -MT $@ -MMD -MP -MF ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td
+POSTCOMPILE = mv -f ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td ${TOP_DIR}/${TRASH_DIR}/$(subst lib,,$(notdir $(basename $@))).d || true
 
 INCS += -I./include -I./interface
 

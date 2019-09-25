@@ -142,8 +142,8 @@ script:
   - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$FORCE_SINGLE" == "OFF" ] && [ "$SOLVER" == "MUMPS" ]; then
       export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_MIXED_PRECISION=1";
       make test_cpp;
-      if [ "$SUBSOLVER" == "MUMPS" ]; then
-        cd .. &&  git clone --depth 1 https://gitlab.com/prj-/petsc-hpddm petsc && cd petsc;
+      if [ "$SUBSOLVER" == "MUMPS" ] && [ "$HPDDM_NUMBERING" == "C" ]; then
+        cd .. &&  git clone --depth 1 https://gitlab.com/petsc/petsc && cd petsc;
         export PETSC_DIR=${PWD};
         export PETSC_ARCH=arch-travis-petsc;
         export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";
