@@ -340,7 +340,7 @@ class DMatrix {
                 MPI_Isend(map_send[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, _communicator, rqSend + i++);
             }
             for(map_type<pair_type>::const_reference q : *map_recv_index) {
-                map_recv[q.first].reserve(q.second.size());
+                map_recv[q.first].resize(q.second.size());
                 MPI_Irecv(map_recv[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, _communicator, rqSend + i++);
             }
             for(std::vector<pair_type>::const_reference p : *_mapOwn) {

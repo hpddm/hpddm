@@ -72,7 +72,7 @@ struct PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
             MatDestroy(&B);
         }
     }
-    template<bool = true>
+    template<bool = false>
     void apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
         PC pc;
         KSPGetPC(_ksp, &pc);

@@ -54,7 +54,7 @@ struct CustomOperator : public HPDDM::EmptyOperator<K> {
     void GMV(const K* const in, K* const out, const int& mu = 1) const {
         _mv(&(HPDDM::EmptyOperator<K>::_n), in, out, &mu);
     }
-    template<bool = true>
+    template<bool>
     void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         int m = mu;
         _precond(&(HPDDM::EmptyOperator<K>::_n), in, out, &m);

@@ -42,7 +42,7 @@ struct EmptyOperator : OptionsPrefix<K> {
     explicit EmptyOperator(T n) : OptionsPrefix<K>(), _n(n) { }
     constexpr T getDof() const { return _n; }
     static constexpr underlying_type<K>* getScaling() { return nullptr; }
-    template<bool = true> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
+    template<bool> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
     static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
     static constexpr bool end(const bool) { return false; }
 };

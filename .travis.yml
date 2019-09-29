@@ -143,7 +143,7 @@ script:
       export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_MIXED_PRECISION=1";
       make test_cpp;
       if [ "$SUBSOLVER" == "MUMPS" ] && [ "$HPDDM_NUMBERING" == "C" ]; then
-        cd .. &&  git clone --depth 1 https://gitlab.com/petsc/petsc && cd petsc;
+        cd .. &&  git clone --depth 1 -b jolivet/fix-upstream-hpddm --single-branch https://gitlab.com/petsc/petsc && cd petsc;
         export PETSC_DIR=${PWD};
         export PETSC_ARCH=arch-travis-petsc;
         export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";

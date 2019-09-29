@@ -793,6 +793,17 @@ class Subdomain : public OptionsPrefix<K> {
          * See also: <Subdomain::globalMapping>. */
         template<class T = K>
         static bool distributedCSR(const unsigned int* const row, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A, const unsigned int* col = nullptr) {
+            std::vector<std::pair<int, int>>* transpose = nullptr;
+            if(A->_sym) {
+                if(col || !std::is_same<K, T>::value)
+                    std::cerr << "Not implemented" << std::endl;
+                transpose = new std::vector<std::pair<int, int>>[A->_n]();
+                for(int i = 0; i < A->_n; ++i)
+                    for(int j = A->_ia[i] - (HPDDM_NUMBERING == 'F'); j < A->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+                        transpose[A->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
+                for(int i = 0; i < A->_n; ++i)
+                    std::sort(transpose[i].begin(), transpose[i].end());
+            }
             if(first != 0 || last != A->_n || col) {
                 if(!col)
                     col = row;
@@ -812,7 +823,17 @@ class Subdomain : public OptionsPrefix<K> {
                 for(std::vector<std::pair<unsigned int, unsigned int>>::iterator it = begin; it != end; ++it) {
                     for(unsigned int j = A->_ia[it->second]; j < A->_ia[it->second + 1]; ++j)
                         tmp.emplace_back(col[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
+                    if(A->_sym) {
+                        for(unsigned int j = 0; j < transpose[it->second].size(); ++j) {
+                            if(transpose[it->second][j].first != it->second)
+                                tmp.emplace_back(col[transpose[it->second][j].first], A->_a[transpose[it->second][j].second]);
+                        }
+                    }
                     std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<unsigned int, T>& lhs, const std::pair<unsigned int, T>& rhs) { return lhs.first < rhs.first; });
+                    if(A->_sym) {
+                        const unsigned int row = std::distance(begin, it);
+                        tmp.erase(std::remove_if(tmp.begin() + ia[row], tmp.end(), [&row](const std::pair<unsigned int, T>& x) { return x.first < row; }), tmp.end());
+                    }
                     ia[std::distance(begin, it) + 1] = tmp.size();
                 }
                 unsigned int nnz = tmp.size();
@@ -824,17 +845,36 @@ class Subdomain : public OptionsPrefix<K> {
                     ja[i] = tmp[i].first;
                     c[i] = tmp[i].second;
                 }
-                return true;
             }
             else {
-                if(std::is_same<K, T>::value)
-                    c  = reinterpret_cast<T*>(A->_a);
-                else
-                    c = nullptr;
-                ia = A->_ia;
-                ja = A->_ja;
-                return false;
+                if(!A->_sym) {
+                    ia = A->_ia;
+                    ja = A->_ja;
+                    if(std::is_same<K, T>::value)
+                        c = reinterpret_cast<T*>(A->_a);
+                    else
+                        c = nullptr;
+                    return false;
+                }
+                else {
+                    if(!ia)
+                        ia = new int[A->_n + 1];
+                    if(!ja)
+                        ja = new int[A->_nnz];
+                    if(!c)
+                        c = new T[A->_nnz];
+                    ia[0] = 0;
+                    for(int i = 0; i < A->_n; ++i) {
+                        for(int j = 0; j < transpose[i].size(); ++j) {
+                            c[ia[i] + j] = A->_a[transpose[i][j].second];
+                            ja[ia[i] + j] = transpose[i][j].first;
+                        }
+                        ia[i + 1] = ia[i] + transpose[i].size();
+                    }
+                }
             }
+            delete [] transpose;
+            return true;
         }
         /* Function: distributedVec
          *  Assembles a distributed vector that can by used by a backend such as PETSc.

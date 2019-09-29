@@ -47,7 +47,7 @@ struct CustomOperator : public HPDDM::EmptyOperator<cpp_type<K>> {
     void GMV(const cpp_type<K>* const in, cpp_type<K>* const out, const int& mu = 1) const {
         _mv(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
     }
-    template<bool = true>
+    template<bool>
     void apply(const cpp_type<K>* const in, cpp_type<K>* const out, const unsigned short& mu = 1, cpp_type<K>* = nullptr, const unsigned short& = 0) const {
         _precond(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
     }

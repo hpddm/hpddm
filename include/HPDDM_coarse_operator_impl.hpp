@@ -1055,7 +1055,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                             neighbors[offset] = M[first + index].first;
                         else if(blocked || offset < size)
                             neighbors[offset] = std::distance(DMatrix::_ldistribution + 1, std::upper_bound(DMatrix::_ldistribution + 1, DMatrix::_ldistribution + p, M[first + index].first));
-                        if(S != 'S' && (blocked || (offset < size && neighbors[offset] != DMatrix::_rank)) && (super::_send[neighbors[offset]].empty() || super::_send[neighbors[offset]].back() != ((v._max - (super::_numbering == 'F')) / (!blocked ? 1 : _local) + (!blocked ? _local : 1) - 1)))
+                        if(S != 'S' && (blocked || offset < size) && neighbors[offset] != DMatrix::_rank && (super::_send[neighbors[offset]].empty() || super::_send[neighbors[offset]].back() != ((v._max - (super::_numbering == 'F')) / (!blocked ? 1 : _local) + (!blocked ? _local : 1) - 1)))
                             for(unsigned short i = 0; i < (!blocked ? _local : 1); ++i)
                                 super::_send[neighbors[offset]].emplace_back((v._max - (super::_numbering == 'F')) / (!blocked ? 1 : _local) + i);
                         if(!blocked && offset < size)

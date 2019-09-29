@@ -269,10 +269,10 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
          *
          * Parameter:
          *    rhs            - Input right-hand side, solution vector is stored in-place. */
-        template<bool = false>
+        template<bool>
         void callSolver(K* const, const unsigned short& = 1);
 #if HPDDM_ICOLLECTIVE
-        template<bool = false>
+        template<bool>
         void IcallSolver(K* const, const unsigned short&, MPI_Request*);
 #endif
         /* Function: getRank

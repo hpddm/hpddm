@@ -433,7 +433,7 @@ class Schwarz : public Preconditioner<
          *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
          * Parameters:
-         *    in             - Input vectors, modified internally if no workspace array is specified !
+         *    in             - Input vectors, modified internally if no workspace array is specified!
          *    out            - Output vectors.
          *    mu             - Number of vectors.
          *    work           - Workspace array. */
@@ -938,22 +938,37 @@ class Schwarz : public Preconditioner<
                     ierr = KSPGetOperators(levels[0]->ksp, nullptr, &P);CHKERRQ(ierr);
                     PetscLayout rmap;
                     ierr = MatGetLayouts(P, &rmap, nullptr);CHKERRQ(ierr);
+                    ierr = MatGetBlockSize(P, &bs);CHKERRQ(ierr);
                     std::map<PetscInt, std::set<PetscInt>> exchange;
                     PetscMPIInt rank, size;
                     MPI_Comm_rank(Subdomain<K>::_communicator, &rank);
                     MPI_Comm_size(Subdomain<K>::_communicator, &size);
-                    for(PetscInt i = 0; i < Subdomain<K>::_dof; ++i) {
+                    ierr = PetscObjectTypeCompare((PetscObject)D, MATSEQSBAIJ, &sym);CHKERRQ(ierr);
+                    if(sym) {
+                        ierr = MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_TRUE);CHKERRQ(ierr);
+                    }
+                    for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs) {
+                        bool inserted = false;
                         PetscInt ncols, ownerRow;
                         ierr = PetscLayoutFindOwner(rmap, ptr[i], &ownerRow);CHKERRQ(ierr);
                         const PetscInt *cols;
                         ierr = MatGetRow(D, i, &ncols, &cols, nullptr);CHKERRQ(ierr);
-                        for(PetscInt j = 0; j < ncols; ++j) {
+                        for(PetscInt j = 0; j < ncols; j += bs) {
                             PetscInt ownerCol;
                             ierr = PetscLayoutFindOwner(rmap, ptr[cols[j]], &ownerCol);CHKERRQ(ierr);
-                            if(ownerRow != ownerCol && (ownerRow == rank || ownerCol == rank))
-                                exchange[ownerRow == rank ? ownerCol : ownerRow].insert(ptr[cols[j]]);
+                            if(ownerRow != ownerCol && (ownerRow == rank || ownerCol == rank)) {
+                                PetscInt neighbor = (ownerRow == rank ? ownerCol : ownerRow);
+                                exchange[neighbor].insert(ptr[cols[j]]);
+                                if(sym && !inserted) {
+                                    exchange[neighbor].insert(ptr[i]);
+                                    inserted = true;
+                                }
+                            }
                         }
                         ierr = MatRestoreRow(D, i, &ncols, &cols, nullptr);CHKERRQ(ierr);
+                    }
+                    if(sym) {
+                        ierr = MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_FALSE);CHKERRQ(ierr);
                     }
                     ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                     Subdomain<K>::_map.resize(exchange.size());
@@ -962,12 +977,11 @@ class Schwarz : public Preconditioner<
                     PetscInt i = 0;
                     for(auto p : exchange) {
                         Subdomain<K>::_map[i].first = p.first;
-                        Subdomain<K>::_map[i].second.reserve(p.second.size());
-                        PetscInt j = 0;
+                        Subdomain<K>::_map[i].second.reserve(bs * p.second.size());
                         for(auto n : p.second) {
                             std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.begin(), v.end(), std::make_pair(n, static_cast<PetscInt>(0)));
-                            Subdomain<K>::_map[i].second.emplace_back(it->second);
-                            ++j;
+                            for(PetscInt j = 0; j < bs; ++j)
+                                Subdomain<K>::_map[i].second.emplace_back(it->second + j);
                         }
                         ++i;
                     }

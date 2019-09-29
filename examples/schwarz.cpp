@@ -25,7 +25,7 @@
 
 struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
     explicit CustomOperator(const HPDDM::MatrixCSR<K>* const A) : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A) { }
-    template<bool = true>
+    template<bool>
     void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         const HPDDM::MatrixCSR<K>* const A = getMatrix();
         for(int i = 0; i < _n; ++i) {

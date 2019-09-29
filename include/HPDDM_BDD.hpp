@@ -248,12 +248,12 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                         }
                         else {
                             Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), super::_structure + super::_bi->_m, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);
-                            super::_co->callSolver(super::_uc);
+                            super::_co->template callSolver<excluded>(super::_uc);
                             Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), super::_uc, &i__1, &(Wrapper<K>::d__0), super::_structure + super::_bi->_m, &i__1);
                         }
                     }
                     else {
-                        super::_co->callSolver(super::_uc);
+                        super::_co->template callSolver<excluded>(super::_uc);
                         std::fill_n(super::_structure + super::_bi->_m, Subdomain<K>::_dof, K());
                     }
                     Wrapper<K>::diag(Subdomain<K>::_dof, _m, super::_structure + super::_bi->_m);
