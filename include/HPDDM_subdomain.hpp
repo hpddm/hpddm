@@ -56,10 +56,7 @@ class Subdomain : public OptionsPrefix<K> {
         /* Variable: dof
          *  Number of degrees of freedom in the current subdomain. */
         int                        _dof;
-    public:
-        Subdomain() : OptionsPrefix<K>(), _a(), _buff(), _map(), _rq(), _dof() { }
-        Subdomain(const Subdomain<K>& s) : OptionsPrefix<K>(), _a(), _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
-        ~Subdomain() {
+        void dtor() {
 #ifdef PETSCHPDDM_H
             clearBuffer();
 #endif
@@ -69,6 +66,12 @@ class Subdomain : public OptionsPrefix<K> {
             delete [] _buff;
             _buff = nullptr;
             destroyMatrix(nullptr);
+        }
+    public:
+        Subdomain() : OptionsPrefix<K>(), _a(), _buff(), _map(), _rq(), _dof() { }
+        Subdomain(const Subdomain<K>& s) : OptionsPrefix<K>(), _a(), _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
+        ~Subdomain() {
+            dtor();
         }
         typedef int integer_type;
         /* Function: getCommunicator

@@ -166,7 +166,11 @@ class MatrixCSR : public MatrixBase<K> {
         MatrixCSR(const int& n, const int& m, const bool& sym) : MatrixBase<K>(n, m, sym), _a() { }
         MatrixCSR(const int& n, const int& m, const int& nnz, const bool& sym) : MatrixBase<K>(n, m, nnz, sym), _a(new K[nnz]) { }
         MatrixCSR(const int& n, const int& m, const int& nnz, K* const& a, int* const& ia, int* const& ja, const bool& sym, const bool& takeOwnership = false) : MatrixBase<K>(n, m, nnz, ia, ja, sym, takeOwnership), _a(a) { }
-        MatrixCSR(const MatrixCSR&) = delete;
+        MatrixCSR(const MatrixCSR& B) : MatrixBase<K>(B._n, B._m, B._nnz, B._sym), _a(new K[B._nnz]) {
+            std::copy_n(B._ia, MatrixBase<K>::_n + 1, MatrixBase<K>::_ia);
+            std::copy_n(B._ja, MatrixBase<K>::_nnz, MatrixBase<K>::_ja);
+            std::copy_n(B._a, MatrixBase<K>::_nnz, _a);
+        }
 #if !HPDDM_PETSC
         explicit MatrixCSR(std::ifstream& file) {
             if(!file.good()) {

@@ -644,7 +644,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                     before += (U == 1 ? (!blocked ? _local : 1) : infoNeighbor[j]);
                 if(_local) {
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &_local, &_local, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), C + before * (!blocked ? 1 : _local * _local), !blocked ? &coefficients : &_local);
-                    Wrapper<K>::template imatcopy<'R'>(_local, _local, C + before * (!blocked ? 1 : _local * _local), !blocked ? coefficients : _local, !blocked ? coefficients : _local);
+                    Wrapper<K>::template imatcopy<super::_numbering == 'F' && blocked ? 'C' : 'R'>(_local, _local, C + before * (!blocked ? 1 : _local * _local), !blocked ? coefficients : _local, !blocked ? coefficients : _local);
                 }
                 if(rankSplit == 0) {
                     if(!blocked)
@@ -1206,6 +1206,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         super::template numfact<T, Operator::_factorize>(nrow / (!blocked ? 1 : _local), I, loc2glob, J, pt, neighbors);
 #else
         const bool coarse = (v._prefix.substr(v._prefix.size() - 7).compare("coarse_") == 0);
+        std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
         if(Operator::_factorize) {
             PetscErrorCode ierr;
             Mat E;
@@ -1214,7 +1215,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             ierr = MatSetFromOptions(E);CHKERRQ(ierr);
             ierr = MatSetBlockSize(E, !blocked ? 1 : _local);CHKERRQ(ierr);
             ierr = MatSetSizes(E, nrow, nrow, rank, rank);CHKERRQ(ierr);
-            std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
             if(S == 'S') {
                 ierr = MatSetType(E, MATSBAIJ);CHKERRQ(ierr);
                 if(p == 1) {
@@ -1264,8 +1264,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             ierr = KSPSetFromOptions(v._level->ksp);CHKERRQ(ierr);
             ierr = MatDestroy(&E);CHKERRQ(ierr);
             super::_s = v._level;
-            if(!coarse)
-                std::adjacent_difference(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
         }
         if(!coarse)
             super::template numfact<S, Operator::_factorize>(nrow / (!blocked ? 1 : _local), I, loc2glob, J, pt, neighbors);

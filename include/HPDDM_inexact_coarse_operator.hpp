@@ -432,7 +432,6 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 _range = new unsigned int[2];
                 std::copy_n(loc2glob, 2, _range);
             }
-            unsigned int accumulate = 0;
             {
                 int* ia = nullptr;
                 K* a;
@@ -444,8 +443,8 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 R[0] = (super::_numbering == 'F');
                 for(unsigned int i = 0; i < nrow; ++i) {
                     R[i + 1] = R[i];
-                    for(unsigned int j = 0; j < I[i + 1]; ++j) {
-                        const int k = accumulate + j;
+                    for(unsigned int j = 0; j < I[i + 1] - I[i]; ++j) {
+                        const int k = I[i] + j - (super::_numbering == 'F');
                         if(DMatrix::_rank <= neighbors[k] && neighbors[k] <= DMatrix::_rank + 1) {
                             R[i + 1]++;
                             if(r) {
@@ -458,14 +457,13 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                             range.emplace_back(J + k);
                         }
                     }
-                    accumulate += I[i + 1];
                 }
                 if(range.size() > 1) {
-                    range.emplace_back(J + accumulate);
+                    range.emplace_back(J + I[nrow] - (super::_numbering == 'F'));
                     std::vector<integer_type*>::const_iterator it;
                     a = new K[(R[nrow] - (super::_numbering == 'F')) * _bs * _bs];
                     ia = new int[nrow + 1 + R[nrow] - (super::_numbering == 'F')];
-                    accumulate = 0;
+                    unsigned int accumulate = 0;
                     ia += nrow + 1;
                     for(it = range.cbegin(); it < range.cend() - 1; it += 2) {
                         unsigned int size = *(it + 1) - *it;
@@ -483,8 +481,8 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 delete [] R;
                 int* ja;
                 if(!ia) {
-                    ia = new int[nrow + 1 + accumulate];
-                    std::partial_sum(I, I + nrow + 1, ia);
+                    ia = new int[nrow + 1 + I[nrow] - (super::_numbering == 'F')];
+                    std::copy_n(I, nrow + 1, ia);
                     ja = ia + nrow + 1;
                     for(unsigned int i = 0; i < nrow; ++i) {
                         for(unsigned int j = ia[i]; j < ia[i + 1]; ++j) {
@@ -514,7 +512,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             range.emplace_back(J);
             for(unsigned int i = 0; i < nrow; ++i) {
                 _di[i + 1] = _di[i];
-                for(unsigned int j = 0; j < I[i + 1]; ++j) {
+                for(unsigned int j = 0; j < I[i + 1] - I[i] - _di[i]; ++j) {
                     const int k = I[i] + _di[i] + j - (super::_numbering == 'F' ? 2 : 0);
                     if(neighbors[k] == DMatrix::_rank) {
                         _di[i + 1]++;
@@ -533,11 +531,11 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         }
                     }
                 }
-                I[i + 1] += I[i] - (_di[i + 1] - _di[i]);
+                I[i + 1] -= _di[i + 1];
             }
             delete [] neighbors;
             _dof = on.size();
-            accumulate = 0;
+            unsigned int accumulate = 0;
             if(range.size() > 1) {
                 range.emplace_back(J + I[nrow] + _di[nrow] - (super::_numbering == 'F' ? 2 : 0));
                 K* D = new K[(_di[nrow] - (super::_numbering == 'F') - (range[1] - range[0])) * _bs * _bs];
@@ -905,7 +903,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         }
                         std::copy(off[j].cbegin(), off[j].cend(), send.back().first + off[j].size());
                         MPI_Isend(send.back().first, 2 * off[j].size(), MPI_INT, in->_recv[j].first, 11, in->_communicator, rqSend + j);
-                        send.back().second = new K[nnz + (nnz + (off[j].size() * (off[j].size() + 1)) / 2) * bss];
+                        send.back().second = new K[nnz + (nnz + (off[j].size() * (off[j].size() + 1)) / 2) * bss]();
                         int* ja = reinterpret_cast<int*>(send.back().second + nnz * bss);
                         nnz = 0;
                         for(unsigned int i = 0; i < off[j].size(); ++i) {

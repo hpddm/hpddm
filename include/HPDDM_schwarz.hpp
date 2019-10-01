@@ -84,6 +84,21 @@ class Schwarz : public Preconditioner<
         Schwarz() : _d(), _hash(), _type(Prcndtnr::NO) { }
         explicit Schwarz(const Subdomain<K>& s) : super(s), _d(), _hash(), _type(Prcndtnr::NO) { }
         ~Schwarz() { _d = nullptr; }
+        void operator=(const Schwarz& B) {
+            dtor();
+            Subdomain<K>::_a = B._a ? new MatrixCSR<K>(*B._a) : nullptr;
+            Subdomain<K>::_buff = new K*[2 * B._map.size()];
+            Subdomain<K>::_map = B._map;
+            Subdomain<K>::_rq = new MPI_Request[2 * B._map.size()];
+            Subdomain<K>::_communicator = B._communicator;
+            Subdomain<K>::_dof = B._dof;
+            _d = B._d;
+        }
+        void dtor() {
+            super::super::dtor();
+            super::dtor();
+            _d = nullptr;
+        }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
         typedef Preconditioner<
