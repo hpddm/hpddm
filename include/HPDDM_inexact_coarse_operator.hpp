@@ -775,6 +775,9 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             PetscFunctionReturn(0);
 #endif
         }
+        decltype(_s) getSubdomain() const {
+            return _s;
+        }
 #if !HPDDM_PETSC
         void setParent(decltype(_p) const p) {
             _p = p;
@@ -1364,12 +1367,11 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 
         return_type buildThree(CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>* const& A, const std::vector<std::vector<std::pair<unsigned short, unsigned short>>>& reduction, const std::map<std::pair<unsigned short, unsigned short>, unsigned short>& sizes, const std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>& extra
 #if HPDDM_PETSC
-                , PetscInt n, PetscInt M, PC_HPDDM_Level** const levels
+                , Mat* D, Mat* N, PC_HPDDM_Level* const level
 #endif
                 ) {
 #if HPDDM_PETSC
-            PetscBool      fail;
-            PetscErrorCode ierr, ret = PetscErrorCode(0);
+            PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
 #endif
@@ -1378,7 +1380,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 char S;
                 {
                     Mat A;
-                    KSPGetOperators(levels[n]->ksp, &A, nullptr);
+                    KSPGetOperators(level->ksp, &A, nullptr);
                     PetscBool symmetric;
                     PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric);
                     S = (symmetric == PETSC_TRUE ? 'S' : 'G');
@@ -1640,48 +1642,52 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         ierr = EPSSolve(eps);CHKERRQ(ierr);
                         PetscInt nconv;
                         ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
-                        levels[n]->nu = std::min(nconv, nev);
-                        if(levels[n]->threshold >= 0.0) {
+                        level->nu = std::min(nconv, nev);
+                        if(level->threshold >= 0.0) {
                             PetscInt i = 0;
-                            while(i < levels[n]->nu) {
+                            while(i < level->nu) {
                                 PetscScalar eigr;
                                 ierr = EPSGetEigenvalue(eps, i, &eigr, nullptr);CHKERRQ(ierr);
-                                if(std::abs(eigr) > levels[n]->threshold)
+                                if(std::abs(eigr) > level->threshold)
                                     break;
                                 ++i;
                             }
-                            levels[n]->nu = i;
+                            level->nu = i;
                         }
-                        K** ev = new K*[levels[n]->nu];
-                        *ev = new K[m * levels[n]->nu];
-                        for(unsigned short i = 1; i < levels[n]->nu; ++i)
-                           ev[i] = *ev + i * m;
-                        Vec vr;
-                        ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, m, ev[0], &vr);CHKERRQ(ierr);
-                        for(int i = 0; i < levels[n]->nu; ++i) {
-                            VecPlaceArray(vr, ev[i]);
-                            ierr = EPSGetEigenvector(eps, i, vr, nullptr);CHKERRQ(ierr);
-                            ierr = VecResetArray(vr);CHKERRQ(ierr);
+                        if(level->nu) {
+                            K** ev = new K*[level->nu];
+                            *ev = new K[m * level->nu];
+                            for(unsigned short i = 1; i < level->nu; ++i)
+                                ev[i] = *ev + i * m;
+                            Vec vr;
+                            ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, m, ev[0], &vr);CHKERRQ(ierr);
+                            for(int i = 0; i < level->nu; ++i) {
+                                VecPlaceArray(vr, ev[i]);
+                                ierr = EPSGetEigenvector(eps, i, vr, nullptr);CHKERRQ(ierr);
+                                ierr = VecResetArray(vr);CHKERRQ(ierr);
+                            }
+                            ierr = VecDestroy(&vr);CHKERRQ(ierr);
+                            s->setVectors(ev);
                         }
-                        ierr = VecDestroy(&vr);CHKERRQ(ierr);
                         ierr = EPSDestroy(&eps);CHKERRQ(ierr);
                         ierr = MatDestroy(&weighted);CHKERRQ(ierr);
-                        s->setVectors(ev);
 #endif
                     }
 #if !HPDDM_PETSC
                     delete overlapNeumann;
                     _s->template buildTwo<0>(_communicator, nullptr);
 #else
-                    ierr = MatDestroy(&overlapNeumann);CHKERRQ(ierr);
-                    ret = s->buildTwo(DMatrix::_communicator, overlapDirichlet, 1, M, levels);
-                    ierr = MatDestroy(&overlapDirichlet);CHKERRQ(ierr);
+                    *D = overlapDirichlet;
+                    *N = overlapNeumann;
 #endif
                 }
                 else {
                     delete [] std::get<0>(transfer);
                     delete [] std::get<1>(transfer);
                     delete [] std::get<2>(transfer);
+#if HPDDM_PETSC
+                    *N = nullptr;
+#endif
                 }
 #if !HPDDM_PETSC
                 _s->callNumfact();
@@ -1693,9 +1699,9 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #endif
             }
 #if HPDDM_PETSC
-            fail = (ret == PETSC_ERR_ARG_WRONG ? PETSC_TRUE : PETSC_FALSE);
-            MPI_Allreduce(MPI_IN_PLACE, &fail, 1, MPIU_BOOL, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
-            PetscFunctionReturn(fail == PETSC_TRUE ? PETSC_ERR_ARG_WRONG : ret);
+            else
+                *D = *N = nullptr;
+            PetscFunctionReturn(0);
 #endif
         }
     private:

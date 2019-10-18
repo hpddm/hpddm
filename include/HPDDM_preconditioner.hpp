@@ -122,14 +122,16 @@ class Preconditioner : public Subdomain<K> {
             unsigned short nu;
             std::string prefixC;
 #if HPDDM_SLEPC
-            const char* prefixF;
-            KSPGetOptionsPrefix(levels[n]->ksp, &prefixF);
             {
-                unsigned short levelF = std::string(prefixF).at(std::string(prefixF).size() - 2) - '0';
+                const char* prefix;
+                KSPGetOptionsPrefix(levels[n]->ksp, &prefix);
+                std::string prefixF(prefix);
+                unsigned int pos = prefixF.rfind("levels_", prefixF.size() - 1);
+                unsigned short levelF = std::stoi(prefixF.substr(pos + 7, prefixF.size() - 1));
                 if(levelF + 1 == M)
-                    prefixC = std::string(prefixF).substr(0, std::string(prefixF).size() - 9) + "coarse_";
+                    prefixC = prefixF.substr(0, pos) + "coarse_";
                 else
-                    prefixC = std::string(prefixF).substr(0, std::string(prefixF).size() - 2) + std::to_string(levelF + 1) + "_";
+                    prefixC = prefixF.substr(0, pos + 7) + std::to_string(levelF + 1) + "_";
                 nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co ? co->getLocal() : levels[n]->nu);
             }
 #endif
