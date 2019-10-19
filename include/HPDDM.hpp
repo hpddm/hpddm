@@ -112,6 +112,17 @@ static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(f
 # ifdef __GNUG__
 #  include <cxxabi.h>
 # endif
+# define HPDDM_HAS_MEMBER(member)                                                   \
+template<class T>                                                                   \
+class has_##member {                                                                \
+    private:                                                                        \
+        typedef char one;                                                           \
+        typedef one (&two)[2];                                                      \
+        template<class C> static one test(decltype(&C::member));                    \
+        template<class C> static two test(...);                                     \
+    public:                                                                         \
+        static constexpr bool value = (sizeof(test<T>(0)) == sizeof(one));          \
+};
 
 namespace HPDDM {
 /* Constants: BLAS constants

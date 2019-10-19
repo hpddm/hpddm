@@ -40,24 +40,15 @@ template<> class Members<true> {
 template<char P, class Preconditioner, class K>
 class OperatorBase : protected Members<P != 's' && P != 'u'> {
     private:
-        template<class T>
-        class has_LDR {
-            private:
-                typedef char one;
-                typedef one (&two)[2];
-                template<class C> static one test(decltype(&C::getLDR));
-                template<class C> static two test(...);
-            public:
-                static constexpr bool value = (sizeof(test<T>(0)) == sizeof(one));
-        };
-        template<class Q = Preconditioner> typename std::enable_if<has_LDR<typename std::remove_reference<Q>::type>::value, bool>::type
+        HPDDM_HAS_MEMBER(getLDR)
+        template<class Q = Preconditioner> typename std::enable_if<has_getLDR<typename std::remove_reference<Q>::type>::value, bool>::type
         offsetDeflation() {
             const unsigned int offset = *_p.getLDR() - _n;
             if(_deflation && offset)
                 std::for_each(const_cast<K**>(_deflation), const_cast<K**>(_deflation) + _local, [&](K*& v) { v -= offset; });
             return true;
         }
-        template<class Q = Preconditioner> typename std::enable_if<!has_LDR<typename std::remove_reference<Q>::type>::value, bool>::type
+        template<class Q = Preconditioner> typename std::enable_if<!has_getLDR<typename std::remove_reference<Q>::type>::value, bool>::type
         offsetDeflation() { return false; }
     protected:
         const Preconditioner&                 _p;

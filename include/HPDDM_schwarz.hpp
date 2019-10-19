@@ -29,10 +29,10 @@
 #if HPDDM_PETSC
 #include "HPDDM_dmatrix.hpp"
 #include "HPDDM_coarse_operator_impl.hpp"
-#include "HPDDM_operator.hpp"
-#ifdef PETSCHPDDM_H
-#include <../src/mat/impls/sbaij/seq/sbaij.h>
-#endif
+# if HPDDM_SLEPC
+#  include "HPDDM_operator.hpp"
+#  include <../src/mat/impls/sbaij/seq/sbaij.h>
+# endif
 #endif
 
 #include "HPDDM_preconditioner.hpp"
@@ -796,6 +796,17 @@ class Schwarz : public Preconditioner<
         }
 #endif
 #if HPDDM_SLEPC
+    private:
+        HPDDM_HAS_MEMBER(Neumann)
+        template<class Q>
+        static constexpr typename std::enable_if<!has_Neumann<Q>::value, bool>::type Neumann(const Q parent) {
+            return false;
+        }
+        template<class Q>
+        static constexpr typename std::enable_if<has_Neumann<Q>::value, bool>::type Neumann(const Q parent) {
+            return parent->Neumann == PETSC_TRUE;
+        }
+    public:
         typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
             PetscErrorCode ierr;
 
@@ -1044,7 +1055,7 @@ class Schwarz : public Preconditioner<
             PetscInt mbs;
             PetscInt *ia, *ja;
             PetscScalar *v = nullptr;
-            if(levels[0]->parent->Neumann || ismatis) {
+            if(Neumann(levels[0]->parent) || ismatis) {
                 if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqaij")) {
                     Mat_SeqAIJ* a = (Mat_SeqAIJ*)D->data;
                     bs = 1;
@@ -1134,7 +1145,7 @@ class Schwarz : public Preconditioner<
             ierr = EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE);CHKERRQ(ierr);
             ierr = EPSGetST(eps, &st);CHKERRQ(ierr);
             ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
-            if(levels[0]->parent->Neumann || ismatis) {
+            if(Neumann(levels[0]->parent) || ismatis) {
                 ierr = STSetMatStructure(st, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
             }
             ierr = EPSSetInitialSpace(eps, initial.size(), initial.data());CHKERRQ(ierr);
