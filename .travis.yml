@@ -71,7 +71,7 @@ addons:
       - g++-4.9
       - gfortran-5
       - libmumps-dev
-      - libarpack2
+      - libarpack2-dev
       - libhypre-dev
       - libmetis-dev
 
