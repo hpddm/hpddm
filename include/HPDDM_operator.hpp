@@ -770,7 +770,8 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 MPI_Irecv(buff[i], super::_map[i].second.size() * (U == 1 ? super::_local : info[i]), Wrapper<K>::mpi_type(), super::_map[i].first, 20, super::_p.getCommunicator(), rq + i);
                 m += super::_map[i].second.size() * (U == 1 ? super::_local : std::max(static_cast<unsigned short>(super::_local), info[i]));
             }
-            Wrapper<K>::diag(super::_n, super::_D, *super::_deflation, *tmp, super::_local);
+            if(super::_local)
+                Wrapper<K>::diag(super::_n, super::_D, *super::_deflation, *tmp, super::_local);
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 buff[super::_map.size() + i] = *buff + m;
                 for(unsigned short j = 0; j < super::_local; ++j)

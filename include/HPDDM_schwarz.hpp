@@ -820,7 +820,7 @@ class Schwarz : public Preconditioner<
             PetscReal              *d;
             const PetscInt         *ptr;
             PetscInt               m, bs;
-            PetscBool              ismatis, solve = PETSC_FALSE, sym, fail;
+            PetscBool              ismatis, solve = PETSC_FALSE, sym;
             PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
@@ -1218,14 +1218,23 @@ class Schwarz : public Preconditioner<
                 ierr = MatISGetLocalMat(P, &N);CHKERRQ(ierr);
             }
             for(unsigned short i = 1; i < *n; ++i) {
+                char fail[2] { };
                 if(decomposition) {
                     ierr = decomposition->buildTwo(decomposition->getCommunicator(), A, i - 1, *n, levels);
+                    if(ierr != PETSC_ERR_ARG_WRONG && levels[i]->ksp) {
+                        Mat A;
+                        PetscInt rstart, rend;
+                        ierr = KSPGetOperators(levels[i]->ksp, &A, nullptr);CHKERRQ(ierr);
+                        ierr = MatGetOwnershipRange(A, &rstart, &rend);CHKERRQ(ierr);
+                        if(rstart == rend)
+                            fail[1] = 1;
+                    }
                 }
                 else
                     ierr = PetscErrorCode(0);
-                fail = (ierr == PETSC_ERR_ARG_WRONG ? PETSC_TRUE : PETSC_FALSE);
-                MPI_Allreduce(MPI_IN_PLACE, &fail, 1, MPIU_BOOL, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
-                if(fail) { /* building level i + 1 failed because there was no deflation vector */
+                fail[0] = (ierr == PETSC_ERR_ARG_WRONG ? 1 : 0);
+                MPI_Allreduce(MPI_IN_PLACE, &fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
+                if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
                     *n = i;
                     if(i > 1) {
                         ierr = MatDestroy(&N);CHKERRQ(ierr);
@@ -1236,6 +1245,10 @@ class Schwarz : public Preconditioner<
                 }
                 if(i > 1) {
                     ierr = MatDestroy(&A);CHKERRQ(ierr);
+                }
+                if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
+                    *n = i + 1;
+                    break;
                 }
                 if(i + 1 < *n && decomposition) {
                     CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
