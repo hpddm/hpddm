@@ -506,6 +506,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             std::map<int, unsigned short> off;
             std::set<int> on;
             std::map<unsigned short, unsigned int> allocation;
+            std::unordered_map<unsigned short, std::set<int>> exchange;
             bool r = false;
             std::vector<integer_type*> range;
             range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * nrow);
@@ -525,6 +526,8 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                     else {
                         off[J[k]] = neighbors[k];
                         allocation[neighbors[k]] += 1;
+                        if(S == 'S' && factorize && neighbors[k] > DMatrix::_rank)
+                            exchange[neighbors[k]].insert(_range[0] + i);
                         if(!r) {
                             r = true;
                             range.emplace_back(J + k);
@@ -581,6 +584,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
             std::set<int> overlap;
             if(S == 'S') {
+                MPI_Comm_size(DMatrix::_communicator, &_off);
                 char* table = new char[((T == 1 ? _off * _off : (_off * (_off - 1)) / 2) >> 3) + 1]();
                 std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator begin = (T == 1 ? _recv.cbegin() : std::upper_bound(_recv.cbegin(), _recv.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::_rank), std::vector<int>()), [](const std::pair<unsigned short, std::vector<int>>& lhs, const std::pair<unsigned short, std::vector<int>>& rhs) { return lhs.first < rhs.first; }));
                 for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
@@ -597,17 +601,16 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 }
                 delete [] table;
                 const unsigned short size = infoRecv.size() + std::distance(begin, _recv.cend());
-                unsigned int* lengths = new unsigned int[size];
+                unsigned int* lengths = new unsigned int[size + 1];
                 unsigned short distance = 0;
                 MPI_Request* rq = new MPI_Request[size];
                 for(const unsigned short& i : infoRecv) {
                     MPI_Irecv(lengths + distance, 1, MPI_UNSIGNED, i, 11, DMatrix::_communicator, rq + distance);
                     ++distance;
                 }
-                for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
+                for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it, ++distance) {
                     lengths[distance] = it->second.size();
                     MPI_Isend(lengths + distance, 1, MPI_UNSIGNED, it->first, 11, DMatrix::_communicator, rq + distance);
-                    ++distance;
                 }
                 MPI_Waitall(size, rq, MPI_STATUSES_IGNORE);
                 distance = 0;
@@ -616,7 +619,6 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                     MPI_Irecv(it->second.data(), it->second.size(), MPI_INT, i, 12, DMatrix::_communicator, rq + distance++);
                 }
                 accumulate = std::accumulate(lengths + infoRecv.size(), lengths + size, 0);
-                delete [] lengths;
                 int* sendIdx = new int[accumulate];
                 accumulate = 0;
                 for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it) {
@@ -631,13 +633,45 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 for(unsigned int i = 0; i < infoRecv.size(); ++i) {
                     int index;
                     MPI_Waitany(infoRecv.size(), rq, &index, MPI_STATUS_IGNORE);
-                    std::for_each(_send[infoRecv[index]].begin(), _send[infoRecv[index]].end(), [&g2l, &overlap](int& j) {
-                        if(factorize)
+                    std::for_each(_send[infoRecv[index]].begin(), _send[infoRecv[index]].end(), [&g2l, &on, &overlap](int& j) {
+                        if(factorize && on.find(j) == on.cend())
                             overlap.insert(j);
                         j = g2l.at(j);
                     });
                 }
                 MPI_Waitall(size - infoRecv.size(), rq + infoRecv.size(), MPI_STATUSES_IGNORE);
+                if(factorize) {
+                    distance = 0;
+                    for(const unsigned short& i : infoRecv) {
+                        MPI_Irecv(lengths + distance + 1, 1, MPI_UNSIGNED, i, 121, DMatrix::_communicator, rq + distance);
+                        ++distance;
+                    }
+                    for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it, ++distance) {
+                        lengths[distance + 1] = exchange[it->first].size();
+                        MPI_Isend(lengths + distance + 1, 1, MPI_UNSIGNED, it->first, 121, DMatrix::_communicator, rq + distance);
+                    }
+                    MPI_Waitall(size, rq, MPI_STATUSES_IGNORE);
+                    delete [] sendIdx;
+                    lengths[0] = 0;
+                    std::partial_sum(lengths + 1, lengths + size + 1, lengths + 1);
+                    sendIdx = new int[lengths[size]];
+                    distance = 0;
+                    for(const unsigned short& i : infoRecv) {
+                        MPI_Irecv(sendIdx + lengths[distance], lengths[distance + 1] - lengths[distance], MPI_INT, i, 122, DMatrix::_communicator, rq + distance);
+                        ++distance;
+                    }
+                    for(std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != _recv.cend(); ++it, ++distance) {
+                        std::copy(exchange[it->first].begin(), exchange[it->first].end(), sendIdx + lengths[distance]);
+                        MPI_Isend(sendIdx + lengths[distance], exchange[it->first].size(), MPI_INT, it->first, 122, DMatrix::_communicator, rq + distance);
+                    }
+                    for(unsigned int i = 0; i < infoRecv.size(); ++i) {
+                        int index;
+                        MPI_Waitany(infoRecv.size(), rq, &index, MPI_STATUS_IGNORE);
+                        std::for_each(sendIdx + lengths[index], sendIdx + lengths[index + 1], [&overlap](int& j) { overlap.insert(j); });
+                    }
+                    MPI_Waitall(size - infoRecv.size(), rq + infoRecv.size(), MPI_STATUSES_IGNORE);
+                }
+                delete [] lengths;
                 delete [] sendIdx;
                 delete [] rq;
             }
@@ -1104,8 +1138,14 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             for(unsigned int i = 0; i < in->_dof; ++i) {
                 for(unsigned int j = in->_di[i]; j < in->_di[i + 1]; ++j)
                     dj[di[i] + j - in->_di[i]] = in->_dj[j - (super::_numbering == 'F')] - (super::_numbering == 'F');
-                for(unsigned int j = in->_di[i]; j < in->_di[i + 1]; ++j)
-                    std::copy_n(in->_da + (j - (super::_numbering == 'F')) * bss, bss, da + (di[i] + j - in->_di[i]) * bss);
+                for(unsigned int j = in->_di[i]; j < in->_di[i + 1]; ++j) {
+#if HPDDM_PETSC
+                    if(in == this && S == 'S' && i == in->_dj[j])
+                        Wrapper<K>::template omatcopy<'T'>(in->_bs, in->_bs, in->_da + (j - (super::_numbering == 'F')) * bss, in->_bs, da + (di[i] + j - in->_di[i]) * bss, in->_bs);
+                    else
+#endif
+                        std::copy_n(in->_da + (j - (super::_numbering == 'F')) * bss, bss, da + (di[i] + j - in->_di[i]) * bss);
+                }
                 unsigned int shift[2] = { 0, 0 };
                 if(S == 'S') {
                     if(in == this) {

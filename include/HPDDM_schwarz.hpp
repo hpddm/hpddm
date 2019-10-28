@@ -954,7 +954,7 @@ class Schwarz : public Preconditioner<
                         }
                         else {
                             std::fill_n(d + i, bs, 0.0);
-                            PetscInt owner;
+                            PetscMPIInt owner;
                             ierr = PetscLayoutFindOwner(rmap, ptr[i], &owner);CHKERRQ(ierr);
                             exchange[owner].insert(ptr[i]);
                         }
