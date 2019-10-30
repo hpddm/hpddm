@@ -31,7 +31,6 @@
 #include "HPDDM_coarse_operator_impl.hpp"
 # if HPDDM_SLEPC
 #  include "HPDDM_operator.hpp"
-#  include <../src/mat/impls/sbaij/seq/sbaij.h>
 # endif
 #endif
 
@@ -1053,32 +1052,30 @@ class Schwarz : public Preconditioner<
             PetscInt nev, nconv = 0;
             const char* prefix;
             PetscInt mbs;
-            PetscInt *ia, *ja;
+            const PetscInt *ia, *ja;
             PetscScalar *v = nullptr;
+            unsigned short type = 0;
             if(Neumann(levels[0]->parent) || ismatis) {
                 if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqaij")) {
-                    Mat_SeqAIJ* a = (Mat_SeqAIJ*)D->data;
                     bs = 1;
-                    mbs = Subdomain<K>::_dof;
-                    ia = a->i;
-                    ja = a->j;
-                    v = a->a;
+                    ierr = MatSeqAIJGetArray(D, &v);CHKERRQ(ierr);
                 }
+#if PETSC_VERSION_GE(3, 12, 2)
                 else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqbaij")) {
-                    Mat_SeqBAIJ* a = (Mat_SeqBAIJ*)D->data;
-                    bs = D->rmap->bs;
-                    mbs = a->mbs;
-                    ia = a->i;
-                    ja = a->j;
-                    v = a->a;
+                    ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
+                    ierr = MatSeqBAIJGetArray(D, &v);CHKERRQ(ierr);
+                    type = 1;
                 }
+#endif
                 else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqsbaij")) {
-                    Mat_SeqSBAIJ* a = (Mat_SeqSBAIJ*)D->data;
-                    bs = D->rmap->bs;
-                    mbs = a->mbs;
-                    ia = a->i;
-                    ja = a->j;
-                    v = a->a;
+                    ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
+                    ierr = MatSeqSBAIJGetArray(D, &v);CHKERRQ(ierr);
+                    type = 2;
+                }
+                if(v) {
+                    PetscBool done;
+                    ierr = MatGetRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, &mbs, &ia, &ja, &done);CHKERRQ(ierr);
+                    if(!done) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "MatGetRowIJ did not return appropriate arrays");
                 }
             }
             if(!v) {
@@ -1090,18 +1087,17 @@ class Schwarz : public Preconditioner<
                 for(PetscInt i = 0; i < mbs; ++i) {
                     for(PetscInt j = ia[i]; j < ia[i + 1]; ++j) {
                         const underlying_type<K> scal = _d[i * bs] * _d[ja[j] * bs];
-                        for(PetscInt k = 0; k < bs * bs; ++k)
-                            b[j * bs * bs + k] = v[j * bs * bs + k] * scal;
+                        std::transform(v + j * bs * bs, v + (j + 1) * bs * bs, b + j * bs * bs, [&scal](PetscScalar x) { return x * scal; });
                     }
                 }
                 ierr = MatCreate(PETSC_COMM_SELF, &weighted);CHKERRQ(ierr);
                 ierr = MatSetBlockSize(weighted, bs);CHKERRQ(ierr);
                 ierr = MatSetSizes(weighted, mbs * bs, mbs * bs, mbs * bs, mbs * bs);CHKERRQ(ierr);
-                if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqaij")) {
+                if(!type) {
                     ierr = MatSetType(weighted, MATSEQAIJ);CHKERRQ(ierr);
                     ierr = MatSeqAIJSetPreallocationCSR(weighted, ia, ja, b);CHKERRQ(ierr);
                 }
-                else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqbaij")) {
+                else if(type == 1) {
                     ierr = MatSetType(weighted, MATSEQBAIJ);CHKERRQ(ierr);
                     ierr = MatSeqBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
                 }
@@ -1109,6 +1105,9 @@ class Schwarz : public Preconditioner<
                     ierr = MatSetType(weighted, MATSEQSBAIJ);CHKERRQ(ierr);
                     ierr = MatSeqSBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
                 }
+                PetscBool done;
+                ierr = MatRestoreRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, nullptr, &ia, &ja, &done);CHKERRQ(ierr);
+                v = nullptr;
                 delete [] b;
             }
             ierr = KSPGetOptionsPrefix(levels[0]->ksp, &prefix);CHKERRQ(ierr);
