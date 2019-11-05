@@ -846,18 +846,31 @@ class Schwarz : public Preconditioner<
                 if(Subdomain<K>::_dof % bs) {
                     SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %D", Subdomain<K>::_dof, bs);
                 }
+                if(!ismatis) {
+                    PetscInt* idx;
+                    ierr = PetscMalloc1(Subdomain<K>::_dof / bs, &idx);CHKERRQ(ierr);
+                    for(PetscInt i = 0; i < Subdomain<K>::_dof / bs; ++i)
+                        idx[i] = ptr[i * bs] / bs;
+                    ierr = ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, Subdomain<K>::_dof / bs, idx, PETSC_OWN_POINTER, &l2g);CHKERRQ(ierr);
+                }
                 v.reserve(Subdomain<K>::_dof / bs);
                 for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs)
                     v.emplace_back(std::make_pair(ptr[i], i));
                 std::sort(v.begin(), v.end());
+                PetscInt nproc;
+                PetscInt* procs;
+                PetscInt* numprocs;
+                PetscInt** indices;
+                ierr = ismatis ? ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices) : ISLocalToGlobalMappingGetInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                unsigned short* sorted = new unsigned short[nproc - 1];
+                std::iota(sorted, sorted + nproc - 1, 0);
+                std::sort(sorted, sorted + nproc - 1, [&procs](unsigned short lhs, unsigned short rhs) { return procs[1 + lhs] < procs[1 + rhs]; });
+                Subdomain<K>::_map.resize(nproc - 1);
+                Subdomain<K>::_buff = new K*[2 * Subdomain<K>::_map.size()]();
+                Subdomain<K>::_rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
                 if(ismatis) {
-                    PetscInt nproc;
-                    PetscInt* procs;
-                    PetscInt* numprocs;
-                    PetscInt** indices;
                     std::fill_n(d, Subdomain<K>::_dof, 0.0);
-                    ierr = ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
-                    std::unordered_map<PetscInt, std::set<PetscInt>> boundary;
+                    std::unordered_map<PetscInt, std::unordered_set<PetscInt>> boundary;
                     const PetscInt* idx;
                     ierr = ISLocalToGlobalMappingGetBlockIndices(l2g, &idx);CHKERRQ(ierr);
                     ierr = ISLocalToGlobalMappingGetSize(l2g, &m);CHKERRQ(ierr);
@@ -871,28 +884,19 @@ class Schwarz : public Preconditioner<
                     for(PetscInt i = 1; i < nproc; ++i) {
                         for(PetscInt j = 0; j < numprocs[i]; ++j) {
                             std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(), std::make_pair(bs * idx[indices[i][j]], static_cast<PetscInt>(0)));
-                            boundary[it->second].insert(procs[i]);
+                            boundary[it->second].insert(i - 1);
                         }
                     }
                     ierr = ISLocalToGlobalMappingRestoreBlockIndices(l2g, &idx);CHKERRQ(ierr);
-                    PetscInt* sorted = new PetscInt[nproc - 1];
-                    std::copy_n(procs + 1, nproc - 1, sorted);
-                    Subdomain<K>::_map.resize(nproc - 1);
-                    ierr = ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
-                    std::sort(sorted, sorted + Subdomain<K>::_map.size());
-                    Subdomain<K>::_buff = new K*[2 * Subdomain<K>::_map.size()]();
-                    Subdomain<K>::_rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
                     std::unordered_set<PetscInt>* map = new std::unordered_set<PetscInt>[Subdomain<K>::_map.size()];
                     ierr = PetscObjectTypeCompare((PetscObject)D, MATSEQSBAIJ, &sym);CHKERRQ(ierr);
                     if(!sym) {
-                        for(const std::pair<PetscInt, std::set<PetscInt>>& p : boundary) {
+                        for(const std::pair<PetscInt, std::unordered_set<PetscInt>>& p : boundary) {
                             PetscInt ncols;
                             const PetscInt *cols;
                             ierr = MatGetRow(D, p.first, &ncols, &cols, nullptr);CHKERRQ(ierr);
-                            for(const PetscInt& i : p.second) {
-                                PetscInt* pos = std::lower_bound(sorted, sorted + Subdomain<K>::_map.size(), i);
-                                map[std::distance(sorted, pos)].insert(cols, cols + ncols);
-                            }
+                            for(const PetscInt& i : p.second)
+                                map[i].insert(cols, cols + ncols);
                             ierr = MatRestoreRow(D, p.first, &ncols, &cols, nullptr);CHKERRQ(ierr);
                             std::fill_n(d + p.first, bs, 1.0 / underlying_type<K>(1 + p.second.size()));
                         }
@@ -903,22 +907,18 @@ class Schwarz : public Preconditioner<
                             PetscInt ncols;
                             const PetscInt *cols;
                             ierr = MatGetRow(D, i, &ncols, &cols, nullptr);CHKERRQ(ierr);
-                            std::unordered_map<PetscInt, std::set<PetscInt>>::const_iterator it = boundary.find(i);
+                            std::unordered_map<PetscInt, std::unordered_set<PetscInt>>::const_iterator it = boundary.find(i);
                             if(it != boundary.cend()) {
-                                for(const PetscInt& i : it->second) {
-                                    PetscInt* pos = std::lower_bound(sorted, sorted + Subdomain<K>::_map.size(), i);
-                                    map[std::distance(sorted, pos)].insert(cols, cols + ncols);
-                                }
+                                for(const PetscInt& i : it->second)
+                                    map[i].insert(cols, cols + ncols);
                                 std::fill_n(d + it->first, bs, 1.0 / underlying_type<K>(1 + it->second.size()));
                             }
                             for(PetscInt j = 0; j < ncols; j += bs) {
                                 it = boundary.find(cols[j]);
                                 if(it != boundary.cend()) {
-                                    for(const PetscInt& k : it->second) {
-                                        PetscInt* pos = std::lower_bound(sorted, sorted + Subdomain<K>::_map.size(), k);
+                                    for(const PetscInt& k : it->second)
                                         for(PetscInt j = 0; j < bs; ++j)
-                                            map[std::distance(sorted, pos)].insert(i + j);
-                                    }
+                                            map[k].insert(i + j);
                                 }
                             }
                             ierr = MatRestoreRow(D, i, &ncols, &cols, nullptr);CHKERRQ(ierr);
@@ -926,16 +926,25 @@ class Schwarz : public Preconditioner<
                         ierr = MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_FALSE);CHKERRQ(ierr);
                     }
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
-                        Subdomain<K>::_map[i].first = sorted[i];
-                        Subdomain<K>::_map[i].second.reserve(map[i].size());
-                        std::copy(map[i].cbegin(), map[i].cend(), std::back_inserter(Subdomain<K>::_map[i].second));
+                        Subdomain<K>::_map[i].first = procs[1 + sorted[i]];
+                        Subdomain<K>::_map[i].second.reserve(map[sorted[i]].size());
+                        std::copy(map[sorted[i]].cbegin(), map[sorted[i]].cend(), std::back_inserter(Subdomain<K>::_map[i].second));
                         std::sort(Subdomain<K>::_map[i].second.begin(), Subdomain<K>::_map[i].second.end(), [&ptr] (const PetscInt& lhs, const PetscInt& rhs) { return ptr[lhs] < ptr[rhs]; });
                     }
+                    ierr = ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
                     ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                     delete [] sorted;
                     delete [] map;
                 }
                 else {
+                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
+                        Subdomain<K>::_map[i].first = procs[1 + sorted[i]];
+                        Subdomain<K>::_map[i].second.reserve(numprocs[1 + sorted[i]]);
+                        std::copy_n(indices[1 + sorted[i]], numprocs[1 + sorted[i]], std::back_inserter(Subdomain<K>::_map[i].second));
+                    }
+                    delete [] sorted;
+                    ierr = ISLocalToGlobalMappingRestoreInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                    ierr = ISLocalToGlobalMappingDestroy(&l2g);CHKERRQ(ierr);
                     ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                     ierr = ISGetLocalSize(interior, &m);CHKERRQ(ierr);
                     ierr = ISGetIndices(interior, &ptr);CHKERRQ(ierr);
@@ -943,88 +952,15 @@ class Schwarz : public Preconditioner<
                     PetscInt rend = rstart + m;
                     ierr = ISRestoreIndices(interior, &ptr);CHKERRQ(ierr);
                     ierr = ISGetIndices(is, &ptr);CHKERRQ(ierr);
-                    PetscLayout rmap;
-                    ierr = MatGetLayouts(P, &rmap, nullptr);CHKERRQ(ierr);
-                    std::map<PetscMPIInt, std::set<PetscInt>> exchange;
                     for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs) {
                         if(ptr[i] >= rstart && ptr[i] < rend) {
                             std::fill_n(d + i, bs, 1.0);
                             solve = PETSC_TRUE;
                         }
-                        else {
+                        else
                             std::fill_n(d + i, bs, 0.0);
-                            PetscMPIInt owner;
-                            ierr = PetscLayoutFindOwner(rmap, ptr[i], &owner);CHKERRQ(ierr);
-                            exchange[owner].insert(ptr[i]);
-                        }
                     }
                     ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
-                    PetscMPIInt nfrom, *fromranks;
-                    PetscInt *fromdata;
-                    {
-                        std::pair<std::vector<PetscMPIInt>, std::vector<PetscInt>> to;
-                        to.first.reserve(exchange.size());
-                        to.second.reserve(exchange.size());
-                        for(const auto& p : exchange) {
-                            to.first.emplace_back(p.first);
-                            to.second.emplace_back(p.second.size());
-                        }
-                        ierr = PetscCommBuildTwoSided(PetscObjectComm((PetscObject)levels[0]->ksp), 1, MPIU_INT, exchange.size(), to.first.data(), to.second.data(), &nfrom, &fromranks, &fromdata);CHKERRQ(ierr);
-                    }
-                    for(PetscMPIInt i = 0; i < nfrom; ++i) {
-                        if(exchange.find(fromranks[i]) == exchange.cend())
-                            exchange[fromranks[i]] = std::set<PetscInt>();
-                    }
-                    Subdomain<K>::_map.resize(exchange.size());
-                    Subdomain<K>::_buff = new K*[2 * Subdomain<K>::_map.size()]();
-                    Subdomain<K>::_rq = new MPI_Request[2 * Subdomain<K>::_map.size()];
-                    PetscInt i = 0;
-                    for(const auto& p : exchange) {
-                        i += p.second.size();
-                        PetscMPIInt* const it = std::find(fromranks, fromranks + nfrom, p.first);
-                        if(it != fromranks + nfrom)
-                            i += fromdata[std::distance(fromranks, it)];
-                    }
-                    PetscInt** const buff = reinterpret_cast<PetscInt**>(Subdomain<K>::_buff);
-                    *buff = new PetscInt[i];
-                    i = 0;
-                    PetscMPIInt j = 0;
-                    for(const auto& p : exchange) {
-                        Subdomain<K>::_map[j].first = p.first;
-                        buff[j] = *buff + i;
-                        std::copy(p.second.cbegin(), p.second.cend(), buff[j]);
-                        MPI_Isend(buff[j], p.second.size(), MPIU_INT, p.first, 123, Subdomain<K>::_communicator, Subdomain<K>::_rq + j);
-                        i += p.second.size();
-                        buff[exchange.size() + j] = *buff + i;
-                        PetscMPIInt* const it = std::find(fromranks, fromranks + nfrom, p.first);
-                        if(it != fromranks + nfrom) {
-                            i += fromdata[std::distance(fromranks, it)];
-                            MPI_Irecv(buff[exchange.size() + j], fromdata[std::distance(fromranks, it)], MPIU_INT, p.first, 123, Subdomain<K>::_communicator, Subdomain<K>::_rq + exchange.size() + j);
-                        }
-                        else
-                            MPI_Irecv(buff[exchange.size() + j], 0, MPIU_INT, p.first, 123, Subdomain<K>::_communicator, Subdomain<K>::_rq + exchange.size() + j);
-                        ++j;
-                    }
-                    for(i = 0; i < exchange.size(); ++i) {
-                        MPI_Waitany(exchange.size(), Subdomain<K>::_rq + exchange.size(), &j, MPI_STATUS_IGNORE);
-                        std::map<PetscMPIInt, std::set<PetscInt>>::iterator it = exchange.find(Subdomain<K>::_map[j].first);
-                        PetscMPIInt* const pt = std::find(fromranks, fromranks + nfrom, it->first);
-                        if(pt != fromranks + nfrom) {
-                            for(PetscInt k = 0; k < fromdata[std::distance(fromranks, pt)]; ++k)
-                                it->second.insert(buff[exchange.size() + j][k]);
-                        }
-                        Subdomain<K>::_map[j].second.reserve(bs * it->second.size());
-                        for(const PetscInt n : it->second) {
-                            std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.begin(), v.end(), std::make_pair(n, static_cast<PetscInt>(0)));
-                            for(PetscInt k = 0; k < bs; ++k)
-                                Subdomain<K>::_map[j].second.emplace_back(it->second + k);
-                        }
-                    }
-                    ierr = PetscFree(fromranks);CHKERRQ(ierr);
-                    MPI_Waitall(exchange.size(), Subdomain<K>::_rq, MPI_STATUSES_IGNORE);
-                    delete [] *buff;
-                    *buff = nullptr;
-                    ierr = PetscFree(fromdata);CHKERRQ(ierr);
                 }
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
                     PetscScalar* c;
