@@ -138,24 +138,26 @@ script:
         fi
       fi
     fi
-  - if [ "$FORCE_COMPLEX" == "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
   - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$FORCE_SINGLE" == "OFF" ] && [ "$SOLVER" == "MUMPS" ]; then
       export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_MIXED_PRECISION=1";
       make test_cpp;
-      if [ "$SUBSOLVER" == "MUMPS" ] && [ "$HPDDM_NUMBERING" == "C" ]; then
-        cd .. &&  git clone --depth 1 -b master --single-branch https://gitlab.com/petsc/petsc && cd petsc;
-        export PETSC_DIR=${PWD};
-        export PETSC_ARCH=arch-travis-petsc;
-        export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";
-        unset CXXFLAGS;
-        ./configure --with-fortran-bindings=0 --with-shared-libraries=1 --download-slepc --download-hpddm=../hpddm --download-hpddm-commit=HEAD ${SCALARTYPE} 'CXXPPFLAGS=${CXXPPFLAGS}';
-        make PETSC_DIR=${PWD} PETSC_ARCH=arch-travis-petsc all;
-        cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log;
-        wget http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzvf petsc_datafiles.tar.gz && export DATAFILESPATH=${PWD}/datafiles;
-        make -f gmakefile test 'globsearch=*hpddm*' 'PETSCMPIEXEC=mpirun -mca btl ^openib' check-test-errors;
-        if [ "$?" != "0" ]; then
-          exit 1;
-        fi
+    fi
+  - if [ "$FORCE_COMPLEX" == "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
+  - if [ "$FORCE_SINGLE" == "ON" ]; then export PRECISION="--with-precision=single"; fi
+  - if [ "$HPDDM_NUMBERING" == "F" ]; then export INDICES="--with-64-bit-indices=1"; fi
+  - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$SOLVER" == "MUMPS" ] && [ "$SUBSOLVER" == "MUMPS" ]; then
+      cd .. &&  git clone --depth 1 -b master --single-branch https://gitlab.com/petsc/petsc && cd petsc;
+      export PETSC_DIR=${PWD};
+      export PETSC_ARCH=arch-travis-petsc;
+      export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";
+      unset CXXFLAGS;
+      ./configure --with-fortran-bindings=0 --with-shared-libraries=1 --download-slepc --download-hpddm=../hpddm --download-hpddm-commit=HEAD ${SCALARTYPE} ${PRECISION} ${INDICES} 'CXXPPFLAGS=${CXXPPFLAGS}';
+      make PETSC_DIR=${PWD} PETSC_ARCH=arch-travis-petsc all;
+      cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log;
+      wget http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzvf petsc_datafiles.tar.gz && export DATAFILESPATH=${PWD}/datafiles;
+      make -f gmakefile test 'globsearch=*hpddm*' 'PETSCMPIEXEC=mpirun -mca btl ^openib' check-test-errors;
+      if [ "$?" != "0" ]; then
+        exit 1;
       fi
     fi
 

@@ -777,7 +777,7 @@ class Schwarz : public Preconditioner<
             if(!ctx)
                 SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context");
             static_assert(std::is_same<K, PetscScalar>::value, "Wrong type");
-            if(ctx->P) {
+            if(ctx->P && ctx->P->_dof != -1) {
                 if(all == PETSC_TRUE) {
                     if(!std::is_same<K, PetscReal>::value)
                         delete [] ctx->P->_d;
@@ -1034,6 +1034,11 @@ class Schwarz : public Preconditioner<
                 ierr = VecRestoreArray(levels[0]->D, nullptr);CHKERRQ(ierr);
             }
             else {
+                if(Subdomain<K>::_dof == -1) {
+                    PetscInt n;
+                    VecGetLocalSize(levels[0]->D, &n);
+                    Subdomain<K>::_dof = n;
+                }
                 for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
                     if(std::abs(1.0 - _d[i]) < HPDDM_EPS)
                         solve = PETSC_TRUE;
@@ -1210,7 +1215,7 @@ class Schwarz : public Preconditioner<
                 ierr = MatDestroySubMatrices(1, &resized);CHKERRQ(ierr);
                 ierr = MatISRestoreLocalMat(N, &local);CHKERRQ(ierr);
             }
-            HPDDM::Schwarz<PetscScalar>* decomposition = this;
+            Schwarz<PetscScalar>* decomposition = this;
             Mat A = D;
             if(ismatis) {
                 P = N;

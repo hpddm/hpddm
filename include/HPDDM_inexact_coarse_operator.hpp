@@ -1268,14 +1268,19 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                                 for(unsigned short nu1 = 0; nu1 < mu1; ++nu1)
                                     for(unsigned short nu2 = (S == 'S' && r1 == r2 ? nu1 : 0); nu2 < mu2; ++nu2) {
                                         if(S != 'S' || r1 != r2)
-                                            da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row])] += std::get<1>(transfer)[nu2 * mu1 + nu1 + accumulate];
+                                            da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row]) - (S == 'S' ? (nu1 * (nu1 - 1)) / 2 : 0)] += std::get<1>(transfer)[nu2 * mu1 + nu1 + accumulate];
                                         else
                                             da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row]) - (nu1 * (nu1 + 1)) / 2] += std::get<1>(transfer)[nu2 * mu1 + nu1 + accumulate];
                                     }
                                 accumulate += mu1 * mu2;
                             }
                             else {
-                                Blas<K>::axpy(&bss, &(Wrapper<K>::d__1), std::get<1>(transfer) + accumulate, &i__1, da + loc[key(r1, r2)] * bss, &i__1);
+                                if(super::_numbering == 'F')
+                                    Blas<K>::axpy(&bss, &(Wrapper<K>::d__1), std::get<1>(transfer) + accumulate, &i__1, da + loc[key(r1, r2)] * bss, &i__1);
+                                else
+                                    for(unsigned short nu1 = 0; nu1 < in->_bs; ++nu1)
+                                        for(unsigned short nu2 = 0; nu2 < in->_bs; ++nu2)
+                                            da[loc[key(r1, r2)] * bss + nu2 * in->_bs + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->_bs + accumulate];
                                 accumulate += bss;
                             }
                         }
@@ -1295,7 +1300,12 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                                         shift += mu2;
                                     }
                                     else {
-                                        Blas<K>::axpy(&bss, &(Wrapper<K>::d__1), std::get<1>(transfer) + accumulate, &i__1, da + (di[row] + in->_di[row + 1] - in->_di[row]) * bss + shift, &i__1);
+                                        if(super::_numbering == 'C')
+                                            Blas<K>::axpy(&bss, &(Wrapper<K>::d__1), std::get<1>(transfer) + accumulate, &i__1, da + (di[row] + in->_di[row + 1] - in->_di[row]) * bss + shift, &i__1);
+                                        else
+                                            for(unsigned short nu1 = 0; nu1 < in->_bs; ++nu1)
+                                                for(unsigned short nu2 = 0; nu2 < in->_bs; ++nu2)
+                                                    da[(di[row] + in->_di[row + 1] - in->_di[row]) * bss + shift + nu2 * in->_bs + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->_bs + accumulate];
                                         accumulate += bss;
                                         shift += bss;
                                     }
@@ -1360,7 +1370,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
             if(S == 'S') {
                 MatrixCSR<K>* t = new MatrixCSR<K>(ret->_n, ret->_n, ret->_ia[ret->_n], true);
-                Wrapper<K>::template csrcsc<'C', HPDDM_NUMBERING>(&(ret->_n), ret->_a, ret->_ja, ret->_ia, t->_a, t->_ja, t->_ia);
+                Wrapper<K>::template csrcsc<'C', HPDDM_NUMBERING>(&ret->_n, ret->_a, ret->_ja, ret->_ia, t->_a, t->_ja, t->_ia);
                 delete ret;
                 ret = t;
             }
