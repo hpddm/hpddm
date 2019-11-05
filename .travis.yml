@@ -142,13 +142,13 @@ script:
       export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_MIXED_PRECISION=1";
       make test_cpp;
     fi
-  - export BRANCH=`git ls-remote --heads git@gitlab.com:petsc/petsc.git "refs/heads/jolivet/*hpddm*" | cut -d'/' -f3-`;
+  - export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | cut -d'/' -f3-`;
   - if [ "$BRANCH" == "" ]; then export BRANCH="master"; fi
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
   - if [ "$FORCE_SINGLE" == "ON" ]; then export PRECISION="--with-precision=single"; else export PRECISION="--download-triangle"; fi
   - if [ "$HPDDM_NUMBERING" == "F" ]; then export INDICES="--with-64-bit-indices"; fi
   - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$SOLVER" == "MUMPS" ] && [ "$SUBSOLVER" == "MUMPS" ]; then
-      cd .. &&  git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc && cd petsc;
+      cd .. &&  git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc;
       export PETSC_DIR=${PWD};
       export PETSC_ARCH=arch-travis-petsc;
       export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";
