@@ -778,7 +778,7 @@ class Schwarz : public Preconditioner<
                 SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context");
             static_assert(std::is_same<K, PetscScalar>::value, "Wrong type");
             if(ctx->P && ctx->P->_dof != -1) {
-                if(all == PETSC_TRUE) {
+                if(all) {
                     if(!std::is_same<K, PetscReal>::value)
                         delete [] ctx->P->_d;
                     if(ctx->parent->levels[0] == ctx)
@@ -804,6 +804,15 @@ class Schwarz : public Preconditioner<
         template<class Q>
         static constexpr typename std::enable_if<has_Neumann<Q>::value, bool>::type Neumann(const Q parent) {
             return parent->Neumann == PETSC_TRUE;
+        }
+        HPDDM_HAS_MEMBER(B)
+        template<class Q>
+        static constexpr typename std::enable_if<!has_B<Q>::value, Mat>::type B(const Q parent) {
+            return nullptr;
+        }
+        template<class Q>
+        static constexpr typename std::enable_if<has_B<Q>::value, Mat>::type B(const Q parent) {
+            return parent->B;
         }
     public:
         typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
@@ -861,7 +870,7 @@ class Schwarz : public Preconditioner<
                 PetscInt* procs;
                 PetscInt* numprocs;
                 PetscInt** indices;
-                ierr = ismatis ? ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices) : ISLocalToGlobalMappingGetInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                ierr = ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
                 unsigned short* sorted = new unsigned short[nproc - 1];
                 std::iota(sorted, sorted + nproc - 1, 0);
                 std::sort(sorted, sorted + nproc - 1, [&procs](unsigned short lhs, unsigned short rhs) { return procs[1 + lhs] < procs[1 + rhs]; });
@@ -932,18 +941,20 @@ class Schwarz : public Preconditioner<
                         std::sort(Subdomain<K>::_map[i].second.begin(), Subdomain<K>::_map[i].second.end(), [&ptr] (const PetscInt& lhs, const PetscInt& rhs) { return ptr[lhs] < ptr[rhs]; });
                     }
                     ierr = ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
-                    ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                     delete [] sorted;
                     delete [] map;
                 }
                 else {
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                         Subdomain<K>::_map[i].first = procs[1 + sorted[i]];
-                        Subdomain<K>::_map[i].second.reserve(numprocs[1 + sorted[i]]);
-                        std::copy_n(indices[1 + sorted[i]], numprocs[1 + sorted[i]], std::back_inserter(Subdomain<K>::_map[i].second));
+                        Subdomain<K>::_map[i].second.reserve(bs * numprocs[1 + sorted[i]]);
+                        for(PetscInt j = 0; j < numprocs[1 + sorted[i]]; ++j) {
+                            for(PetscInt k = 0; k < bs; ++k)
+                                Subdomain<K>::_map[i].second.emplace_back(indices[1 + sorted[i]][j] * bs + k);
+                        }
                     }
                     delete [] sorted;
-                    ierr = ISLocalToGlobalMappingRestoreInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                    ierr = ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
                     ierr = ISLocalToGlobalMappingDestroy(&l2g);CHKERRQ(ierr);
                     ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                     ierr = ISGetLocalSize(interior, &m);CHKERRQ(ierr);
@@ -960,8 +971,8 @@ class Schwarz : public Preconditioner<
                         else
                             std::fill_n(d + i, bs, 0.0);
                     }
-                    ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                 }
+                ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
                     PetscScalar* c;
                     ierr = VecGetArray(levels[0]->D, &c);CHKERRQ(ierr);
@@ -996,61 +1007,66 @@ class Schwarz : public Preconditioner<
             const PetscInt *ia, *ja;
             PetscScalar *v = nullptr;
             unsigned short type = 0;
-            if(Neumann(levels[0]->parent) || ismatis) {
-                if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqaij")) {
-                    bs = 1;
-                    ierr = MatSeqAIJGetArray(D, &v);CHKERRQ(ierr);
-                }
+            Mat rhs = B(levels[0]->parent);
+            if(!rhs) {
+                if(Neumann(levels[0]->parent) || ismatis) {
+                    if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqaij")) {
+                        bs = 1;
+                        ierr = MatSeqAIJGetArray(D, &v);CHKERRQ(ierr);
+                    }
 #if PETSC_VERSION_GE(3, 12, 2)
-                else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqbaij")) {
-                    ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
-                    ierr = MatSeqBAIJGetArray(D, &v);CHKERRQ(ierr);
-                    type = 1;
-                }
+                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqbaij")) {
+                        ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
+                        ierr = MatSeqBAIJGetArray(D, &v);CHKERRQ(ierr);
+                        type = 1;
+                    }
 #endif
-                else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqsbaij")) {
-                    ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
-                    ierr = MatSeqSBAIJGetArray(D, &v);CHKERRQ(ierr);
-                    type = 2;
-                }
-                if(v) {
-                    PetscBool done;
-                    ierr = MatGetRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, &mbs, &ia, &ja, &done);CHKERRQ(ierr);
-                    if(!done) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "MatGetRowIJ did not return appropriate arrays");
-                }
-            }
-            if(!v) {
-                ierr = MatConvert(D, MATSAME, MAT_INITIAL_MATRIX, &weighted);CHKERRQ(ierr);
-                ierr = MatDiagonalScale(weighted, levels[0]->D, levels[0]->D);CHKERRQ(ierr);
-            }
-            else {
-                PetscScalar* b = new PetscScalar[ia[mbs] * bs * bs];
-                for(PetscInt i = 0; i < mbs; ++i) {
-                    for(PetscInt j = ia[i]; j < ia[i + 1]; ++j) {
-                        const underlying_type<K> scal = _d[i * bs] * _d[ja[j] * bs];
-                        std::transform(v + j * bs * bs, v + (j + 1) * bs * bs, b + j * bs * bs, [&scal](PetscScalar x) { return x * scal; });
+                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqsbaij")) {
+                        ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
+                        ierr = MatSeqSBAIJGetArray(D, &v);CHKERRQ(ierr);
+                        type = 2;
+                    }
+                    if(v) {
+                        PetscBool done;
+                        ierr = MatGetRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, &mbs, &ia, &ja, &done);CHKERRQ(ierr);
+                        if(!done) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "MatGetRowIJ did not return appropriate arrays");
                     }
                 }
-                ierr = MatCreate(PETSC_COMM_SELF, &weighted);CHKERRQ(ierr);
-                ierr = MatSetBlockSize(weighted, bs);CHKERRQ(ierr);
-                ierr = MatSetSizes(weighted, mbs * bs, mbs * bs, mbs * bs, mbs * bs);CHKERRQ(ierr);
-                if(!type) {
-                    ierr = MatSetType(weighted, MATSEQAIJ);CHKERRQ(ierr);
-                    ierr = MatSeqAIJSetPreallocationCSR(weighted, ia, ja, b);CHKERRQ(ierr);
-                }
-                else if(type == 1) {
-                    ierr = MatSetType(weighted, MATSEQBAIJ);CHKERRQ(ierr);
-                    ierr = MatSeqBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
+                if(!v) {
+                    ierr = MatConvert(D, MATSAME, MAT_INITIAL_MATRIX, &weighted);CHKERRQ(ierr);
+                    ierr = MatDiagonalScale(weighted, levels[0]->D, levels[0]->D);CHKERRQ(ierr);
                 }
                 else {
-                    ierr = MatSetType(weighted, MATSEQSBAIJ);CHKERRQ(ierr);
-                    ierr = MatSeqSBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
+                    PetscScalar* b = new PetscScalar[ia[mbs] * bs * bs];
+                    for(PetscInt i = 0; i < mbs; ++i) {
+                        for(PetscInt j = ia[i]; j < ia[i + 1]; ++j) {
+                            const underlying_type<K> scal = _d[i * bs] * _d[ja[j] * bs];
+                            std::transform(v + j * bs * bs, v + (j + 1) * bs * bs, b + j * bs * bs, [&scal](PetscScalar x) { return x * scal; });
+                        }
+                    }
+                    ierr = MatCreate(PETSC_COMM_SELF, &weighted);CHKERRQ(ierr);
+                    ierr = MatSetBlockSize(weighted, bs);CHKERRQ(ierr);
+                    ierr = MatSetSizes(weighted, mbs * bs, mbs * bs, mbs * bs, mbs * bs);CHKERRQ(ierr);
+                    if(!type) {
+                        ierr = MatSetType(weighted, MATSEQAIJ);CHKERRQ(ierr);
+                        ierr = MatSeqAIJSetPreallocationCSR(weighted, ia, ja, b);CHKERRQ(ierr);
+                    }
+                    else if(type == 1) {
+                        ierr = MatSetType(weighted, MATSEQBAIJ);CHKERRQ(ierr);
+                        ierr = MatSeqBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
+                    }
+                    else {
+                        ierr = MatSetType(weighted, MATSEQSBAIJ);CHKERRQ(ierr);
+                        ierr = MatSeqSBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
+                    }
+                    PetscBool done;
+                    ierr = MatRestoreRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, nullptr, &ia, &ja, &done);CHKERRQ(ierr);
+                    v = nullptr;
+                    delete [] b;
                 }
-                PetscBool done;
-                ierr = MatRestoreRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, nullptr, &ia, &ja, &done);CHKERRQ(ierr);
-                v = nullptr;
-                delete [] b;
             }
+            else
+                weighted = rhs;
             ierr = KSPGetOptionsPrefix(levels[0]->ksp, &prefix);CHKERRQ(ierr);
             ierr = EPSCreate(PETSC_COMM_SELF, &eps);CHKERRQ(ierr);
             ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
@@ -1062,7 +1078,9 @@ class Schwarz : public Preconditioner<
                 ierr = ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]);CHKERRQ(ierr);
                 ierr = ISDestroy(&is);CHKERRQ(ierr);
                 ierr = MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized);CHKERRQ(ierr);
-                ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                if(!rhs) {
+                    ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                }
                 ierr = MatISGetLocalMat(N, &local);CHKERRQ(ierr);
                 ierr = PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &sym);CHKERRQ(ierr);
                 if(sym) {
@@ -1143,7 +1161,9 @@ class Schwarz : public Preconditioner<
             ierr = VecDestroy(&vr);CHKERRQ(ierr);
             ierr = EPSDestroy(&eps);CHKERRQ(ierr);
             if(!ismatis) {
-                ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                if(!rhs) {
+                    ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                }
             }
             else {
                 ierr = VecDestroy(&vreduced);CHKERRQ(ierr);

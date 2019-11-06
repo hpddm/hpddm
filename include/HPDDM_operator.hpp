@@ -356,7 +356,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         void initialize(unsigned int k, K*& work, unsigned short s) {
             PetscBool sym;
             PetscObjectTypeCompare((PetscObject)_A, MATSEQSBAIJ, &sym);
-            MatConvert(_A, sym == PETSC_TRUE ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &_C);
+            MatConvert(_A, sym ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &_C);
             Vec D;
             PetscScalar* d;
             if(!std::is_same<PetscScalar, PetscReal>::value) {

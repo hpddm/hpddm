@@ -863,7 +863,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 KSPGetOperators(_s->ksp, &A, nullptr);
                 PetscBool symmetric;
                 PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric);
-                S = (symmetric == PETSC_TRUE ? 'S' : 'G');
+                S = (symmetric ? 'S' : 'G');
             }
 #endif
             int rank, size;
@@ -1433,7 +1433,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                     KSPGetOperators(level->ksp, &A, nullptr);
                     PetscBool symmetric;
                     PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric);
-                    S = (symmetric == PETSC_TRUE ? 'S' : 'G');
+                    S = (symmetric ? 'S' : 'G');
                 }
 #endif
                 std::tuple<int*, K*, MPI_Request*> transfer;

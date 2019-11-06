@@ -288,7 +288,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         S = 'S';
     else {
         ierr = PetscStrcmp(type, MATSBAIJ, &flg);CHKERRQ(ierr);
-        S = (flg == PETSC_TRUE ? 'S' : 'G');
+        S = (flg ? 'S' : 'G');
     }
     ierr = PetscOptionsEnd();CHKERRQ(ierr);
     if(!std::is_same<PetscScalar, PetscComplex>::value && S == 'S')
