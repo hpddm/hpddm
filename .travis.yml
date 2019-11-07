@@ -3,6 +3,10 @@ os:
 
 dist: xenial
 
+arch:
+  - amd64
+  - arm64
+
 git:
   depth: 1
   submodules: false
@@ -60,6 +64,36 @@ matrix:
       env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
     - compiler: gcc
       env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON CO=GENERAL_CO
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
+    - arch: arm64
+      env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+    - arch: arm64
+      env: PYTHON_VERSION=3.7 HPDDM_NUMBERING=C SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+    - arch: arm64
+      env: PYTHON_VERSION=3.7 HPDDM_NUMBERING=F SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
+    - arch: arm64
+      compiler: gcc
 
 addons:
   apt:
@@ -85,25 +119,25 @@ before_cache:
 install:
   - mkdir -p $HOME/.cache/pkgs
   - if [ "$CXX" == "g++" ]; then export OMPI_CC="gcc-4.9"; export OMPI_CXX="g++-4.9"; export OMPI_FC="gfortran-5"; else export OMPI_CC=clang-3.8; export OMPI_CXX=clang++-3.8; fi
-  - if [ ! -f ${HOME}/.cache/miniconda${PYTHON_VERSION} ]; then
+  - if [ ! -f ${HOME}/.cache/miniconda${PYTHON_VERSION} ] && [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
       if [ "$PYTHON_VERSION" == "2.7" ]; then
         wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
       else
         wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
       fi
     fi
-  - bash ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh -b -p ${HOME}/miniconda
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then bash ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh -b -p ${HOME}/miniconda; fi
   - export PATH="$HOME/miniconda/bin:$PATH"
-  - rm -rf ${HOME}/miniconda/pkgs && ln -s ${HOME}/.cache/pkgs ${HOME}/miniconda/pkgs
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then rm -rf ${HOME}/miniconda/pkgs && ln -s ${HOME}/.cache/pkgs ${HOME}/miniconda/pkgs; fi
   - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  - conda info -a
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda config --set always_yes yes --set changeps1 no; fi
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda update -q conda; fi
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda info -a; fi
   - if [ "$PYTHON_VERSION" == "2.7" ]; then export CONDAFLAGS="libgfortran=1.0"; fi
-  - conda create -q -n test-environment python=$PYTHON_VERSION $CONDAFLAGS nomkl numpy=1.14.6 scipy
-  - source activate test-environment
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda create -q -n test-environment python=$PYTHON_VERSION $CONDAFLAGS nomkl numpy=1.14.6 scipy; fi
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then source activate test-environment; fi
   - python -V
-  - pip install --user mpi4py
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then pip install --user mpi4py; fi
   - cp Make.inc/Makefile.Travis-CI Makefile.inc
   - if [ "$FORCE_SINGLE" == "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
   - if [ "$FORCE_COMPLEX" == "ON" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
@@ -117,14 +151,19 @@ install:
   - if [ "$PYTHON_VERSION" == "2.7" ]; then
       make python;
     else
-      export PYTHON_VERSION=3.7m; export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HOME}/miniconda/lib; make all -j2;
+      export PYTHON_VERSION=3.7m;
+      if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
+        export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HOME}/miniconda/lib; make all -j2;
+      else
+        make cpp c -j2;
+      fi
     fi
 
 script:
   - if [ "$PYTHON_VERSION" == "3.7m" ]; then
       make test_cpp test_c;
     fi
-  - make test_python
+  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then make test_python; fi
   - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$SOLVER" == "HYPRE" ]; then
       make test_bin/schwarzFromFile_cpp;
       if [ "$?" != "0" ]; then
