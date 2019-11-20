@@ -285,9 +285,9 @@ def generate(rankWorld, sizeWorld):
             MatNeumann = hpddm.matrixCSRCreate(ndof, ndof, nnzNeumann, aNeumann, iNeumann, jNeumann, False)
         else:
             iNeumann = numpy.empty_like(ia)
-            numpy.copyto(ia, iNeumann)
+            numpy.copyto(iNeumann, ia)
             jNeumann = numpy.empty_like(ja)
-            numpy.copyto(ja, jNeumann)
+            numpy.copyto(jNeumann, ja)
             aNeumann = numpy.empty_like(a)
             numpy.copyto(aNeumann, a)
             nnzNeumann = 0
