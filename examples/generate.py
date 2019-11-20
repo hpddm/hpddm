@@ -284,6 +284,10 @@ def generate(rankWorld, sizeWorld):
                     iNeumann[k] = nnzNeumann + (hpddm.numbering.value == b'F')
             MatNeumann = hpddm.matrixCSRCreate(ndof, ndof, nnzNeumann, aNeumann, iNeumann, jNeumann, False)
         else:
+            iNeumann = numpy.empty_like(ia)
+            numpy.copyto(ia, iNeumann)
+            jNeumann = numpy.empty_like(ja)
+            numpy.copyto(ja, jNeumann)
             aNeumann = numpy.empty_like(a)
             numpy.copyto(aNeumann, a)
             nnzNeumann = 0
@@ -306,7 +310,7 @@ def generate(rankWorld, sizeWorld):
                         if i == iEnd - 1:
                             aNeumann[nnzNeumann] -= 1 / (dx * dx)
                         nnzNeumann += 1
-            MatNeumann = hpddm.matrixCSRCreate(ndof, ndof, nnzNeumann, aNeumann, ia, ja, False)
+            MatNeumann = hpddm.matrixCSRCreate(ndof, ndof, nnzNeumann, aNeumann, iNeumann, jNeumann, False)
     else:
         MatNeumann = ctypes.POINTER(hpddm.MatrixCSR)()
     Mat = hpddm.matrixCSRCreate(ndof, ndof, nnz, a, ia, ja, sym)

@@ -308,11 +308,13 @@ void generate(int rankWorld, int sizeWorld, int* neighbors, int* o, int* sizes, 
             }
         }
         else {
-            in = ia;
-            jn = ja;
+            in = malloc(sizeof(int) * (*ndof + 1));
+            memcpy(in, ia, sizeof(int) * (*ndof + 1));
+            jn = malloc(sizeof(int) * nnz);
+            memcpy(jn, ja, sizeof(int) * nnz);
             neumann = malloc(sizeof(K) * nnz);
-            *MatNeumann = HpddmMatrixCSRCreate(*ndof, *ndof, nnz, neumann, in, jn, false, true);
             memcpy(neumann, a, sizeof(K) * nnz);
+            *MatNeumann = HpddmMatrixCSRCreate(*ndof, *ndof, nnz, neumann, in, jn, false, true);
             for(int j = jStart, nnz = 0; j < jEnd; ++j)
                 for(int i = iStart; i < iEnd; ++i) {
                     if(j > jStart) {

@@ -30,10 +30,12 @@
 #include "HPDDM_dmatrix.hpp"
 #include "HPDDM_coarse_operator_impl.hpp"
 # if HPDDM_SLEPC
+#  if PETSC_VERSION_GE(3, 13, 0)
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Strc;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
+#  endif
 #  include "HPDDM_operator.hpp"
 # endif
 #endif
@@ -836,7 +838,9 @@ class Schwarz : public Preconditioner<
             PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
-            ierr = PetscLogEventBegin(PC_HPDDM_Strc, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+            ierr = PetscLogEventBegin(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
             ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
             if(!Subdomain<K>::_rq) {
                 MPI_Comm_dup(PetscObjectComm((PetscObject)levels[0]->ksp), &(Subdomain<K>::_communicator));
@@ -1001,7 +1005,9 @@ class Schwarz : public Preconditioner<
                     ierr = VecRestoreArray(levels[0]->D, nullptr);CHKERRQ(ierr);
                 }
             }
-            ierr = PetscLogEventEnd(PC_HPDDM_Strc, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+            ierr = PetscLogEventEnd(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
             EPS eps;
             ST st;
             Mat weighted = nullptr, *resized;
@@ -1184,7 +1190,9 @@ class Schwarz : public Preconditioner<
                 ierr = MatISGetLocalMat(P, &N);CHKERRQ(ierr);
             }
             for(unsigned short i = 1; i < *n; ++i) {
-                ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+                ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
                 char fail[2] { };
                 if(decomposition) {
                     ierr = decomposition->buildTwo(decomposition->getCommunicator(), A, i - 1, *n, levels);
@@ -1213,13 +1221,17 @@ class Schwarz : public Preconditioner<
                 if(i > 1) {
                     ierr = MatDestroy(&A);CHKERRQ(ierr);
                 }
-                ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+                ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
                 if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
                     *n = i + 1;
                     break;
                 }
                 if(i + 1 < *n && decomposition) {
-                    ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+                    ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
                     CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
                     std::vector<K> overlap;
                     std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
@@ -1233,8 +1245,10 @@ class Schwarz : public Preconditioner<
                     }
                     if(overlap.size())
                         MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);
-                    ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels, 0, 0, 0);CHKERRQ(ierr);
-                    ierr = PetscLogEventBegin(PC_HPDDM_Next, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+                    ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
                     ierr = decomposition->_co->buildThree(coNeumann, reduction, sizes, extra, &A, &N, levels[i]);CHKERRQ(ierr);
                     delete coNeumann;
                     if(i + 2 == *n) {
@@ -1245,7 +1259,9 @@ class Schwarz : public Preconditioner<
                     else
                         decomposition = nullptr;
                     MPI_Wait(&rs, MPI_STATUS_IGNORE);
-                    ierr = PetscLogEventEnd(PC_HPDDM_Next, levels, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 13, 0)
+                    ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#endif
                 }
             }
             if(ismatis) {

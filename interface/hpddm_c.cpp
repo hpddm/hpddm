@@ -172,11 +172,11 @@ void HpddmSchwarzExchange(HpddmSchwarz* A, K* const x, unsigned short mu) {
 void HpddmSchwarzCallNumfact(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->callNumfact();
 }
-void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann) {
 #ifdef EIGENSOLVER
+void HpddmSchwarzSolveGEVP(HpddmSchwarz* A, HpddmMatrixCSR* neumann) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(neumann));
-#endif
 }
+#endif
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz* A, MPI_Comm comm) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->buildTwo(comm);
 }
@@ -185,6 +185,7 @@ void HpddmSchwarzComputeResidual(HpddmSchwarz* A, const K* const sol, const K* c
 }
 void HpddmSchwarzDestroy(HpddmSchwarz* A) {
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyMatrix(std::free);
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyVectors(std::free);
     delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A);
 }
 

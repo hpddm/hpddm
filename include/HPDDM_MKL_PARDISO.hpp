@@ -100,7 +100,9 @@ class MklPardiso : public DMatrix {
             K ddum;
             int idum;
             if(_comm != -1) {
-                CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), &ddum, &idum, &idum, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, const_cast<int*>(&i__0), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+                int i__0 = 0;
+                int i__1 = 1;
+                CLUSTER_SPARSE_SOLVER(_pt, &i__1, &i__1, &_mtype, &phase, &(DMatrix::_n), &ddum, &idum, &idum, &i__1, &i__1, _iparm, &i__0, &ddum, &ddum, const_cast<int*>(&_comm), &error);
                 _comm = -1;
             }
             delete [] _I;
@@ -154,7 +156,9 @@ class MklPardiso : public DMatrix {
             phase = 12;
             *loc2glob = DMatrix::_n / bs;
 
-            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, loc2glob, C, _I, _J, const_cast<int*>(&i__1), const_cast<int*>(&i__1), _iparm, opt.val<char>("verbosity", 0) < 3 ? const_cast<int*>(&i__0) : const_cast<int*>(&i__1), &ddum, &ddum, const_cast<int*>(&_comm), &error);
+            int i__0 = 0;
+            int i__1 = 1;
+            CLUSTER_SPARSE_SOLVER(_pt, &i__1, &i__1, &_mtype, &phase, loc2glob, C, _I, _J, &i__1, &i__1, _iparm, opt.val<char>("verbosity", 0) < 3 ? &i__0 : &i__1, &ddum, &ddum, const_cast<int*>(&_comm), &error);
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             _w = new K[(_iparm[41] - _iparm[40] + 1) * bs];
 #endif
@@ -176,14 +180,16 @@ class MklPardiso : public DMatrix {
             int error;
             int phase = 33;
             int nrhs = n;
+            int i__0 = 0;
+            int i__1 = 1;
 #if !HPDDM_INEXACT_COARSE_OPERATOR
             if(n != 1) {
                 delete [] _w;
                 _w = new K[(_iparm[41] - _iparm[40] + 1) * _iparm[36] * n];
             }
-            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), rhs, _w, const_cast<int*>(&_comm), &error);
+            CLUSTER_SPARSE_SOLVER(_pt, &i__1, &i__1, &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, &i__1, &nrhs, _iparm, &i__0, rhs, _w, const_cast<int*>(&_comm), &error);
 #else
-            CLUSTER_SPARSE_SOLVER(_pt, const_cast<int*>(&i__1), const_cast<int*>(&i__1), &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, const_cast<int*>(&i__1), &nrhs, _iparm, const_cast<int*>(&i__0), const_cast<K*>(rhs), x, const_cast<int*>(&_comm), &error);
+            CLUSTER_SPARSE_SOLVER(_pt, &i__1, &i__1, &_mtype, &phase, &(DMatrix::_n), _C, _I, _J, &i__1, &nrhs, _iparm, &i__0, const_cast<K*>(rhs), x, const_cast<int*>(&_comm), &error);
 #endif
         }
 };

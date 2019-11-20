@@ -300,11 +300,13 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
             }
         }
         else {
-            in = ia;
-            jn = ja;
+            in = new int[ndof + 1];
+            std::copy_n(ia, ndof + 1, in);
+            jn = new int[nnz];
+            std::copy_n(ja, nnz, jn);
             neumann = new K[nnz];
+            std::copy_n(a, nnz, neumann);
             MatNeumann = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, neumann, in, jn, false, true);
-            std::copy(a, a + nnz, neumann);
             for(int j = jStart, nnz = 0; j < jEnd; ++j)
                 for(int i = iStart; i < iEnd; ++i) {
                     if(j > jStart) {
