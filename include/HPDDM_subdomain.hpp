@@ -739,7 +739,7 @@ class Subdomain : public OptionsPrefix<K> {
                         else
                             MPI_Isend(&begining, 1, MPI_UNSIGNED, rankWorld + 1, 10, _communicator, rq + 1);
                         for(unsigned short i = between; i < _map.size(); ++i) {
-                            for(unsigned short j = 0; j < _map[i].second.size(); ++j)
+                            for(unsigned int j = 0; j < _map[i].second.size(); ++j)
                                 sbuff[size + j] = *(first + _map[i].second[j]);
                             MPI_Isend(sbuff + size, _map[i].second.size() + (_map[i].first == rankWorld + 1), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + i);
                             size += _map[i].second.size() + (_map[i].first == rankWorld + 1);
@@ -752,7 +752,7 @@ class Subdomain : public OptionsPrefix<K> {
                     rq[1] = MPI_REQUEST_NULL;
                 unsigned int stop = 0;
                 for(unsigned short i = 0; i < between; ++i) {
-                    for(unsigned short j = 0; j < _map[i].second.size(); ++j)
+                    for(unsigned int j = 0; j < _map[i].second.size(); ++j)
                         sbuff[size + j] = *(first + _map[i].second[j]);
                     MPI_Isend(sbuff + size, _map[i].second.size(), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + _map.size() + i);
                     size += _map[i].second.size();

@@ -50,6 +50,9 @@
 #if !defined(HPDDM_PETSC) && defined(PETSC_HPDDM_MAXLEVELS)
 # define HPDDM_PETSC          1
 #endif
+#if defined(PETSC_HAVE_MKL) && !defined(HPDDM_MKL)
+# define HPDDM_MKL            1
+#endif
 #if defined(HPDDM_PETSC) && HPDDM_PETSC
 # ifndef HPDDM_NUMBERING
 #  define HPDDM_NUMBERING    'C'
@@ -57,9 +60,6 @@
 # define HPDDM_SCHWARZ        0
 # define HPDDM_BDD            0
 # define HPDDM_FETI           0
-# if defined(PETSC_HAVE_MKL)
-#  define HPDDM_MKL           1
-# endif
 # if defined(PETSCHPDDM_H)
 #  define HPDDM_INEXACT_COARSE_OPERATOR 1
 # endif

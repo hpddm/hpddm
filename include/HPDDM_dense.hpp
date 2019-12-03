@@ -68,6 +68,28 @@ class Dense : public Schwarz<
             setMatrix(A);
         }
         void solveEVP(const K* const A) {
+            const std::string prefix = super::prefix();
+            Option& opt = *Option::get();
+            const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", -1.0);
+            if(super::_ev) {
+                if(*super::_ev)
+                    delete [] *super::_ev;
+                delete [] super::_ev;
+            }
+#ifdef MU_ARPACK
+            K* const a = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
+            std::copy_n(A, Subdomain<K>::_dof * Subdomain<K>::_dof, a);
+            MatrixCSR<K> rhs(Subdomain<K>::_dof, Subdomain<K>::_dof, Subdomain<K>::_dof * Subdomain<K>::_dof, a, nullptr, nullptr, false, true);
+            K* const b = new K[Subdomain<K>::_dof * Subdomain<K>::_dof]();
+            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
+                b[(Subdomain<K>::_dof + 1) * i] = Wrapper<K>::d__1;
+            MatrixCSR<K> lhs(Subdomain<K>::_dof, Subdomain<K>::_dof, Subdomain<K>::_dof * Subdomain<K>::_dof, b, nullptr, nullptr, false, true);
+            EIGENSOLVER<K> evp(threshold, Subdomain<K>::_dof, opt.val<unsigned short>("geneo_nu", 20));
+            evp.template solve<SUBDOMAIN>(&lhs, &rhs, super::_ev, Subdomain<K>::_communicator, nullptr);
+            int mm = evp._nu;
+            const int n = Subdomain<K>::_dof;
+            std::for_each(super::_ev, super::_ev + evp._nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
+#else
             K* H = new K[std::max(2, Subdomain<K>::_dof * (Subdomain<K>::_dof + 1))]();
             int info;
             int lwork = -1;
@@ -87,9 +109,6 @@ class Dense : public Schwarz<
             std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
             q.reserve(Subdomain<K>::_dof);
             selectNu(HPDDM_RECYCLE_TARGET_LM, q, Subdomain<K>::_dof, w, w + Subdomain<K>::_dof);
-            const std::string prefix = super::prefix();
-            Option& opt = *Option::get();
-            const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", -1.0);
             int k;
             if(threshold > 0.0)
                 k = std::distance(q.begin(), std::lower_bound(q.begin() + 1, q.end(), std::pair<unsigned short, std::complex<underlying_type<K>>>(0, threshold), [](const std::pair<unsigned short, std::complex<underlying_type<K>>>& lhs, const std::pair<unsigned short, std::complex<underlying_type<K>>>& rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }));
@@ -117,11 +136,6 @@ class Dense : public Schwarz<
             }
             decltype(q)().swap(q);
             underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[Subdomain<K>::_dof] : nullptr;
-            if(super::_ev) {
-                if(*super::_ev)
-                    delete [] *super::_ev;
-                delete [] super::_ev;
-            }
             super::_ev = new K*[mm];
             *super::_ev = new K[mm * Subdomain<K>::_dof];
             for(unsigned short i = 1; i < mm; ++i)
@@ -130,15 +144,16 @@ class Dense : public Schwarz<
             int col;
             Lapack<K>::hsein("R", "Q", "N", select, &(Subdomain<K>::_dof), H, &(Subdomain<K>::_dof), w, w + Subdomain<K>::_dof, nullptr, &i__1, *super::_ev, &(Subdomain<K>::_dof), &mm, &col, work, rwork, nullptr, ifailr, &info);
             Lapack<K>::mhr("L", "N", &(Subdomain<K>::_dof), &mm, &i__1, &(Subdomain<K>::_dof), H, &(Subdomain<K>::_dof), H + Subdomain<K>::_dof * Subdomain<K>::_dof, *super::_ev, &(Subdomain<K>::_dof), work, &lwork, &info);
-            opt[prefix + "geneo_nu"] = mm;
-            if(super::_co)
-                super::_co->setLocal(mm);
             delete [] ifailr;
             delete [] select;
             delete [] rwork;
             delete [] w;
             delete [] work;
             delete [] H;
+#endif
+            opt[prefix + "geneo_nu"] = mm;
+            if(super::_co)
+                super::_co->setLocal(mm);
         }
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, const K* const E) {
