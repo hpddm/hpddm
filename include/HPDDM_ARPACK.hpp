@@ -132,13 +132,13 @@ class Arpack : public Eigensolver<K> {
                                     Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                                 else {
                                     if(B->_sym)
-                                        Blas<K>::symv("L", &B->_n, &(Wrapper<K>::d__1), B->_a, &B->_n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                        Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                     else
-                                        Blas<K>::gemv("N", &B->_n, &B->_n, &(Wrapper<K>::d__1), B->_a, &B->_n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                        Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                 }
                             }
                             else
-                                std::copy_n(workd + ipntr[0] - 1, Eigensolver<K>::_n, workd + ipntr[1] - 1);
+                                std::copy_n(workd + ipntr[0] - 1, *n, workd + ipntr[1] - 1);
                             prec->solve(workd + ipntr[1] - 1);
                         }
                         else if(ido == 1)
@@ -149,13 +149,13 @@ class Arpack : public Eigensolver<K> {
                                     Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                                 else {
                                     if(B->_sym)
-                                        Blas<K>::symv("L", &B->_n, &(Wrapper<K>::d__1), B->_a, &B->_n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                        Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                     else
-                                        Blas<K>::gemv("N", &B->_n, &B->_n, &(Wrapper<K>::d__1), B->_a, &B->_n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                        Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                 }
                             }
                             else
-                                std::copy_n(workd + ipntr[0] - 1, Eigensolver<K>::_n, workd + ipntr[1] - 1);
+                                std::copy_n(workd + ipntr[0] - 1, *n, workd + ipntr[1] - 1);
 
                         }
                     }
