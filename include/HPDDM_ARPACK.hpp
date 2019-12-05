@@ -116,7 +116,6 @@ class Arpack : public Eigensolver<K> {
 #else
             prec->numfact(A, true);
 #endif
-            const bool dense = (B && !B->_ia && !B->_ja && B->_a);
             int info;
             do {
                 const int* const n = &(Eigensolver<K>::_n), *const nu = &(Eigensolver<K>::_nu);
@@ -128,7 +127,7 @@ class Arpack : public Eigensolver<K> {
                              vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
                         if(ido == -1) {
                             if(B) {
-                                if(!dense)
+                                if(B->_ia && B->_ja)
                                     Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                                 else {
                                     if(B->_sym)
@@ -145,7 +144,7 @@ class Arpack : public Eigensolver<K> {
                             prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
                         else {
                             if(B) {
-                                if(!dense)
+                                if(B->_ia && B->_ja)
                                     Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                                 else {
                                     if(B->_sym)
