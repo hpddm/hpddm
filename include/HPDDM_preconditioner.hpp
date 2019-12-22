@@ -278,7 +278,9 @@ class Preconditioner : public Subdomain<K> {
         Preconditioner() : _co(), _ev(), _uc(), _cc() { }
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
+#if defined(PETSCHPDDM_H)
             dtor();
+#endif
         }
         /* Function: initialize
          *
@@ -332,7 +334,7 @@ class Preconditioner : public Subdomain<K> {
                                                                  , _co(), _ev(), _uc(), _cc()
 #endif
                                                                                               { };
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
         void dtor() {
             delete _co;
             _co = nullptr;

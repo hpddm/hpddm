@@ -789,6 +789,7 @@ class Schwarz : public Preconditioner<
                         delete [] ctx->P->_d;
                     if(ctx->parent->levels[0] == ctx)
                         MPI_Comm_free(&ctx->P->_communicator);
+                    ctx->P->dtor();
                     delete ctx->P;
                     ctx->P = nullptr;
                 }
