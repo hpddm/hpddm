@@ -172,7 +172,7 @@ class IterativeMethod {
                 if(i != m + 1)
                     std::cout << method << " converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
                 else
-                    std::cout << method << " does not converges after " << m << " iteration" << (m > 1 ? "s" : "") << std::endl;
+                    std::cout << method << " does not converge after " << m << " iteration" << (m > 1 ? "s" : "") << std::endl;
             }
         }
         template<char T, class K, class Operator>
