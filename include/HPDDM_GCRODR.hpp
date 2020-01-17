@@ -47,11 +47,18 @@ inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short
 
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol;
     int k;
     unsigned short m[2];
     char id[5];
     options<4>(A, &tol, &k, m, id);
+#else
+    underlying_type<K> tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl[0];
+    int k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->icntl[0];
+    unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     if(k <= 0) {
         if(id[0])
             std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to GMRES" << std::endl;
@@ -467,11 +474,18 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol[2];
     int k;
     unsigned short m[3];
     char id[5];
     options<5>(A, tol, &k, m, id);
+#else
+    underlying_type<K>* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
+    int k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->icntl[0];
+    unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     if(k <= 0) {
         if(id[0])
             std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to BGMRES" << std::endl;

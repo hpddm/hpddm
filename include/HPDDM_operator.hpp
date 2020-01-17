@@ -327,16 +327,16 @@ template<class Preconditioner, class K>
 class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
     protected:
 #if HPDDM_SCHWARZ
-        const MatrixCSR<K>* const                       _A;
-        MatrixCSR<K>*                                   _C;
+        const MatrixCSR<K>* const                       A_;
+        MatrixCSR<K>*                                   C_;
 #else
-        const Mat                                       _A;
-        Mat                                             _C;
+        const Mat                                       A_;
+        Mat                                             C_;
         PC_HPDDM_Level*                             _level;
         const std::string&                         _prefix;
 #endif
         K*                                           _work;
-        const underlying_type<K>* const                 _D;
+        const underlying_type<K>* const                 D_;
     private:
         typedef OperatorBase<'s', Preconditioner, K> super;
         template<bool U>
@@ -345,30 +345,30 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             std::fill_n(_work, m * super::_n, K());
             for(unsigned short i = 0; i < m; ++i)
                 for(int j = 0; j < super::_map[index].second.size(); ++j)
-                    _work[i * super::_n + super::_map[index].second[j]] = _D[super::_map[index].second[j]] * in[i * super::_map[index].second.size() + j];
+                    _work[i * super::_n + super::_map[index].second[j]] = D_[super::_map[index].second[j]] * in[i * super::_map[index].second.size() + j];
             Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::_local), &m, &(super::_n), &(Wrapper<K>::d__1), *super::_deflation, &(super::_n), _work, &(super::_n), &(Wrapper<K>::d__0), work, &(super::_local));
         }
     public:
         HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
         template<typename... Types>
 #if HPDDM_PETSC
-        MatrixMultiplication(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Mat A, PC_HPDDM_Level* level, std::string& prefix, Types...) : super(p, c, max), _A(A), _C(), _level(level), _prefix(prefix), _D(p.getScaling()) { static_assert(sizeof...(Types) == 0, "Wrong constructor"); }
+        MatrixMultiplication(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Mat A, PC_HPDDM_Level* level, std::string& prefix, Types...) : super(p, c, max), A_(A), C_(), _level(level), _prefix(prefix), D_(p.getScaling()) { static_assert(sizeof...(Types) == 0, "Wrong constructor"); }
         void initialize(unsigned int k, K*& work, unsigned short s) {
             PetscBool sym;
-            PetscObjectTypeCompare((PetscObject)_A, MATSEQSBAIJ, &sym);
-            MatConvert(_A, sym ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &_C);
+            PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &sym);
+            MatConvert(A_, sym ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_);
             Vec D;
             PetscScalar* d;
             if(!std::is_same<PetscScalar, PetscReal>::value) {
                 d = new PetscScalar[super::_p.getDof()];
-                std::copy_n(_D, super::_p.getDof(), d);
+                std::copy_n(D_, super::_p.getDof(), d);
                 VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::_p.getDof(), d, &D);
             }
             else {
                 d = nullptr;
-                VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::_p.getDof(), reinterpret_cast<const PetscScalar*>(_D), &D);
+                VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::_p.getDof(), reinterpret_cast<const PetscScalar*>(D_), &D);
             }
-            MatDiagonalScale(_C, nullptr, D);
+            MatDiagonalScale(C_, nullptr, D);
             delete [] d;
             VecDestroy(&D);
             work = new K[2 * k];
@@ -376,67 +376,67 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             super::_signed = s;
         }
 #else
-        MatrixMultiplication(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Types...) : super(p, c, max), _A(p.getMatrix()), _C(), _D(p.getScaling()) { static_assert(sizeof...(Types) == 0, "Wrong constructor"); }
+        MatrixMultiplication(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Types...) : super(p, c, max), A_(p.getMatrix()), C_(), D_(p.getScaling()) { static_assert(sizeof...(Types) == 0, "Wrong constructor"); }
         void initialize(unsigned int k, K*& work, unsigned short s) {
-            if(_A->_sym) {
-                std::vector<std::vector<std::pair<unsigned int, K>>> v(_A->_n);
-                unsigned int nnz = ((_A->_nnz + _A->_n - 1) / _A->_n) * 2;
+            if(A_->_sym) {
+                std::vector<std::vector<std::pair<unsigned int, K>>> v(A_->_n);
+                unsigned int nnz = ((A_->_nnz + A_->_n - 1) / A_->_n) * 2;
                 std::for_each(v.begin(), v.end(), [&](std::vector<std::pair<unsigned int, K>>& r) { r.reserve(nnz); });
                 nnz = 0;
-                for(unsigned int i = 0; i < _A->_n; ++i) {
-                    const underlying_type<K> scal = _D[i];
-                    unsigned int j = _A->_ia[i] - (HPDDM_NUMBERING == 'F');
-                    while(j < _A->_ia[i + 1] - (HPDDM_NUMBERING == 'F' ? 2 : 1)) {
-                        if(_D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
-                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')]);
+                for(unsigned int i = 0; i < A_->_n; ++i) {
+                    const underlying_type<K> scal = D_[i];
+                    unsigned int j = A_->_ia[i] - (HPDDM_NUMBERING == 'F');
+                    while(j < A_->_ia[i + 1] - (HPDDM_NUMBERING == 'F' ? 2 : 1)) {
+                        if(D_[A_->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
+                            v[i].emplace_back(A_->_ja[j], A_->_a[j] * D_[A_->_ja[j] - (HPDDM_NUMBERING == 'F')]);
                             ++nnz;
                         }
                         if(scal > HPDDM_EPS) {
-                            v[_A->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i + (HPDDM_NUMBERING == 'F'), _A->_a[j] * scal);
+                            v[A_->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i + (HPDDM_NUMBERING == 'F'), A_->_a[j] * scal);
                             ++nnz;
                         }
                         ++j;
                     }
-                    if(i != _A->_ja[j] - (HPDDM_NUMBERING == 'F')) {
-                        if(_D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
-                            v[i].emplace_back(_A->_ja[j], _A->_a[j] * _D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')]);
+                    if(i != A_->_ja[j] - (HPDDM_NUMBERING == 'F')) {
+                        if(D_[A_->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
+                            v[i].emplace_back(A_->_ja[j], A_->_a[j] * D_[A_->_ja[j] - (HPDDM_NUMBERING == 'F')]);
                             ++nnz;
                         }
                     }
                     if(scal > HPDDM_EPS) {
-                        v[_A->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i + (HPDDM_NUMBERING == 'F'), _A->_a[j] * scal);
+                        v[A_->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i + (HPDDM_NUMBERING == 'F'), A_->_a[j] * scal);
                         ++nnz;
                     }
                 }
-                _C = new MatrixCSR<K>(_A->_n, _A->_n, nnz, false);
-                _C->_ia[0] = (Wrapper<K>::I == 'F');
+                C_ = new MatrixCSR<K>(A_->_n, A_->_n, nnz, false);
+                C_->_ia[0] = (Wrapper<K>::I == 'F');
                 nnz = 0;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
 #endif
-                for(unsigned int i = 0; i < _A->_n; ++i)
+                for(unsigned int i = 0; i < A_->_n; ++i)
                     std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
-                for(unsigned int i = 0; i < _A->_n; ++i) {
+                for(unsigned int i = 0; i < A_->_n; ++i) {
                     for(const std::pair<unsigned int, K>& p : v[i]) {
-                        _C->_ja[nnz] = p.first + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
-                        _C->_a[nnz++] = p.second;
+                        C_->_ja[nnz] = p.first + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
+                        C_->_a[nnz++] = p.second;
                     }
-                    _C->_ia[i + 1] = nnz + (Wrapper<K>::I == 'F');
+                    C_->_ia[i + 1] = nnz + (Wrapper<K>::I == 'F');
                 }
             }
             else {
-                _C = new MatrixCSR<K>(_A->_n, _A->_n, _A->_nnz, false);
-                _C->_ia[0] = (Wrapper<K>::I == 'F');
+                C_ = new MatrixCSR<K>(A_->_n, A_->_n, A_->_nnz, false);
+                C_->_ia[0] = (Wrapper<K>::I == 'F');
                 unsigned int nnz = 0;
-                for(unsigned int i = 0; i < _A->_n; ++i) {
-                    for(unsigned int j = _A->_ia[i] - (HPDDM_NUMBERING == 'F'); j < _A->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
-                        if(_D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
-                            _C->_ja[nnz] = _A->_ja[j] + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
-                            _C->_a[nnz++] = _A->_a[j] * _D[_A->_ja[j] - (HPDDM_NUMBERING == 'F')];
+                for(unsigned int i = 0; i < A_->_n; ++i) {
+                    for(unsigned int j = A_->_ia[i] - (HPDDM_NUMBERING == 'F'); j < A_->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+                        if(D_[A_->_ja[j] - (HPDDM_NUMBERING == 'F')] > HPDDM_EPS) {
+                            C_->_ja[nnz] = A_->_ja[j] + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
+                            C_->_a[nnz++] = A_->_a[j] * D_[A_->_ja[j] - (HPDDM_NUMBERING == 'F')];
                         }
-                    _C->_ia[i + 1] = nnz + (Wrapper<K>::I == 'F');
+                    C_->_ia[i + 1] = nnz + (Wrapper<K>::I == 'F');
                 }
-                _C->_nnz = nnz;
+                C_->_nnz = nnz;
             }
             work = new K[2 * k];
             _work = work + k;
@@ -447,18 +447,18 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         void applyToNeighbor(T& in, K*& work, MPI_Request*& rq, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
             if(super::_local)
 #if !HPDDM_PETSC
-                Wrapper<K>::template csrmm<Wrapper<K>::I>(false, &(super::_n), &(super::_local), _C->_a, _C->_ia, _C->_ja, *super::_deflation, _work);
-            delete _C;
+                Wrapper<K>::template csrmm<Wrapper<K>::I>(false, &(super::_n), &(super::_local), C_->_a, C_->_ia, C_->_ja, *super::_deflation, _work);
+            delete C_;
 #else
             {
                 Mat Z, P;
                 MatCreateSeqDense(PETSC_COMM_SELF, super::_n, super::_local, const_cast<PetscScalar*>(*super::_deflation), &Z);
                 MatCreateSeqDense(PETSC_COMM_SELF, super::_n, super::_local, _work, &P);
-                MatMatMult(_C, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
+                MatMatMult(C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
                 MatDestroy(&P);
                 MatDestroy(&Z);
             }
-            MatDestroy(&_C);
+            MatDestroy(&C_);
 #endif
             for(unsigned short i = 0; i < super::_signed; ++i) {
                 if(U || info[i]) {
@@ -467,7 +467,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                     MPI_Isend(in[i], super::_map[i].second.size() * super::_local, Wrapper<K>::mpi_type(), super::_map[i].first, 2, super::_p.getCommunicator(), rq++);
                 }
             }
-            Wrapper<K>::diag(super::_n, _D, _work, work, super::_local);
+            Wrapper<K>::diag(super::_n, D_, _work, work, super::_local);
         }
         template<char S, bool U>
         void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
@@ -592,12 +592,12 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
 #if !HPDDM_PETSC
             if(HPDDM_NUMBERING != Wrapper<K>::I) {
                 if(HPDDM_NUMBERING == 'F') {
-                    std::for_each(super::_A->_ja, super::_A->_ja + super::_A->_nnz, [](int& i) { --i; });
-                    std::for_each(super::_A->_ia, super::_A->_ia + super::_A->_n + 1, [](int& i) { --i; });
+                    std::for_each(super::A_->_ja, super::A_->_ja + super::A_->_nnz, [](int& i) { --i; });
+                    std::for_each(super::A_->_ia, super::A_->_ia + super::A_->_n + 1, [](int& i) { --i; });
                 }
                 else {
-                    std::for_each(super::_A->_ja, super::_A->_ja + super::_A->_nnz, [](int& i) { ++i; });
-                    std::for_each(super::_A->_ia, super::_A->_ia + super::_A->_n + 1, [](int& i) { ++i; });
+                    std::for_each(super::A_->_ja, super::A_->_ja + super::A_->_nnz, [](int& i) { ++i; });
+                    std::for_each(super::A_->_ia, super::A_->_ia + super::A_->_n + 1, [](int& i) { ++i; });
                 }
             }
 #endif
@@ -685,7 +685,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             std::vector<typename Preconditioner::integer_type> omap;
 #if HPDDM_PETSC
             PetscInt n;
-            MatGetLocalSize(super::_A, &n, nullptr);
+            MatGetLocalSize(super::A_, &n, nullptr);
 #endif
             {
                 std::set<typename Preconditioner::integer_type> o;
@@ -697,14 +697,14 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 int* ia = new int[omap.size() + 1];
                 ia[0] = (Wrapper<K>::I == 'F');
                 std::vector<std::pair<int, K>> restriction;
-                restriction.reserve(super::_A->_nnz);
+                restriction.reserve(super::A_->_nnz);
                 int nnz = ia[0];
                 for(int i = 0; i < omap.size(); ++i) {
                     std::vector<int>::const_iterator it = omap.cbegin();
-                    for(int j = super::_A->_ia[omap[i]] - (Wrapper<K>::I == 'F'); j < super::_A->_ia[omap[i] + 1] - (Wrapper<K>::I == 'F'); ++j) {
-                        it = std::lower_bound(it, omap.cend(), super::_A->_ja[j] - (Wrapper<K>::I == 'F'));
-                        if(it != omap.cend() && *it == super::_A->_ja[j] - (Wrapper<K>::I == 'F') && std::abs(super::_A->_a[j]) > HPDDM_EPS) {
-                            restriction.emplace_back(std::distance(omap.cbegin(), it) + (Wrapper<K>::I == 'F'), super::_A->_a[j]);
+                    for(int j = super::A_->_ia[omap[i]] - (Wrapper<K>::I == 'F'); j < super::A_->_ia[omap[i] + 1] - (Wrapper<K>::I == 'F'); ++j) {
+                        it = std::lower_bound(it, omap.cend(), super::A_->_ja[j] - (Wrapper<K>::I == 'F'));
+                        if(it != omap.cend() && *it == super::A_->_ja[j] - (Wrapper<K>::I == 'F') && std::abs(super::A_->_a[j]) > HPDDM_EPS) {
+                            restriction.emplace_back(std::distance(omap.cbegin(), it) + (Wrapper<K>::I == 'F'), super::A_->_a[j]);
                             ++nnz;
                         }
                     }
@@ -716,7 +716,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                     ja[i] = restriction[i].first;
                     a[i] = restriction[i].second;
                 }
-                super::_C = new MatrixCSR<K>(omap.size(), omap.size(), nnz - (Wrapper<K>::I == 'F'), a, ia, ja, super::_A->_sym, true);
+                super::C_ = new MatrixCSR<K>(omap.size(), omap.size(), nnz - (Wrapper<K>::I == 'F'), a, ia, ja, super::A_->_sym, true);
 #else
                 IS is;
                 PetscInt* data;
@@ -732,11 +732,11 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 }
                 else {
                     imap.reserve(omap.size());
-                    const underlying_type<K>* const D = super::_D;
+                    const underlying_type<K>* const D = super::D_;
                     std::for_each(omap.cbegin(), omap.cend(), [&D, &imap](const typename Preconditioner::integer_type& i) { if(std::abs(D[i]) > HPDDM_EPS) imap.emplace_back(i); });
                     ISCreateGeneral(PETSC_COMM_SELF, imap.size(), imap.data(), PETSC_USE_POINTER, &is);
                 }
-                MatCreateSubMatrix(super::_A, is, is, MAT_INITIAL_MATRIX, &(super::_C));
+                MatCreateSubMatrix(super::A_, is, is, MAT_INITIAL_MATRIX, &(super::C_));
                 ISDestroy(&is);
                 if(n == super::_n && !std::is_same<typename Preconditioner::integer_type, PetscInt>::value)
                     delete [] data;
@@ -771,7 +771,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 m += super::_map[i].second.size() * (U == 1 ? super::_local : std::max(static_cast<unsigned short>(super::_local), info[i]));
             }
             if(super::_local)
-                Wrapper<K>::diag(super::_n, super::_D, *super::_deflation, *tmp, super::_local);
+                Wrapper<K>::diag(super::_n, super::D_, *super::_deflation, *tmp, super::_local);
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
                 buff[super::_map.size() + i] = *buff + m;
                 for(unsigned short j = 0; j < super::_local; ++j)
@@ -780,7 +780,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 m += super::_map[i].second.size() * (U == 1 ? super::_local : std::max(static_cast<unsigned short>(super::_local), info[i]));
             }
 #if !HPDDM_PETSC
-            Wrapper<K>::template csrmm<Wrapper<K>::I>(super::_A->_sym, &(super::_n), &(super::_local), super::_A->_a, super::_A->_ia, super::_A->_ja, *tmp, super::_work);
+            Wrapper<K>::template csrmm<Wrapper<K>::I>(super::A_->_sym, &(super::_n), &(super::_local), super::A_->_a, super::A_->_ia, super::A_->_ja, *tmp, super::_work);
 #else
             Mat Z, P;
             if(n == super::_n) {
@@ -792,7 +792,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 PetscScalar* array;
                 MatDenseGetArray(Z, &array);
                 for(PetscInt i = 0, k = 0; i < super::_n; ++i) {
-                    if(std::abs(super::_D[i]) > HPDDM_EPS) {
+                    if(std::abs(super::D_[i]) > HPDDM_EPS) {
                         for(unsigned short j = 0; j < super::_local; ++j)
                             array[k + j * n] = tmp[0][i + j * super::_n];
                         ++k;
@@ -802,14 +802,14 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 MatDenseRestoreArray(Z, &array);
                 MatCreateSeqDense(PETSC_COMM_SELF, n, super::_local, nullptr, &P);
             }
-            MatMatMult(super::_A, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
+            MatMatMult(super::A_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
             MatDestroy(&Z);
             if(n != super::_n) {
                 PetscScalar* array;
                 MatDenseGetArray(P, &array);
                 std::fill_n(super::_work, super::_local * super::_n, K());
                 for(PetscInt i = 0, k = 0; i < super::_n; ++i) {
-                    if(std::abs(super::_D[i]) > HPDDM_EPS) {
+                    if(std::abs(super::D_[i]) > HPDDM_EPS) {
                         for(unsigned short j = 0; j < super::_local; ++j)
                             super::_work[i + j * super::_n] = array[k + j * n];
                         ++k;
@@ -832,30 +832,30 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             m = std::distance(tmp[0], tmp[super::_map.size()]) / omap.size();
 #if !HPDDM_PETSC
             {
-                std::vector<unsigned short>* compute = new std::vector<unsigned short>[super::_C->_n]();
+                std::vector<unsigned short>* compute = new std::vector<unsigned short>[super::C_->_n]();
                 for(unsigned short i = 0; i < super::_map.size(); ++i)
                     for(unsigned int j = 0; j < super::_map[i].second.size(); ++j) {
                         std::vector<int>::const_iterator it = std::lower_bound(omap.cbegin(), omap.cend(), super::_map[i].second[j]);
                         compute[std::distance(omap.cbegin(), it)].emplace_back(i);
                     }
-                std::fill_n(tmp[super::_map.size()], super::_C->_n * m, K());
-                for(int i = 0; i < super::_C->_n; ++i) {
-                    for(int j = super::_C->_ia[i] - (Wrapper<K>::I == 'F'); j < super::_C->_ia[i + 1] - (Wrapper<K>::I == 'F'); ++j) {
-                        for(unsigned short k = 0; k < compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')].size(); ++k) {
+                std::fill_n(tmp[super::_map.size()], super::C_->_n * m, K());
+                for(int i = 0; i < super::C_->_n; ++i) {
+                    for(int j = super::C_->_ia[i] - (Wrapper<K>::I == 'F'); j < super::C_->_ia[i + 1] - (Wrapper<K>::I == 'F'); ++j) {
+                        for(unsigned short k = 0; k < compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')].size(); ++k) {
 
-                            const int m = (U == 1 ? super::_local : info[compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')][k]]);
-                            Blas<K>::axpy(&m, super::_C->_a + j, tmp[compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')][k]] + super::_C->_ja[j] - (Wrapper<K>::I == 'F'), &(super::_C->_n), tmp[super::_map.size() + compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::_C->_n));
-                            if(super::_C->_sym && i != super::_C->_ja[j] - (Wrapper<K>::I == 'F')) {
+                            const int m = (U == 1 ? super::_local : info[compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')][k]]);
+                            Blas<K>::axpy(&m, super::C_->_a + j, tmp[compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')][k]] + super::C_->_ja[j] - (Wrapper<K>::I == 'F'), &(super::C_->_n), tmp[super::_map.size() + compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::C_->_n));
+                            if(super::C_->_sym && i != super::C_->_ja[j] - (Wrapper<K>::I == 'F')) {
 
-                                const int m = (U == 1 ? super::_local : info[compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')][k]]);
-                                Blas<K>::axpy(&m, super::_C->_a + j, tmp[compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::_C->_n), tmp[super::_map.size() + compute[super::_C->_ja[j] - (Wrapper<K>::I == 'F')][k]] + super::_C->_ja[j] - (Wrapper<K>::I == 'F'), &(super::_C->_n));
+                                const int m = (U == 1 ? super::_local : info[compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')][k]]);
+                                Blas<K>::axpy(&m, super::C_->_a + j, tmp[compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::C_->_n), tmp[super::_map.size() + compute[super::C_->_ja[j] - (Wrapper<K>::I == 'F')][k]] + super::C_->_ja[j] - (Wrapper<K>::I == 'F'), &(super::C_->_n));
                             }
                         }
                     }
                 }
                 delete [] compute;
             }
-            delete super::_C;
+            delete super::C_;
 #else
             {
                 Mat Z, P;
@@ -867,7 +867,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 else {
                     imap.reserve(omap.size());
                     for(typename std::vector<typename Preconditioner::integer_type>::const_iterator it = omap.cbegin(); it != omap.cend(); ++it) {
-                        if(std::abs(super::_D[*it]) > HPDDM_EPS)
+                        if(std::abs(super::D_[*it]) > HPDDM_EPS)
                             imap.emplace_back(std::distance(omap.cbegin(), it));
                     }
                     MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &Z);
@@ -880,7 +880,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                     MatDenseRestoreArray(Z, &array);
                     MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &P);
                 }
-                MatMatMult(super::_C, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
+                MatMatMult(super::C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
                 MatDestroy(&Z);
                 if(n != super::_n) {
                     PetscScalar* array;
@@ -894,7 +894,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 }
                 MatDestroy(&P);
             }
-            MatDestroy(&(super::_C));
+            MatDestroy(&(super::C_));
 #endif
             MPI_Waitall(super::_map.size(), rq + super::_map.size(), MPI_STATUSES_IGNORE);
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
@@ -920,12 +920,12 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
 #if !HPDDM_PETSC
             if(HPDDM_NUMBERING != Wrapper<K>::I) {
                 if(Wrapper<K>::I == 'F') {
-                    std::for_each(super::_A->_ja, super::_A->_ja + super::_A->_nnz, [](int& i) { --i; });
-                    std::for_each(super::_A->_ia, super::_A->_ia + super::_A->_n + 1, [](int& i) { --i; });
+                    std::for_each(super::A_->_ja, super::A_->_ja + super::A_->_nnz, [](int& i) { --i; });
+                    std::for_each(super::A_->_ia, super::A_->_ia + super::A_->_n + 1, [](int& i) { --i; });
                 }
                 else {
-                    std::for_each(super::_A->_ja, super::_A->_ja + super::_A->_nnz, [](int& i) { ++i; });
-                    std::for_each(super::_A->_ia, super::_A->_ia + super::_A->_n + 1, [](int& i) { ++i; });
+                    std::for_each(super::A_->_ja, super::A_->_ja + super::A_->_nnz, [](int& i) { ++i; });
+                    std::for_each(super::A_->_ia, super::A_->_ia + super::A_->_n + 1, [](int& i) { ++i; });
                 }
             }
 #endif
@@ -983,7 +983,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             }
             rs += super::_signed;
             delete [] accumulate;
-            Wrapper<K>::diag(super::_n, super::_D, super::_work, work, super::_local);
+            Wrapper<K>::diag(super::_n, super::D_, super::_work, work, super::_local);
             MPI_Waitall(super::_map.size(), rq + super::_map.size(), MPI_STATUSES_IGNORE);
             delete [] rq;
             delete [] *buff;

@@ -29,18 +29,22 @@
 namespace HPDDM {
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol;
     unsigned short it;
     char id[2];
     {
-#if !HPDDM_PETSC
         const std::string prefix = A.prefix();
         const Option& opt = *Option::get();
         if((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
-#endif
         options<2>(A, &tol, nullptr, &it, id);
     }
+#else
+    underlying_type<K> tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl[0];
+    unsigned short it = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[0];
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     underlying_type<K>* res;
@@ -156,31 +160,25 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol;
     unsigned short m[2];
     char id[2];
     {
         const std::string prefix = A.prefix();
-#if !HPDDM_PETSC
         const Option& opt = *Option::get();
         if((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
-#endif
         options<3>(A, &tol, nullptr, m, id);
-#if !HPDDM_PETSC
         if(opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE)
             return CG<excluded>(A, b, x, mu, comm);
         m[1] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
-#else
-        PetscInt i = HPDDM_VARIANT_LEFT;
-        PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_variant", HPDDMVariant, 3, &i, nullptr);
-        if(i == HPDDM_VARIANT_FLEXIBLE)
-            return CG<excluded>(A, b, x, mu, comm);
-        i = 1;
-        PetscOptionsGetInt(nullptr, prefix.c_str(), "-ksp_hpddm_enlarge_krylov_subspace",  &i, nullptr);
-        m[1] = i;
-#endif
     }
+#else
+    underlying_type<K> tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl[0];
+    unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[4 * (dim + mu * mu)];
@@ -314,26 +312,24 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol[2];
     unsigned short m[2];
     char id[2];
     {
         const std::string prefix = A.prefix();
-#if !HPDDM_PETSC
         const Option& opt = *Option::get();
         if((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) && (!opt.any_of(prefix + "schwarz_method", { HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE }) || opt.any_of(prefix + "schwarz_coarse_correction", { HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED })))
             return GMRES<excluded>(A, b, x, mu, comm);
-#endif
         options<6>(A, tol, nullptr, m, id);
-#if !HPDDM_PETSC
         if(opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE)
-#else
-        PetscInt i = HPDDM_VARIANT_LEFT;
-        PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_variant", HPDDMVariant, 3, &i, nullptr);
-        if(i == HPDDM_VARIANT_FLEXIBLE)
-#endif
             return CG<excluded>(A, b, x, mu, comm);
     }
+#else
+    underlying_type<K>* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
+    unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[5 * dim + (mu * (3 * mu + 1)) / 2 + mu / m[1]];

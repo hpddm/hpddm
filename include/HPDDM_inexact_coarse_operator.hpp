@@ -24,7 +24,9 @@
 #define _HPDDM_INEXACT_COARSE_OPERATOR_
 
 #if !HPDDM_PETSC
+# if !defined(PETSCSUB)
 class Mat;
+# endif
 #else
 # include "HPDDM_subdomain.hpp"
 # if HPDDM_SLEPC
