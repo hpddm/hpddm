@@ -25,14 +25,7 @@
 #ifndef _HPDDM_ITERATIVE_
 #define _HPDDM_ITERATIVE_
 
-#if HPDDM_PETSC
-static const char *HPDDMKrylovMethod[]      = { "gmres", "bgmres", "cg", "bcg", "gcrodr", "bgcrodr", "bfbcg" };
-static const char *HPDDMOrthogonalization[] = { "cgs", "mgs" };
-static const char *HPDDMQR[]                = { "cholqr", "cgs", "mgs" };
-static const char *HPDDMVariant[]           = { "left", "right", "flexible" };
-static const char *HPDDMRecycleTarget[]     = { "SM", "LM", "SR", "LR", "SI", "LI" };
-static const char *HPDDMRecycleStrategy[]   = { "A", "B" };
-#endif
+#include "HPDDM_LAPACK.hpp"
 
 namespace HPDDM {
 template<class K, class T = int>
@@ -203,53 +196,6 @@ class IterativeMethod {
                 *i = std::min(m[1] - 1, opt.val<int>(prefix + "recycle", 0));
                 id[3] = opt.val<char>(prefix + "recycle_target", HPDDM_RECYCLE_TARGET_SM);
                 id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
-            }
-#elif defined(_KSPIMPL_H)
-            m[0] = A._ksp->max_it;
-            if(T == 7) {
-                PetscReal r = 1.0;
-                PetscOptionsGetReal(nullptr, prefix.c_str(), "-ksp_richardson_scale", &r, nullptr);
-                d[0] = r;
-                return;
-            }
-            d[0] = A._ksp->rtol;
-            id[0] = 0;
-            if(T == 1 || T == 5 || T == 6) {
-                PetscReal r = -1.0;
-                PetscOptionsGetReal(nullptr, prefix.c_str(), "-ksp_hpddm_deflation_tol", &r, nullptr);
-                d[1] = r;
-                PetscInt i = 1;
-                PetscOptionsGetInt(nullptr, prefix.c_str(), "-ksp_hpddm_enlarge_krylov_subspace", &i, nullptr);
-                m[1 + (T != 6)] = i;
-            }
-            if(T == 0 || T == 1 || T == 4 || T == 5) {
-                PetscInt orthogonalization = HPDDM_ORTHOGONALIZATION_CGS, qr = HPDDM_QR_CHOLQR;
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_orthogonalization", HPDDMOrthogonalization, 2, &orthogonalization, nullptr);
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_qr", HPDDMQR, 3, &qr, nullptr);
-                id[2] = static_cast<char>(orthogonalization) + (static_cast<char>(qr) << 2);
-                PetscInt i = 40;
-                PetscOptionsGetInt(nullptr, prefix.c_str(), "-ksp_gmres_restart", &i, nullptr);
-                m[1] = std::min(i, static_cast<PetscInt>(m[0]));
-            }
-            if(T == 0 || T == 1 || T == 2 || T == 4 || T == 5) {
-                PetscInt i = HPDDM_VARIANT_LEFT;
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_variant", HPDDMVariant, 3, &i, nullptr);
-                id[1] = i;
-            }
-            if(T == 3 || T == 6) {
-                PetscInt i = HPDDM_QR_CHOLQR;
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_qr", HPDDMQR, 3, &i, nullptr);
-                id[1] = i;
-            }
-            if(T == 4 || T == 5) {
-                PetscInt recycle = 0;
-                PetscOptionsGetInt(nullptr, prefix.c_str(), "-ksp_hpddm_recycle", &recycle, nullptr);
-                *i = std::min(static_cast<decltype(recycle)>(m[1] - 1), recycle);
-                PetscInt target = HPDDM_RECYCLE_TARGET_SM, strategy = HPDDM_RECYCLE_STRATEGY_A;
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_recycle_target", HPDDMRecycleTarget, 6, &target, nullptr);
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_recycle_strategy", HPDDMRecycleStrategy, 2, &strategy, nullptr);
-                id[3] = target;
-                id[4] = static_cast<char>(strategy);
             }
 #endif
             if(std::abs(d[0]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
@@ -915,17 +861,6 @@ class IterativeMethod {
                         std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
                 }
             }
-#else
-            PetscOptionsClearValue(nullptr, std::string("-" + prefix + "_ksp_hpddm_enlarge_krylov_subspace").c_str());
-            if(k > 1) {
-                PetscOptionsInsertString(nullptr, std::string("-" + prefix + "_ksp_hpddm_enlarge_krylov_subspace " + std::to_string(k)).c_str());
-                PetscInt i = HPDDM_KRYLOV_METHOD_GMRES;
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_krylov_method", HPDDMKrylovMethod, 7, &i, nullptr);
-                if(i != HPDDM_KRYLOV_METHOD_BGMRES && i != HPDDM_KRYLOV_METHOD_BCG && i != HPDDM_KRYLOV_METHOD_BGCRODR && i != HPDDM_KRYLOV_METHOD_BFBCG) {
-                    PetscOptionsInsertString(nullptr, std::string("-" + prefix + "_ksp_hpddm_krylov_method bgmres").c_str());
-
-                }
-            }
 #endif
         }
         template<bool excluded, class Operator, class K>
@@ -1070,8 +1005,13 @@ class IterativeMethod {
             K factor;
             unsigned short it;
             {
+#if !defined(_KSPIMPL_H)
                 underlying_type<K> d;
                 options<7>(A, &d, nullptr, &it, nullptr);
+#else
+                underlying_type<K> d = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl[0];
+                it = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[0];
+#endif
                 factor = d;
             }
             const int n = excluded ? 0 : mu * A.getDof();
@@ -1105,6 +1045,7 @@ class IterativeMethod {
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
         static int PCG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm);
+#if !HPDDM_PETSC || defined(_KSPIMPL_H)
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int& mu
 #if HPDDM_MPI
@@ -1116,7 +1057,7 @@ class IterativeMethod {
             std::ios_base::fmtflags ff(std::cout.flags());
             std::cout << std::scientific;
             const std::string prefix = A.prefix();
-#if !HPDDM_PETSC
+#if !defined(_KSPIMPL_H)
             Option& opt = *Option::get();
 #if HPDDM_MIXED_PRECISION
             opt[prefix + "variant"] = HPDDM_VARIANT_FLEXIBLE;
@@ -1124,16 +1065,8 @@ class IterativeMethod {
             unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 0);
             const char method = opt.val<char>(prefix + "krylov_method");
 #else
-            unsigned short k = 0;
-            char method = HPDDM_KRYLOV_METHOD_GMRES;
-            {
-                PetscInt i = k;
-                PetscOptionsGetInt(nullptr, prefix.c_str(), "-ksp_hpddm_enlarge_krylov_subspace", &i, nullptr);
-                k = i;
-                i = HPDDM_KRYLOV_METHOD_GMRES;
-                PetscOptionsGetEList(nullptr, prefix.c_str(), "-ksp_hpddm_krylov_method", HPDDMKrylovMethod, 7, &i, nullptr);
-                method = i;
-            }
+            unsigned short k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[1 + (reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[5] != HPDDM_KRYLOV_METHOD_BFBCG)];
+            char method = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[5];
 #endif
             K* sx = nullptr;
             K* sb = nullptr;
@@ -1166,6 +1099,7 @@ class IterativeMethod {
             std::cout.flags(ff);
             return it;
         }
+#endif
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm) {
             std::ios_base::fmtflags ff(std::cout.flags());

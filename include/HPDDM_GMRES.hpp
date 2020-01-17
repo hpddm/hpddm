@@ -29,10 +29,16 @@
 namespace HPDDM {
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol;
     unsigned short m[2];
     char id[3];
     options<0>(A, &tol, nullptr, m, id);
+#else
+    underlying_type<K> tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl[0];
+    unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     const int n = excluded ? 0 : A.getDof();
     K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 3 : 2) + 1];
     K** const v = H + m[1];
@@ -143,10 +149,16 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
+#if !defined(_KSPIMPL_H)
     underlying_type<K> tol[2];
     unsigned short m[3];
     char id[3];
     options<1>(A, tol, nullptr, m, id);
+#else
+    underlying_type<K>* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
+    unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
+    char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+#endif
     const int n = excluded ? 0 : A.getDof();
     K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 3 : 2) + 1];
     K** const v = H + m[1];

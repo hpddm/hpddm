@@ -211,6 +211,8 @@ template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 template<class T>
 using downscaled_type = typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<underlying_type<T>, T>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION, std::complex<float>, T>::type>::type;
+template<class T>
+using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double, std::complex<double>>::type;
 
 template<class T>
 inline std::string pts(const T* const s, const unsigned int k, typename std::enable_if<!std::is_same<T, void>::value>::type* = nullptr) {
@@ -299,6 +301,9 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #  ifdef DELEMENTAL
 #   include "HPDDM_Elemental.hpp"
 #  endif
+#  ifdef PETSCSUB
+#   include "HPDDM_PETSc.hpp"
+#  endif
 # endif
 # if !defined(SUBDOMAIN) || !defined(COARSEOPERATOR)
 #  undef HPDDM_SCHWARZ
@@ -336,8 +341,10 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 typedef int MPI_Comm;
 typedef int MPI_Request;
 #  endif
-#  include "HPDDM_GCRODR.hpp"
-#  include "HPDDM_CG.hpp"
+#  if !HPDDM_PETSC || defined(_KSPIMPL_H)
+#   include "HPDDM_GCRODR.hpp"
+#   include "HPDDM_CG.hpp"
+#  endif
 #  if !HPDDM_MPI
 #   undef MPI_COMM_SELF
 #   undef MPI_Comm_rank
@@ -382,7 +389,6 @@ using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #endif // __cplusplus
 #if HPDDM_PETSC
 # ifdef HPDDM_MINIMAL
-#  include "HPDDM_LAPACK.hpp"
 #  include "HPDDM_iterative.hpp"
 # endif
 # include "HPDDM_PETSc.hpp"
