@@ -31,9 +31,6 @@
 namespace HPDDM {
 template<class K>
 class MatrixBase {
-    private:
-#if INTEL_MKL_VERSION > 110299
-#endif
     public:
         /* Variable: ia
          *  Array of row pointers. */
@@ -155,9 +152,6 @@ class MatrixCSR<void> : public MatrixBase<void> {
  *    K              - Scalar type. */
 template<class K>
 class MatrixCSR : public MatrixBase<K> {
-    private:
-#if INTEL_MKL_VERSION > 110299
-#endif
     public:
         /* Variable: a
          *  Array of data. */

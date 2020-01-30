@@ -77,7 +77,7 @@ HPDDM_GENERATE_EXTERN_DOTC(C, T, U)
 void HPDDM_F77(C ## gemm3m)(const char*, const char*, const int*, const int*, const int*,                    \
                             const T*, const T*, const int*, const T*, const int*,                            \
                             const T*, T*, const int*);
-# if defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110300
+# if !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300
 #  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)
 # else
 #  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)                                                                  \
@@ -201,7 +201,7 @@ inline void Blas<T>::gemm(const char* const transa, const char* const transb, co
                           T* const c, const int* const ldc) {                                                \
     HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
 }
-# if !HPDDM_MKL || (defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 110300)
+# if !HPDDM_MKL || !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300
 #  define HPDDM_GENERATE_GEMMT(C, T)                                                                         \
 template<>                                                                                                   \
 inline void Blas<T>::gemmt(const char* const, const char* const transa, const char* const transb,            \
