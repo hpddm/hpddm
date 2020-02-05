@@ -69,7 +69,10 @@ HPDDM_GENERATE_EXTERN_MKL(d, double)
 HPDDM_GENERATE_EXTERN_MKL(c, std::complex<float>)
 HPDDM_GENERATE_EXTERN_MKL(z, std::complex<double>)
 }
-#  include <mkl_version.h>
+#   include <mkl_service.h>
+#   if !defined(MKL_ENABLE_AVX512_MIC) || MKL_ENABLE_AVX512_MIC == 3
+#    include <mkl_version.h>
+#   endif
 #  endif
 # endif
 #endif // HPDDM_MKL
