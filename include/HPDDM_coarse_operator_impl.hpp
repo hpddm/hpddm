@@ -589,7 +589,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         loc2glob = new int[2];
 #endif
 #else
-        I = new int[2 * size];
+        I = new integer_type[2 * size];
         J = I + size;
 #endif
         C = new K[!std::is_same<downscaled_type<K>, K>::value ? std::max((info[0] + 1) * _local * _local, static_cast<int>(1 + ((size * sizeof(downscaled_type<K>) - 1) / sizeof(K)))) : size];
@@ -946,7 +946,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 }
                 unsigned int coefficientsSlave = colIdx - J - offsetIdx[k - 1];
 #ifndef HPDDM_CSR_CO
-                int* rowIdx = I + std::distance(J, colIdx);
+                integer_type* rowIdx = I + std::distance(J, colIdx);
                 std::fill(I + offsetIdx[k - 1], rowIdx, tmp);
 #else
                 offsetSlave = (U == 1 ? (k - (excluded == 2)) * (!blocked ? _local : 1) : offsetPosition[k] - offsetPosition[1] + (excluded == 2 ? 0 : _local));

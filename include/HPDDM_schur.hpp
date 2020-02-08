@@ -841,22 +841,23 @@ class Schur : public Preconditioner<
             }
             return dof;
         }
-        template<char N = HPDDM_NUMBERING>
-        void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
+        template<class T, char N = HPDDM_NUMBERING>
+        void distributedNumbering(T* const in, T& first, T& last, long long& global) const {
             Subdomain<K>::template globalMapping<N>(in + _bi->_m, in + Subdomain<K>::_a->_n, first, last, global);
-            unsigned int independent = _bi->_m;
-            MPI_Allreduce(MPI_IN_PLACE, &independent, 1, MPI_UNSIGNED, MPI_SUM, Subdomain<K>::_communicator);
+            long long independent = _bi->_m;
+            MPI_Allreduce(MPI_IN_PLACE, &independent, 1, MPI_LONG_LONG, MPI_SUM, Subdomain<K>::_communicator);
             global += independent;
-            std::for_each(in + _bi->_m, in + Subdomain<K>::_a->_n, [&](unsigned int& i) { i += independent; });
+            std::for_each(in + _bi->_m, in + Subdomain<K>::_a->_n, [&](T& i) { i += independent; });
             independent = _bi->_m;
-            MPI_Exscan(MPI_IN_PLACE, &independent, 1, MPI_UNSIGNED, MPI_SUM, Subdomain<K>::_communicator);
+            MPI_Exscan(MPI_IN_PLACE, &independent, 1, MPI_LONG_LONG, MPI_SUM, Subdomain<K>::_communicator);
             int rank;
             MPI_Comm_rank(Subdomain<K>::_communicator, &rank);
             if(!rank)
                 independent = 0;
             std::iota(in, in + _bi->_m, independent + (N == 'F'));
         }
-        bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, K*& c) const {
+        template<class T>
+        bool distributedCSR(T* const num, T first, T last, T*& ia, T*& ja, K*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);
         }
 };

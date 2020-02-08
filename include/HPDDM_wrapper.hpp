@@ -228,6 +228,8 @@ template<>
 inline MPI_Datatype Wrapper<std::complex<float>>::mpi_type() { return MPI_COMPLEX; }
 template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_DOUBLE_COMPLEX; }
+template<class K>
+inline MPI_Datatype Wrapper<K>::mpi_type() { static_assert(std::is_integral<K>::value, "Wrong type"); return sizeof(K) == sizeof(int) ? MPI_INT : sizeof(K) == sizeof(long long) ? MPI_LONG_LONG : MPI_BYTE; }
 #endif
 
 template<class K>

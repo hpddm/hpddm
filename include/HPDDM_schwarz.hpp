@@ -1310,12 +1310,12 @@ class Schwarz : public Preconditioner<
         /* Function: getScaling
          *  Returns a constant pointer to <Schwarz::d>. */
         const underlying_type<K>* getScaling() const { return _d; }
-        template<char N = HPDDM_NUMBERING>
-        void distributedNumbering(unsigned int* const in, unsigned int& first, unsigned int& last, unsigned int& global) const {
+        template<class I, char N = HPDDM_NUMBERING>
+        void distributedNumbering(I* const in, I& first, I& last, long long& global) const {
             Subdomain<K>::template globalMapping<N>(in, in + Subdomain<K>::_dof, first, last, global, _d);
         }
-        template<class T = K>
-        bool distributedCSR(unsigned int* const num, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c) const {
+        template<class I, class T = K>
+        bool distributedCSR(I* const num, I first, I last, I*& ia, I*& ja, T*& c) const {
             return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, Subdomain<K>::_a);
         }
 };

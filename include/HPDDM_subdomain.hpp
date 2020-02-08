@@ -646,8 +646,9 @@ class Subdomain : public OptionsPrefix<K> {
          *    end           - Highest global number of the local unknowns.
          *    global        - Global number of unknowns.
          *    d             - Local partition of unity (optional). */
-        template<char N, class It>
-        void globalMapping(It first, It last, unsigned int& start, unsigned int& end, unsigned int& global, const underlying_type<K>* const d = nullptr, const unsigned int* const list = nullptr) const {
+        template<char N, class It, class T>
+        void globalMapping(It first, It last, T& start, T& end, long long& global, const underlying_type<K>* const d = nullptr, const T* const list = nullptr) const {
+            static_assert(sizeof(T) == 4 || sizeof(T) == 8, "Unsupported size");
             int rankWorld, sizeWorld;
             MPI_Comm_rank(_communicator, &rankWorld);
             MPI_Comm_size(_communicator, &sizeWorld);
@@ -659,33 +660,33 @@ class Subdomain : public OptionsPrefix<K> {
             }
             if(sizeWorld > 1) {
                 setBuffer();
-                unsigned int between = 0;
+                T between = 0;
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
-                unsigned int size = 1 + ((2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(unsigned int) - 1) / sizeof(K));
-                unsigned int* const rbuff = (_map.empty() ? new unsigned int[1] : (size < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size() ? reinterpret_cast<unsigned int*>(_buff[0]) : new unsigned int[2 * (std::distance(_buff[0], _buff[_map.size()]) + 1)]));
-                unsigned int* const sbuff = rbuff + std::distance(_buff[0], _buff[_map.size()]) + 1;
+                T size = 1 + ((2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(T) - 1) / sizeof(K));
+                T* const rbuff = (_map.empty() ? new T[1] : (size < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size() ? reinterpret_cast<T*>(_buff[0]) : new T[2 * (std::distance(_buff[0], _buff[_map.size()]) + 1)]));
+                T* const sbuff = rbuff + std::distance(_buff[0], _buff[_map.size()]) + 1;
                 size = 0;
                 MPI_Request* rq = new MPI_Request[2];
 
                 for(unsigned short i = 0; i < between; ++i) {
-                    MPI_Irecv(rbuff + size, _map[i].second.size() + (_map[i].first == rankWorld - 1), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + i);
+                    MPI_Irecv(static_cast<void*>(rbuff + size), _map[i].second.size() + (_map[i].first == rankWorld - 1), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + i);
                     size += _map[i].second.size();
                 }
 
                 if(rankWorld && ((between && _map[between - 1].first != rankWorld - 1) || !between))
-                    MPI_Irecv(rbuff + (_map.empty() ? 0 : size), 1, MPI_UNSIGNED, rankWorld - 1, 10, _communicator, rq);
+                    MPI_Irecv(static_cast<void*>(rbuff + (_map.empty() ? 0 : size)), 1, Wrapper<T>::mpi_type(), rankWorld - 1, 10, _communicator, rq);
                 else
                     rq[0] = MPI_REQUEST_NULL;
 
                 ++size;
                 for(unsigned short i = between; i < _map.size(); ++i) {
-                    MPI_Irecv(rbuff + size, _map[i].second.size(), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + _map.size() + i);
+                    MPI_Irecv(static_cast<void*>(rbuff + size), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + _map.size() + i);
                     size += _map[i].second.size();
                 }
 
-                unsigned int begining;
-                std::fill(first, last, std::numeric_limits<unsigned int>::max());
+                T begining;
+                std::fill(first, last, std::numeric_limits<T>::max());
                 if(rankWorld == 0) {
                     begining = (N == 'F');
                     start = begining;
@@ -717,18 +718,20 @@ class Subdomain : public OptionsPrefix<K> {
                     start = begining;
                     if(!list) {
                         for(unsigned int i = 0; i < std::distance(first, last); ++i)
-                            if((!d || d[i] > 0.1) && *(first + i) == std::numeric_limits<unsigned int>::max())
+                            if((!d || d[i] > 0.1) && *(first + i) == std::numeric_limits<T>::max())
                                 *(first + i) = begining++;
                     }
                     else {
                         for(const std::pair<unsigned int, unsigned int>& p : r) {
-                            if((!d || d[p.second] > 0.1) && *(first + p.second) == std::numeric_limits<unsigned int>::max()) {
+                            if((!d || d[p.second] > 0.1) && *(first + p.second) == std::numeric_limits<T>::max()) {
                                 *(first + p.second) = begining++;
                             }
                         }
                     }
                     end = begining;
                 }
+                if(start > end)
+                    std::cerr << "Probable integer overflow on process #" << rankWorld << ": " << start << " > " << end << std::endl;
                 size = 0;
                 if(rankWorld != sizeWorld - 1) {
                     if(between < _map.size()) {
@@ -737,16 +740,16 @@ class Subdomain : public OptionsPrefix<K> {
                             rq[1] = MPI_REQUEST_NULL;
                         }
                         else
-                            MPI_Isend(&begining, 1, MPI_UNSIGNED, rankWorld + 1, 10, _communicator, rq + 1);
+                            MPI_Isend(static_cast<void*>(&begining), 1, Wrapper<T>::mpi_type(), rankWorld + 1, 10, _communicator, rq + 1);
                         for(unsigned short i = between; i < _map.size(); ++i) {
                             for(unsigned int j = 0; j < _map[i].second.size(); ++j)
                                 sbuff[size + j] = *(first + _map[i].second[j]);
-                            MPI_Isend(sbuff + size, _map[i].second.size() + (_map[i].first == rankWorld + 1), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + i);
+                            MPI_Isend(static_cast<void*>(sbuff + size), _map[i].second.size() + (_map[i].first == rankWorld + 1), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + i);
                             size += _map[i].second.size() + (_map[i].first == rankWorld + 1);
                         }
                     }
                     else
-                        MPI_Isend(&begining, 1, MPI_UNSIGNED, rankWorld + 1, 10, _communicator, rq + 1);
+                        MPI_Isend(static_cast<void*>(&begining), 1, Wrapper<T>::mpi_type(), rankWorld + 1, 10, _communicator, rq + 1);
                 }
                 else
                     rq[1] = MPI_REQUEST_NULL;
@@ -754,7 +757,7 @@ class Subdomain : public OptionsPrefix<K> {
                 for(unsigned short i = 0; i < between; ++i) {
                     for(unsigned int j = 0; j < _map[i].second.size(); ++j)
                         sbuff[size + j] = *(first + _map[i].second[j]);
-                    MPI_Isend(sbuff + size, _map[i].second.size(), MPI_UNSIGNED, _map[i].first, 10, _communicator, _rq + _map.size() + i);
+                    MPI_Isend(static_cast<void*>(sbuff + size), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + _map.size() + i);
                     size += _map[i].second.size();
                     stop += _map[i].second.size();
                 }
@@ -768,19 +771,19 @@ class Subdomain : public OptionsPrefix<K> {
                 MPI_Waitall(_map.size(), _rq + between, MPI_STATUSES_IGNORE);
                 MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
                 delete [] rq;
-                if(_map.empty() || rbuff != reinterpret_cast<unsigned int*>(_buff[0]))
+                if(_map.empty() || rbuff != reinterpret_cast<T*>(_buff[0]))
                     delete [] rbuff;
                 global = end - (N == 'F');
-                MPI_Bcast(&global, 1, MPI_UNSIGNED, sizeWorld - 1, _communicator);
+                MPI_Bcast(&global, 1, MPI_LONG_LONG, sizeWorld - 1, _communicator);
                 clearBuffer();
             }
             else {
                 if(!list) {
-                    std::iota(first, last, static_cast<unsigned int>(N == 'F'));
+                    std::iota(first, last, static_cast<T>(N == 'F'));
                     end = std::distance(first, last);
                 }
                 else {
-                    unsigned int j = (N == 'F');
+                    T j = (N == 'F');
                     for(const std::pair<unsigned int, unsigned int>& p : r) {
                         *(first + p.second) = j++;
                     }
@@ -794,8 +797,8 @@ class Subdomain : public OptionsPrefix<K> {
          *  Assembles a distributed matrix that can be used by a backend such as PETSc.
          *
          * See also: <Subdomain::globalMapping>. */
-        template<class T = K>
-        static bool distributedCSR(const unsigned int* const row, unsigned int first, unsigned int last, int*& ia, int*& ja, T*& c, const MatrixCSR<K>* const& A, const unsigned int* col = nullptr) {
+        template<class I, class T = K>
+        static bool distributedCSR(const I* const row, I first, I last, I*& ia, I*& ja, T*& c, const MatrixCSR<K>* const& A, const I* col = nullptr) {
             std::vector<std::pair<int, int>>* transpose = nullptr;
             if(A->_sym) {
                 if(col || !std::is_same<K, T>::value)
@@ -810,20 +813,20 @@ class Subdomain : public OptionsPrefix<K> {
             if(first != 0 || last != A->_n || col) {
                 if(!col)
                     col = row;
-                std::vector<std::pair<unsigned int, unsigned int>> s;
+                std::vector<std::pair<I, I>> s;
                 s.reserve(A->_n);
                 for(unsigned int i = 0; i < A->_n; ++i)
                     s.emplace_back(row[i], i);
                 std::sort(s.begin(), s.end());
-                std::vector<std::pair<unsigned int, unsigned int>>::iterator begin = std::lower_bound(s.begin(), s.end(), std::make_pair(first, static_cast<unsigned int>(0)));
-                std::vector<std::pair<unsigned int, unsigned int>>::iterator end = std::upper_bound(begin, s.end(), std::make_pair(last, static_cast<unsigned int>(0)));
+                typename std::vector<std::pair<I, I>>::iterator begin = std::lower_bound(s.begin(), s.end(), std::make_pair(first, static_cast<I>(0)));
+                typename std::vector<std::pair<I, I>>::iterator end = std::upper_bound(begin, s.end(), std::make_pair(last, static_cast<I>(0)));
                 unsigned int dof = std::distance(begin, end);
-                std::vector<std::pair<unsigned int, T>> tmp;
+                std::vector<std::pair<I, T>> tmp;
                 tmp.reserve(A->_nnz);
                 if(!ia)
-                    ia = new int[dof + 1];
+                    ia = new I[dof + 1];
                 ia[0] = 0;
-                for(std::vector<std::pair<unsigned int, unsigned int>>::iterator it = begin; it != end; ++it) {
+                for(typename std::vector<std::pair<I, I>>::iterator it = begin; it != end; ++it) {
                     for(unsigned int j = A->_ia[it->second]; j < A->_ia[it->second + 1]; ++j)
                         tmp.emplace_back(col[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
                     if(A->_sym) {
@@ -832,18 +835,18 @@ class Subdomain : public OptionsPrefix<K> {
                                 tmp.emplace_back(col[transpose[it->second][j].first], A->_a[transpose[it->second][j].second]);
                         }
                     }
-                    std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<unsigned int, T>& lhs, const std::pair<unsigned int, T>& rhs) { return lhs.first < rhs.first; });
+                    std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<I, T>& lhs, const std::pair<I, T>& rhs) { return lhs.first < rhs.first; });
                     if(A->_sym) {
                         const unsigned int row = std::distance(begin, it);
-                        tmp.erase(std::remove_if(tmp.begin() + ia[row], tmp.end(), [&row](const std::pair<unsigned int, T>& x) { return x.first < row; }), tmp.end());
+                        tmp.erase(std::remove_if(tmp.begin() + ia[row], tmp.end(), [&row](const std::pair<I, T>& x) { return x.first < row; }), tmp.end());
                     }
                     ia[std::distance(begin, it) + 1] = tmp.size();
                 }
                 unsigned int nnz = tmp.size();
                 if(!c)
-                    c  = reinterpret_cast<T*>(new K[nnz * (1 + (sizeof(K) - 1) / sizeof(T))]);
+                    c = reinterpret_cast<T*>(new K[nnz * (1 + (sizeof(K) - 1) / sizeof(T))]);
                 if(!ja)
-                    ja = new int[nnz];
+                    ja = new I[nnz];
                 for(unsigned int i = 0; i < tmp.size(); ++i) {
                     ja[i] = tmp[i].first;
                     c[i] = tmp[i].second;
@@ -851,19 +854,35 @@ class Subdomain : public OptionsPrefix<K> {
             }
             else {
                 if(!A->_sym) {
-                    ia = A->_ia;
-                    ja = A->_ja;
-                    if(std::is_same<K, T>::value)
-                        c = reinterpret_cast<T*>(A->_a);
-                    else
-                        c = nullptr;
-                    return false;
+                    if(std::is_same<decltype(A->_ia), I>::value) {
+                        ia = reinterpret_cast<I*>(A->_ia);
+                        ja = reinterpret_cast<I*>(A->_ja);
+                        if(std::is_same<K, T>::value)
+                            c = reinterpret_cast<T*>(A->_a);
+                        else
+                            c = nullptr;
+                        return false;
+                    }
+                    else {
+                        if(!std::is_same<K, T>::value)
+                            std::cerr << "Not implemented" << std::endl;
+                        if(!ia)
+                            ia = new I[A->_n + 1];
+                        std::copy_n(A->_ia, A->_n + 1, ia);
+                        if(!ja)
+                            ja = new I[A->_nnz];
+                        std::copy_n(A->_ja, A->_nnz, ja);
+                        if(!c)
+                            c = new T[A->_nnz];
+                        std::copy_n(A->_a, A->_nnz, c);
+                        return true;
+                    }
                 }
                 else {
                     if(!ia)
-                        ia = new int[A->_n + 1];
+                        ia = new I[A->_n + 1];
                     if(!ja)
-                        ja = new int[A->_nnz];
+                        ja = new I[A->_nnz];
                     if(!c)
                         c = new T[A->_nnz];
                     ia[0] = 0;
@@ -883,8 +902,8 @@ class Subdomain : public OptionsPrefix<K> {
          *  Assembles a distributed vector that can by used by a backend such as PETSc.
          *
          * See also: <Subdomain::globalMapping>. */
-        template<bool V, class T = K>
-        static void distributedVec(const unsigned int* const num, unsigned int first, unsigned int last, T* const& in, T*& out, const unsigned int n, const unsigned short bs = 1) {
+        template<bool V, class I, class T = K>
+        static void distributedVec(const I* const num, I first, I last, T* const& in, T*& out, const I n, const unsigned short bs = 1) {
             if(first != 0 || last != n) {
                 if(!out) {
                     unsigned int dof = 0;

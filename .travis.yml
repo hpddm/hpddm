@@ -192,7 +192,7 @@ script:
       export PETSC_ARCH=arch-travis-petsc;
       export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";
       unset CXXFLAGS;
-      ./configure --with-fortran-bindings=0 --with-shared-libraries --download-slepc --download-hpddm=../hpddm --download-hpddm-commit=HEAD ${SCALARTYPE} ${PRECISION} ${INDICES} 'CXXPPFLAGS=${CXXPPFLAGS}';
+      ./configure --with-fortran-bindings=0 --with-x=0 --with-shared-libraries --download-slepc --download-hpddm=../hpddm --download-hpddm-commit=HEAD ${SCALARTYPE} ${PRECISION} ${INDICES} 'CXXPPFLAGS=${CXXPPFLAGS}';
       make PETSC_DIR=${PWD} PETSC_ARCH=arch-travis-petsc all;
       cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log;
       wget http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzvf petsc_datafiles.tar.gz && export DATAFILESPATH=${PWD}/datafiles;
