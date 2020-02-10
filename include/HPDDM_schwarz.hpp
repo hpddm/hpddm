@@ -95,7 +95,7 @@ class Schwarz : public Preconditioner<
         void operator=(const Schwarz& B) {
             dtor();
             Subdomain<K>::_a = B._a ? new MatrixCSR<K>(*B._a) : nullptr;
-            Subdomain<K>::_buff = new K*[2 * B._map.size()];
+            Subdomain<K>::_buff = new K*[2 * B._map.size()]();
             Subdomain<K>::_map = B._map;
             Subdomain<K>::_rq = new MPI_Request[2 * B._map.size()];
             Subdomain<K>::_communicator = B._communicator;
