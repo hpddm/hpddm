@@ -336,6 +336,9 @@ class Preconditioner : public Subdomain<K> {
                                                                                               { };
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
         void dtor() {
+#if !HPDDM_PETSC
+            _s.dtor();
+#endif
             delete _co;
             _co = nullptr;
             if(_ev && *_ev)

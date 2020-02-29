@@ -304,10 +304,16 @@ class Schur : public Preconditioner<
     public:
         Schur() : _bb(), _ii(), _bi(), _schur(), _work(), _structure(), _pinv(), _mult(), _signed(), _deficiency() { }
         Schur(const Schur&) = delete;
-        ~Schur() {
+        ~Schur() { dtor(); }
+        void dtor() {
+            super::super::dtor();
+            super::dtor();
             delete _bb;
+            _bb = nullptr;
             delete _bi;
+            _bi = nullptr;
             delete _ii;
+            _ii = nullptr;
 #if HPDDM_FETI || HPDDM_BDD
             if(!HPDDM_QR || !_schur)
                 delete static_cast<Solver<K>*>(_pinv);
@@ -315,9 +321,12 @@ class Schur : public Preconditioner<
                 delete static_cast<QR<K>*>(_pinv);
             else
                 delete [] static_cast<K*>(_pinv);
+            _pinv = nullptr;
 #endif
             delete [] _schur;
+            _schur = nullptr;
             delete [] _work;
+            _work = nullptr;
         }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
