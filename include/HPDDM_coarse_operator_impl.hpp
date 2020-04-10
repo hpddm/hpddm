@@ -1899,7 +1899,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                 if(_rankWorld == 0)
                     Itransfer<true>(DMatrix::_gatherCounts, mu, _sizeWorld, rhs, rq + 1);
                 else if(_gatherComm != MPI_COMM_NULL)
-                    MPI_Iscatterv(NULL, 0, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq + 1);
+                    MPI_Iscatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq + 1);
             }
             else {
                 int p = 0;
@@ -1912,7 +1912,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(_sizeWorld - p, mu, rhs + (p ? mu * *DMatrix::_gatherCounts : 0), *DMatrix::_gatherCounts);
                 }
                 else
-                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
+                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                 if(DMatrix::_communicator != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     super::template solve<DMatrix::CENTRALIZED>(rhs + (_offset || excluded ? _local : 0), mu);
@@ -1948,7 +1948,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     MPI_Iscatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm, rq + 1);
                 }
                 else {
-                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm, rq);
+                    MPI_Igather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
                     MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq + 1);
                 }
             }
