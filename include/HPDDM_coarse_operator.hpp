@@ -229,10 +229,11 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
             if(!T) {
                 std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
                 MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
+                MPI_Wait(rq, MPI_STATUS_IGNORE);
             }
             permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
+                MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
