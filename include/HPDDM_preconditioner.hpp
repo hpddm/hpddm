@@ -90,7 +90,7 @@ class Preconditioner : public Subdomain<K> {
         K**                _ev;
         /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
-        mutable K*         _uc;
+        K*                 _uc;
         /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.
@@ -255,7 +255,8 @@ class Preconditioner : public Subdomain<K> {
         void start(const unsigned short& mu = 1) const {
             if(_uc)
                 delete [] _uc;
-            _uc = new K[mu * _co->getSizeRHS()];
+            K** ptr = const_cast<K**>(&_uc);
+            *ptr = new K[mu * _co->getSizeRHS()];
         }
 #if !HPDDM_PETSC
         void destroySolver() {

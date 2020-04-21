@@ -241,17 +241,17 @@ class SuiteSparse : public DMatrix {
 template<class K>
 class SuiteSparseSub {
     private:
-        cholmod_factor*         _L;
-        cholmod_common*         _c;
-        cholmod_dense*          _b;
-        mutable cholmod_dense*  _x;
-        mutable cholmod_dense*  _Y;
-        mutable cholmod_dense*  _E;
-        void*             _numeric;
-        double*           _control;
-        int*              _pattern;
-        K*                      _W;
-        K*                    _tmp;
+        cholmod_factor* _L;
+        cholmod_common* _c;
+        cholmod_dense*  _b;
+        cholmod_dense*  _x;
+        cholmod_dense*  _Y;
+        cholmod_dense*  _E;
+        void*     _numeric;
+        double*   _control;
+        int*      _pattern;
+        K*              _W;
+        K*            _tmp;
     public:
         SuiteSparseSub() : _L(), _c(), _b(), _x(), _Y(), _E(), _numeric(), _control(), _pattern(), _W(), _tmp() { }
         SuiteSparseSub(const SuiteSparseSub&) = delete;
@@ -397,7 +397,7 @@ class SuiteSparseSub {
                 _x->ncol = 1;
                 _x->nzmax = _x->nrow;
                 _x->x = _tmp;
-                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
+                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, const_cast<cholmod_dense**>(&_x), NULL, const_cast<cholmod_dense**>(&_Y), const_cast<cholmod_dense**>(&_E), _c);
                 std::copy_n(_tmp, _x->nrow, x);
             }
             else {
@@ -413,7 +413,7 @@ class SuiteSparseSub {
                 _x->ncol = n;
                 _x->nzmax = _x->nrow;
                 _x->x = new K[n * _x->nrow];
-                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
+                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, const_cast<cholmod_dense**>(&_x), NULL, const_cast<cholmod_dense**>(&_Y), const_cast<cholmod_dense**>(&_E), _c);
                 std::copy_n(static_cast<K*>(_x->x), n * _x->nrow, x);
                 delete [] static_cast<K*>(_x->x);
                 _x->x = NULL;
@@ -434,7 +434,7 @@ class SuiteSparseSub {
                 _x->ncol = n;
                 _x->nzmax = _x->nrow;
                 _x->x = x;
-                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
+                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, const_cast<cholmod_dense**>(&_x), NULL, const_cast<cholmod_dense**>(&_Y), const_cast<cholmod_dense**>(&_E), _c);
             }
             else {
                 int ld = std::distance(_tmp, _W);

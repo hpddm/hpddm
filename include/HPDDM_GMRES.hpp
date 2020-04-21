@@ -101,7 +101,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         }
 #if HPDDM_PETSC
         if(j == 1)
-            KSPMonitor(A._ksp, 0, std::abs(s[0]));
+            KSPMonitor(A._ksp, 0, std::abs(*std::max_element(s, s + mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); })));
 #endif
         unsigned short i = 0;
         while(i < m[1] && j <= m[0]) {
@@ -118,14 +118,13 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, d, Ax, comm);
             checkConvergence<0>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
 #if HPDDM_PETSC
-            KSPMonitor(A._ksp, j, std::abs(s[i * mu]));
+            KSPMonitor(A._ksp, j, std::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); })));
 #endif
             if(std::find(hasConverged, hasConverged + mu, -m[1]) == hasConverged + mu) {
                 i = 0;
                 break;
             }
-            else
-                ++j;
+            ++j;
         }
         if(j != m[0] + 1 && i == m[1]) {
             updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[1] + 1 : 0), hasConverged, mu, Ax);
@@ -195,9 +194,20 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
         if(N == 0) {
+#if HPDDM_PETSC
+            KSPMonitor(A._ksp, 0, underlying_type<K>());
+#endif
             j = 0;
             break;
         }
+#if HPDDM_PETSC
+        else if(j == 1) {
+            underlying_type<K> max = std::abs(s[0]);
+            for(unsigned short nu = 1; nu < mu; ++nu)
+                max = std::max(max, std::abs(s[nu * (mu + 1)]));
+            KSPMonitor(A._ksp, 0, max);
+        }
+#endif
         if(N != mu) {
             int nrhs = mu - N;
             Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
@@ -234,13 +244,22 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 i = j = 0;
                 break;
             }
-            if(mu == checkBlockConvergence<1>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2])) {
+            const bool converged = (mu == checkBlockConvergence<1>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2]));
+#if HPDDM_PETSC
+            {
+                underlying_type<K>* norm = reinterpret_cast<underlying_type<K>*>(Ax);
+                underlying_type<K> max = std::abs(norm[0]);
+                for(unsigned short nu = 1; nu < deflated; ++nu)
+                    max = std::max(max, std::abs(norm[nu]));
+                KSPMonitor(A._ksp, j, max);
+            }
+#endif
+            if(converged) {
                 dim = deflated * i;
                 i = 0;
                 break;
             }
-            else
-                ++j;
+            ++j;
         }
         if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);

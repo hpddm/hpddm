@@ -27,160 +27,247 @@
 
 #include "HPDDM_iterative.hpp"
 
+#if defined(_KSPIMPL_H) && PETSC_VERSION_GE(3, 13, 1)
+#include <../src/ksp/pc/impls/asm/asm.h>
+#endif
+
 namespace HPDDM {
-    static inline PetscErrorCode apply(KSP ksp, PetscInt bs, const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscErrorCode (*const apply)(PC, Mat, Mat) = nullptr) {
-        PetscErrorCode ierr;
-        PC pc;
-        ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
-        PCType type;
-        ierr = PCGetType(pc, &type);CHKERRQ(ierr);
-        PetscBool isBJacobi, isSolve;
-        if(mu > 1) {
-            ierr = PetscStrcmp(type, PCBJACOBI, &isBJacobi);CHKERRQ(ierr);
-            if(!isBJacobi) {
-                for(const PCType& t : { PCLU, PCCHOLESKY, PCILU, PCICC }) {
-                    ierr = PetscStrcmp(type, t, &isSolve);CHKERRQ(ierr);
-                    if(isSolve)
-                        break;
+#if PETSC_VERSION_LT(3, 13, 1)
+struct PETScOperator
+#else
+class PETScOperator
+#endif
+                     : public EmptyOperator<PetscScalar, PetscInt> {
+    public:
+        typedef EmptyOperator<PetscScalar, PetscInt> super;
+        const KSP _ksp;
+    private:
+        PetscErrorCode (*const _apply)(PC, Mat, Mat);
+        Vec _b, _x;
+        Mat _B, _X;
+    public:
+        PETScOperator(const PETScOperator&) = delete;
+        PETScOperator(const KSP& ksp, PetscInt n, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : super(n), _ksp(ksp), _apply(apply), _b(), _x(), _B(), _X() {
+            PC pc;
+            KSPGetPC(ksp, &pc);
+            PCSetFromOptions(pc);
+            PCSetUp(pc);
+        }
+        PETScOperator(const KSP& ksp, PetscInt n, PetscInt, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : PETScOperator(ksp, n, apply) { }
+        ~PETScOperator() {
+            MatDestroy(const_cast<Mat*>(&_X));
+            MatDestroy(const_cast<Mat*>(&_B));
+            VecDestroy(const_cast<Vec*>(&_x));
+            VecDestroy(const_cast<Vec*>(&_b));
+        }
+        PetscErrorCode GMV(const PetscScalar* const in, PetscScalar* const out, const int& mu = 1) const {
+            Mat A;
+            PetscErrorCode ierr;
+            ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
+            PetscBool hasMatMatMult;
+#if PETSC_VERSION_LT(3, 13, 0)
+            ierr = MatHasOperation(A, MATOP_MAT_MULT, &hasMatMatMult);CHKERRQ(ierr);
+#else
+            ierr = PetscObjectTypeCompareAny((PetscObject)A, &hasMatMatMult, MATSEQAIJ, MATMPIAIJ, "");CHKERRQ(ierr);
+#endif
+            if(mu == 1 || !hasMatMatMult) {
+                if(!_b) {
+                    PetscInt n, N;
+                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                }
+                for(unsigned short nu = 0; nu < mu; ++nu) {
+                    ierr = VecPlaceArray(_b, in + nu * super::_n);CHKERRQ(ierr);
+                    ierr = VecPlaceArray(_x, out + nu * super::_n);CHKERRQ(ierr);
+                    ierr = MatMult(A, _b, _x);CHKERRQ(ierr);
+                    ierr = VecResetArray(_x);CHKERRQ(ierr);
+                    ierr = VecResetArray(_b);CHKERRQ(ierr);
                 }
             }
-            else
-                isSolve = PETSC_FALSE;
-        }
-        else
-            isBJacobi = isSolve = PETSC_FALSE;
-        Mat F = NULL;
-        if(isBJacobi) {
-            KSP* subksp;
-            PetscInt n_local, first_local;
-            ierr = PCBJacobiGetSubKSP(pc, &n_local, &first_local, &subksp);CHKERRQ(ierr);
-            if(n_local > 1)
-                isBJacobi = PETSC_FALSE;
             else {
-                ierr = KSPSetUp(subksp[0]);CHKERRQ(ierr);
-                PC subpc;
-                ierr = KSPGetPC(subksp[0], &subpc);CHKERRQ(ierr);
-                ierr = PCGetType(subpc, &type);CHKERRQ(ierr);
-                isBJacobi = PETSC_FALSE;
-                for(const PCType& t : { PCLU, PCCHOLESKY, PCILU, PCICC }) {
-                    ierr = PetscStrcmp(type, t, &isBJacobi);CHKERRQ(ierr);
-                    if(isBJacobi) {
+                PetscInt M = 0;
+                if(_B) {
+                    ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
+                }
+                if(M != mu) {
+                    PetscInt n, N;
+                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                    ierr = MatDestroy(const_cast<Mat*>(&_X));CHKERRQ(ierr);
+                    ierr = MatDestroy(const_cast<Mat*>(&_B));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_B));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, out, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+                }
+                else {
+                    ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
+                    ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
+                }
+                ierr = MatMatMult(A, _B, MAT_REUSE_MATRIX, PETSC_DEFAULT, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+            }
+            PetscFunctionReturn(0);
+        }
+#if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || PETSC_VERSION_LT(3, 13, 1)
+        template<bool = false>
+        PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
+            PetscErrorCode ierr;
+            PC pc;
+            KSP* subksp;
+            ierr = KSPGetPC(_ksp, &pc);CHKERRQ(ierr);
+            PCType type;
+            unsigned short distance = 6;
+            if(mu > 1) {
+                std::initializer_list<std::string> list = { PCBJACOBI, PCASM, PCLU, PCCHOLESKY, PCILU, PCICC };
+                ierr = PCGetType(pc, &type);CHKERRQ(ierr);
+                std::initializer_list<std::string>::const_iterator it = std::find(list.begin(), list.end(), type);
+                distance = std::distance(list.begin(), it);
+            }
+            Mat F = NULL;
+            if(distance == 0 || distance == 1) {
+                PetscInt n_local;
+                if(distance == 0) {
+                    ierr = PCBJacobiGetSubKSP(pc, &n_local, NULL, &subksp);CHKERRQ(ierr);
+                }
+                else {
+#if defined(__ASM_H)
+                    PCASMType type;
+                    ierr = PCASMGetType(pc, &type);CHKERRQ(ierr);
+                    std::initializer_list<PCASMType> list = { PC_ASM_RESTRICT };
+                    if(std::find(list.begin(), list.end(), type) != list.end()) {
+                        ierr = PCASMGetSubKSP(pc, &n_local, NULL, &subksp);CHKERRQ(ierr);
+                    }
+                    else
+#endif
+                        n_local = 0;
+                }
+                if(n_local == 1) {
+                    ierr = KSPSetUp(subksp[0]);CHKERRQ(ierr);
+                    PC subpc;
+                    ierr = KSPGetPC(subksp[0], &subpc);CHKERRQ(ierr);
+                    ierr = PCGetType(subpc, &type);CHKERRQ(ierr);
+                    std::initializer_list<std::string> list = { PCLU, PCCHOLESKY, PCILU, PCICC };
+                    if(std::find(list.begin(), list.end(), type) != list.end()) {
                         ierr = PCFactorGetMatrix(subpc, &F);CHKERRQ(ierr);
-                        break;
                     }
                 }
             }
-        }
-        else if(isSolve) {
-            ierr = PCFactorGetMatrix(pc, &F);CHKERRQ(ierr);
-        }
-        MPI_Comm comm;
-        if(F) {
-            PetscInt n, N;
-            ierr = MatGetLocalSize(F, &n, NULL);CHKERRQ(ierr);
-            ierr = MatGetSize(F, &N, NULL);CHKERRQ(ierr);
-            Mat B, C;
-            ierr = PetscObjectGetComm((PetscObject)F, &comm);CHKERRQ(ierr);
-            ierr = MatCreateDense(comm, n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);CHKERRQ(ierr);
-            ierr = MatCreateDense(comm, n, PETSC_DECIDE, N, mu, out, &C);CHKERRQ(ierr);
-            ierr = MatMatSolve(F, B, C);CHKERRQ(ierr);
-            ierr = MatDestroy(&C);CHKERRQ(ierr);
-            ierr = MatDestroy(&B);CHKERRQ(ierr);
-        }
-        else {
-            ierr = PetscObjectGetComm((PetscObject)pc, &comm);CHKERRQ(ierr);
-            Mat A;
-            ierr = KSPGetOperators(ksp, &A, NULL);CHKERRQ(ierr);
-            PetscInt n, N;
-            ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
-            ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
-            if(apply) {
-                Mat B, C;
-                ierr = MatCreateDense(comm, n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);CHKERRQ(ierr);
-                ierr = MatCreateDense(comm, n, PETSC_DECIDE, N, mu, out, &C);CHKERRQ(ierr);
-                ierr = apply(pc, B, C);CHKERRQ(ierr);
-                ierr = MatDestroy(&C);CHKERRQ(ierr);
-                ierr = MatDestroy(&B);CHKERRQ(ierr);
+            else if(distance < 6) {
+                ierr = PCFactorGetMatrix(pc, &F);CHKERRQ(ierr);
+            }
+            if(F || _apply) {
+                PetscInt M = 0;
+                if(_B) {
+                    ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
+                }
+                if(M != mu) {
+                    Mat A;
+                    PetscInt n, N;
+                    ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
+                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                    ierr = MatDestroy(const_cast<Mat*>(&_X));CHKERRQ(ierr);
+                    ierr = MatDestroy(const_cast<Mat*>(&_B));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_B));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, out, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+                }
+                else {
+                    ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
+                    ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
+                }
+                if(distance == 1) {
+#if defined(__ASM_H)
+                    PC_ASM *osm = (PC_ASM*)pc->data;
+                    Mat A;
+                    PetscInt n, N, o;
+                    ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
+                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                    ierr = VecGetLocalSize(osm->x[0], &o);CHKERRQ(ierr);
+                    Vec x;
+                    Mat X, Y;
+                    PetscScalar* array;
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, &x);CHKERRQ(ierr);
+                    ierr = MatCreateSeqDense(PETSC_COMM_SELF, o, mu, NULL, &X);CHKERRQ(ierr);
+                    ierr = MatDenseGetArray(X, &array);CHKERRQ(ierr);
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        ierr = VecPlaceArray(x, in + nu * super::_n);CHKERRQ(ierr);
+                        ierr = VecScatterBegin(osm->restriction, x, osm->lx, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
+                        ierr = VecScatterEnd(osm->restriction, x, osm->lx, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
+                        ierr = VecResetArray(x);CHKERRQ(ierr);
+                        ierr = VecPlaceArray(osm->x[0], array + nu * o);CHKERRQ(ierr);
+                        ierr = VecScatterBegin(osm->lrestriction[0], osm->lx, osm->x[0], INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
+                        ierr = VecScatterEnd(osm->lrestriction[0], osm->lx, osm->x[0], INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
+                        ierr = VecResetArray(osm->x[0]);CHKERRQ(ierr);
+                    }
+                    ierr = MatDenseRestoreArray(X, &array);CHKERRQ(ierr);
+                    ierr = MatCreateSeqDense(PETSC_COMM_SELF, o, mu, NULL, &Y);CHKERRQ(ierr);
+                    ierr = MatMatSolve(F, X, Y);CHKERRQ(ierr);
+                    ierr = MatDestroy(&X);CHKERRQ(ierr);
+                    ierr = MatDenseGetArray(Y, &array);CHKERRQ(ierr);
+                    std::fill_n(out, mu * super::_n, PetscScalar());
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        ierr = VecSet(osm->ly, 0.0);CHKERRQ(ierr);
+                        ierr = VecPlaceArray(osm->y[0], array + nu * o);CHKERRQ(ierr);
+                        if(osm->lprolongation) {
+                            ierr = VecScatterBegin(osm->lprolongation[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
+                            ierr = VecScatterEnd(osm->lprolongation[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
+                        }
+                        else {
+                            ierr = VecScatterBegin(osm->lrestriction[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
+                            ierr = VecScatterEnd(osm->lrestriction[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
+                        }
+                        ierr = VecResetArray(osm->y[0]);CHKERRQ(ierr);
+                        ierr = VecPlaceArray(x, out + nu * super::_n);CHKERRQ(ierr);
+                        ierr = VecScatterBegin(osm->restriction, osm->ly, x, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
+                        ierr = VecScatterEnd(osm->restriction, osm->ly, x, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
+                        ierr = VecResetArray(x);CHKERRQ(ierr);
+                    }
+                    ierr = MatDenseRestoreArray(Y, &array);CHKERRQ(ierr);
+                    ierr = MatDestroy(&Y);CHKERRQ(ierr);
+                    ierr = VecDestroy(&x);CHKERRQ(ierr);
+#endif
+                }
+                else if(distance == 0) {
+                    Mat B, X;
+                    ierr = MatDenseGetLocalMatrix(_B, &B);CHKERRQ(ierr);
+                    ierr = MatDenseGetLocalMatrix(_X, &X);CHKERRQ(ierr);
+                    ierr = MatMatSolve(F, B, X);CHKERRQ(ierr);
+                }
+                else {
+                    ierr = _apply ? _apply(pc, _B, _X) : MatMatSolve(F, _B, _X);CHKERRQ(ierr);
+                }
             }
             else {
-                Vec right, left;
-                ierr = VecCreateMPIWithArray(comm, bs, n, N, NULL, &right);CHKERRQ(ierr);
-                ierr = VecCreateMPIWithArray(comm, bs, n, N, NULL, &left);CHKERRQ(ierr);
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    ierr = VecPlaceArray(right, in + nu * n);CHKERRQ(ierr);
-                    ierr = VecPlaceArray(left, out + nu * n);CHKERRQ(ierr);
-                    ierr = PCApply(pc, right, left);CHKERRQ(ierr);
-                    ierr = VecResetArray(left);CHKERRQ(ierr);
-                    ierr = VecResetArray(right);CHKERRQ(ierr);
+                if(!_b) {
+                    Mat A;
+                    PetscInt n, N;
+                    ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
+                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
                 }
-                ierr = VecDestroy(&right);CHKERRQ(ierr);
-                ierr = VecDestroy(&left);CHKERRQ(ierr);
+                for(unsigned short nu = 0; nu < mu; ++nu) {
+                    ierr = VecPlaceArray(_b, in + nu * super::_n);CHKERRQ(ierr);
+                    ierr = VecPlaceArray(_x, out + nu * super::_n);CHKERRQ(ierr);
+                    ierr = PCApply(pc, _b, _x);CHKERRQ(ierr);
+                    ierr = VecResetArray(_x);CHKERRQ(ierr);
+                    ierr = VecResetArray(_b);CHKERRQ(ierr);
+                }
             }
+            PetscFunctionReturn(0);
         }
-        PetscFunctionReturn(0);
-    }
-struct PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
-    typedef EmptyOperator<PetscScalar, PetscInt> super;
-    const KSP     _ksp;
-    const PetscInt _bs;
-    PetscErrorCode (*const _apply)(PC, Mat, Mat);
-    PETScOperator(const PETScOperator&) = delete;
-    PETScOperator(const KSP& ksp, PetscInt n, PetscInt bs, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : super(bs * n), _ksp(ksp), _bs(bs), _apply(apply) {
-        PC pc;
-        KSPGetPC(ksp, &pc);
-        PCSetFromOptions(pc);
-        PCSetUp(pc);
-    }
-    void GMV(const PetscScalar* const in, PetscScalar* const out, const int& mu = 1) const {
-        Mat A;
-        KSPGetOperators(_ksp, &A, NULL);
-        PetscInt N;
-        MatGetSize(A, &N, NULL);
-        PetscBool hasMatMatMult;
-        MatHasOperation(A, MATOP_MAT_MULT, &hasMatMatMult);
-        MPI_Comm comm;
-        PetscObjectGetComm((PetscObject)A, &comm);
-        PetscMPIInt size;
-        MPI_Comm_size(comm, &size);
-        if(mu == 1 || !hasMatMatMult || size == 1) {
-            Vec right, left;
-            VecCreateMPIWithArray(comm, _bs, super::_n, N, NULL, &right);
-            VecCreateMPIWithArray(comm, _bs, super::_n, N, NULL, &left);
-            for(unsigned short nu = 0; nu < mu; ++nu) {
-                VecPlaceArray(right, in + nu * super::_n);
-                VecPlaceArray(left, out + nu * super::_n);
-                MatMult(A, right, left);
-                VecResetArray(left);
-                VecResetArray(right);
-            }
-            VecDestroy(&right);
-            VecDestroy(&left);
+#endif
+        std::string prefix() const {
+            const char* prefix = nullptr;
+            if(_ksp)
+                KSPGetOptionsPrefix(_ksp, &prefix);
+            return prefix ? prefix : "";
         }
-        else {
-            PetscInt N;
-            MatGetSize(A, &N, NULL);
-            Mat B, C;
-            MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), &B);
-            MatCreateDense(comm, super::_n, PETSC_DECIDE, N, mu, out, &C);
-            MatMatMult(A, B, MAT_REUSE_MATRIX, PETSC_DEFAULT, &C);
-            MatDestroy(&C);
-            MatDestroy(&B);
-        }
-    }
-    template<bool = false>
-    PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
-        PetscErrorCode ierr = HPDDM::apply(_ksp, _bs, in, out, mu, _apply);CHKERRQ(ierr);
-        PetscFunctionReturn(0);
-    }
-    std::string prefix() const {
-        const char* prefix = nullptr;
-        if(_ksp)
-            KSPGetOptionsPrefix(_ksp, &prefix);
-        return prefix ? prefix : "";
-    }
 };
 
-#ifdef PETSCSUB
+#if defined(PETSCSUB)
 #undef HPDDM_CHECK_COARSEOPERATOR
 #define HPDDM_CHECK_SUBDOMAIN
 #include "HPDDM_preprocessor_check.hpp"
@@ -188,26 +275,33 @@ struct PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
 template<class K>
 class PetscSub {
     private:
-        KSP _ksp;
+        PETScOperator* _op;
     public:
-        PetscSub() : _ksp() { }
+        PetscSub() : _op() { }
         PetscSub(const PetscSub&) = delete;
         ~PetscSub() { dtor(); }
         static constexpr char _numbering = 'C';
         PetscErrorCode dtor() {
-            PetscErrorCode ierr = KSPDestroy(&_ksp);CHKERRQ(ierr);
+            if(_op) {
+                PetscErrorCode ierr = KSPDestroy(const_cast<KSP*>(&_op->_ksp));CHKERRQ(ierr);
+            }
+            delete _op;
+            _op = nullptr;
             PetscFunctionReturn(0);
         }
         template<char N = HPDDM_NUMBERING>
         PetscErrorCode numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
             Mat P;
+            KSP ksp;
             PC pc;
             PetscErrorCode ierr;
             const Option& opt = *Option::get();
-            if(!_ksp) {
-                ierr = KSPCreate(PETSC_COMM_SELF, &_ksp);CHKERRQ(ierr);
+            if(!_op) {
+                ierr = KSPCreate(PETSC_COMM_SELF, &ksp);CHKERRQ(ierr);
             }
+            else
+                ksp = _op->_ksp;
             if(N == 'C') {
                 ierr = MatCreate(PETSC_COMM_SELF, &P);CHKERRQ(ierr);
                 ierr = MatSetSizes(P, A->_n, A->_m, A->_n, A->_m);CHKERRQ(ierr);
@@ -229,33 +323,35 @@ class PetscSub {
             }
             else
                 std::cerr << "Not implemented" << std::endl;
-            ierr = KSPSetOperators(_ksp, P, P);CHKERRQ(ierr);
+            ierr = KSPSetOperators(ksp, P, P);CHKERRQ(ierr);
             ierr = MatDestroy(&P);CHKERRQ(ierr);
-            ierr = KSPSetType(_ksp, KSPPREONLY);CHKERRQ(ierr);
-            ierr = KSPSetOptionsPrefix(_ksp, std::string("petsc_" + std::string(HPDDM_PREFIX) + opt.getPrefix()).c_str());CHKERRQ(ierr);
-            ierr = KSPGetPC(_ksp, &pc);CHKERRQ(ierr);
+            ierr = KSPSetType(ksp, KSPPREONLY);CHKERRQ(ierr);
+            ierr = KSPSetOptionsPrefix(ksp, std::string("petsc_" + std::string(HPDDM_PREFIX) + opt.getPrefix()).c_str());CHKERRQ(ierr);
+            ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
             ierr = PCSetType(pc, A->_sym ? PCCHOLESKY : PCLU);CHKERRQ(ierr);
-            ierr = KSPSetFromOptions(_ksp);CHKERRQ(ierr);
-            ierr = KSPSetUp(_ksp);CHKERRQ(ierr);
+            ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+            ierr = KSPSetUp(ksp);CHKERRQ(ierr);
             if(opt.val<char>("verbosity", 0) >= 4) {
-                ierr = KSPView(_ksp, PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+                ierr = KSPView(ksp, PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+            }
+            if(!_op) {
+                _op = new PETScOperator(ksp, A->_n);
             }
             PetscFunctionReturn(0);
         }
         PetscErrorCode solve(K* const x, const unsigned short& n = 1) const {
-            PetscErrorCode ierr;
-            PetscInt m;
-            Mat A;
-            ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
-            ierr = MatGetLocalSize(A, &m, NULL);CHKERRQ(ierr);
-            K* b = new K[n * m];
-            std::copy_n(x, n * m, b);
-            ierr = apply(_ksp, 1, b, x, n);CHKERRQ(ierr);
-            delete [] b;
+            if(_op) {
+                K* b = new K[n * _op->super::_n];
+                std::copy_n(x, n * _op->super::_n, b);
+                PetscErrorCode ierr = _op->apply(b, x, n);CHKERRQ(ierr);
+                delete [] b;
+            }
             PetscFunctionReturn(0);
         }
         PetscErrorCode solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            PetscErrorCode ierr = apply(_ksp, 1, b, x, n);CHKERRQ(ierr);
+            if(_op) {
+                PetscErrorCode ierr = _op->apply(b, x, n);CHKERRQ(ierr);
+            }
             PetscFunctionReturn(0);
         }
 };

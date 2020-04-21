@@ -225,17 +225,25 @@ class Schwarz : public Preconditioner<
                 n += i.second.size();
             std::vector<int> p;
             if(n && !Subdomain<K>::_map.empty()) {
+                unsigned int** idx = new unsigned int*[Subdomain<K>::_map.size()];
                 underlying_type<K>** const buff = new underlying_type<K>*[2 * Subdomain<K>::_map.size()];
+                *idx = new unsigned int[n];
                 *buff = new underlying_type<K>[2 * n];
                 buff[Subdomain<K>::_map.size()] = *buff + n;
                 n = 0;
                 for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                    idx[i] = *idx + n;
                     buff[i] = *buff + n;
                     buff[size + i] = buff[size] + n;
                     MPI_Irecv(buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                     Wrapper<underlying_type<K>>::gthr(Subdomain<K>::_map[i].second.size(), D, buff[size + i], Subdomain<K>::_map[i].second.data());
                     MPI_Isend(buff[size + i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + size + i);
                     n += Subdomain<K>::_map[i].second.size();
+                }
+                for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
+                    const std::vector<int>& v = Subdomain<K>::_map[i].second;
+                    std::iota(idx[i], idx[i] + v.size(), 0);
+                    std::sort(idx[i], idx[i] + v.size(), [&v] (const unsigned int& lhs, const unsigned int& rhs) { return v[lhs] < v[rhs]; });
                 }
                 underlying_type<K>* const d = new underlying_type<K>[Subdomain<K>::_dof];
                 std::copy_n(D, Subdomain<K>::_dof, d);
@@ -255,9 +263,10 @@ class Schwarz : public Preconditioner<
                 for(int k = 0; k < p.size(); ++k) {
                     bool largest = true;
                     for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size && largest; ++i) {
-                        std::vector<int>::const_iterator it = std::find(Subdomain<K>::_map[i].second.cbegin(), Subdomain<K>::_map[i].second.cend(), p[k]);
-                        if(it != Subdomain<K>::_map[i].second.cend()) {
-                            const underlying_type<K> v = D[p[k]] - buff[i][std::distance(Subdomain<K>::_map[i].second.cbegin(), it)];
+                        const std::vector<int>& v = Subdomain<K>::_map[i].second;
+                        unsigned int* const it = std::lower_bound(idx[i], idx[i] + v.size(), p[k], [&v](unsigned int lhs, int rhs) { return v[lhs] < rhs; });
+                        if(std::distance(idx[i], it) != v.size() && v[*it] == p[k]) {
+                            const underlying_type<K> v = D[p[k]] - buff[i][*it];
                             largest = (v > HPDDM_EPS || (std::abs(v) < HPDDM_EPS && rank > Subdomain<K>::_map[i].first));
                         }
                     }
@@ -266,6 +275,8 @@ class Schwarz : public Preconditioner<
                 MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
                 delete [] *buff;
                 delete [] buff;
+                delete [] *idx;
+                delete [] idx;
             }
             return p.size() > 0;
         }
