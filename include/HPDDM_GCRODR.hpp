@@ -186,7 +186,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         }
 #if HPDDM_PETSC
         if(j == 1)
-            KSPMonitor(A._ksp, 0, std::abs(s[mu * i]));
+            KSPMonitor(A._ksp, 0, std::abs(*std::max_element(s + mu * i, s + (mu + 1) * i, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); })));
 #endif
         while(i < m[1] && j <= m[0]) {
             if(id[1] == HPDDM_VARIANT_LEFT) {
@@ -204,14 +204,13 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             Arnoldi<excluded>(id[2], m[1], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0);
             checkConvergence<4>(id[0], j, i, tol, mu, norm, s + i * mu, hasConverged, m[1]);
 #if HPDDM_PETSC
-            KSPMonitor(A._ksp, j, std::abs(s[i * mu]));
+            KSPMonitor(A._ksp, j, std::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); })));
 #endif
             if(std::find(hasConverged, hasConverged + mu, -m[1]) == hasConverged + mu) {
                 i += (U ? m[1] - k : m[1]);
                 break;
             }
-            else
-                ++j;
+            ++j;
         }
         bool converged;
         if(j != m[0] + 1 && i == m[1]) {
@@ -571,10 +570,21 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         }
         RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[1], N, piv, d, Ax, comm);
         if(N == 0) {
+#if HPDDM_PETSC
+            KSPMonitor(A._ksp, 0, underlying_type<K>());
+#endif
             j = 0;
             break;
         }
         diagonal<5>(id[0], s, mu, tol[1], piv);
+#if HPDDM_PETSC
+        if(j == 1) {
+            underlying_type<K> max = std::abs(s[0]);
+            for(unsigned short nu = 1; nu < mu; ++nu)
+                max = std::max(max, std::abs(s[nu * (mu + 1)]));
+            KSPMonitor(A._ksp, 0, max);
+        }
+#endif
         if(tol[1] > -0.9 && m[2] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
         if(N != mu) {
@@ -625,13 +635,22 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 i = j = 0;
                 break;
             }
-            if(mu == checkBlockConvergence<5>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2])) {
+            const bool converged = (mu == checkBlockConvergence<5>(id[0], j, tol[0], mu, deflated, norm, s + deflated * i, ldh, Ax, m[2]));
+#if HPDDM_PETSC
+            {
+                underlying_type<K>* norm = reinterpret_cast<underlying_type<K>*>(Ax);
+                underlying_type<K> max = std::abs(norm[0]);
+                for(unsigned short nu = 1; nu < deflated; ++nu)
+                    max = std::max(max, std::abs(norm[nu]));
+                KSPMonitor(A._ksp, j, max);
+            }
+#endif
+            if(converged) {
                 dim = deflated * i;
                 i = 0;
                 break;
             }
-            else
-                ++j;
+            ++j;
         }
         bool converged;
         if(tol[1] > -0.9)

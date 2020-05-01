@@ -663,118 +663,57 @@ class Subdomain : public OptionsPrefix<K> {
                 T between = 0;
                 for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
                     ++between;
-                T size = 1 + ((2 * (std::distance(_buff[0], _buff[_map.size()]) + 1) * sizeof(T) - 1) / sizeof(K));
-                T* const rbuff = (_map.empty() ? new T[1] : (size < std::distance(_buff[0], _buff[2 * _map.size() - 1]) + _map.back().second.size() ? reinterpret_cast<T*>(_buff[0]) : new T[2 * (std::distance(_buff[0], _buff[_map.size()]) + 1)]));
-                T* const sbuff = rbuff + std::distance(_buff[0], _buff[_map.size()]) + 1;
-                size = 0;
-                MPI_Request* rq = new MPI_Request[2];
-
-                for(unsigned short i = 0; i < between; ++i) {
-                    MPI_Irecv(static_cast<void*>(rbuff + size), _map[i].second.size() + (_map[i].first == rankWorld - 1), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + i);
-                    size += _map[i].second.size();
-                }
-
-                if(rankWorld && ((between && _map[between - 1].first != rankWorld - 1) || !between))
-                    MPI_Irecv(static_cast<void*>(rbuff + (_map.empty() ? 0 : size)), 1, Wrapper<T>::mpi_type(), rankWorld - 1, 10, _communicator, rq);
-                else
-                    rq[0] = MPI_REQUEST_NULL;
-
-                ++size;
-                for(unsigned short i = between; i < _map.size(); ++i) {
-                    MPI_Irecv(static_cast<void*>(rbuff + size), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + _map.size() + i);
-                    size += _map[i].second.size();
-                }
-
-                T begining;
-                std::fill(first, last, std::numeric_limits<T>::max());
-                if(rankWorld == 0) {
-                    begining = (N == 'F');
-                    start = begining;
-                    if(!list) {
-                        for(unsigned int i = 0; i < std::distance(first, last); ++i)
-                            if(!d || d[i] > 0.1)
-                                *(first + i) = begining++;
-                    }
-                    else {
-                        for(const std::pair<unsigned int, unsigned int>& p : r) {
-                            if(!d || d[p.second] > 0.1) {
-                                *(first + p.second) = begining++;
-                            }
+                T* local = new T[sizeWorld];
+                local[rankWorld] = (list ? r.size() : std::distance(first, last));
+                std::unordered_set<unsigned int> removed;
+                removed.reserve(local[rankWorld]);
+                for(unsigned short i = 0; i < _map.size(); ++i)
+                    for(const unsigned int& j : _map[i].second) {
+                        if(d && d[j] < HPDDM_EPS && removed.find(j) == removed.cend() && (!list || list[j] > 0)) {
+                            --local[rankWorld];
+                            removed.insert(j);
                         }
                     }
-                    end = begining;
-                }
-                size = 0;
-                for(unsigned short i = 0; i < between; ++i) {
-                    MPI_Wait(_rq + i, MPI_STATUS_IGNORE);
-                    for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                        first[_map[i].second[j]] = rbuff[size + j];
-                    size += _map[i].second.size();
-                }
-                if(rankWorld) {
-                    if((between && _map[between - 1].first != rankWorld - 1) || !between)
-                        MPI_Wait(rq, MPI_STATUS_IGNORE);
-                    begining = rbuff[size];
-                    start = begining;
-                    if(!list) {
-                        for(unsigned int i = 0; i < std::distance(first, last); ++i)
-                            if((!d || d[i] > 0.1) && *(first + i) == std::numeric_limits<T>::max())
-                                *(first + i) = begining++;
-                    }
-                    else {
-                        for(const std::pair<unsigned int, unsigned int>& p : r) {
-                            if((!d || d[p.second] > 0.1) && *(first + p.second) == std::numeric_limits<T>::max()) {
-                                *(first + p.second) = begining++;
-                            }
-                        }
-                    }
-                    end = begining;
-                }
+                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, local, 1, Wrapper<T>::mpi_type(), _communicator);
+                start = std::accumulate(local, local + rankWorld, static_cast<long long>(N == 'F'));
+                end = start + local[rankWorld];
                 if(start > end)
                     std::cerr << "Probable integer overflow on process #" << rankWorld << ": " << start << " > " << end << std::endl;
-                size = 0;
-                if(rankWorld != sizeWorld - 1) {
-                    if(between < _map.size()) {
-                        if(_map[between].first == rankWorld + 1) {
-                            sbuff[_map[between].second.size()] = begining;
-                            rq[1] = MPI_REQUEST_NULL;
-                        }
-                        else
-                            MPI_Isend(static_cast<void*>(&begining), 1, Wrapper<T>::mpi_type(), rankWorld + 1, 10, _communicator, rq + 1);
-                        for(unsigned short i = between; i < _map.size(); ++i) {
-                            for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                                sbuff[size + j] = *(first + _map[i].second[j]);
-                            MPI_Isend(static_cast<void*>(sbuff + size), _map[i].second.size() + (_map[i].first == rankWorld + 1), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + i);
-                            size += _map[i].second.size() + (_map[i].first == rankWorld + 1);
+                global = std::accumulate(local + rankWorld + 1, local + sizeWorld, static_cast<long long>(end));
+                delete [] local;
+                T beginning = start;
+                std::fill(first, last, std::numeric_limits<T>::max());
+                if(!list) {
+                    for(unsigned int i = 0; i < std::distance(first, last); ++i)
+                        if(removed.find(i) == removed.cend())
+                            *(first + i) = beginning++;
+                }
+                else {
+                    for(const std::pair<unsigned int, unsigned int>& p : r)
+                        if(removed.find(p.second) == removed.cend())
+                            *(first + p.second) = beginning++;
+                }
+                if(!_map.empty()) {
+                    for(unsigned short i = 0; i < _map.size(); ++i)
+                        MPI_Irecv(static_cast<void*>(_buff[i]), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + i);
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        T* sbuff = reinterpret_cast<T*>(_buff[_map.size() + i]);
+                        for(unsigned int j = 0; j < _map[i].second.size(); ++j)
+                            sbuff[j] = *(first + _map[i].second[j]);
+                        MPI_Isend(static_cast<void*>(sbuff), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + _map.size() + i);
+                    }
+                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                        int index;
+                        MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
+                        T* rbuff = reinterpret_cast<T*>(_buff[index]);
+                        for(const unsigned int& j : _map[index].second) {
+                            if(first[j] == std::numeric_limits<T>::max())
+                                first[j] = *rbuff;
+                            ++rbuff;
                         }
                     }
-                    else
-                        MPI_Isend(static_cast<void*>(&begining), 1, Wrapper<T>::mpi_type(), rankWorld + 1, 10, _communicator, rq + 1);
                 }
-                else
-                    rq[1] = MPI_REQUEST_NULL;
-                unsigned int stop = 0;
-                for(unsigned short i = 0; i < between; ++i) {
-                    for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                        sbuff[size + j] = *(first + _map[i].second[j]);
-                    MPI_Isend(static_cast<void*>(sbuff + size), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + _map.size() + i);
-                    size += _map[i].second.size();
-                    stop += _map[i].second.size();
-                }
-                ++stop;
-                for(unsigned short i = between; i < _map.size(); ++i) {
-                    MPI_Wait(_rq + _map.size() + i, MPI_STATUS_IGNORE);
-                    for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                        first[_map[i].second[j]] = rbuff[stop + j];
-                    stop += _map[i].second.size();
-                }
-                MPI_Waitall(_map.size(), _rq + between, MPI_STATUSES_IGNORE);
-                MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
-                delete [] rq;
-                if(_map.empty() || rbuff != reinterpret_cast<T*>(_buff[0]))
-                    delete [] rbuff;
-                global = end - (N == 'F');
-                MPI_Bcast(&global, 1, MPI_LONG_LONG, sizeWorld - 1, _communicator);
+                MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
                 clearBuffer();
             }
             else {

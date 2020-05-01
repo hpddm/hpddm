@@ -59,7 +59,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
         K**              _buff;
         MPI_Request*       _rq;
         K*                  _x;
-        mutable K*          _o;
+        K*                  _o;
         unsigned short     _mu;
 #else
         typedef PetscErrorCode return_type;
@@ -844,7 +844,8 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 const Option& opt = *Option::get();
                 if(opt.any_of(prefix + "krylov_method", { HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR }) && !opt.val<unsigned short>(prefix + "recycle_same_system"))
                     k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
-                _o = new K[mu * k * _off * _bs]();
+                K** ptr = const_cast<K**>(&_o);
+                *ptr = new K[mu * k * _off * _bs]();
                 return true;
             }
             else
