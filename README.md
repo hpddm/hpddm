@@ -1,4 +1,4 @@
-## HPDDM — high-performance unified framework for domain decomposition methods [![Build Status](https://travis-ci.org/hpddm/hpddm.svg?branch=master)](https://travis-ci.org/hpddm/hpddm)
+## HPDDM — high-performance unified framework for domain decomposition methods [![Build Status](https://travis-ci.com/hpddm/hpddm.svg?branch=master)](https://travis-ci.com/hpddm/hpddm)
 
 #### What is HPDDM?
 HPDDM is an efficient implementation of various domain decomposition methods (DDM) such as one- and two-level Restricted Additive Schwarz methods, the Finite Element Tearing and Interconnecting (FETI) method, and the Balancing Domain Decomposition (BDD) method. These methods can be enhanced with deflation vectors computed automatically by the framework using:
