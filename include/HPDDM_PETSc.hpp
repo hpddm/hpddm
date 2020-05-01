@@ -28,7 +28,11 @@
 #include "HPDDM_iterative.hpp"
 
 #if defined(_KSPIMPL_H) && PETSC_VERSION_GE(3, 13, 1)
-#include <../src/ksp/pc/impls/asm/asm.h>
+# if !defined(SLEPC_INCLUDE_ASM_H)
+#  include <../src/ksp/pc/impls/asm/asm.h>
+# else
+#  include <asm.h>
+# endif
 #endif
 
 namespace HPDDM {
@@ -55,16 +59,36 @@ class PETScOperator
         }
         PETScOperator(const KSP& ksp, PetscInt n, PetscInt, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : PETScOperator(ksp, n, apply) { }
         ~PETScOperator() {
-            MatDestroy(const_cast<Mat*>(&_X));
-            MatDestroy(const_cast<Mat*>(&_B));
-            VecDestroy(const_cast<Vec*>(&_x));
-            VecDestroy(const_cast<Vec*>(&_b));
+            MatDestroy(&_X);
+            MatDestroy(&_B);
+            VecDestroy(&_x);
+            VecDestroy(&_b);
         }
         PetscErrorCode GMV(const PetscScalar* const in, PetscScalar* const out, const int& mu = 1) const {
-            Mat A;
+            Mat            A;
+            PetscBool      hasMatMatMult;
             PetscErrorCode ierr;
+
+            PetscFunctionBeginUser;
             ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
-            PetscBool hasMatMatMult;
+            ierr = PetscObjectTypeCompareAny((PetscObject)A, &hasMatMatMult, MATSEQKAIJ, MATMPIKAIJ, "");CHKERRQ(ierr);
+            if(hasMatMatMult) {
+                Vec b, x;
+                PetscInt n, N;
+                ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+                ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                if(mu != n / super::_n)
+                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %D != %d", static_cast<int>(n / super::_n), static_cast<int>(mu));
+                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, in, &b);CHKERRQ(ierr);
+                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, out, &x);CHKERRQ(ierr);
+                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(n / super::_n, super::_n, const_cast<PetscScalar*>(in), super::_n, n / super::_n);
+                ierr = MatMult(A, b, x);CHKERRQ(ierr);
+                ierr = VecDestroy(&x);CHKERRQ(ierr);
+                ierr = VecDestroy(&b);CHKERRQ(ierr);
+                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, const_cast<PetscScalar*>(in), n / super::_n, super::_n);
+                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, out, n / super::_n, super::_n);
+                PetscFunctionReturn(0);
+            }
 #if PETSC_VERSION_LT(3, 13, 0)
             ierr = MatHasOperation(A, MATOP_MAT_MULT, &hasMatMatMult);CHKERRQ(ierr);
 #else
@@ -111,19 +135,41 @@ class PETScOperator
 #if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || PETSC_VERSION_LT(3, 13, 1)
         template<bool = false>
         PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
-            PetscErrorCode ierr;
-            PC pc;
-            KSP* subksp;
-            ierr = KSPGetPC(_ksp, &pc);CHKERRQ(ierr);
-            PCType type;
+            KSP            *subksp;
+            PC             pc;
+            PCType         type;
+            Mat            A, F = NULL;
+            PetscInt       n, N;
+            PetscBool      match;
             unsigned short distance = 6;
+            PetscErrorCode ierr;
+
+            PetscFunctionBeginUser;
+            ierr = KSPGetPC(_ksp, &pc);CHKERRQ(ierr);
+            ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
+            ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+            ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+            ierr = PetscObjectTypeCompareAny((PetscObject)A, &match, MATSEQKAIJ, MATMPIKAIJ, "");CHKERRQ(ierr);
+            if(match) {
+                Vec b, x;
+                if(mu != n / super::_n)
+                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %D != %d", static_cast<int>(n / super::_n), static_cast<int>(mu));
+                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, in, &b);CHKERRQ(ierr);
+                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, out, &x);CHKERRQ(ierr);
+                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(n / super::_n, super::_n, const_cast<PetscScalar*>(in), super::_n, n / super::_n);
+                ierr = PCApply(pc, b, x);CHKERRQ(ierr);
+                ierr = VecDestroy(&x);CHKERRQ(ierr);
+                ierr = VecDestroy(&b);CHKERRQ(ierr);
+                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, const_cast<PetscScalar*>(in), n / super::_n, super::_n);
+                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, out, n / super::_n, super::_n);
+                PetscFunctionReturn(0);
+            }
             if(mu > 1) {
                 std::initializer_list<std::string> list = { PCBJACOBI, PCASM, PCLU, PCCHOLESKY, PCILU, PCICC };
                 ierr = PCGetType(pc, &type);CHKERRQ(ierr);
                 std::initializer_list<std::string>::const_iterator it = std::find(list.begin(), list.end(), type);
                 distance = std::distance(list.begin(), it);
             }
-            Mat F = NULL;
             if(distance == 0 || distance == 1) {
                 PetscInt n_local;
                 if(distance == 0) {
@@ -142,8 +188,8 @@ class PETScOperator
                         n_local = 0;
                 }
                 if(n_local == 1) {
-                    ierr = KSPSetUp(subksp[0]);CHKERRQ(ierr);
                     PC subpc;
+                    ierr = KSPSetUp(subksp[0]);CHKERRQ(ierr);
                     ierr = KSPGetPC(subksp[0], &subpc);CHKERRQ(ierr);
                     ierr = PCGetType(subpc, &type);CHKERRQ(ierr);
                     std::initializer_list<std::string> list = { PCLU, PCCHOLESKY, PCILU, PCICC };
@@ -161,11 +207,6 @@ class PETScOperator
                     ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
                 }
                 if(M != mu) {
-                    Mat A;
-                    PetscInt n, N;
-                    ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
-                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
-                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
                     ierr = MatDestroy(const_cast<Mat*>(&_X));CHKERRQ(ierr);
                     ierr = MatDestroy(const_cast<Mat*>(&_B));CHKERRQ(ierr);
                     ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_B));CHKERRQ(ierr);
@@ -177,16 +218,12 @@ class PETScOperator
                 }
                 if(distance == 1) {
 #if defined(__ASM_H)
-                    PC_ASM *osm = (PC_ASM*)pc->data;
-                    Mat A;
-                    PetscInt n, N, o;
-                    ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
-                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
-                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
+                    PC_ASM      *osm = (PC_ASM*)pc->data;
+                    Mat         X, Y;
+                    Vec         x;
+                    PetscScalar *array;
+                    PetscInt    o;
                     ierr = VecGetLocalSize(osm->x[0], &o);CHKERRQ(ierr);
-                    Vec x;
-                    Mat X, Y;
-                    PetscScalar* array;
                     ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, &x);CHKERRQ(ierr);
                     ierr = MatCreateSeqDense(PETSC_COMM_SELF, o, mu, NULL, &X);CHKERRQ(ierr);
                     ierr = MatDenseGetArray(X, &array);CHKERRQ(ierr);
@@ -240,11 +277,6 @@ class PETScOperator
             }
             else {
                 if(!_b) {
-                    Mat A;
-                    PetscInt n, N;
-                    ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
-                    ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
-                    ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
                     ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
                     ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, (super::_n / n) * N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
                 }
@@ -292,9 +324,9 @@ class PetscSub {
         template<char N = HPDDM_NUMBERING>
         PetscErrorCode numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
-            Mat P;
             KSP ksp;
-            PC pc;
+            PC  pc;
+            Mat P;
             PetscErrorCode ierr;
             const Option& opt = *Option::get();
             if(!_op) {
