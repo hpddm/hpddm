@@ -6,8 +6,8 @@ MPICC ?= mpicc
 MPIF90 ?= mpif90
 MPIRUN ?= mpirun -mca btl ^openib -np
 
-override CXXFLAGS += -std=c++11 -O3 -fPIC
-override CFLAGS += -std=c99 -O3
+override CXXFLAGS += -std=c++11 -O3 -g -fPIC
+override CFLAGS += -std=c99 -O3 -g
 
 HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'
 
