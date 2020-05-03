@@ -218,8 +218,8 @@ after_success:
         lcov --directory bin --directory ../petsc --capture --output-file coverage.info;
         lcov --remove coverage.info '/usr/*' '*/petsc/*' --output-file coverage.info;
       else
-        lcov --gcov-tool ./llvm-cov.sh --directory bin --directory ../petsc --capture --output-file coverage.info;
-        lcov --gcov-tool ./llvm-cov.sh --remove coverage.info '/usr/*' '*/petsc/*' --output-file coverage.info;
+        lcov --gcov-tool `pwd`/llvm-cov.sh --directory bin --directory ../petsc --capture --output-file coverage.info;
+        lcov --gcov-tool `pwd`/llvm-cov.sh --remove coverage.info '/usr/*' '*/petsc/*' --output-file coverage.info;
       fi;
       bash <(curl -s https://codecov.io/bash) -f coverage.info;
     fi
