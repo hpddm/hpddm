@@ -27,7 +27,7 @@
 
 #include "HPDDM_iterative.hpp"
 
-#if defined(_KSPIMPL_H) && PETSC_VERSION_GE(3, 13, 1)
+#if defined(_KSPIMPL_H) && PETSC_VERSION_GE(3, 13, 2)
 # if !defined(SLEPC_INCLUDE_ASM_H)
 #  include <../src/ksp/pc/impls/asm/asm.h>
 # else
@@ -36,7 +36,7 @@
 #endif
 
 namespace HPDDM {
-#if PETSC_VERSION_LT(3, 13, 1)
+#if PETSC_VERSION_LT(3, 13, 2)
 struct PETScOperator
 #else
 class PETScOperator
@@ -132,7 +132,7 @@ class PETScOperator
             }
             PetscFunctionReturn(0);
         }
-#if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || PETSC_VERSION_LT(3, 13, 1)
+#if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || PETSC_VERSION_LT(3, 13, 2)
         template<bool = false>
         PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
             KSP            *subksp;

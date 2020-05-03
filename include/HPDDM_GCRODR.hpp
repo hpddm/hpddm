@@ -186,7 +186,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         }
 #if HPDDM_PETSC
         if(j == 1)
-            KSPMonitor(A._ksp, 0, std::abs(*std::max_element(s + mu * i, s + (mu + 1) * i, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); })));
+            KSPMonitor(A._ksp, 0, std::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); })));
 #endif
         while(i < m[1] && j <= m[0]) {
             if(id[1] == HPDDM_VARIANT_LEFT) {

@@ -47,15 +47,6 @@ ifdef EIGENSOLVER
     override HPDDMFLAGS += -DMU_${EIGENSOLVER}
 endif
 
-ifdef MKL_INCS
-    INCS += ${MKL_INCS}
-    LIBS += ${MKL_LIBS}
-    override HPDDMFLAGS += -DHPDDM_MKL=1
-else
-    LIBS += ${BLAS_LIBS}
-endif
-LIBS += ${SCALAPACK_LIBS}
-
 ifeq (${SOLVER}, MUMPS)
     INCS += ${MUMPS_INCS}
     LIBS += ${MUMPS_LIBS}
@@ -117,6 +108,15 @@ ifdef LIBXSMM_INCS
         LIBS += ${LIBXSMM_LIBS}
         override HPDDMFLAGS += -DHPDDM_LIBXSMM=1
     endif
+endif
+
+LIBS += ${SCALAPACK_LIBS}
+ifdef MKL_INCS
+    INCS += ${MKL_INCS}
+    LIBS += ${MKL_LIBS}
+    override HPDDMFLAGS += -DHPDDM_MKL=1
+else
+    LIBS += ${BLAS_LIBS}
 endif
 
 ifeq (${OS}, Windows_NT)
