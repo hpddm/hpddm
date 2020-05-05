@@ -19,11 +19,13 @@ LIST_COMPILATION = cpp c python
 MUMPS_INCS = -I/usr/include
 PYTHON_INCS = -I${HOME}/miniconda/include/python${PYTHON_VERSION}
 METIS_INCS = -I/usr/include
+PETSC_INCS = -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
 
 BLAS_LIBS = -L/usr/lib -lblas -llapack
 ARPACK_LIBS = -L/usr/lib -larpack
 SCALAPACK_LIBS = -L/usr/lib -lscalapack-openmpi
 MUMPS_LIBS = -L/usr/lib -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lmpi_mpifh
 HYPRE_LIBS = -L/usr/lib -lHYPRE_IJ_mv -lHYPRE_krylov -lHYPRE_parcsr_ls
+PETSC_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc
 PYTHON_LIBS = -L${HOME}/miniconda/lib -lpython${PYTHON_VERSION}
 METIS_LIBS = -L/usr/lib -lmetis

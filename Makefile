@@ -47,6 +47,10 @@ ifdef EIGENSOLVER
     override HPDDMFLAGS += -DMU_${EIGENSOLVER}
 endif
 
+ifeq (${SUBSOLVER}, PETSC)
+    INCS += ${PETSC_INCS}
+    LIBS += ${PETSC_LIBS}
+endif
 ifeq (${SOLVER}, MUMPS)
     INCS += ${MUMPS_INCS}
     LIBS += ${MUMPS_LIBS}
@@ -144,7 +148,9 @@ endif
 
 LIST_COMPILATION ?= cpp c python fortran
 
-.PHONY: all cpp c python fortran clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_op test_bin/schwarzFromFile_cpp test_bin/driver force
+.PHONY: all cpp c python fortran clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarzFromFile_cpp test_bin/driver force
+
+.PRECIOUS: ${TOP_DIR}/${BIN_DIR}/%_cpp.o ${TOP_DIR}/${BIN_DIR}/%_c.o ${TOP_DIR}/${BIN_DIR}/%.o
 
 all: Makefile.inc ${LIST_COMPILATION}
 
@@ -163,7 +169,7 @@ ifneq (,$(findstring gfortran,${OMPI_FC}${MPICH_F90}))
 else
     F90MOD = -module
 endif
-fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB} ${TOP_DIR}/${BIN_DIR}/custom_operator
+fortran: ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB} ${TOP_DIR}/${BIN_DIR}/custom_operator_fortran
 
 Makefile.inc:
 	@echo "No Makefile.inc found, please choose one from directory Make.inc"
@@ -226,10 +232,25 @@ ${TOP_DIR}/${BIN_DIR}/driver: ${TOP_DIR}/${BIN_DIR}/driver_cpp.o
 ${TOP_DIR}/${BIN_DIR}/local_%: ${TOP_DIR}/${BIN_DIR}/local_%_cpp.o
 	${MPICXX} $^ -o $@ ${LIBS}
 
-${TOP_DIR}/${BIN_DIR}/custom_operator: examples/custom_operator.f90 ${TOP_DIR}/${LIB_DIR}/libhpddm_fortran.${EXTENSION_LIB}
+${TOP_DIR}/${BIN_DIR}/custom_operator_fortran.o: examples/custom_operator.f90
 	${MPIF90} -c interface/HPDDM.f90 -o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
-	${MPIF90} -I${TOP_DIR}/${BIN_DIR} -c $< -o $@.o ${F90MOD} ${TOP_DIR}/${BIN_DIR}
-	${MPIF90} -I${TOP_DIR}/${BIN_DIR} -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} $@.o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${LDFLAGS} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}
+	${MPIF90} -I${TOP_DIR}/${BIN_DIR} -c $< -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR}
+
+${TOP_DIR}/${BIN_DIR}/custom_operator_c.o: examples/custom_operator.c
+	${MPICC} ${INCS} -c $< -o $@
+
+${TOP_DIR}/${BIN_DIR}/custom_operator_%: ${TOP_DIR}/${BIN_DIR}/custom_operator_%.o ${TOP_DIR}/${LIB_DIR}/libhpddm_%.${EXTENSION_LIB}
+	@if test $(findstring fortran,$@); then \
+		CMD="${MPIF90} -I${TOP_DIR}/${BIN_DIR} -o $@ ${F90MOD} ${TOP_DIR}/${BIN_DIR} $@.o ${TOP_DIR}/${BIN_DIR}/HPDDM.o ${LDFLAGS} -L${TOP_DIR}/${LIB_DIR} -lhpddm_fortran ${LIBS}"; \
+	else \
+		CMD="${MPICC} -o $@ $@.o ${LDFLAGS} -L${TOP_DIR}/${LIB_DIR} -lhpddm_c ${LIBS}"; \
+	fi; \
+	echo "$${CMD}"; \
+	$${CMD} || exit; \
+
+test_bin/custom_operator_c: ${TOP_DIR}/${BIN_DIR}/custom_operator_c
+	${MPIRUN} 4 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 1000 -mu 4 -hpddm_krylov_method bcg
+	${MPIRUN} 4 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 1000 -mu 4 -hpddm_krylov_method cg -hpddm_variant flexible
 
 benchmark/local_solver:
 	@if [ -z ${MTX_FILE} ]; then \
@@ -252,12 +273,12 @@ lib: $(addprefix ${TOP_DIR}/${LIB_DIR}/libhpddm_, $(addsuffix .${EXTENSION_LIB},
 
 test: all $(addprefix test_, ${LIST_COMPILATION})
 
-test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_op
+test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_operator
 test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
-test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator
+test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator_fortran
 	cp examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}
-	cd ${TOP_DIR}/${BIN_DIR} && echo 100 2 | ${MPIRUN} 4 ./custom_operator && cd -
+	cd ${TOP_DIR}/${BIN_DIR} && echo 100 2 | ${MPIRUN} 4 ./custom_operator_fortran && cd -
 
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_matrices=${TRASH_DIR}/output.txt -hpddm_version
@@ -278,13 +299,18 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
-	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity
+	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity 4 -hpddm_help
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity=1 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_orthogonalization=mgs
+	@if test ! $(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS}); then \
+		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity=1 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_schwarz_coarse_correction deflated"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
+	fi
 ifdef EIGENSOLVER
-	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_matrices=${TRASH_DIR}/output
+	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20 -hpddm_dump_eigenvectors ${TRASH_DIR}/ev
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=4 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_matrices=${TRASH_DIR}/output -hpddm_level_2_push_prefix -hpddm_dump_matrix=${TRASH_DIR}/co -hpddm_assembly_hierarchy 2 -hpddm_pop_prefix
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
 		CMD="examples/solver.py ${TRASH_DIR}/output_1_4.txt"; \
 		echo "$${CMD}"; \
@@ -299,7 +325,7 @@ ifdef EIGENSOLVER
 	fi
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_deflation_tol=1e-4 -hpddm_gmres_restart=25
 	@if test ! $(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS}) && test ! $(findstring -DFORCE_SINGLE, ${HPDDMFLAGS}); then \
-		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction additive -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 20 -Ny 20 -symmetric_csr -hpddm_level_2_p 2 -generate_random_rhs 4 -hpddm_krylov_method=bfbcg -hpddm_deflation_tol=1e-4 -hpddm_schwarz_method asm"; \
+		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction additive -hpddm_geneo_nu=1 -hpddm_verbosity=2 -Nx 20 -Ny 20 -symmetric_csr -hpddm_level_2_p 2 -generate_random_rhs 4 -hpddm_krylov_method=bfbcg -hpddm_deflation_tol=1e-4 -hpddm_schwarz_method asm -hpddm_geneo_threshold 1e+1"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
@@ -311,7 +337,7 @@ ifdef EIGENSOLVER
 	fi
 endif
 
-test_bin/schwarz_cpp_custom_op: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
+test_bin/schwarz_cpp_custom_operator: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10 -hpddm_krylov_method bgmres
@@ -324,6 +350,7 @@ test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
 		for NP in 2 4; do \
 			for OVERLAP in 1 3; do \
 				CMD="${MPIRUN} $${NP} ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp -matrix_filename=${TOP_DIR}/${TRASH_DIR}/data/mini.mtx -hpddm_verbosity 2 -overlap $${OVERLAP}"; \
+				if [ "$$NP" = "4" ] && [ "$$OVERLAP" = "1" ]; then CMD="$${CMD} -rhs_filename=${TOP_DIR}/${TRASH_DIR}/data/ones.txt"; fi; \
 				echo "$${CMD}"; \
 				$${CMD} || exit; \
 			done \

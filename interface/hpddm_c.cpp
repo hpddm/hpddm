@@ -76,10 +76,6 @@ int HpddmOptionParseInts(const HpddmOption* const option, int argc, char** argv,
     HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
     return opt.parse(argc, argv, false, pack);
 }
-int HpddmOptionParseArg(const HpddmOption* const option, int argc, char** argv, char* str, char* desc) {
-    HPDDM::Option& opt = *reinterpret_cast<HPDDM::Option*>((HpddmOption*)option);
-    return opt.parse(argc, argv, false, { std::forward_as_tuple(str, desc, HPDDM::Option::Arg::argument) });
-}
 int HpddmOptionParseArgs(const HpddmOption* const option, int argc, char** argv, int size, char* str[], char* desc[]) {
     std::vector<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>> pack;
     pack.reserve(size);
