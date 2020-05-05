@@ -33,10 +33,19 @@
 #ifndef HPDDM_NUMBERING
 #define HPDDM_NUMBERING       'C'
 #endif
+#ifdef PETSCSUB
+#define HPDDM_BDD             0
+#define HPDDM_FETI            0
+#ifdef HPDDM_NUMBERING
+#undef HPDDM_NUMBERING
+#endif
+#define HPDDM_NUMBERING       'C'
+#endif
 #include <HPDDM.hpp>
 #include <random>
 #include <list>
 
+#ifndef PETSCSUB
 #ifdef FORCE_SINGLE
 #ifdef FORCE_COMPLEX
 typedef std::complex<float> K;
@@ -54,6 +63,14 @@ typedef std::complex<double> K;
 #endif
 #else
 typedef double K;
+#endif
+#endif
+#else
+typedef PetscScalar K;
+#ifdef PETSC_USE_COMPLEX
+#ifndef GENERAL_CO
+#define GENERAL_CO
+#endif
 #endif
 #endif
 

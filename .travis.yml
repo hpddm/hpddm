@@ -18,7 +18,7 @@ compiler:
   - gcc
 
 env:
-  matrix:
+  jobs:
     - PYTHON_VERSION=3.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
     - PYTHON_VERSION=3.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=OFF
     - PYTHON_VERSION=3.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=ON
@@ -40,7 +40,7 @@ env:
     - PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=ON FORCE_COMPLEX=ON
     - PYTHON_VERSION=2.7 HPDDM_NUMBERING=F SOLVER=HYPRE SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF CO=GENERAL_CO
 
-matrix:
+jobs:
   exclude:
     - compiler: gcc
       env: PYTHON_VERSION=2.7 HPDDM_NUMBERING=C SOLVER=MUMPS SUBSOLVER=MUMPS FORCE_SINGLE=OFF FORCE_COMPLEX=OFF
@@ -115,43 +115,42 @@ before_cache:
 
 install:
   - mkdir -p $HOME/.cache/pkgs
-  - if [ "$CXX" == "g++" ]; then export OMPI_CC=gcc; export OMPI_CXX=g++; export OMPI_FC=gfortran; else export OMPI_CC=clang; export OMPI_CXX=clang++; fi
-  - if [ ! -f ${HOME}/.cache/miniconda${PYTHON_VERSION} ] && [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
-      if [ "$PYTHON_VERSION" == "2.7" ]; then
+  - if [ "$CXX" = "g++" ]; then export OMPI_CC=gcc; export OMPI_CXX=g++; export OMPI_FC=gfortran; else export OMPI_CC=clang; export OMPI_CXX=clang++; fi
+  - if [ ! -f ${HOME}/.cache/miniconda${PYTHON_VERSION} ] && [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then
+      if [ "$PYTHON_VERSION" = "2.7" ]; then
         wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
       else
         wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh;
       fi
     fi
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then bash ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh -b -p ${HOME}/miniconda; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then bash ${HOME}/.cache/miniconda${PYTHON_VERSION}.sh -b -p ${HOME}/miniconda; fi
   - export PATH="$HOME/miniconda/bin:$PATH"
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then rm -rf ${HOME}/miniconda/pkgs && ln -s ${HOME}/.cache/pkgs ${HOME}/miniconda/pkgs; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then rm -rf ${HOME}/miniconda/pkgs && ln -s ${HOME}/.cache/pkgs ${HOME}/miniconda/pkgs; fi
   - hash -r
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda config --set always_yes yes --set changeps1 no; fi
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda update -q conda; fi
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda info -a; fi
-  - if [ "$PYTHON_VERSION" == "2.7" ]; then export CONDAFLAGS="libgfortran=1.0"; fi
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then conda create -q -n test-environment python=$PYTHON_VERSION $CONDAFLAGS nomkl numpy=1.14.6 scipy; fi
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then source activate test-environment; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then conda config --set always_yes yes --set changeps1 no; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then conda update -q conda; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then conda info -a; fi
+  - if [ "$PYTHON_VERSION" = "2.7" ]; then export CONDAFLAGS="libgfortran=1.0"; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then conda create -q -n test-environment python=$PYTHON_VERSION $CONDAFLAGS nomkl numpy=1.14.6 scipy; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then source activate test-environment; fi
   - python -V
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then pip install --user mpi4py; fi
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then pip install --user mpi4py; fi
   - cp Make.inc/Makefile.Travis-CI Makefile.inc
-  - if [ "$FORCE_SINGLE" == "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
-  - if [ "$FORCE_COMPLEX" == "ON" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
-  - if [ "$CO" == "GENERAL_CO" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DGENERAL_CO"; fi
-  - if [ "$HPDDM_NUMBERING" == "C" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'C\'"; fi
-  - if [ "$HPDDM_NUMBERING" == "F" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'F\'"; fi
-  - export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NO_REGEX=1"
+  - if [ "$FORCE_SINGLE" = "ON" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
+  - if [ "$FORCE_COMPLEX" = "ON" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
+  - if [ "$CO" = "GENERAL_CO" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DGENERAL_CO"; fi
+  - if [ "$HPDDM_NUMBERING" = "C" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'C\'"; fi
+  - if [ "$HPDDM_NUMBERING" = "F" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NUMBERING=\'F\'"; fi
   - export CFLAGS="-Wall -Wpedantic -Werror -Wno-sign-compare"
   - export CXXFLAGS="-Wall -Wpedantic -Werror -Wno-sign-compare"
-  - if [ "$CXX" == "g++" ]; then export CFLAGS="-Wno-literal-suffix -Wno-maybe-uninitialized ${CFLAGS}"; export CXXFLAGS="-Wno-literal-suffix -Wno-maybe-uninitialized ${CXXFLAGS}"; fi
-  - if [ "$PYTHON_VERSION" == "2.7" ]; then
+  - if [ "$CXX" = "g++" ]; then export CFLAGS="-Wno-maybe-uninitialized ${CFLAGS}"; export CXXFLAGS="-Wno-literal-suffix -Wno-maybe-uninitialized ${CXXFLAGS}"; export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_NO_REGEX=1"; fi
+  - if [ "$PYTHON_VERSION" = "2.7" ]; then
       export CXXFLAGS="-Wno-deprecated-register ${CXXFLAGS}";
       make python;
     else
       export PYTHON_VERSION=3.7m;
-      if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
-        if [ "$SOLVER" == "MUMPS" ] && [ "$SUBSOLVER" == "MUMPS" ]; then export MPICC="mpicc -fprofile-arcs -ftest-coverage"; export MPICXX="mpic++ -fprofile-arcs -ftest-coverage"; fi;
+      if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then
+        if { [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; } || [ "$SOLVER" = "HYPRE" ]; then export MPICC="mpicc -fprofile-arcs -ftest-coverage"; export MPICXX="mpic++ -fprofile-arcs -ftest-coverage"; export MPIF90="mpif90 -fprofile-arcs -ftest-coverage"; fi;
         export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HOME}/miniconda/lib; make all -j2;
       else
         make cpp c -j2;
@@ -159,66 +158,78 @@ install:
     fi
 
 script:
-  - if [ "$PYTHON_VERSION" == "3.7m" ]; then
+  - if [ "$PYTHON_VERSION" = "3.7m" ]; then
       make test_cpp test_c;
     fi
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then make test_python; fi
-  - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$SOLVER" == "HYPRE" ]; then
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then make test_python; fi
+  - if [ "$PYTHON_VERSION" = "3.7m" ] && [ "$SOLVER" = "HYPRE" ]; then
       make test_bin/schwarzFromFile_cpp;
       if [ "$?" != "0" ]; then
         exit 1;
-      elif [ "$HPDDM_NUMBERING" == "F" ] && [ "$FORCE_SINGLE" == "OFF" ]; then
-        make test_bin/driver;
+      elif [ "$HPDDM_NUMBERING" = "F" ] && [ "$FORCE_SINGLE" = "OFF" ]; then
+        make test_bin/driver test_bin/custom_operator_c;
         if [ "$?" != "0" ]; then
           exit 1;
-        elif [ "$CXX" == "g++" ]; then
+        elif [ "$CXX" = "g++" ]; then
           make test_fortran;
         fi
       fi
     fi
-  - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$FORCE_SINGLE" == "OFF" ] && [ "$SOLVER" == "MUMPS" ]; then
+  - if [ "$PYTHON_VERSION" = "3.7m" ] && [ "$FORCE_SINGLE" = "OFF" ] && [ "$SOLVER" = "MUMPS" ]; then
+      export BACKUP="${HPDDMFLAGS}";
       export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_MIXED_PRECISION=1";
-      export MPICC="mpicc";
-      export MPICXX="mpic++";
-      make test_cpp;
+      mkdir -p bin/wo-mp && mv bin/*_cpp.g* bin/wo-mp || true;
+      rm -rf lib/libhpddm_python.* && make test_cpp;
+      if [ "$?" != "0" ]; then
+        exit 1;
+      fi;
+      mkdir -p bin/w-mp && mv bin/*_cpp.g* bin/w-mp || true;
+      export HPDDMFLAGS="${BACKUP}" && unset BACKUP;
     fi
-  - export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | cut -d'/' -f3-`;
-  - if [ "$BRANCH" == "" ]; then export BRANCH="master"; fi
-  - if [ "$FORCE_COMPLEX" == "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
-  - if [ "$FORCE_SINGLE" == "ON" ]; then export PRECISION="--with-precision=single"; else export PRECISION="--download-triangle"; fi
-  - if [ "$HPDDM_NUMBERING" == "F" ]; then export INDICES="--with-64-bit-indices"; fi
-  - if [ "$PYTHON_VERSION" == "3.7m" ] && [ "$SOLVER" == "MUMPS" ] && [ "$SUBSOLVER" == "MUMPS" ]; then
+  - export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | tail -n 1 | cut -d'/' -f3-`;
+  - if [ "$BRANCH" = "" ]; then export BRANCH="master"; fi
+  - if [ "$FORCE_COMPLEX" = "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
+  - if [ "$FORCE_SINGLE" = "ON" ]; then export PRECISION="--with-precision=single"; else export PRECISION="--download-triangle"; fi
+  - if [ "$HPDDM_NUMBERING" = "F" ]; then export INDICES="--with-64-bit-indices"; fi
+  - if [ "$PYTHON_VERSION" = "3.7m" ] && [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; then
       cd .. &&  git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc;
       export PETSC_DIR=${PWD};
       export PETSC_ARCH=arch-travis-petsc;
       export CXXPPFLAGS="-Wpedantic -Wno-sign-compare";
-      unset CXXFLAGS;
+      export BACKUP="${CXXFLAGS}" && unset CXXFLAGS;
       ./configure --with-fortran-bindings=0 --with-x=0 --with-shared-libraries --download-slepc --download-hpddm=../hpddm --download-hpddm-commit=HEAD ${SCALARTYPE} ${PRECISION} ${INDICES} 'CXXPPFLAGS=${CXXPPFLAGS}';
       wget -nv http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz && export DATAFILESPATH=${PWD}/datafiles;
-      if [ "$TRAVIS_CPU_ARCH" == "amd64" ]; then
+      if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then
         [ -z "`diff -rq ${PETSC_ARCH}/include ../hpddm/include | grep -v Only`" ] || exit 1;
         rm -rf ${PETSC_ARCH}/include/HPDDM*;
         sed -i -e 's@petsc/arch-travis-petsc/externalpackages/git.hpddm@hpddm@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp -fprofile-arcs -ftest-coverage@' ${PETSC_ARCH}/lib/petsc/conf/petscrules;
         make PETSC_DIR=${PWD} PETSC_ARCH=${PETSC_ARCH} all 'CXX=mpicxx -fprofile-arcs -ftest-coverage -I`pwd`/../hpddm/include' 'CLINKER=mpicc -fprofile-arcs -ftest-coverage';
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun -mca btl ^openib' 'CC=mpicc -fprofile-arcs -ftest-coverage' 'CLINKER=mpicc -fprofile-arcs -ftest-coverage' check-test-errors;
+        export CODE=$?;
       else
         make PETSC_DIR=${PWD} PETSC_ARCH=${PETSC_ARCH} all;
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun -mca btl ^openib' check-test-errors;
+        export CODE=$?;
       fi;
       cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log;
-      if [ "$?" != "0" ]; then
+      if [ "$CODE" != "0" ]; then
         exit 1;
-      fi
+      fi;
+      export CXXFLAGS="${BACKUP}" && unset BACKUP;
+      export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PETSC_DIR}/${PETSC_ARCH}/lib;
+      cd ../hpddm && export SUBSOLVER=PETSC && export HPDDM_NUMBERING=C && mkdir -p bin/wo-mp && mv bin/*_cpp.g* bin/wo-mp || true;
+      rm -rf lib/libhpddm_python.* && make test_cpp;
     fi
 
 after_success:
-  - if [ "$TRAVIS_CPU_ARCH" == "amd64" ] && [ "$PYTHON_VERSION" == "3.7m" ] && [ "$SOLVER" == "MUMPS" ] && [ "$SUBSOLVER" == "MUMPS" ]; then
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ] && [ "$PYTHON_VERSION" = "3.7m" ] && { { [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; } || [ "$SOLVER" = "HYPRE" ] || [ "$SUBSOLVER" = "PETSC" ]; } then
       cd ../hpddm;
-      if [ "$CXX" == "g++" ]; then
-        lcov --directory bin --directory ../petsc --capture --output-file coverage.info;
+      mkdir -p ../petsc;
+      if [ "$CXX" = "g++" ]; then
+        lcov --directory . --directory ../petsc --capture --output-file coverage.info;
         lcov --remove coverage.info '/usr/*' '*/petsc/*' --output-file coverage.info;
       else
-        lcov --gcov-tool `pwd`/llvm-cov.sh --directory bin --directory ../petsc --capture --output-file coverage.info;
+        lcov --gcov-tool `pwd`/llvm-cov.sh --directory . --directory ../petsc --capture --output-file coverage.info;
         lcov --gcov-tool `pwd`/llvm-cov.sh --remove coverage.info '/usr/*' '*/petsc/*' --output-file coverage.info;
       fi;
       bash <(curl -s https://codecov.io/bash) -f coverage.info;

@@ -38,6 +38,9 @@ struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
+#ifdef PETSCSUB
+    PetscInitialize(&argc, &argv, nullptr, nullptr);
+#endif
     /*# Init #*/
     int rankWorld, sizeWorld;
     MPI_Comm_size(MPI_COMM_WORLD, &sizeWorld);
@@ -144,6 +147,10 @@ int main(int argc, char** argv) {
                      status = 1;
         }
         delete [] storage;
+        char verbosity = opt.val<char>("verbosity", 0);
+        MPI_Bcast(&verbosity, 1, MPI_CHAR, 0, A.getCommunicator());
+        if(verbosity >= 4)
+            A.statistics();
     }
     else {
         mu = std::max(1, mu);
@@ -194,6 +201,9 @@ int main(int argc, char** argv) {
         delete MatNeumann;
     delete [] sol;
     delete [] f;
+#ifdef PETSCSUB
+    PetscFinalize();
+#endif
     MPI_Finalize();
     return status;
 }
