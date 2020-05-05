@@ -680,10 +680,6 @@ class Schwarz : public Preconditioner<
             if(resetPrefix)
                 opt.setPrefix("");
         }
-        template<bool sorted = true, bool scale = false>
-        void interaction(std::vector<const MatrixCSR<K>*>& blocks) const {
-            Subdomain<K>::template interaction<HPDDM_NUMBERING, sorted, scale>(blocks, _d);
-        }
         /* Function: GMV
          *
          *  Computes a global sparse matrix-vector product.

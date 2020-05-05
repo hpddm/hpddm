@@ -134,7 +134,7 @@ class IterativeMethod {
                 constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
                 underlying_type<K>* max;
                 if(tol > 0.0) {
-                    unsigned short j = 0;;
+                    unsigned short j = 0;
                     for(unsigned short k = 1; k < d / t; ++k) {
                         if(pt[j] / norm[j] < pt[k] / norm[k])
                             j = k;

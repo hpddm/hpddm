@@ -82,7 +82,7 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
                 for(unsigned short i = super::_signed; i < Subdomain<K>::_map.size(); ++i) {
                     MPI_Irecv(Subdomain<K>::_buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
                     for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        dual[i][j] =  (scale ? _m[i][j] * primal[Subdomain<K>::_map[i].second[j]] : primal[Subdomain<K>::_map[i].second[j]]);
+                        dual[i][j] = (scale ? _m[i][j] * primal[Subdomain<K>::_map[i].second[j]] : primal[Subdomain<K>::_map[i].second[j]]);
                     MPI_Isend(dual[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
                 }
                 MPI_Waitall(2 * Subdomain<K>::_map.size(), Subdomain<K>::_rq, MPI_STATUSES_IGNORE);
