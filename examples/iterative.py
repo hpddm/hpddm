@@ -45,7 +45,7 @@ def appArgs():
     val = (ctypes.c_char_p * 2)()
     (val[0], val[1]) = [ b'generate_random_rhs=<1>', b'fill_factor=<18>' ]
     desc = (ctypes.c_char_p * 2)()
-    (desc[0], desc[1]) =  [ b'Number of generated random right-hand sides.', b'Specifies the fill ratio upper bound (>= 1.0) for ILU.' ]
+    (desc[0], desc[1]) = [ b'Number of generated random right-hand sides.', b'Specifies the fill ratio upper bound (>= 1.0) for ILU.' ]
     hpddm.optionParseInts(opt, args, 2, ctypes.cast(val, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(desc, ctypes.POINTER(ctypes.c_char_p)))
     val[0] = b'drop_tol=<1.0e-4>'
     desc[0] = b'Drop tolerance (0 <= tol <= 1) for an incomplete LU decomposition.'
