@@ -306,10 +306,10 @@ class MatrixCSR : public MatrixBase<K> {
                     K* a = new K[MatrixBase<K>::_nnz];
                     for(int i = 0; i < MatrixBase<K>::_n && same; ++i) {
                         for(int j = A->MatrixBase<K>::_ia[i], k = MatrixBase<K>::_ia[i]; j < A->MatrixBase<K>::_ia[i + 1]; ++j) {
-                            while(k < MatrixBase<K>::_ia[i + 1] && MatrixBase<K>::_ja[k] < A->MatrixBase<K>::_ja[j])
+                            while(k < MatrixBase<K>::_nnz && k < MatrixBase<K>::_ia[i + 1] && MatrixBase<K>::_ja[k] < A->MatrixBase<K>::_ja[j])
                                 a[k++] = K();
-                            if(MatrixBase<K>::_ja[k] != A->MatrixBase<K>::_ja[j]) {
-                                if(std::abs(A->_a[j]) > HPDDM_EPS || !A->MatrixBase<K>::_free)
+                            if(k == MatrixBase<K>::_nnz || MatrixBase<K>::_ja[k] != A->MatrixBase<K>::_ja[j]) {
+                                if(j == A->MatrixBase<K>::_nnz || std::abs(A->_a[j]) > HPDDM_EPS || !A->MatrixBase<K>::_free)
                                     same = false;
                             }
                             else
