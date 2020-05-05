@@ -217,8 +217,8 @@ class IterativeMethod {
                 p = dir + 3 * mu;
             }
             else {
-                dir = new K[(2 + 2 * it + std::max(1, (4 + extra * it) * n)) * mu];
-                p = dir + (2 + 2 * it) * mu;
+                dir = new K[(3 + 2 * it + std::max(1, (4 + 2 * it) * n)) * mu];
+                p = dir + (3 + 2 * it) * mu;
             }
         }
         template<class K, typename std::enable_if<Wrapper<K>::is_complex>::type* = nullptr>
@@ -228,8 +228,8 @@ class IterativeMethod {
                 p = new K[std::max(1, 4 * n) * mu];
             }
             else {
-                dir = new underlying_type<K>[(2 + 2 * it) * mu];
-                p = new K[std::max(1, (4 + extra * it) * n) * mu];
+                dir = new underlying_type<K>[(3 + 2 * it) * mu];
+                p = new K[std::max(1, (4 + 2 * it) * n) * mu];
             }
         }
         /* Function: updateSol

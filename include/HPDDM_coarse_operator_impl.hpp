@@ -708,12 +708,12 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     }
     std::pair<MPI_Request, const K*>* ret = nullptr;
     if(rankSplit) {
-        downscaled_type<K>* const pt = reinterpret_cast<downscaled_type<K>*>(C);
         if(treeDimension) {
             for(const std::array<int, 3>& m : *msg)
-                MPI_Irecv(pt + size + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, _scatterComm, rqTree++);
+                MPI_Irecv(reinterpret_cast<downscaled_type<K>*>(C + size) + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, _scatterComm, rqTree++);
             rqTree -= msg->size();
         }
+        downscaled_type<K>* const pt = reinterpret_cast<downscaled_type<K>*>(C);
         if(U == 1 || _local) {
             if(Operator::_pattern == 's') {
                 if(info[0]) {
@@ -764,22 +764,23 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                     MPI_Waitany(msg->size(), rqTree, &idx, &st);
                     MPI_Get_count(&st, Wrapper<downscaled_type<K>>::mpi_type(), &((*msg)[idx][1]));
                 }
-                (*msg)[0][0] = (*msg)[0][1];
-                for(unsigned short i = 1; i < msg->size(); ++i) {
-                    if((*msg)[i][2] != (*msg)[i - 1][0])
-                        std::copy(pt + size + (*msg)[i][2], pt + size + (*msg)[i][2] + (*msg)[i][1], pt + size + (*msg)[i - 1][0]);
-                    (*msg)[i][0] = (*msg)[i - 1][0] + (*msg)[i][1];
+                (*msg)[0][0] = 0;
+                for(unsigned short i = 0; i < msg->size(); ++i) {
+                    if((*msg)[i][1])
+                        std::copy_n(reinterpret_cast<downscaled_type<K>*>(C + size) + (*msg)[i][2], (*msg)[i][1], pt + size + (*msg)[i][0]);
+                    if(i != msg->size() - 1)
+                        (*msg)[i + 1][0] = (*msg)[i][0] + (*msg)[i][1];
                 }
-                size += msg->back()[0];
+                size += msg->back()[0] + msg->back()[1];
             }
             delete [] rqTree;
+            delete msg;
             if(size) {
                 if(excluded)
                     MPI_Isend(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, _scatterComm, &ret->first);
                 else
                     MPI_Send(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, _scatterComm);
             }
-            delete msg;
         }
         if(!excluded)
             delete [] C;

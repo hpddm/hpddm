@@ -49,7 +49,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     const int dim = n * mu;
     underlying_type<K>* res;
     K* trash;
-    allocate(res, trash, n, id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1, it, mu);
+    allocate(res, trash, n, id[1] == HPDDM_VARIANT_FLEXIBLE ? 1 : 0, it, mu);
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -it);
     underlying_type<K>* const dir = res + mu;
@@ -62,9 +62,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         A.GMV(x, z, mu);
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
-
     A.template apply<excluded>(r, p, mu, z);
-
 #if HPDDM_PETSC && defined(_KSPIMPL_H)
     underlying_type<K> norm;
     A.template apply<excluded>(b, z, mu, trash);
@@ -87,37 +85,24 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             std::fill_n(dir, mu, std::numeric_limits<underlying_type<K>>::epsilon() / 1000.0);
     }
 #endif
-
     int i = 0;
     if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return 100 * v < std::numeric_limits<underlying_type<K>>::epsilon(); }) == dir + mu) {
         while(i < it) {
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
-            if(id[1] == HPDDM_VARIANT_FLEXIBLE && i) {
-                for(unsigned short k = 0; k < i; ++k)
-                    for(unsigned short nu = 0; nu < mu; ++nu)
-                        dir[mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (1 + it + k) * dim + n * nu, &i__1)) / dir[mu + (it + k) * mu + nu];
-                MPI_Allreduce(MPI_IN_PLACE, dir + mu, i * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-                if(!excluded && n) {
-                    std::copy_n(z, dim, p);
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        for(unsigned short k = 0; k < i; ++k)
-                            trash[k] = dir[mu + k * mu + nu];
-                        Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
-                    }
-                }
-            }
             if(!excluded)
                 A.GMV(p, z, mu);
-            Wrapper<K>::diag(n, d, p, trash, mu);
+            if(id[1] != HPDDM_VARIANT_FLEXIBLE)
+                Wrapper<K>::diag(n, d, p, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[mu + nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
             MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            if(id[1] == HPDDM_VARIANT_FLEXIBLE) {
+                std::copy_n(p, dim, p + (i + 1) * dim);
+                std::copy_n(dir + mu, mu, dir + (it + i + 2) * mu);
+                std::copy_n(z, dim, p + (it + i + 1) * dim);
+            }
             ++i;
-            std::copy_n(dir + mu, mu, dir + (it + i) * mu);
-            std::copy_n(p, dim, p + i * dim);
-            if(id[1] == HPDDM_VARIANT_FLEXIBLE)
-                std::copy_n(z, dim, p + (it + i) * dim);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(hasConverged[nu] == -it) {
                     trash[nu] = dir[nu] / dir[mu + nu];
@@ -129,13 +114,30 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             A.template apply<excluded>(r, z, mu, trash);
             Wrapper<K>::diag(n, d, z, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                dir[mu + nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1)) / dir[nu];
+                if(id[1] != HPDDM_VARIANT_FLEXIBLE)
+                    dir[mu + nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1)) / dir[nu];
                 dir[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
             }
-            MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
-            if(id[1] != HPDDM_VARIANT_FLEXIBLE)
+            if(id[1] != HPDDM_VARIANT_FLEXIBLE) {
+                MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
+            }
+            else {
+                for(unsigned short k = 0; k < i; ++k)
+                    for(unsigned short nu = 0; nu < mu; ++nu)
+                        dir[2 * mu + k * mu + nu] = -std::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (it + k + 1) * dim + n * nu, &i__1)) / dir[(it + k + 2) * mu + nu];
+                MPI_Allreduce(MPI_IN_PLACE, dir, (i + 2) * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+                if(!excluded && n) {
+                    std::copy_n(z, dim, p);
+                    for(unsigned short nu = 0; nu < mu; ++nu) {
+                        for(unsigned short k = 0; k < i; ++k)
+                            trash[k] = dir[2 * mu + k * mu + nu];
+                        Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d__1), p + dim + n * nu, &dim, trash, &i__1, &(Wrapper<K>::d__1), p + nu * n, &i__1);
+                    }
+                }
+                Wrapper<K>::diag(n, d, p, trash, mu);
+            }
             std::for_each(dir, dir + mu, [](underlying_type<K>& d) { d = std::sqrt(d); });
             checkConvergence<2>(id[0], i, i, tol, mu, res, dir, hasConverged, it);
 #if HPDDM_PETSC
@@ -182,8 +184,8 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[4 * (dim + mu * mu)];
-    K* const z = trash + dim;
-    K* const p = z + dim;
+    K* const p = trash + dim;
+    K* const z = p + dim;
     K* const r = z + dim;
     K* const rho = r + dim;
     K* const rhs = rho + 2 * mu * mu;
@@ -272,7 +274,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             }
         }
         else
-            std::fill_n(rhs - mu / m[1], mu / m[1] + (mu * (mu + 1)) / 2, K());
+            std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
         MPI_Allreduce(MPI_IN_PLACE, rhs - mu / m[1], mu / m[1] + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
         if(mu == checkBlockConvergence<3>(id[0], i, tol, mu, mu, norm, rho + 2 * mu * mu - mu / m[1], 0, trash, m[1]))
             break;
