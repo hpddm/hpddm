@@ -28,11 +28,7 @@
 #include "HPDDM_iterative.hpp"
 
 #if defined(_KSPIMPL_H) && PETSC_VERSION_GE(3, 13, 2)
-# if !defined(SLEPC_INCLUDE_ASM_H)
-#  include <../src/ksp/pc/impls/asm/asm.h>
-# else
-#  include <asm.h>
-# endif
+# include <../src/ksp/pc/impls/asm/asm.h>
 #endif
 
 namespace HPDDM {
@@ -71,7 +67,11 @@ class PETScOperator
 
             PetscFunctionBeginUser;
             ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
+#if defined(MATSEQKAIJ) && defined(MATMPIKAIJ)
             ierr = PetscObjectTypeCompareAny((PetscObject)A, &hasMatMatMult, MATSEQKAIJ, MATMPIKAIJ, "");CHKERRQ(ierr);
+#else
+            hasMatMatMult = PETSC_FALSE;
+#endif
             if(hasMatMatMult) {
                 Vec b, x;
                 PetscInt n, N;
@@ -149,7 +149,11 @@ class PETScOperator
             ierr = KSPGetOperators(_ksp, &A, NULL);CHKERRQ(ierr);
             ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
             ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
+#if defined(MATSEQKAIJ) && defined(MATMPIKAIJ)
             ierr = PetscObjectTypeCompareAny((PetscObject)A, &match, MATSEQKAIJ, MATMPIKAIJ, "");CHKERRQ(ierr);
+#else
+            match = PETSC_FALSE;
+#endif
             if(match) {
                 Vec b, x;
                 if(mu != n / super::_n)
