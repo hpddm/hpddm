@@ -112,6 +112,7 @@ class PETScOperator
             }
             else {
                 PetscInt M = 0;
+                bool reset = false;
                 if(_B) {
                     ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
                 }
@@ -127,8 +128,13 @@ class PETScOperator
                 else {
                     ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
                     ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
+                    reset = true;
                 }
                 ierr = MatMatMult(A, _B, MAT_REUSE_MATRIX, PETSC_DEFAULT, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+                if(reset) {
+                    ierr = MatDenseResetArray(_X);CHKERRQ(ierr);
+                    ierr = MatDenseResetArray(_B);CHKERRQ(ierr);
+                }
             }
             PetscFunctionReturn(0);
         }
@@ -207,6 +213,7 @@ class PETScOperator
             }
             if(F || _apply) {
                 PetscInt M = 0;
+                bool reset = false;
                 if(_B) {
                     ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
                 }
@@ -219,6 +226,7 @@ class PETScOperator
                 else {
                     ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
                     ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
+                    reset = true;
                 }
                 if(distance == 1) {
 #if defined(__ASM_H)
@@ -277,6 +285,10 @@ class PETScOperator
                 }
                 else {
                     ierr = _apply ? _apply(pc, _B, _X) : MatMatSolve(F, _B, _X);CHKERRQ(ierr);
+                }
+                if(reset) {
+                    ierr = MatDenseResetArray(_X);CHKERRQ(ierr);
+                    ierr = MatDenseResetArray(_B);CHKERRQ(ierr);
                 }
             }
             else {
