@@ -40,16 +40,16 @@ using cpp_type = typename std::conditional<std::is_same<T, underlying_type>::val
 
 template<class Operator, class K>
 struct CustomOperator : public HPDDM::EmptyOperator<cpp_type<K>> {
-    const Operator* const                                   _A;
-    void      (*_mv)(const Operator* const, const K*, K*, int);
-    void (*_precond)(const Operator* const, const K*, K*, int);
-    CustomOperator(const Operator* const A, int n, void (*mv)(const Operator* const, const K*, K*, int), void (*precond)(const Operator* const, const K*, K*, int)) : HPDDM::EmptyOperator<cpp_type<K>>(n), _A(A), _mv(mv), _precond(precond) { }
-    void GMV(const cpp_type<K>* const in, cpp_type<K>* const out, const int& mu = 1) const {
-        _mv(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
+    const Operator* const                                  _A;
+    int      (*_mv)(const Operator* const, const K*, K*, int);
+    int (*_precond)(const Operator* const, const K*, K*, int);
+    CustomOperator(const Operator* const A, int n, int (*mv)(const Operator* const, const K*, K*, int), int (*precond)(const Operator* const, const K*, K*, int)) : HPDDM::EmptyOperator<cpp_type<K>>(n), _A(A), _mv(mv), _precond(precond) { }
+    int GMV(const cpp_type<K>* const in, cpp_type<K>* const out, const int& mu = 1) const {
+        return _mv(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
     }
     template<bool>
-    void apply(const cpp_type<K>* const in, cpp_type<K>* const out, const unsigned short& mu = 1, cpp_type<K>* = nullptr, const unsigned short& = 0) const {
-        _precond(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
+    int apply(const cpp_type<K>* const in, cpp_type<K>* const out, const unsigned short& mu = 1, cpp_type<K>* = nullptr, const unsigned short& = 0) const {
+        return _precond(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
     }
 };
 
@@ -189,7 +189,7 @@ int HpddmSolve(HpddmSchwarz* A, const K* const b, K* const sol, int mu, const MP
     return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)), reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(sol), mu, *comm);
 }
 #endif
-int HpddmCustomOperatorSolve(const HpddmCustomOperator* const A, int n, void (*mv)(const HpddmCustomOperator* const, const K*, K*, int), void (*precond)(const HpddmCustomOperator* const, const K*, K*, int), const K* const b, K* const sol, int mu, const MPI_Comm* comm) {
+int HpddmCustomOperatorSolve(const HpddmCustomOperator* const A, int n, int (*mv)(const HpddmCustomOperator* const, const K*, K*, int), int (*precond)(const HpddmCustomOperator* const, const K*, K*, int), const K* const b, K* const sol, int mu, const MPI_Comm* comm) {
     return HPDDM::IterativeMethod::solve(CustomOperator<HpddmCustomOperator, K>(A, n, mv, precond), reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(sol), mu, *comm);
 }
 

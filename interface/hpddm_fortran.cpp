@@ -51,13 +51,15 @@ struct CustomOperator : public HPDDM::EmptyOperator<K> {
     void      (*_mv)(const int*, const K*, K*, const int*);
     void (*_precond)(const int*, const K*, K*, const int*);
     CustomOperator(int n, void (*mv)(const int*, const K*, K*, const int*), void (*precond)(const int*, const K*, K*, const int*)) : HPDDM::EmptyOperator<K>(n), _mv(mv), _precond(precond) { }
-    void GMV(const K* const in, K* const out, const int& mu = 1) const {
+    int GMV(const K* const in, K* const out, const int& mu = 1) const {
         _mv(&(HPDDM::EmptyOperator<K>::_n), in, out, &mu);
+        return 0;
     }
     template<bool>
-    void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
+    int apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         int m = mu;
         _precond(&(HPDDM::EmptyOperator<K>::_n), in, out, &m);
+        return 0;
     }
 };
 

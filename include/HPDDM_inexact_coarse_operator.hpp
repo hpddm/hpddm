@@ -818,7 +818,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
         void setParent(decltype(_p) const p) {
             _p = p;
         }
-        void GMV(const K* const in, K* const out, const int& mu = 1) const {
+        int GMV(const K* const in, K* const out, const int& mu = 1) const {
             exchange<'N'>(in, nullptr, mu);
             Wrapper<K>::template bsrmm<Solver<K>::_numbering>(S == 'S', &_dof, &mu, &_bs, _da, _di, _dj, in, out);
             wait<'N'>(_o + (mu - 1) * _off * _bs);
@@ -828,13 +828,15 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 exchange<'T'>(nullptr, out, mu);
                 wait<'T'>(out + (mu - 1) * _dof * _bs);
             }
+            return 0;
         }
         template<bool>
-        void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr) const {
+        int apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr) const {
 #ifdef DMUMPS
             if(DMatrix::_n)
 #endif
                 Solver<K>::solve(in, out, mu);
+            return 0;
         }
         template<bool = false>
         bool start(const K* const, K* const, const unsigned short& mu = 1) const {

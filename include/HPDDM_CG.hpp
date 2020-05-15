@@ -45,6 +45,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     unsigned short it = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[0];
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
 #endif
+    int ierr;
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     underlying_type<K>* res;
@@ -58,14 +59,15 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     K* const p = r + dim;
     const underlying_type<K>* const d = A.getScaling();
     bool allocate = A.template start<excluded>(b, x, mu);
-    if(!excluded)
-        A.GMV(x, z, mu);
+    if(!excluded) {
+        ierr = A.GMV(x, z, mu);HPDDM_CHKERRQ(ierr)
+    }
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
-    A.template apply<excluded>(r, p, mu, z);
+    ierr = A.template apply<excluded>(r, p, mu, z);HPDDM_CHKERRQ(ierr)
 #if HPDDM_PETSC && defined(_KSPIMPL_H)
     underlying_type<K> norm;
-    A.template apply<excluded>(b, z, mu, trash);
+    ierr = A.template apply<excluded>(b, z, mu, trash);HPDDM_CHKERRQ(ierr)
     Wrapper<K>::diag(n, d, z, trash, 1);
     norm = std::real(Blas<K>::dot(&n, z, &i__1, trash, &i__1));
     MPI_Allreduce(MPI_IN_PLACE, &norm, 1, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
@@ -90,8 +92,9 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         while(i < it) {
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[nu] = std::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
-            if(!excluded)
-                A.GMV(p, z, mu);
+            if(!excluded) {
+                ierr = A.GMV(p, z, mu);HPDDM_CHKERRQ(ierr)
+            }
             if(id[1] != HPDDM_VARIANT_FLEXIBLE)
                 Wrapper<K>::diag(n, d, p, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu)
@@ -111,7 +114,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                     Blas<K>::axpy(&n, trash + nu, z + n * nu, &i__1, r + n * nu, &i__1);
                 }
             }
-            A.template apply<excluded>(r, z, mu, trash);
+            ierr = A.template apply<excluded>(r, z, mu, trash);HPDDM_CHKERRQ(ierr)
             Wrapper<K>::diag(n, d, z, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 if(id[1] != HPDDM_VARIANT_FLEXIBLE)
@@ -181,6 +184,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
 #endif
+    int ierr;
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[4 * (dim + mu * mu)];
@@ -192,11 +196,12 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     K* const gamma = rhs + mu * mu;
     const underlying_type<K>* const d = A.getScaling();
     bool allocate = A.template start<excluded>(b, x, mu);
-    if(!excluded)
-        A.GMV(x, z, mu);
+    if(!excluded) {
+        ierr = A.GMV(x, z, mu);HPDDM_CHKERRQ(ierr)
+    }
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
-    A.template apply<excluded>(r, p, mu, z);
+    ierr = A.template apply<excluded>(r, p, mu, z);HPDDM_CHKERRQ(ierr)
     Wrapper<K>::diag(n, d, p, trash, mu);
     if(!excluded && n) {
         Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), r, &n, trash, &n, &(Wrapper<K>::d__0), rho, &mu);
@@ -232,7 +237,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     unsigned short i = 1;
     while(i <= m[0]) {
         if(!excluded) {
-            A.GMV(p, z, mu);
+            ierr = A.GMV(p, z, mu);HPDDM_CHKERRQ(ierr)
             Blas<K>::trsm("L", "U", &(Wrapper<K>::transc), "N", &mu, &mu, &(Wrapper<K>::d__1), gamma, &mu, rho + mu * mu, &mu);
         }
         Wrapper<K>::diag(n, d, z, trash, mu);
@@ -255,7 +260,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__1), p, &n, rho + mu * mu, &mu, &(Wrapper<K>::d__1), x, &n);
             Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__2), z, &n, rho + mu * mu, &mu, &(Wrapper<K>::d__1), r, &n);
         }
-        A.template apply<excluded>(r, z, mu, trash);
+        ierr = A.template apply<excluded>(r, z, mu, trash);HPDDM_CHKERRQ(ierr)
         Wrapper<K>::diag(n, d, z, trash, mu);
         if(!excluded && n) {
             Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &mu, &n, &(Wrapper<K>::d__1), r, &n, trash, &n, &(Wrapper<K>::d__0), rhs, &mu);
@@ -332,6 +337,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
 #endif
+    int ierr;
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
     K* const trash = new K[5 * dim + (mu * (3 * mu + 1)) / 2 + mu / m[1]];
@@ -345,11 +351,12 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     int* const piv = new int[mu];
     int deflated = -1;
     int info;
-    if(!excluded)
-        A.GMV(x, trash, mu);
+    if(!excluded) {
+        ierr = A.GMV(x, trash, mu);HPDDM_CHKERRQ(ierr)
+    }
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), trash, &i__1, r, &i__1);
-    A.template apply<excluded>(r, p, mu, trash);
+    ierr = A.template apply<excluded>(r, p, mu, trash);HPDDM_CHKERRQ(ierr)
     RRQR<excluded>(id[1], n, mu, p, gamma, tol[1], deflated, piv, d, trash, comm);
     diagonal<6>(id[0], gamma, mu, tol[1], piv);
     underlying_type<K>* const norm = new underlying_type<K>[mu];
@@ -370,8 +377,9 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     }
     unsigned short i = (deflated != 0 ? 1 : 0);
     while(i <= m[0] && deflated != 0) {
-        if(!excluded)
-            A.GMV(p, q, deflated);
+        if(!excluded) {
+            ierr = A.GMV(p, q, deflated);HPDDM_CHKERRQ(ierr)
+        }
         K* const alpha = gamma + (deflated * (deflated + 1)) / 2;
         if(!excluded && n) {
             Wrapper<K>::diag(n, d, p, trash, deflated);
@@ -389,7 +397,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
             Blas<K>::gemm("N", "N", &n, &mu, &deflated, &(Wrapper<K>::d__1), p, &n, alpha, &deflated, &(Wrapper<K>::d__1), x, &n);
             Blas<K>::gemm("N", "N", &n, &mu, &deflated, &(Wrapper<K>::d__2), q, &n, alpha, &deflated, &(Wrapper<K>::d__1), r, &n);
         }
-        A.template apply<excluded>(r, z, mu, trash);
+        ierr = A.template apply<excluded>(r, z, mu, trash);HPDDM_CHKERRQ(ierr)
         K* const res = alpha + deflated * mu;
         if(!excluded && n) {
             Wrapper<K>::diag(n, d, z, trash, mu);
