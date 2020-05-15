@@ -31,7 +31,7 @@ struct HpddmCustomOperator {
     int n;
 };
 
-void mv(const HpddmCustomOperator* const op, const double* in, double* out, int mu) {
+int mv(const HpddmCustomOperator* const op, const double* in, double* out, int mu) {
     int rank;
     MPI_Comm_rank(op->comm, &rank);
     for(int j = 0; j < mu; ++j)
@@ -42,13 +42,15 @@ void mv(const HpddmCustomOperator* const op, const double* in, double* out, int 
             if(i < op->n - 1)
                 out[op->n * j + i] -= 0.5 * in[op->n * j + i + 1];
         }
+    return 0;
 }
-void apply(const HpddmCustomOperator* const op, const double* in, double* out, int mu) {
+int apply(const HpddmCustomOperator* const op, const double* in, double* out, int mu) {
     int rank;
     MPI_Comm_rank(op->comm, &rank);
     for(int j = 0; j < mu; ++j)
         for(int i = 0; i < op->n; ++i)
             out[op->n * j + i] = in[op->n * j + i] / (op->n * rank + i + 2.0);
+    return 0;
 }
 
 int main(int argc, char** argv) {

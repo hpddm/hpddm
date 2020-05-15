@@ -64,6 +64,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to GMRES" << std::endl;
         return GMRES<excluded>(A, b, x, mu, comm);
     }
+    int ierr;
     const int n = excluded ? 0 : A.getDof();
     const int ldh = mu * (m[1] + 1);
     K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 4 : 3) + 1];
@@ -93,32 +94,39 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     unsigned short j = 1;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + (id[1] == HPDDM_VARIANT_RIGHT ? 2 : 1) * ldv + (d && U && id[1] == HPDDM_VARIANT_RIGHT && id[4] / 4 == 0 ? n * std::max(k - mu * (m[1] - k + 2), 0) : 0));
     underlying_type<K>* const sn = norm + mu;
-    bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
+    ierr = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1);
+    const bool allocate = static_cast<bool>(ierr);
+    if(ierr < 0)
+        return ierr;
     while(j <= m[0]) {
         unsigned short i = (U ? k : 0);
         if(!excluded) {
-            A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], mu);
+            ierr = A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], mu);HPDDM_CHKERRQ(ierr)
             Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], 1);
         }
-        if(id[1] == HPDDM_VARIANT_LEFT)
-            A.template apply<excluded>(Ax, v[i], mu);
+        if(id[1] == HPDDM_VARIANT_LEFT) {
+            ierr = A.template apply<excluded>(Ax, v[i], mu);HPDDM_CHKERRQ(ierr)
+        }
         if(j == 1 && U) {
             K* pt;
             if(id[1] == HPDDM_VARIANT_RIGHT) {
                 pt = *v;
-                if(id[4] / 4 == 0)
-                    A.template apply<excluded>(U, pt, mu * k, C);
+                if(id[4] / 4 == 0) {
+                    ierr = A.template apply<excluded>(U, pt, mu * k, C);HPDDM_CHKERRQ(ierr)
+                }
             }
             else
                 pt = U;
             if(id[4] / 4 == 0) {
                 if(id[1] == HPDDM_VARIANT_LEFT) {
-                    if(!excluded)
-                        A.GMV(pt, *v, mu * k);
-                    A.template apply<excluded>(*v, C, mu * k);
+                    if(!excluded) {
+                        ierr = A.GMV(pt, *v, mu * k);HPDDM_CHKERRQ(ierr)
+                    }
+                    ierr = A.template apply<excluded>(*v, C, mu * k);HPDDM_CHKERRQ(ierr)
                 }
-                else if(!excluded)
-                    A.GMV(pt, C, mu * k);
+                else if(!excluded) {
+                    ierr = A.GMV(pt, C, mu * k);HPDDM_CHKERRQ(ierr)
+                }
                 QR<excluded>((id[2] >> 2) & 7, n, k, C, *save, k, d, *v + (id[1] == HPDDM_VARIANT_RIGHT ? ldv * (i + 1) : 0), comm, true, mu);
                 if(!excluded && n) {
                     if(id[1] == HPDDM_VARIANT_RIGHT)
@@ -138,7 +146,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 if(!excluded && n)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), U + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__0), *v + nu * n, &i__1);
-                A.template apply<excluded>(*v, Ax, mu);
+                ierr = A.template apply<excluded>(*v, Ax, mu);HPDDM_CHKERRQ(ierr)
                 int tmp = mu * n;
                 Blas<K>::axpy(&tmp, &(Wrapper<K>::d__1), Ax, &i__1, x, &i__1);
             }
@@ -190,14 +198,16 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
 #endif
         while(i < m[1] && j <= m[0]) {
             if(id[1] == HPDDM_VARIANT_LEFT) {
-                if(!excluded)
-                    A.GMV(v[i], Ax, mu);
-                A.template apply<excluded>(Ax, v[i + 1], mu);
+                if(!excluded) {
+                    ierr = A.GMV(v[i], Ax, mu);HPDDM_CHKERRQ(ierr)
+                }
+                ierr = A.template apply<excluded>(Ax, v[i + 1], mu);HPDDM_CHKERRQ(ierr)
             }
             else {
-                A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);
-                if(!excluded)
-                    A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], mu);
+                ierr = A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, mu, v[i + 1]);HPDDM_CHKERRQ(ierr)
+                if(!excluded) {
+                    ierr = A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], mu);HPDDM_CHKERRQ(ierr)
+                }
             }
             if(U)
                 orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], d, Ax, comm);
@@ -229,7 +239,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 }
             }
         }
-        updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);
+        ierr = updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm);HPDDM_CHKERRQ(ierr)
         if(i == m[1]) {
             if(U)
                 i -= k;
@@ -490,6 +500,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             std::cout << "WARNING -- please choose a positive number of Ritz vectors to compute, now switching to BGMRES" << std::endl;
         return BGMRES<excluded>(A, b, x, mu, comm);
     }
+    int ierr;
     const int n = excluded ? 0 : A.getDof();
     int ldh = mu * (m[1] + 1);
     K** const H = new K*[m[1] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 4 : 3) + 1];
@@ -512,7 +523,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     K* const s = Ax + lwork + (d && U && id[1] == HPDDM_VARIANT_RIGHT && id[4] / 4 == 0 ? mu * n * std::max(2 * k - m[1] - 2, 0) : 0);
     K* const tau = s + mu * ldh;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(tau + m[1] * N);
-    bool allocate = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
+    ierr = initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[2]);
+    const bool allocate = static_cast<bool>(ierr);
+    if(ierr < 0)
+        return ierr;
     MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[2], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     for(unsigned short nu = 0; nu < mu / m[2]; ++nu) {
         norm[nu] = std::sqrt(norm[nu]);
@@ -525,29 +539,33 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     int deflated = -1;
     while(j <= m[0]) {
         if(!excluded) {
-            A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu);
+            ierr = A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu);HPDDM_CHKERRQ(ierr)
             Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
         }
-        if(id[1] == HPDDM_VARIANT_LEFT)
-            A.template apply<excluded>(Ax, *v, mu);
+        if(id[1] == HPDDM_VARIANT_LEFT) {
+            ierr = A.template apply<excluded>(Ax, *v, mu);HPDDM_CHKERRQ(ierr)
+        }
         if(j == 1 && U) {
             K* pt;
             const int bK = mu * k;
             if(id[1] == HPDDM_VARIANT_RIGHT) {
                 pt = *v + ldv;
-                if(id[4] / 4 == 0)
-                    A.template apply<excluded>(U, pt, bK, C);
+                if(id[4] / 4 == 0) {
+                    ierr = A.template apply<excluded>(U, pt, bK, C);HPDDM_CHKERRQ(ierr)
+                }
             }
             else
                 pt = U;
             if(id[4] / 4 == 0) {
                 if(id[1] == HPDDM_VARIANT_LEFT) {
-                    if(!excluded)
-                        A.GMV(pt, *v + ldv, bK);
-                    A.template apply<excluded>(*v + ldv, C, bK);
+                    if(!excluded) {
+                        ierr = A.GMV(pt, *v + ldv, bK);HPDDM_CHKERRQ(ierr)
+                    }
+                    ierr = A.template apply<excluded>(*v + ldv, C, bK);HPDDM_CHKERRQ(ierr)
                 }
-                else if(!excluded)
-                    A.GMV(pt, C, bK);
+                else if(!excluded) {
+                    ierr = A.GMV(pt, C, bK);HPDDM_CHKERRQ(ierr)
+                }
                 QR<excluded>((id[2] >> 2) & 7, n, bK, C, *save, bK, d, *v + ldv * (id[1] == HPDDM_VARIANT_RIGHT ? (k + 1) : 1), comm);
                 if(!excluded && n) {
                     if(id[1] == HPDDM_VARIANT_RIGHT)
@@ -564,7 +582,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             else {
                 if(!excluded && n)
                     Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), U, &n, *H, &ldh, &(Wrapper<K>::d__0), Ax, &n);
-                A.template apply<excluded>(Ax, pt, mu);
+                ierr = A.template apply<excluded>(Ax, pt, mu);HPDDM_CHKERRQ(ierr)
                 Blas<K>::axpy(&ldv, &(Wrapper<K>::d__1), pt, &i__1, x, &i__1);
             }
         }
@@ -619,14 +637,16 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             std::copy_n(C, k * ldv, *v);
         while(i < m[1] && j <= m[0]) {
             if(id[1] == HPDDM_VARIANT_LEFT) {
-                if(!excluded)
-                    A.GMV(v[i], Ax, deflated);
-                A.template apply<excluded>(Ax, v[i + 1], deflated);
+                if(!excluded) {
+                    ierr = A.GMV(v[i], Ax, deflated);HPDDM_CHKERRQ(ierr)
+                }
+                ierr = A.template apply<excluded>(Ax, v[i + 1], deflated);HPDDM_CHKERRQ(ierr)
             }
             else {
-                A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);
-                if(!excluded)
-                    A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);
+                ierr = A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, deflated, v[i + 1]);HPDDM_CHKERRQ(ierr)
+                if(!excluded) {
+                    ierr = A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[1] + 1] : Ax, v[i + 1], deflated);HPDDM_CHKERRQ(ierr)
+                }
             }
             if(U)
                 blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, d, Ax, comm);
@@ -672,7 +692,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     dim = deflated * (rem + (U ? k : 0));
             }
         }
-        updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);
+        ierr = updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated);HPDDM_CHKERRQ(ierr)
         if(tol[1] > -0.9)
             Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
         if(i == m[1] && ((id[2] >> 2) & 7) == 0) {

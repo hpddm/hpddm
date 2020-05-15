@@ -472,7 +472,7 @@ class Schwarz : public Preconditioner<
          *    mu             - Number of vectors.
          *    work           - Workspace array. */
         template<bool excluded = false>
-        void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
+        int apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
             const char correction = Option::get()->val<char>(super::prefix("schwarz_coarse_correction"), -1);
             if((!super::_co && !super::_cc) || correction == -1) {
                 if(_type == Prcndtnr::NO)
@@ -569,6 +569,7 @@ class Schwarz : public Preconditioner<
                     }
                 }
             }
+            return 0;
         }
         /* Function: scaleIntoOverlap
          *
@@ -688,9 +689,9 @@ class Schwarz : public Preconditioner<
          *    in             - Input vector.
          *    out            - Output vector. */
 #if HPDDM_DENSE
-        virtual void GMV(const K* const in, K* const out, const int& mu = 1) const = 0;
+        virtual int GMV(const K* const in, K* const out, const int& mu = 1) const = 0;
 #else
-        void GMV(const K* const in, K* const out, const int& mu = 1, MatrixCSR<K>* const& A = nullptr) const {
+        int GMV(const K* const in, K* const out, const int& mu = 1, MatrixCSR<K>* const& A = nullptr) const {
 #if 0
             K* tmp = new K[mu * Subdomain<K>::_dof];
             Wrapper<K>::diag(Subdomain<K>::_dof, _d, in, tmp, mu);
@@ -713,6 +714,7 @@ class Schwarz : public Preconditioner<
                 Wrapper<K>::template csrmm<'F'>(Subdomain<K>::_a->_sym, &(Subdomain<K>::_dof), &mu, Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, in, out);
             exchange(out, mu);
 #endif
+            return 0;
         }
 #endif
         /* Function: computeResidual

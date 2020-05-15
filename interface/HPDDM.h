@@ -113,7 +113,7 @@ void HpddmSchwarzDestroy(HpddmSchwarz*);
 int HpddmSolve(HpddmSchwarz*, const K* const, K* const, int, const MPI_Comm*);
 struct HpddmCustomOperator;
 typedef struct HpddmCustomOperator HpddmCustomOperator;
-int HpddmCustomOperatorSolve(const HpddmCustomOperator* const, int, void (*)(const HpddmCustomOperator* const, const K*, K*, int), void (*)(const HpddmCustomOperator* const, const K*, K*, int), const K* const, K* const, int, const MPI_Comm*);
+int HpddmCustomOperatorSolve(const HpddmCustomOperator* const, int, int (*)(const HpddmCustomOperator* const, const K*, K*, int), int (*)(const HpddmCustomOperator* const, const K*, K*, int), const K* const, K* const, int, const MPI_Comm*);
 
 underlying_type nrm2(const int*, const K* const, const int*);
 void axpy(const int*, const K* const, const K* const, const int*, K* const, const int*);

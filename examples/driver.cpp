@@ -46,7 +46,7 @@ typedef double K;
 struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
     using HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>::CustomOperator;
     template<bool>
-    void apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
+    int apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
         HPDDM::Option& opt = *HPDDM::Option::get();
         if(opt.app()["diagonal_scaling"] == 0)
             std::copy_n(in, mu * _n, out);
@@ -58,6 +58,7 @@ struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
                     out[nu * _n + i] = in[nu * _n + i] / A->_a[mid];
             }
         }
+        return 0;
     }
 };
 
