@@ -702,6 +702,9 @@ class IterativeMethod {
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class K>
         static void Arnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
+#ifdef PETSCHPDDM_H
+            PetscLogEventBegin(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
+#endif
             orthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, d, work, comm);
             if(excluded)
                 std::fill_n(sn + i * mu, mu, 0.0);
@@ -740,11 +743,17 @@ class IterativeMethod {
             }
             if(mu > 1)
                 Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
+#ifdef PETSCHPDDM_H
+            PetscLogEventEnd(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
+#endif
         }
         /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class K>
         static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
+#ifdef PETSCHPDDM_H
+            PetscLogEventBegin(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
+#endif
             int ldh = (m + 1) * mu;
             blockOrthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, d, work, comm);
             int info = QR<excluded>((id >> 2) & 7, n, mu, v[i + 1], H[i] + (i + 1) * mu, ldh, d, work, comm, i < m - 1);
@@ -760,6 +769,9 @@ class IterativeMethod {
                 Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
             Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
+#ifdef PETSCHPDDM_H
+            PetscLogEventEnd(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
+#endif
             return false;
         }
         template<bool excluded, class K>
@@ -1091,7 +1103,7 @@ class IterativeMethod {
             int it;
             switch(method) {
                 case HPDDM_KRYLOV_METHOD_NONE:     { bool allocate = A.template start<excluded>(sb, sx, k * mu);
-                                                     K* work = new K[k * mu * A.getDof()];
+                                                     K* work = (hpddm_method_id<Operator>::value ? new K[k * mu * A.getDof()] : nullptr);
                                                      it = A.template apply<excluded>(sb, sx, k * mu, work);HPDDM_CHKERRQ(it)
                                                      it = 1;
                                                      delete [] work;
