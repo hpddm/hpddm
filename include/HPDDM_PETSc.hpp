@@ -91,6 +91,8 @@ class PETScOperator
             }
 #if PETSC_VERSION_LT(3, 13, 0)
             ierr = MatHasOperation(A, MATOP_MAT_MULT, &hasMatMatMult);CHKERRQ(ierr);
+#elif PETSC_VERSION_GE(3, 14, 0)
+            hasMatMatMult = PETSC_TRUE;
 #else
             ierr = PetscObjectTypeCompareAny((PetscObject)A, &hasMatMatMult, MATSEQAIJ, MATMPIAIJ, "");CHKERRQ(ierr);
 #endif
@@ -124,13 +126,23 @@ class PETScOperator
                     ierr = MatDestroy(const_cast<Mat*>(&_B));CHKERRQ(ierr);
                     ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_B));CHKERRQ(ierr);
                     ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, out, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 14, 0)
+                    ierr = MatProductCreateWithMat(A, _B, NULL, _X);CHKERRQ(ierr);
+                    ierr = MatProductSetType(_X, MATPRODUCT_AB);CHKERRQ(ierr);
+                    ierr = MatProductSetFromOptions(_X);CHKERRQ(ierr);
+                    ierr = MatProductSymbolic(_X);CHKERRQ(ierr);
+#endif
                 }
                 else {
                     ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
                     ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
                     reset = true;
                 }
+#if PETSC_VERSION_GE(3, 14, 0)
+                ierr = MatProductNumeric(_X); CHKERRQ(ierr);
+#else
                 ierr = MatMatMult(A, _B, MAT_REUSE_MATRIX, PETSC_DEFAULT, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+#endif
                 if(reset) {
                     ierr = MatDenseResetArray(_X);CHKERRQ(ierr);
                     ierr = MatDenseResetArray(_B);CHKERRQ(ierr);
@@ -222,6 +234,12 @@ class PETScOperator
                     ierr = MatDestroy(const_cast<Mat*>(&_B));CHKERRQ(ierr);
                     ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_B));CHKERRQ(ierr);
                     ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, (super::_n / n) * N, mu, out, const_cast<Mat*>(&_X));CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 14, 0)
+                    ierr = MatProductCreateWithMat(A, _B, NULL, _X);CHKERRQ(ierr);
+                    ierr = MatProductSetType(_X, MATPRODUCT_AB);CHKERRQ(ierr);
+                    ierr = MatProductSetFromOptions(_X);CHKERRQ(ierr);
+                    ierr = MatProductSymbolic(_X);CHKERRQ(ierr);
+#endif
                 }
                 else {
                     ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);

@@ -507,14 +507,13 @@ class OptionsPrefix {
         K* storage() const {
             return _storage ? _storage + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K)) : nullptr;
         }
-        unsigned short k() const {
+        std::pair<unsigned short, unsigned short> k() const {
             if(_storage) {
                 unsigned short* pt = reinterpret_cast<unsigned short*>(_storage);
-                return pt[1];
+                return { pt[0], pt[1] };
             }
-            else {
-                return 0;
-            }
+            else
+                return { 0, 0 };
         }
 };
 } // HPDDM

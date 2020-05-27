@@ -890,6 +890,7 @@ class Schwarz : public Preconditioner<
                 PetscInt* numprocs;
                 PetscInt** indices;
                 ierr = ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                nproc = std::max(nproc, static_cast<PetscInt>(1));
                 unsigned short* sorted = new unsigned short[nproc - 1];
                 std::iota(sorted, sorted + nproc - 1, 0);
                 std::sort(sorted, sorted + nproc - 1, [&procs](unsigned short lhs, unsigned short rhs) { return procs[1 + lhs] < procs[1 + rhs]; });
@@ -1032,18 +1033,18 @@ class Schwarz : public Preconditioner<
             Mat rhs = B(levels[0]->parent);
             if(!rhs) {
                 if(Neumann(levels[0]->parent) || ismatis) {
-                    if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqaij")) {
+                    if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare(MATSEQAIJ)) {
                         bs = 1;
                         ierr = MatSeqAIJGetArray(D, &v);CHKERRQ(ierr);
                     }
 #if PETSC_VERSION_GE(3, 12, 2)
-                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqbaij")) {
+                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare(MATSEQBAIJ)) {
                         ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
                         ierr = MatSeqBAIJGetArray(D, &v);CHKERRQ(ierr);
                         type = 1;
                     }
 #endif
-                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare("seqsbaij")) {
+                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare(MATSEQSBAIJ)) {
                         ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
                         ierr = MatSeqSBAIJGetArray(D, &v);CHKERRQ(ierr);
                         type = 2;
