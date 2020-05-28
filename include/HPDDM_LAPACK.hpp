@@ -62,7 +62,12 @@ void HPDDM_F77(C ## SYM ## sv)(const char*, const int*, const int*, T*, const in
 void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, const int*, int*);                \
 void HPDDM_F77(C ## geqrt)(const int*, const int*, const int*, T*, const int*, T*, const int*, T*, int*);    \
 void HPDDM_F77(C ## gemqrt)(const char*, const char*, const int*, const int*, const int*, const int*,        \
-                            const T*, const int*, const T*, const int*, T*, const int*, T*, int*);
+                            const T*, const int*, const T*, const int*, T*, const int*, T*, int*);           \
+void HPDDM_F77(C ## tpqrt)(const int*, const int*, const int*, const int*, T*, const int*, T*, const int*,   \
+                           T*, const int*, T*, int*);                                                        \
+void HPDDM_F77(C ## tpmqrt)(const char*, const char*, const int*, const int*, const int*, const int*,        \
+                            const int*, T*, const int*, T*, const int*, T*, const int*, T*, const int*, T*,  \
+                            int*);
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                     \
 HPDDM_GENERATE_EXTERN_LAPACK(B, U, U, sy, or)                                                                \
 HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, he, un)                                                                \
@@ -191,6 +196,12 @@ struct Lapack {
     /* Function: gemqrt
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geqrt>. */
     static void gemqrt(const char*, const char*, const int*, const int*, const int*, const int*, const K*, const int*, const K*, const int*, K*, const int*, K*, int*);
+    /* Function: tpqrt
+     *  Computes a blocked QR factorization of a "triangular-pentagonal" matrix. */
+    static void tpqrt(const int*, const int*, const int*, const int*, K*, const int*, K*, const int*, K*, const int*, K*, int*);
+    /* Function: tpmqrt
+     *  Applies an orthogonal matrix obtained from a "triangular-pentagonal" complex block reflector to a general matrix. */
+    static void tpmqrt(const char*, const char*, const int*, const int*, const int*, const int*, const int*, K*, const int*, K*, const int*, K*, const int*, K*, const int*, K*, int*);
     /* Function: mqr
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geq>. */
     static void mqr(const char*, const char*, const int*, const int*, const int*, const K*, const int*, const K*, K*, const int*, K*, const int*, int*);
@@ -587,7 +598,20 @@ inline void Lapack<T>::gemqrt(const char* side, const char* trans, const int* m,
                               const int* nb, const T* v, const int* ldv, const T* t, const int* ldt, T* c,   \
                               const int* ldc, T* work, int* info) {                                          \
     HPDDM_F77(C ## gemqrt)(side, trans, m, n, k, nb, v, ldv, t, ldt, c, ldc, work, info);                    \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::tpqrt(const int* m, const int* n, const int* l, const int* nb, T* a,                  \
+                             const int* lda, T* b, const int* ldb, T* t, const int* ldt, T* work,            \
+                             int* info) {                                                                    \
+    HPDDM_F77(C ## tpqrt)(m, n, l, nb, a, lda, b, ldb, t, ldt, work, info);                                  \
+}                                                                                                            \
+template<>                                                                                                   \
+inline void Lapack<T>::tpmqrt(const char* side, const char* trans, const int* m, const int* n, const int* k, \
+                              const int* l, const int* nb, T* v, const int* ldv, T* t, const int* ldt,       \
+                              T* a, const int* lda, T* b, const int* ldb, T* work, int* info) {              \
+    HPDDM_F77(C ## tpmqrt)(side, trans, m, n, k, l, nb, v, ldv, t, ldt, a, lda, b, ldb, work, info);         \
 }
+
 # define HPDDM_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                           \
 HPDDM_GENERATE_LAPACK(B, U, B, U, sy, or)                                                                    \
 HPDDM_GENERATE_LAPACK(C, T, B, U, he, un)                                                                    \

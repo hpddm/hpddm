@@ -701,7 +701,6 @@ class IterativeMethod {
         /*
          TSQR Auxiliary routines and main routines
         */
-        template<bool excluded, class K>
         static int GetTreeDepth(const int size, int &treeDepth){
           int log2Size = 0;
           int temp = 1;
@@ -738,7 +737,7 @@ class IterativeMethod {
         template<bool excluded, class K>
         static int TSQRUp(const MPI_Comm& comm, const int m, const int n, const int nb, K* a, const int lda, K* r, K* v, K* t, K* work, const int lwork){
         	int ierr = 0, rank, size;
-          int k = (n < m) ? n : m;
+          // int k = (n < m) ? n : m;
         	MPI_Comm_rank(comm, &rank);
         	MPI_Comm_size(comm, &size);
         	if(!rank){
@@ -754,7 +753,7 @@ class IterativeMethod {
         	K *tau = t;
         
         	int temp = 1;
-        	GetTreeDepth(size, &treeDepth);
+        	GetTreeDepth(size, treeDepth);
         	for(int i = 1; i < treeDepth + 1; ++i){
         		if(rank % (2 * temp) == 0 && rank + temp < size){
         			int source = rank + temp;
@@ -797,7 +796,7 @@ class IterativeMethod {
         template<bool excluded, class K>
         static int TSQR(const MPI_Comm& comm, const int m, const int n, const int nb, K* a, const int lda, K* r, K* v, K* t, K* work, const int lwork){
           int ierr = 0, rank, size;
-          int k = (n < m) ? n : m;
+          // int k = (n < m) ? n : m;
           MPI_Comm_rank(comm, &rank);
           MPI_Comm_size(comm, &size);
           if(!rank){
@@ -807,7 +806,7 @@ class IterativeMethod {
           Check work space is enough, otherwise return the necessary workspace
           */
           if(lwork == -1){
-            LAPACK<K>::dgeqrf_(&m, &n, a, &lda, tau, work, &lwork, &ierr);
+            Lapack<K>::geqrf(&m, &n, a, &lda, nullptr, work, &lwork, &ierr);
             return 0;
           }
           if(lwork < n * n){
@@ -817,9 +816,9 @@ class IterativeMethod {
           int toffset = 0;
           K *tau = t;
           toffset += n;
-          Lapack<K>::dgeqrf_(&m, &n, a, &lda, tau, work, &lwork, &ierr);
+          Lapack<K>::geqrf(&m, &n, a, &lda, tau, work, &lwork, &ierr);
           if (ierr){
-            fprintf(stderr, "%s:Line %d %s::dgeqrf_\n", __FILE__, __LINE__, __func__);
+            fprintf(stderr, "%s:Line %d %s::geqrf\n", __FILE__, __LINE__, __func__);
             MPI_Abort(MPI_COMM_WORLD, ierr);
           }
           /*
@@ -871,7 +870,7 @@ class IterativeMethod {
         }
         
         template<bool excluded, class K>
-        static int TSQRUpApplyQ(const MPI_Comm& comm, const char layout, int& pn, const int k, const int nb, const K* v, const K* t, K* c, int ldc, K* work){
+        static int TSQRUpApplyQ(const MPI_Comm& comm, const char layout, int& pn, const int k, const int nb, const K* v, const K* t, K* c, int ldc, K* work,int lwork){
           int ierr = 0, rank, size;
           MPI_Comm_rank(comm, &rank);
           MPI_Comm_size(comm, &size);
@@ -883,7 +882,7 @@ class IterativeMethod {
           Check work space is enough, otherwise return the necessary workspace
           */
           if(lwork == -1){
-            LAPACK<K>::dgeqrf_(&m, &n, a, &lda, tau, work, &lwork, &ierr);
+            // Lapack<K>::geqrf(&m, &n, a, &lda, tau, work, &lwork, &ierr);
             return 0;
           }
           if(lwork < n * n){
@@ -893,7 +892,7 @@ class IterativeMethod {
           MPI_Status status;
           
           int treeDepth = 0;
-          GetTreeDepth(size, &treeDepth);
+          GetTreeDepth(size, treeDepth);
           
           int voffset = 0, toffset = 0;
           const K* yl = v + voffset;
@@ -919,7 +918,7 @@ class IterativeMethod {
               yl = v + voffset;
               toffset -= nb * k;
               tl = t + toffset;
-              for(int ii = 0; ii < k * n, ++ii){
+              for(int ii = 0; ii < k * n; ++ii){
                 Bq[ii] = 0;
               }
               Lapack<K>::tpmqrt("L", "N", &k, &n, &k, &k, &nb, yl, &k, tl, &nb, c, &ldc, Bq, &k, work, &ierr);
