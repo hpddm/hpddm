@@ -698,6 +698,267 @@ class IterativeMethod {
             }
             return rank;
         }
+        /*
+         TSQR Auxiliary routines and main routines
+        */
+        template<bool excluded, class K>
+        static int GetTreeDepth(const int size, int &treeDepth){
+          int log2Size = 0;
+          int temp = 1;
+          while(size > temp){
+            log2Size++;
+            temp *= 2;
+          }
+          treeDepth = log2Size;
+          return 0;
+        }
+        
+        template<bool excluded, class K>
+        static int packR(const int n, const K * const a, const int lda, K* pa){
+          int counter = 0;
+          for(int j = 0; j < n; ++j){
+            for(int i = 0; i < j + 1; ++i){
+              pa[counter++] = a[i + j * lda];
+            }
+          }
+          return 0;
+        }
+        
+        template<bool excluded, class K>
+        static int unpackR(const int n, const K * const pa, K *a, const int lda){
+          int counter = 0;
+          for(int j = 0; j < n; ++j){
+            for(int i = 0; i < j + 1; ++i){
+              a[i + j * lda] = pa[counter++];
+            }
+          }
+          return 0;
+        }
+
+        template<bool excluded, class K>
+        static int TSQRUp(const MPI_Comm& comm, const int m, const int n, const int nb, K* a, const int lda, K* r, K* v, K* t, K* work, const int lwork){
+        	int ierr = 0, rank, size;
+          int k = (n < m) ? n : m;
+        	MPI_Comm_rank(comm, &rank);
+        	MPI_Comm_size(comm, &size);
+        	if(!rank){
+        		printf("%s begins\n", __func__);
+        	}
+        	MPI_Status status;
+        	int nTr = (n * (n + 1))/2;
+        	int treeDepth = 0;
+        	int toffset = 0, voffset = 0;
+        	/**< Either we receive or we send so those can be the same */
+        	K *recvRq = work;
+        	K *RpSend = work;
+        	K *tau = t;
+        
+        	int temp = 1;
+        	GetTreeDepth(size, &treeDepth);
+        	for(int i = 1; i < treeDepth + 1; ++i){
+        		if(rank % (2 * temp) == 0 && rank + temp < size){
+        			int source = rank + temp;
+        			ierr = MPI_Recv(recvRq, nTr, Wrapper<K>::mpi_type(), source, 0, comm, &status);
+        			if(!ierr){
+        				fprintf(stderr, "%s:Line %d %s::MPI_Recv ierr = %d at level %d \n", __FILE__, __LINE__, __func__, ierr, i);
+        				MPI_Abort(MPI_COMM_WORLD, ierr);
+        			}
+        			K* Rq = v + voffset;
+              for(int ii = 0; ii < n * n; ++ii){
+                Rq[ii] = 0;
+              }
+        			voffset += n * n;
+        			unpackR(n, recvRq, Rq, n);
+        
+        			tau = t + toffset;
+        			toffset += nb * n;
+        			Lapack<K>::tpqrt(&n, &n, &n, &nb, r, &n, Rq, &n, tau, &nb, work, &lwork, &ierr);
+        			if(ierr != 0){
+        				fprintf(stderr, "%s:Line %d %s::LAPACKE_dtpqrt ierr = %d at level %d, rank = %d \n", __FILE__, __LINE__, __func__, ierr, i, rank);
+        				MPI_Abort(MPI_COMM_WORLD, ierr);
+        			}
+        		}else if(rank % (2 * temp) == temp){
+        			int dest = rank - temp;
+        			packR(n, r, n, RpSend);
+        			ierr = MPI_Send(RpSend, nTr, Wrapper<K>::mpi_type(), dest, 0, comm);
+        			if(!ierr){
+        				fprintf(stderr, "%s:Line %d %s::MPI_Send ierr = %d at level %d \n", __FILE__, __LINE__, __func__, ierr, i);
+        				MPI_Abort(MPI_COMM_WORLD, ierr);
+        			}
+        		}
+        		temp *= 2;	
+        	}
+        	if(!rank){
+        		printf("%s ends\n", __func__);
+        	}
+          return ierr;
+        }
+
+        template<bool excluded, class K>
+        static int TSQR(const MPI_Comm& comm, const int m, const int n, const int nb, K* a, const int lda, K* r, K* v, K* t, K* work, const int lwork){
+          int ierr = 0, rank, size;
+          int k = (n < m) ? n : m;
+          MPI_Comm_rank(comm, &rank);
+          MPI_Comm_size(comm, &size);
+          if(!rank){
+            printf("%s begins\n", __func__);
+          }
+          /*
+          Check work space is enough, otherwise return the necessary workspace
+          */
+          if(lwork == -1){
+            LAPACK<K>::dgeqrf_(&m, &n, a, &lda, tau, work, &lwork, &ierr);
+            return 0;
+          }
+          if(lwork < n * n){
+            fprintf(stderr, "%s:Line %d %s::HPDDMTSQR work space\n", __FILE__, __LINE__, __func__);
+            MPI_Abort(MPI_COMM_WORLD, ierr);
+          }
+          int toffset = 0;
+          K *tau = t;
+          toffset += n;
+          Lapack<K>::dgeqrf_(&m, &n, a, &lda, tau, work, &lwork, &ierr);
+          if (ierr){
+            fprintf(stderr, "%s:Line %d %s::dgeqrf_\n", __FILE__, __LINE__, __func__);
+            MPI_Abort(MPI_COMM_WORLD, ierr);
+          }
+          /*
+          Copy the matrix R and set its lower part to zero
+          */
+          for (int j = 0; j < n; ++j){
+            for (int i = 0; i < n; ++i){
+              r[i + n * j] = (i > j) ? 0 : a[i + lda * j];
+            }
+          }
+          /*
+           Set zero the rest of the trapezoidal to have a traiangle
+           */
+          if (n > m){
+            for (int j = m; j < n; ++j){
+              for (int i = m; i < n; ++i){
+                r[i + n * j] = 0;
+              }
+            }
+          }
+          tau = t + toffset;
+          if(size > 1) TSQRUp(comm, n, nb, r, v, tau, work);
+          if (!rank){
+            printf("%s ends\n", __func__);
+          }
+          return ierr;
+        }
+
+        template<bool excluded, class K>
+        static int TSQRApplyQ(const MPI_Comm& comm, const int m, int& pn, const int k, const int nb, K* a, const int lda, const K* v, const K* t, K* c, int ldc, K* work, const int lwork){
+          int ierr = 0, rank, size;
+          MPI_Comm_rank(comm, &rank);
+          MPI_Comm_size(comm, &size);
+          int n = pn;
+          if(!rank){
+            printf("%s begins\n", __func__);
+          }
+          if(size > 1) TSQRUpApplyQ(comm, "C", pn, k, nb, v, t + k, c, m, work, lwork);
+          n = pn;
+          ierr = Lapack<K>::mqr_("L", "N", &m, &n, &k, a, &lda, t, c, &ldc, work, &ierr);
+          if(ierr != 0){
+            fprintf(stderr, "%s:Line %d %s::LAPACKE_dormqr:: ierr = %d \n", __FILE__, __LINE__, __func__, ierr);
+            MPI_Abort(MPI_COMM_WORLD, ierr);
+          }
+          if(!rank){
+            printf("%s ends\n", __func__);
+          }	
+          return ierr;
+        }
+        
+        template<bool excluded, class K>
+        static int TSQRUpApplyQ(const MPI_Comm& comm, const char layout, int& pn, const int k, const int nb, const K* v, const K* t, K* c, int ldc, K* work){
+          int ierr = 0, rank, size;
+          MPI_Comm_rank(comm, &rank);
+          MPI_Comm_size(comm, &size);
+          int n = pn;
+          if(!rank){
+            printf("%s begins\n", __func__);
+          }	
+          /*
+          Check work space is enough, otherwise return the necessary workspace
+          */
+          if(lwork == -1){
+            LAPACK<K>::dgeqrf_(&m, &n, a, &lda, tau, work, &lwork, &ierr);
+            return 0;
+          }
+          if(lwork < n * n){
+            fprintf(stderr, "%s:Line %d %s::HPDDMTSQR work space\n", __FILE__, __LINE__, __func__);
+            MPI_Abort(MPI_COMM_WORLD, ierr);
+          }
+          MPI_Status status;
+          
+          int treeDepth = 0;
+          GetTreeDepth(size, &treeDepth);
+          
+          int voffset = 0, toffset = 0;
+          const K* yl = v + voffset;
+          const K* tl = t + toffset;
+          
+          K* Bq = work;
+          int temp = 1;
+          for(int i = 1; i < treeDepth + 1; ++i){
+            if(rank % (2 * temp) == 0 && rank + temp < size){
+              yl = v + voffset;
+              voffset += k * k;
+              tl = t + toffset;
+              toffset += nb * k;
+            }
+            temp *= 2;
+          }
+          
+          for(int i = treeDepth; i > 0; --i){
+            temp /= 2;
+            if(rank % (2 * temp) == 0 && rank + temp < size){
+              int dest = rank + temp;
+              voffset -= k * k;
+              yl = v + voffset;
+              toffset -= nb * k;
+              tl = t + toffset;
+              for(int ii = 0; ii < k * n, ++ii){
+                Bq[ii] = 0;
+              }
+              Lapack<K>::tpmqrt("L", "N", &k, &n, &k, &k, &nb, yl, &k, tl, &nb, c, &ldc, Bq, &k, work, &ierr);
+              if(ierr != 0){
+                fprintf(stderr, "%s:Line %d %s::LAPACKE_dtpmqrt:: ierr = %d\n", __FILE__, __LINE__, __func__, ierr);
+                MPI_Abort(MPI_COMM_WORLD, -99);
+              }
+              ierr = MPI_Send(Bq, k * n, Wrapper<K>::mpi_type(), dest, 0, comm);
+              if(ierr != 0){
+                fprintf(stderr, "%s:Line %d %s::MPI_Send:: ierr = %d \n", __FILE__, __LINE__, __func__, ierr);
+                MPI_Abort(MPI_COMM_WORLD, ierr);
+              }
+            }else if(rank % (2 * temp) == temp){
+              int source = rank - temp;
+              /**< At most receive k * k elements. Get the count (= n * k) from the status */
+              ierr = MPI_Recv(Bq, k * k, Wrapper<K>::mpi_type(), source, 0, comm, &status);
+              if(ierr != 0){
+             	  fprintf(stderr, "%s:Line %d %s::MPI_Recv:: ierr = %d \n", __FILE__, __LINE__, __func__, ierr);
+                MPI_Abort(MPI_COMM_WORLD, ierr);
+              }
+              ierr = MPI_Get_count(&status, Wrapper<K>::mpi_type(), &n);
+              if(ierr != 0){
+                fprintf(stderr, "%s:Line %d %s::MPI_Get_count:: ierr = %d \n", __FILE__, __LINE__, __func__, ierr);
+                MPI_Abort(MPI_COMM_WORLD, ierr);
+              }
+              n = n/k;
+              for(int jj = 0; jj < n; ++jj){
+                for(int ii = 0; ii < k; ++ii){
+                  c[ii + ldc * jj] = Bq[ii + jj * k];
+                }
+              }
+            }
+          }
+          pn = n;
+          if(!rank){
+          	printf("%s ends\n", __func__);
+          }
+          return ierr;
+        }
         /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class K>
