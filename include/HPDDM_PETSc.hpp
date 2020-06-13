@@ -407,8 +407,10 @@ class PetscSub {
                     delete [] I;
                 }
             }
-            else
+            else {
+                P = nullptr;
                 std::cerr << "Not implemented" << std::endl;
+            }
             ierr = KSPSetOperators(ksp, P, P);CHKERRQ(ierr);
             ierr = MatDestroy(&P);CHKERRQ(ierr);
             ierr = KSPSetType(ksp, KSPPREONLY);CHKERRQ(ierr);

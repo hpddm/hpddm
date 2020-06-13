@@ -63,67 +63,179 @@ PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
 }
 #endif
 
-PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, int n, PetscScalar* a, int lda, PetscScalar* b, int ldb, int k, PetscScalar* vr)
+PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm& comm, PetscMPIInt redistribute, PetscInt n, PetscScalar* a, int lda, PetscScalar* b, int ldb, PetscInt k, PetscScalar* vr)
 {
   EPS            eps;
-  Mat            X, Y = NULL;
-  Vec            Vr, Vi;
-  PetscInt       nconv, i;
+  Mat            X = nullptr, Y = nullptr;
+  Vec            Vr = nullptr, Vi;
+  PetscInt       nconv, i, nrow = n, rbegin = 0;
   PetscBLASInt   info;
+  PetscMPIInt    rank, size;
+  MPI_Comm       subcomm;
+  MPI_Group      world, worker;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = MatCreateDense(PETSC_COMM_SELF, n, n, n, n, a, &X);CHKERRQ(ierr);
+  if (redistribute <= 1) {
+    ierr = MatCreateDense(PETSC_COMM_SELF, n, n, n, n, a, &X);CHKERRQ(ierr);
 #if PETSC_VERSION_GE(3, 14, 0)
-  ierr = MatDenseSetLDA(X, lda);CHKERRQ(ierr);
+    ierr = MatDenseSetLDA(X, lda);CHKERRQ(ierr);
 #else
-  ierr = MatSeqDenseSetLDA(X, lda);CHKERRQ(ierr);
+    ierr = MatSeqDenseSetLDA(X, lda);CHKERRQ(ierr);
 #endif
-  if (b) {
-    ierr = MatCreateDense(PETSC_COMM_SELF, n, n, n, n, b, &Y);CHKERRQ(ierr);
+    if (b) {
+      ierr = MatCreateDense(PETSC_COMM_SELF, n, n, n, n, b, &Y);CHKERRQ(ierr);
 #if PETSC_VERSION_GE(3, 14, 0)
-    ierr = MatDenseSetLDA(Y, ldb);CHKERRQ(ierr);
+      ierr = MatDenseSetLDA(Y, ldb);CHKERRQ(ierr);
 #else
-    ierr = MatSeqDenseSetLDA(Y, ldb);CHKERRQ(ierr);
+      ierr = MatSeqDenseSetLDA(Y, ldb);CHKERRQ(ierr);
 #endif
-  }
-  ierr = EPSCreate(PETSC_COMM_SELF, &eps);CHKERRQ(ierr);
-  ierr = EPSSetOperators(eps, X, Y);CHKERRQ(ierr);
-  ierr = EPSSetType(eps, EPSLAPACK);CHKERRQ(ierr);
-  ierr = EPSSetWhichEigenpairs(eps, EPS_SMALLEST_MAGNITUDE);CHKERRQ(ierr);
-  ierr = EPSSetDimensions(eps, k, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
-  ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
-  ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
-  ierr = EPSSolve(eps);CHKERRQ(ierr);
-  ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
-  ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, n, nullptr, &Vr);CHKERRQ(ierr);
-  if (std::is_same<PetscReal, PetscScalar>::value) {
-    ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, n, nullptr, &Vi);CHKERRQ(ierr);
-  }
-  info = 0;
-  for (i = 0; i < k; ++i) {
-    PetscScalar eigr, eigi = PetscScalar();
-    ierr = VecPlaceArray(Vr, vr + i * n);CHKERRQ(ierr);
-    if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
-      ierr = VecPlaceArray(Vi, vr + (i + 1) * n);CHKERRQ(ierr);
     }
-    ierr = EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr);CHKERRQ(ierr);
-    if (std::abs(eigi) > 100 * PETSC_MACHINE_EPSILON) {
-      ++i;
-      ++info;
+  } else {
+    ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
+    ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
+    ierr = MPI_Comm_group(comm, &world);CHKERRQ(ierr);
+    PetscMPIInt* ranks = new PetscMPIInt[redistribute];
+    std::iota(ranks, ranks + redistribute, 0);
+    ierr = MPI_Group_incl(world, redistribute, ranks, &worker);CHKERRQ(ierr);
+    delete [] ranks;
+    ierr = MPI_Comm_create(comm, worker, &subcomm);
+    ierr = MPI_Group_free(&worker);CHKERRQ(ierr);
+    ierr = MPI_Group_free(&world);CHKERRQ(ierr);
+    if (subcomm != MPI_COMM_NULL) {
+      IS             row, col;
+      PetscInt       ncol;
+      const PetscInt *ia, *ja;
+      char           type[256];
+      ierr = MatCreate(subcomm, &X);CHKERRQ(ierr);
+      ierr = MatSetSizes(X, PETSC_DECIDE, PETSC_DECIDE, n, n);CHKERRQ(ierr);
+      ierr = MatSetOptionsPrefix(X, prefix);CHKERRQ(ierr);
+      ierr = PetscObjectOptionsBegin((PetscObject)X);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_ELEMENTAL)
+      ierr = PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, b ? MATELEMENTAL : MATDENSE, type, 256, nullptr);CHKERRQ(ierr);
+#else
+      ierr = PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, MATDENSE, type, 256, nullptr);CHKERRQ(ierr);
+#endif
+      ierr = PetscOptionsEnd();CHKERRQ(ierr);
+      nrow = PETSC_DECIDE;
+      ierr = PetscSplitOwnership(subcomm, &nrow, &n);CHKERRQ(ierr);
+      if (b) {
+        ierr = MatCreate(subcomm, &Y);CHKERRQ(ierr);
+        ierr = MatSetSizes(Y, PETSC_DECIDE, PETSC_DECIDE, n, n);CHKERRQ(ierr);
+      }
+      for(const Mat& m : { X, Y }) {
+        if(m == Y && !b)
+          continue;
+        ierr = MatSetType(m, type);CHKERRQ(ierr);
+        ierr = MatMPIAIJSetPreallocation(m, nrow, nullptr, n - nrow, nullptr);CHKERRQ(ierr);
+        ierr = MatMPIDenseSetPreallocation(m, m == X ? a : b);CHKERRQ(ierr);
+        ierr = MatSetUp(m);CHKERRQ(ierr);
+        ierr = MatSetOption(m, MAT_NO_OFF_PROC_ENTRIES, PETSC_TRUE);CHKERRQ(ierr);
+        ierr = MatSetOption(m, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE);CHKERRQ(ierr);
+      }
+      if (std::string(reinterpret_cast<PetscObject>(X)->type_name).compare(MATMPIDENSE) != 0) {
+        ierr = MatGetOwnershipIS(X, &row, &col);CHKERRQ(ierr);
+        ierr = ISGetLocalSize(row, &nrow);CHKERRQ(ierr);
+        ierr = ISGetIndices(row, &ia);CHKERRQ(ierr);
+        ierr = ISGetLocalSize(col, &ncol);CHKERRQ(ierr);
+        ierr = ISGetIndices(col, &ja);CHKERRQ(ierr);
+        for (PetscInt j = 0; j < ncol; ++j) {
+          for (PetscInt i = 0; i < nrow; ++i) {
+            if (std::abs(a[ia[i] + ja[j] * lda]) > std::numeric_limits<HPDDM::underlying_type<PetscScalar>>::epsilon()) {
+              ierr = MatSetValues(X, 1, ia + i, 1, ja + j, a + ia[i] + ja[j] * lda, INSERT_VALUES);CHKERRQ(ierr);
+            }
+            if (b && std::abs(b[ia[i] + ja[j] * ldb]) > std::numeric_limits<HPDDM::underlying_type<PetscScalar>>::epsilon()) {
+              ierr = MatSetValues(Y, 1, ia + i, 1, ja + j, b + ia[i] + ja[j] * ldb, INSERT_VALUES);CHKERRQ(ierr);
+            }
+          }
+        }
+        ierr = ISRestoreIndices(col, &ja);CHKERRQ(ierr);
+        ierr = ISRestoreIndices(row, &ia);CHKERRQ(ierr);
+        ierr = ISDestroy(&row);CHKERRQ(ierr);
+        ierr = ISDestroy(&col);CHKERRQ(ierr);
+        ierr = MatCreateVecs(X, nullptr, &Vr);CHKERRQ(ierr);
+        ierr = VecGetLocalSize(Vr, &nrow);CHKERRQ(ierr);
+        ierr = VecGetOwnershipRange(Vr, &rbegin, nullptr);CHKERRQ(ierr);
+      } else {
+        Mat loc;
+        ierr = MatGetOwnershipRange(X, &rbegin, nullptr);CHKERRQ(ierr);
+        ierr = MatDenseGetLocalMatrix(X, &loc);CHKERRQ(ierr);
+        ierr = MatDenseResetArray(loc);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 14, 0)
+        ierr = MatDenseSetLDA(loc, lda);CHKERRQ(ierr);
+#else
+        ierr = MatSeqDenseSetLDA(loc, lda);CHKERRQ(ierr);
+#endif
+        ierr = MatDensePlaceArray(loc, a + rbegin);CHKERRQ(ierr);
+        if (b) {
+          ierr = MatDenseGetLocalMatrix(Y, &loc);CHKERRQ(ierr);
+          ierr = MatDenseResetArray(loc);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 14, 0)
+          ierr = MatDenseSetLDA(loc, ldb);CHKERRQ(ierr);
+#else
+          ierr = MatSeqDenseSetLDA(loc, ldb);CHKERRQ(ierr);
+#endif
+          ierr = MatDensePlaceArray(loc, b + rbegin);CHKERRQ(ierr);
+        }
+      }
+      ierr = MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(X, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      if (b) {
+        ierr = MatAssemblyBegin(Y, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+        ierr = MatAssemblyEnd(Y, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      }
     }
-    if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
-      ierr = VecResetArray(Vi);CHKERRQ(ierr);
+  }
+  if (X) {
+    ierr = EPSCreate(PetscObjectComm((PetscObject)X), &eps);CHKERRQ(ierr);
+    ierr = EPSSetOperators(eps, X, Y);CHKERRQ(ierr);
+    if (redistribute <= 1) {
+      ierr = EPSSetType(eps, EPSLAPACK);CHKERRQ(ierr);
     }
-    ierr = VecResetArray(Vr);CHKERRQ(ierr);
+    ierr = EPSSetWhichEigenpairs(eps, EPS_SMALLEST_MAGNITUDE);CHKERRQ(ierr);
+    ierr = EPSSetDimensions(eps, k, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
+    ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
+    ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
+    ierr = EPSSolve(eps);CHKERRQ(ierr);
+    ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
+    if (!Vr) {
+      ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)X), 1, nrow, n, nullptr, &Vr);CHKERRQ(ierr);
+    }
+    if (std::is_same<PetscReal, PetscScalar>::value) {
+      ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)X), 1, nrow, n, nullptr, &Vi);CHKERRQ(ierr);
+    }
+    info = 0;
+    for (i = 0; i < std::min(nconv, k); ++i) {
+      PetscScalar eigr, eigi = PetscScalar();
+      ierr = VecPlaceArray(Vr, vr + i * n + rbegin);CHKERRQ(ierr);
+      if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
+        ierr = VecPlaceArray(Vi, vr + (i + 1) * n + rbegin);CHKERRQ(ierr);
+      }
+      ierr = EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr);CHKERRQ(ierr);
+      if (std::abs(eigi) > 100 * PETSC_MACHINE_EPSILON) {
+        ++i;
+        ++info;
+      }
+      if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
+        ierr = VecResetArray(Vi);CHKERRQ(ierr);
+      }
+      ierr = VecResetArray(Vr);CHKERRQ(ierr);
+    }
+    if (i != k) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_LIB, "Unhandled mismatch %D != %D", i, k);
+    if (std::is_same<PetscReal, PetscScalar>::value) {
+      ierr = VecDestroy(&Vi);CHKERRQ(ierr);
+    }
+    ierr = VecDestroy(&Vr);CHKERRQ(ierr);
+    ierr = EPSDestroy(&eps);CHKERRQ(ierr);
+    ierr = MatDestroy(&Y);CHKERRQ(ierr);
+    ierr = MatDestroy(&X);CHKERRQ(ierr);
+    if (redistribute > 1) {
+      ierr = MPI_Allreduce(MPI_IN_PLACE, vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), MPI_SUM, subcomm);CHKERRQ(ierr);
+      ierr = MPI_Comm_free(&subcomm);CHKERRQ(ierr);
+    }
   }
-  if (i != k) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_LIB, "Unhandled mismatch %D != %D", i, k);
-  if (std::is_same<PetscReal, PetscScalar>::value) {
-    ierr = VecDestroy(&Vi);CHKERRQ(ierr);
+  if (redistribute > 1 && redistribute < size) {
+    ierr = MPI_Bcast(vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), 0, comm);CHKERRQ(ierr);
   }
-  ierr = VecDestroy(&Vr);CHKERRQ(ierr);
-  ierr = EPSDestroy(&eps);CHKERRQ(ierr);
-  ierr = MatDestroy(&Y);CHKERRQ(ierr);
-  ierr = MatDestroy(&X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
