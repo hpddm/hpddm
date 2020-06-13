@@ -184,7 +184,7 @@ class Arpack : public Eigensolver<K> {
                 std::string name = Eigensolver<K>::dump(evr, ev, communicator, mode);
                 if(!name.empty()) {
                     std::ofstream output(name, std::fstream::in | std::fstream::out | std::fstream::app);
-                    output << "ARPACK informations:\n";
+                    output << "ARPACK information:\n";
                     output << "\t" << iparam[4] << " Arnoldi update iteration" << (iparam[4] > 1 ? "s" : "") << "\n";
                     output << "\t" << iparam[8] << " (y = OP x) operation" << (iparam[8] > 1 ? "s" : "") << "\n";
                     output << "\t" << iparam[9] << " (y = B x) operation" << (iparam[9] > 1 ? "s" : "") << "\n";
