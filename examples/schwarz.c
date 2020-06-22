@@ -21,10 +21,16 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef PETSCSUB
+#include <petsc.h>
+#endif
 #include "schwarz.h"
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
+#ifdef PETSCSUB
+    PetscInitialize(&argc, &argv, NULL, NULL);
+#endif
     /*# Init #*/
     int rankWorld, sizeWorld;
     MPI_Comm_size(MPI_COMM_WORLD, &sizeWorld);
@@ -153,6 +159,9 @@ int main(int argc, char** argv) {
         HpddmMatrixCSRDestroy(MatNeumann);
     free(sol);
     free(f);
+#ifdef PETSCSUB
+    PetscFinalize();
+#endif
     MPI_Finalize();
     return status;
 }

@@ -27,7 +27,21 @@
 
 #include "HPDDM_LAPACK.hpp"
 
-#define HPDDM_CHKERRQ(ierr) { if(ierr) { return ierr > 0 ? -ierr : ierr; } }
+#if !defined(_KSPIMPL_H)
+#define HPDDM_CHKERRQ(ierr)    if((ierr) < 0) return (ierr)
+#define HPDDM_TOL(tol, A)      tol
+#define HPDDM_MAX_IT(max, A)   max
+#define HPDDM_IT(i, A)         i
+#define HPDDM_REASON(A)        false
+#define HPDDM_RET(i)           i
+#else
+#define HPDDM_CHKERRQ(ierr)    CHKERRQ(ierr)
+#define HPDDM_TOL(tol, A)      ((A._ksp)->rtol)
+#define HPDDM_MAX_IT(max, A)   ((A._ksp)->max_it)
+#define HPDDM_IT(i, A)         ((A._ksp)->its)
+#define HPDDM_REASON(A)        ((A._ksp)->reason)
+#define HPDDM_RET(i)           0
+#endif
 
 namespace HPDDM {
 template<class K, class T = int>
@@ -79,6 +93,7 @@ class IterativeMethod {
                 if(conv[nu] == -sentinel && ((tol > 0.0 && std::abs(res[nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(res[nu]) <= -tol)))
                     conv[nu] = i;
             if(verbosity > 2) {
+#if !defined(HPDDM_PETSC)
                 constexpr auto method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : "GMRES"));
                 unsigned short tmp[2] { 0, 0 };
                 underlying_type<K> beta = std::abs(res[0]);
@@ -101,6 +116,7 @@ class IterativeMethod {
                     std::cout << ")";
                 }
                 std::cout << std::endl;
+#endif
             }
         }
         template<char T, class K>
@@ -134,6 +150,7 @@ class IterativeMethod {
                     ++conv;
             }
             if(verbosity > 2) {
+#if !defined(HPDDM_PETSC)
                 constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
                 underlying_type<K>* max;
                 if(tol > 0.0) {
@@ -158,6 +175,7 @@ class IterativeMethod {
                     std::cout << ")";
                 }
                 std::cout <<  std::endl;
+#endif
             }
             return t * conv;
         }
@@ -176,40 +194,40 @@ class IterativeMethod {
             const std::string prefix = A.prefix();
 #if !HPDDM_PETSC
             const Option& opt = *Option::get();
-            m[0] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
+            m[T == 1 || T == 5 ? 2 : (T == 0 || T == 3 || T == 4 || T == 6 ? 1 : 0)] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
             if(T == 7) {
                 d[0] = opt.val(prefix + "richardson_damping_factor", 1.0);
                 return;
             }
-            d[0] = opt.val(prefix + "tol", 1.0e-6);
+            d[T == 1 || T == 5 || T == 6] = opt.val(prefix + "tol", 1.0e-6);
             id[0] = opt.val<char>(prefix + "verbosity", 0);
             if(T == 1 || T == 5 || T == 6) {
-                d[1] = opt.val(prefix + "deflation_tol", -1.0);
-                m[1 + (T != 6)] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
+                d[0] = opt.val(prefix + "deflation_tol", -1.0);
+                m[T != 6] = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 1);
             }
             if(T == 0 || T == 1 || T == 4 || T == 5) {
                 id[2] = opt.val<char>(prefix + "orthogonalization", HPDDM_ORTHOGONALIZATION_CGS) + (opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR) << 2);
-                m[1] = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[0]));
+                m[0] = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]));
             }
             if(T == 0 || T == 1 || T == 2 || T == 4 || T == 5)
                 id[1] = opt.val<char>(prefix + "variant", HPDDM_VARIANT_RIGHT);
             if(T == 3 || T == 6)
                 id[1] = opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR);
             if(T == 4 || T == 5) {
-                *i = std::min(m[1] - 1, opt.val<int>(prefix + "recycle", 0));
+                *i = std::min(m[0] - 1, opt.val<int>(prefix + "recycle", 0));
                 id[3] = opt.val<char>(prefix + "recycle_target", HPDDM_RECYCLE_TARGET_SM);
                 id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
             }
-#endif
-            if(std::abs(d[0]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
+            if(std::abs(d[T == 1 || T == 5 || T == 6]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
                 if(id[0])
-                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << d[0]
+                    std::cout << "WARNING -- the tolerance of the iterative method was set to " << d[T == 1 || T == 5 || T == 6]
 #if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                      << " which is lower than the machine epsilon for type " << demangle(typeid(underlying_type<K>).name())
 #endif
                      << ", forcing the tolerance to " << 4 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
-                d[0] = 4 * std::numeric_limits<underlying_type<K>>::epsilon();
+                d[T == 1 || T == 5 || T == 6] = 4 * std::numeric_limits<underlying_type<K>>::epsilon();
             }
+#endif
         }
         /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
@@ -280,7 +298,7 @@ class IterativeMethod {
             K* const correction = (variant == HPDDM_VARIANT_RIGHT ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
             if(excluded || !n) {
                 if(variant == HPDDM_VARIANT_RIGHT) {
-                    ierr = A.template apply<excluded>(work, correction, deflated == -1 ? mu : deflated);HPDDM_CHKERRQ(ierr)
+                    ierr = A.template apply<excluded>(work, correction, deflated == -1 ? mu : deflated);HPDDM_CHKERRQ(ierr);
                 }
             }
             else {
@@ -299,7 +317,7 @@ class IterativeMethod {
                             Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
                         }
                         if(variant == HPDDM_VARIANT_RIGHT) {
-                            ierr = A.template apply<excluded>(work, correction, mu);HPDDM_CHKERRQ(ierr)
+                            ierr = A.template apply<excluded>(work, correction, mu);HPDDM_CHKERRQ(ierr);
                         }
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             if(hasConverged[nu])
@@ -314,7 +332,7 @@ class IterativeMethod {
                         else {
                             Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
                             if(variant == HPDDM_VARIANT_RIGHT) {
-                                ierr = A.template apply<excluded>(work, correction, mu);HPDDM_CHKERRQ(ierr)
+                                ierr = A.template apply<excluded>(work, correction, mu);HPDDM_CHKERRQ(ierr);
                             }
                             Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                         }
@@ -322,7 +340,7 @@ class IterativeMethod {
                     else {
                         Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
                         if(variant == HPDDM_VARIANT_RIGHT) {
-                            ierr = A.template apply<excluded>(work, correction, deflated);HPDDM_CHKERRQ(ierr)
+                            ierr = A.template apply<excluded>(work, correction, deflated);HPDDM_CHKERRQ(ierr);
                         }
                         Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d__1), x + deflated * n, &n);
                         Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
@@ -437,11 +455,11 @@ class IterativeMethod {
                 Wrapper<T>::diag(n, d, in);
         }
         template<bool excluded, class Operator, class K>
-        static int initializeNorm(const Operator& A, const char variant, const K* const b, K* const x, K* const v, const int n, K* work, underlying_type<K>* const norm, const unsigned short mu, const unsigned short k) {
-            bool allocate = A.template start<excluded>(b, x, mu);
+        static int initializeNorm(const Operator& A, const char variant, const K* const b, K* const x, K* const v, const int n, K* work, underlying_type<K>* const norm, const unsigned short mu, const unsigned short k, bool& allocate) {
+            allocate = A.template start<excluded>(b, x, mu);
             const underlying_type<K>* const d = A.getScaling();
             if(variant == HPDDM_VARIANT_LEFT) {
-                int ierr = A.template apply<excluded>(b, v, mu, work);HPDDM_CHKERRQ(ierr)
+                int ierr = A.template apply<excluded>(b, v, mu, work);HPDDM_CHKERRQ(ierr);
                 if(d)
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         norm[nu / k] = 0.0;
@@ -471,7 +489,7 @@ class IterativeMethod {
                     }
                 }
             }
-            return static_cast<int>(allocate);
+            return 0;
         }
         /* Function: orthogonalization
          *
@@ -1021,18 +1039,14 @@ class IterativeMethod {
         static int BCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         template<bool, class Operator, class K>
         static int BFBCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
+#if !defined(_KSPIMPL_H)
         template<bool excluded, class Operator, class K>
         static int Richardson(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm&) {
             K factor;
             unsigned short it;
             {
-#if !defined(_KSPIMPL_H)
                 underlying_type<K> d;
                 options<7>(A, &d, nullptr, &it, nullptr);
-#else
-                underlying_type<K> d = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl[0];
-                it = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[0];
-#endif
                 factor = d;
             }
             int ierr;
@@ -1043,16 +1057,17 @@ class IterativeMethod {
             unsigned short j = 1;
             while(j++ <= it) {
                 if(!excluded) {
-                    ierr = A.GMV(x, r, mu);HPDDM_CHKERRQ(ierr)
+                    ierr = A.GMV(x, r, mu);HPDDM_CHKERRQ(ierr);
                 }
                 Blas<K>::axpby(n, 1.0, b, 1, -1.0, r, 1);
-                ierr = A.template apply<excluded>(r, work, mu);HPDDM_CHKERRQ(ierr)
+                ierr = A.template apply<excluded>(r, work, mu);HPDDM_CHKERRQ(ierr);
                 Blas<K>::axpy(&n, &factor, work, &i__1, x, &i__1);
             }
             delete [] work;
             A.end(allocate);
             return it;
         }
+#endif
         /* Function: PCG
          *
          *  Implements the projected CG method.
@@ -1088,8 +1103,8 @@ class IterativeMethod {
             unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 0);
             const char method = opt.val<char>(prefix + "krylov_method");
 #else
-            unsigned short k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[1 + (reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[5] != HPDDM_KRYLOV_METHOD_BFBCG)];
-            char method = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[5];
+            unsigned short k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[0] != HPDDM_KRYLOV_METHOD_BFBCG];
+            char method = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[0];
 #endif
             K* sx = nullptr;
             K* sb = nullptr;
@@ -1102,13 +1117,23 @@ class IterativeMethod {
             }
             int it;
             switch(method) {
-                case HPDDM_KRYLOV_METHOD_NONE:     { bool allocate = A.template start<excluded>(sb, sx, k * mu);
+                case HPDDM_KRYLOV_METHOD_NONE:     { const bool allocate = A.template start<excluded>(sb, sx, k * mu);
                                                      K* work = (hpddm_method_id<Operator>::value ? new K[k * mu * A.getDof()] : nullptr);
-                                                     it = A.template apply<excluded>(sb, sx, k * mu, work);HPDDM_CHKERRQ(it)
-                                                     it = 1;
+                                                     it = A.template apply<excluded>(sb, sx, k * mu, work);
                                                      delete [] work;
-                                                     A.end(allocate); break; }
+                                                     A.end(allocate);
+                                                     HPDDM_IT(it, A) = 1;
+#if defined(_KSPIMPL_H)
+                                                     if(it) {
+                                                         A._ksp->its = 0;
+                                                         A._ksp->reason = KSP_DIVERGED_PC_FAILED;
+                                                     }
+                                                     else A._ksp->reason = KSP_CONVERGED_ITS;
+#endif
+                                                     break; }
+#if !defined(_KSPIMPL_H)
                 case HPDDM_KRYLOV_METHOD_RICHARDSON: it = Richardson<excluded>(A, sb, sx, k * mu, comm); break;
+#endif
                 case HPDDM_KRYLOV_METHOD_BFBCG:      it = BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
                 case HPDDM_KRYLOV_METHOD_BGCRODR:    it = BGCRODR<excluded>(A, sb, sx, k * mu, comm); break;
                 case HPDDM_KRYLOV_METHOD_GCRODR:     it = GCRODR<excluded>(A, sb, sx, k * mu, comm); break;
@@ -1117,7 +1142,8 @@ class IterativeMethod {
                 case HPDDM_KRYLOV_METHOD_BGMRES:     it = BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
                 default:                             it = GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
-            if(it >= 0) {
+            HPDDM_CHKERRQ(it);
+            if(HPDDM_IT(it, A) >= 0) {
                 postprocess<excluded>(A, b, sb, x, sx, k);
 #if !HPDDM_PETSC
                 k = opt.val<unsigned short>(prefix + "compute_residual", 10);
@@ -1126,7 +1152,7 @@ class IterativeMethod {
 #endif
             }
             std::cout.flags(ff);
-            return it;
+            return HPDDM_RET(it);
         }
 #endif
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
