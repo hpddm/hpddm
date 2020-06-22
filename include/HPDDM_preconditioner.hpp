@@ -246,6 +246,15 @@ class Preconditioner : public Subdomain<K> {
             return ret;
         }
 #endif
+#if !HPDDM_PETSC
+        void destroySolver() {
+            _s.dtor();
+            Option& opt = *Option::get();
+            if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
+                opt["reuse_preconditioner"] = 1;
+        }
+#endif
+    public:
         /* Function: start
          *
          *  Allocates the array <Preconditioner::uc> depending on the number of right-hand sides to be solved by an <Iterative method>.
@@ -258,15 +267,6 @@ class Preconditioner : public Subdomain<K> {
             K** ptr = const_cast<K**>(&_uc);
             *ptr = new K[mu * _co->getSizeRHS()];
         }
-#if !HPDDM_PETSC
-        void destroySolver() {
-            _s.dtor();
-            Option& opt = *Option::get();
-            if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
-                opt["reuse_preconditioner"] = 1;
-        }
-#endif
-    public:
         struct CoarseCorrection {
             virtual void operator()(const K* const in, K* const out) = 0;
             virtual void operator()(const K* const in, K* const out, int n, unsigned short mu) {

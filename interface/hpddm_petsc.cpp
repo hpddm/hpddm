@@ -112,10 +112,13 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       ierr = MatSetOptionsPrefix(X, prefix);CHKERRQ(ierr);
       ierr = PetscObjectOptionsBegin((PetscObject)X);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_ELEMENTAL)
-      ierr = PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, b ? MATELEMENTAL : MATDENSE, type, 256, nullptr);CHKERRQ(ierr);
+      std::string str(b ? MATELEMENTAL : MATDENSE);
 #else
-      ierr = PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, MATDENSE, type, 256, nullptr);CHKERRQ(ierr);
+      std::string str(MATDENSE);
 #endif
+      str.copy(type, str.size() + 1);
+      type[str.size()] = '\0';
+      ierr = PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, type, type, 256, nullptr);CHKERRQ(ierr);
       ierr = PetscOptionsEnd();CHKERRQ(ierr);
       nrow = PETSC_DECIDE;
       ierr = PetscSplitOwnership(subcomm, &nrow, &n);CHKERRQ(ierr);
