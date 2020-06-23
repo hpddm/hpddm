@@ -77,16 +77,19 @@ class PETScOperator
                 PetscInt n, N;
                 ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
                 ierr = MatGetLocalSize(A, &n, NULL);CHKERRQ(ierr);
-                if(mu != n / super::_n)
-                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %D != %d", static_cast<int>(n / super::_n), static_cast<int>(mu));
-                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, in, &b);CHKERRQ(ierr);
-                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, out, &x);CHKERRQ(ierr);
-                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(n / super::_n, super::_n, const_cast<PetscScalar*>(in), super::_n, n / super::_n);
-                ierr = MatMult(A, b, x);CHKERRQ(ierr);
-                ierr = VecDestroy(&x);CHKERRQ(ierr);
-                ierr = VecDestroy(&b);CHKERRQ(ierr);
-                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, const_cast<PetscScalar*>(in), n / super::_n, super::_n);
-                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, out, n / super::_n, super::_n);
+                const unsigned short eta = mu / (n / super::_n);
+                if(eta * (n / super::_n) != mu)
+                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * (n / super::_n)), static_cast<int>(mu));
+                for(unsigned short nu = 0; nu < eta; ++nu) {
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, in + nu * n, &b);CHKERRQ(ierr);
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, out + nu * n, &x);CHKERRQ(ierr);
+                    HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(n / super::_n, super::_n, const_cast<PetscScalar*>(in + nu * n), super::_n, n / super::_n);
+                    ierr = MatMult(A, b, x);CHKERRQ(ierr);
+                    ierr = VecDestroy(&x);CHKERRQ(ierr);
+                    ierr = VecDestroy(&b);CHKERRQ(ierr);
+                    HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, const_cast<PetscScalar*>(in + nu * n), n / super::_n, super::_n);
+                    HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, out + nu * n, n / super::_n, super::_n);
+                }
                 PetscFunctionReturn(0);
             }
 #if PETSC_VERSION_LT(3, 13, 0)
@@ -174,16 +177,19 @@ class PETScOperator
 #endif
             if(match) {
                 Vec b, x;
-                if(mu != n / super::_n)
-                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %D != %d", static_cast<int>(n / super::_n), static_cast<int>(mu));
-                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, in, &b);CHKERRQ(ierr);
-                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, out, &x);CHKERRQ(ierr);
-                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(n / super::_n, super::_n, const_cast<PetscScalar*>(in), super::_n, n / super::_n);
-                ierr = PCApply(pc, b, x);CHKERRQ(ierr);
-                ierr = VecDestroy(&x);CHKERRQ(ierr);
-                ierr = VecDestroy(&b);CHKERRQ(ierr);
-                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, const_cast<PetscScalar*>(in), n / super::_n, super::_n);
-                HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, out, n / super::_n, super::_n);
+                const unsigned short eta = mu / (n / super::_n);
+                if(eta * (n / super::_n) != mu)
+                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * (n / super::_n)), static_cast<int>(mu));
+                for(unsigned short nu = 0; nu < eta; ++nu) {
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, in + nu * n, &b);CHKERRQ(ierr);
+                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, out + nu * n, &x);CHKERRQ(ierr);
+                    HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(n / super::_n, super::_n, const_cast<PetscScalar*>(in + nu * n), super::_n, n / super::_n);
+                    ierr = PCApply(pc, b, x);CHKERRQ(ierr);
+                    ierr = VecDestroy(&x);CHKERRQ(ierr);
+                    ierr = VecDestroy(&b);CHKERRQ(ierr);
+                    HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, const_cast<PetscScalar*>(in + nu * n), n / super::_n, super::_n);
+                    HPDDM::Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, n / super::_n, out + nu * n, n / super::_n, super::_n);
+                }
                 PetscFunctionReturn(0);
             }
             if(mu > 1) {
