@@ -789,24 +789,33 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 std::copy_n(_x, mu * _dof * _bs, rhs);
             }
 #else
-            Mat            P;
+            Mat            P, B, X;
             PetscInt       n, N;
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
+            ierr = KSPGetOperators(_s->ksp, &P, nullptr);CHKERRQ(ierr);
+            ierr = MatGetLocalSize(P, &n, nullptr);CHKERRQ(ierr);
+            ierr = MatGetSize(P, &N, nullptr);CHKERRQ(ierr);
             if(!_v[0]) {
-                ierr = KSPGetOperators(_s->ksp, &P, nullptr);CHKERRQ(ierr);
-                ierr = MatGetLocalSize(P, &n, nullptr);CHKERRQ(ierr);
-                ierr = MatGetSize(P, &N, nullptr);CHKERRQ(ierr);
                 ierr = VecCreateMPI(PetscObjectComm((PetscObject)_s->ksp), n, N, &_v[1]);CHKERRQ(ierr);
                 ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_s->ksp), _bs, n, N, nullptr, &_v[0]);CHKERRQ(ierr);
             }
-            ierr = VecGetLocalSize(_v[0], &n);CHKERRQ(ierr);
-            for(unsigned short i = 0; i < mu; ++i) {
-                ierr = VecPlaceArray(_v[0], rhs + i * n);CHKERRQ(ierr);
-                ierr = KSPSolve(_s->ksp, _v[0], _v[1]);CHKERRQ(ierr);
-                ierr = VecCopy(_v[1], _v[0]);CHKERRQ(ierr);
-                ierr = VecResetArray(_v[0]);CHKERRQ(ierr);
+            if(mu == 1) {
+                for(unsigned short i = 0; i < mu; ++i) {
+                    ierr = VecPlaceArray(_v[0], rhs + i * n);CHKERRQ(ierr);
+                    ierr = KSPSolve(_s->ksp, _v[0], _v[1]);CHKERRQ(ierr);
+                    ierr = VecCopy(_v[1], _v[0]);CHKERRQ(ierr);
+                    ierr = VecResetArray(_v[0]);CHKERRQ(ierr);
+                }
+            }
+            else {
+                ierr = MatCreateDense(PetscObjectComm((PetscObject)_s->ksp), n, PETSC_DECIDE, N, mu, rhs, &B);CHKERRQ(ierr);
+                ierr = MatCreateDense(PetscObjectComm((PetscObject)_s->ksp), n, PETSC_DECIDE, N, mu, nullptr, &X);CHKERRQ(ierr);
+                ierr = KSPMatSolve(_s->ksp, B, X);CHKERRQ(ierr);
+                ierr = MatCopy(X, B, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+                ierr = MatDestroy(&X);CHKERRQ(ierr);
+                ierr = MatDestroy(&B);CHKERRQ(ierr);
             }
             PetscFunctionReturn(0);
 #endif
