@@ -42,18 +42,17 @@ class PETScOperator
         typedef EmptyOperator<PetscScalar, PetscInt> super;
         const KSP _ksp;
     private:
-        PetscErrorCode (*const _apply)(PC, Mat, Mat);
         Vec _b, _x;
         Mat _B, _X;
     public:
         PETScOperator(const PETScOperator&) = delete;
-        PETScOperator(const KSP& ksp, PetscInt n, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : super(n), _ksp(ksp), _apply(apply), _b(), _x(), _B(), _X() {
+        PETScOperator(const KSP& ksp, PetscInt n) : super(n), _ksp(ksp), _b(), _x(), _B(), _X() {
             PC pc;
             KSPGetPC(ksp, &pc);
             PCSetFromOptions(pc);
             PCSetUp(pc);
         }
-        PETScOperator(const KSP& ksp, PetscInt n, PetscInt, PetscErrorCode (*apply)(PC, Mat, Mat) = nullptr) : PETScOperator(ksp, n, apply) { }
+        PETScOperator(const KSP& ksp, PetscInt n, PetscInt) : PETScOperator(ksp, n) { }
         ~PETScOperator() {
             MatDestroy(&_X);
             MatDestroy(&_B);
@@ -156,13 +155,12 @@ class PETScOperator
 #if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || PETSC_VERSION_LT(3, 13, 2) || defined(PETSCSUB)
         template<bool = false>
         PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
-            KSP            *subksp;
+            KSP            *subksp = nullptr;
             PC             pc;
             PCType         type;
-            Mat            A, F = NULL;
+            Mat            A;
             PetscInt       n, N;
             PetscBool      match;
-            unsigned short distance = 6;
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
@@ -193,43 +191,20 @@ class PETScOperator
                 PetscFunctionReturn(0);
             }
             if(mu > 1) {
-                std::initializer_list<std::string> list = { PCBJACOBI, PCASM, PCLU, PCCHOLESKY, PCILU, PCICC };
                 ierr = PCGetType(pc, &type);CHKERRQ(ierr);
-                std::initializer_list<std::string>::const_iterator it = std::find(list.begin(), list.end(), type);
-                distance = std::distance(list.begin(), it);
-            }
-            if(distance == 0 || distance == 1) {
-                PetscInt n_local;
-                if(distance == 0) {
-                    ierr = PCBJacobiGetSubKSP(pc, &n_local, NULL, &subksp);CHKERRQ(ierr);
-                }
-                else {
+                if(std::string(type).compare(PCASM) == 0) {
 #if defined(__ASM_H)
                     PCASMType type;
                     ierr = PCASMGetType(pc, &type);CHKERRQ(ierr);
                     std::initializer_list<PCASMType> list = { PC_ASM_RESTRICT };
                     if(std::find(list.begin(), list.end(), type) != list.end()) {
+                        PetscInt n_local;
                         ierr = PCASMGetSubKSP(pc, &n_local, NULL, &subksp);CHKERRQ(ierr);
+                        if(n_local != 1)
+                            subksp = nullptr;
                     }
-                    else
 #endif
-                        n_local = 0;
                 }
-                if(n_local == 1) {
-                    PC subpc;
-                    ierr = KSPSetUp(subksp[0]);CHKERRQ(ierr);
-                    ierr = KSPGetPC(subksp[0], &subpc);CHKERRQ(ierr);
-                    ierr = PCGetType(subpc, &type);CHKERRQ(ierr);
-                    std::initializer_list<std::string> list = { PCLU, PCCHOLESKY, PCILU, PCICC };
-                    if(std::find(list.begin(), list.end(), type) != list.end()) {
-                        ierr = PCFactorGetMatrix(subpc, &F);CHKERRQ(ierr);
-                    }
-                }
-            }
-            else if(distance < 6) {
-                ierr = PCFactorGetMatrix(pc, &F);CHKERRQ(ierr);
-            }
-            if(F || _apply) {
                 PetscInt M = 0;
                 bool reset = false;
                 if(_B) {
@@ -252,7 +227,7 @@ class PETScOperator
                     ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
                     reset = true;
                 }
-                if(distance == 1) {
+                if(subksp) {
 #if defined(__ASM_H)
                     PC_ASM      *osm = (PC_ASM*)pc->data;
                     Mat         X, Y;
@@ -275,7 +250,7 @@ class PETScOperator
                     }
                     ierr = MatDenseRestoreArray(X, &array);CHKERRQ(ierr);
                     ierr = MatCreateSeqDense(PETSC_COMM_SELF, o, mu, NULL, &Y);CHKERRQ(ierr);
-                    ierr = MatMatSolve(F, X, Y);CHKERRQ(ierr);
+                    ierr = KSPMatSolve(subksp[0], X, Y);CHKERRQ(ierr);
                     ierr = MatDestroy(&X);CHKERRQ(ierr);
                     ierr = MatDenseGetArray(Y, &array);CHKERRQ(ierr);
                     std::fill_n(out, mu * super::_n, PetscScalar());
@@ -301,14 +276,8 @@ class PETScOperator
                     ierr = VecDestroy(&x);CHKERRQ(ierr);
 #endif
                 }
-                else if(distance == 0) {
-                    Mat B, X;
-                    ierr = MatDenseGetLocalMatrix(_B, &B);CHKERRQ(ierr);
-                    ierr = MatDenseGetLocalMatrix(_X, &X);CHKERRQ(ierr);
-                    ierr = MatMatSolve(F, B, X);CHKERRQ(ierr);
-                }
                 else {
-                    ierr = _apply ? _apply(pc, _B, _X) : MatMatSolve(F, _B, _X);CHKERRQ(ierr);
+                    ierr = PCMatApply(pc, _B, _X);CHKERRQ(ierr);
                 }
                 if(reset) {
                     ierr = MatDenseResetArray(_X);CHKERRQ(ierr);

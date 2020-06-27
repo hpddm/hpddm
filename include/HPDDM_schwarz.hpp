@@ -1219,7 +1219,7 @@ class Schwarz : public Preconditioner<
                 else
                     ierr = PetscErrorCode(0);
                 fail[0] = (ierr == PETSC_ERR_ARG_WRONG ? 1 : 0);
-                MPI_Allreduce(MPI_IN_PLACE, &fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
+                MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
                 if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
                     *n = i;
                     if(i > 1) {

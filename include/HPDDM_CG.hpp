@@ -69,7 +69,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     Wrapper<K>::diag(n, d, z, trash, mu);
     for(unsigned short nu = 0; nu < mu; ++nu)
         norm[nu] = std::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
-    MPI_Allreduce(MPI_IN_PLACE, &norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
     std::for_each(norm, norm + mu, [](underlying_type<K>& y) { y = std::sqrt(y); });
 #endif
     Wrapper<K>::diag(n, d, p, trash, mu);
