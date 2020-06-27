@@ -187,6 +187,7 @@ script:
       export HPDDMFLAGS="${BACKUP}" && unset BACKUP;
     fi
   - export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | tail -n 1 | cut -d'/' -f3-`;
+  - if [ "$BRANCH" = "" ]; then export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*feature*" | tail -n 1 | cut -d'/' -f3-`; fi
   - if [ "$BRANCH" = "" ]; then export BRANCH="master"; fi
   - if [ "$FORCE_COMPLEX" = "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
   - if [ "$FORCE_SINGLE" = "ON" ]; then export PRECISION="--with-precision=single"; else export PRECISION="--download-triangle"; fi
