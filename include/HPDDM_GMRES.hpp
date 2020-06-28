@@ -142,6 +142,8 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             ierr = (*A._ksp->converged)(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP);CHKERRQ(ierr);
             if(A._ksp->reason)
                 std::for_each(hasConverged, hasConverged + mu, [&](short& c) { if(c == -m[0]) c = i; });
+            else if(A._ksp->converged == KSPConvergedSkip)
+                std::fill_n(hasConverged, mu, -m[0]);
 #endif
             if(std::find(hasConverged, hasConverged + mu, -m[0]) == hasConverged + mu) {
                 i = 0;
@@ -289,14 +291,18 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 i = HPDDM_IT(j, A) = 0;
                 break;
             }
-            const bool converged = (mu == checkBlockConvergence<1>(id[0], HPDDM_IT(j, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, s + deflated * i, ldh, Ax, m[1]));
+            bool converged = (mu == checkBlockConvergence<1>(id[0], HPDDM_IT(j, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, s + deflated * i, ldh, Ax, m[1]));
 #if HPDDM_PETSC
             A._ksp->rnorm = *std::max_element(reinterpret_cast<underlying_type<K>*>(Ax), reinterpret_cast<underlying_type<K>*>(Ax) + deflated);
             ierr = KSPLogResidualHistory(A._ksp, A._ksp->rnorm);CHKERRQ(ierr);
             ierr = KSPMonitor(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm);CHKERRQ(ierr);
             ierr = (*A._ksp->converged)(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP);CHKERRQ(ierr);
+            if(A._ksp->reason)
+                converged = true;
+            else if(A._ksp->converged == KSPConvergedSkip)
+                converged = false;
 #endif
-            if(HPDDM_REASON(A) || converged) {
+            if(converged) {
                 dim = deflated * i;
                 i = 0;
                 break;

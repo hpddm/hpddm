@@ -97,6 +97,8 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     delete [] norm;
     if(A._ksp->reason)
         std::fill_n(dir, mu, underlying_type<K>());
+    else if(A._ksp->converged == KSPConvergedSkip)
+        dir[0] = 1.0;
 #endif
     int i = 0;
     if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return 100 * v < std::numeric_limits<underlying_type<K>>::epsilon(); }) == dir + mu) {
@@ -158,8 +160,12 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
             ierr = KSPLogResidualHistory(A._ksp, *dir);CHKERRQ(ierr);
             ierr = KSPMonitor(A._ksp, i, *dir);CHKERRQ(ierr);
             ierr = (*A._ksp->converged)(A._ksp, i, *dir, &A._ksp->reason, A._ksp->cnvP);CHKERRQ(ierr);
+            if(A._ksp->reason)
+                std::for_each(hasConverged, hasConverged + mu, [&](short& c) { if(c == -HPDDM_MAX_IT(it, A)) c = i; });
+            else if(A._ksp->converged == KSPConvergedSkip)
+                std::fill_n(hasConverged, mu, -HPDDM_MAX_IT(it, A));
 #endif
-            if(HPDDM_REASON(A) || std::find(hasConverged, hasConverged + mu, -HPDDM_MAX_IT(it, A)) == hasConverged + mu) {
+            if(std::find(hasConverged, hasConverged + mu, -HPDDM_MAX_IT(it, A)) == hasConverged + mu) {
                 --i;
                 break;
             }
@@ -322,14 +328,18 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         else
             std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
         MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), MPI_SUM, comm);
-        const bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0, trash, (m[0] <= 1 ? mu : 1)));
+        bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0, trash, (m[0] <= 1 ? mu : 1)));
 #if defined(_KSPIMPL_H)
         A._ksp->rnorm = *std::max_element(reinterpret_cast<underlying_type<K>*>(trash), reinterpret_cast<underlying_type<K>*>(trash) + (m[0] <= 1 ? mu : 1));
         ierr = KSPLogResidualHistory(A._ksp, A._ksp->rnorm);CHKERRQ(ierr);
         ierr = KSPMonitor(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm);CHKERRQ(ierr);
         ierr = (*A._ksp->converged)(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP);CHKERRQ(ierr);
+        if(A._ksp->reason)
+            converged = true;
+        else if(A._ksp->converged == KSPConvergedSkip)
+            converged = false;
 #endif
-        if(HPDDM_REASON(A) || converged)
+        if(converged)
             break;
         else if(++HPDDM_IT(i, A) <= HPDDM_MAX_IT(m[1], A)) {
             for(unsigned short nu = mu; nu > 0; --nu)
@@ -496,14 +506,18 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
         else
              std::fill_n(alpha, deflated * mu + mu / m[0], K());
         MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + mu / m[0], Wrapper<K>::mpi_type(), MPI_SUM, comm);
-        bool const converged = (mu == checkBlockConvergence<6>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, res, 0, trash, m[0]));
+        bool converged = (mu == checkBlockConvergence<6>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, res, 0, trash, m[0]));
 #if defined(_KSPIMPL_H)
         A._ksp->rnorm = *std::max_element(reinterpret_cast<underlying_type<K>*>(trash), reinterpret_cast<underlying_type<K>*>(trash) + deflated);
         ierr = KSPLogResidualHistory(A._ksp, A._ksp->rnorm);CHKERRQ(ierr);
         ierr = KSPMonitor(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm);CHKERRQ(ierr);
         ierr = (*A._ksp->converged)(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP);CHKERRQ(ierr);
+        if(A._ksp->reason)
+            converged = true;
+        else if(A._ksp->converged == KSPConvergedSkip)
+            converged = false;
 #endif
-        if(HPDDM_REASON(A) || converged)
+        if(converged)
             break;
         else if(++HPDDM_IT(i, A) <= HPDDM_MAX_IT(m[1], A)) {
             if(!excluded && n) {
