@@ -32,14 +32,12 @@
 #define HPDDM_TOL(tol, A)      tol
 #define HPDDM_MAX_IT(max, A)   max
 #define HPDDM_IT(i, A)         i
-#define HPDDM_REASON(A)        false
 #define HPDDM_RET(i)           i
 #else
 #define HPDDM_CHKERRQ(ierr)    CHKERRQ(ierr)
 #define HPDDM_TOL(tol, A)      ((A._ksp)->rtol)
 #define HPDDM_MAX_IT(max, A)   ((A._ksp)->max_it)
 #define HPDDM_IT(i, A)         ((A._ksp)->its)
-#define HPDDM_REASON(A)        ((A._ksp)->reason)
 #define HPDDM_RET(i)           0
 #endif
 
