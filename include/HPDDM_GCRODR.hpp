@@ -177,7 +177,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 norm[nu] = std::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
-                if(100 * sn[nu] < std::numeric_limits<underlying_type<K>>::epsilon()) {
+                if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2.0)) {
                     HPDDM_IT(j, A) = 0;
                     break;
                 }
