@@ -211,12 +211,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             ierr = KSPMonitor(A._ksp, 0, A._ksp->rnorm);CHKERRQ(ierr);
             ierr = (*A._ksp->converged)(A._ksp, 0, A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP);CHKERRQ(ierr);
             if(A._ksp->reason) {
-                delete [] hasConverged;
-                A.end(allocate);
-                delete [] s;
-                delete [] *save;
-                delete [] H;
-                return 0;
+                HPDDM_IT(j, A) = 0;
+                break;
             }
         }
 #endif
