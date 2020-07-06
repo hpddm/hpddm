@@ -27,10 +27,6 @@
 
 #include "HPDDM_iterative.hpp"
 
-#if defined(_KSPIMPL_H) && PETSC_VERSION_GE(3, 13, 2)
-# include <../src/ksp/pc/impls/asm/asm.h>
-#endif
-
 namespace HPDDM {
 #if PETSC_VERSION_LT(3, 13, 2)
 struct PETScOperator
@@ -188,9 +184,7 @@ class PETScOperator
 #if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || PETSC_VERSION_LT(3, 13, 2) || defined(PETSCSUB)
         template<bool = false>
         PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
-            KSP            *subksp = nullptr;
             PC             pc;
-            PCType         type;
             Mat            A;
             PetscInt       N;
             PetscBool      match;
@@ -234,20 +228,6 @@ class PETScOperator
                 PetscFunctionReturn(0);
             }
             if(mu > 1) {
-                ierr = PCGetType(pc, &type);CHKERRQ(ierr);
-                if(std::string(type).compare(PCASM) == 0) {
-#if defined(__ASM_H)
-                    PCASMType type;
-                    ierr = PCASMGetType(pc, &type);CHKERRQ(ierr);
-                    std::initializer_list<PCASMType> list = { PC_ASM_RESTRICT };
-                    if(std::find(list.begin(), list.end(), type) != list.end()) {
-                        PetscInt n_local;
-                        ierr = PCASMGetSubKSP(pc, &n_local, NULL, &subksp);CHKERRQ(ierr);
-                        if(n_local != 1)
-                            subksp = nullptr;
-                    }
-#endif
-                }
                 PetscInt M = 0;
                 bool reset = false;
                 if(_B) {
@@ -270,58 +250,7 @@ class PETScOperator
                     ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
                     reset = true;
                 }
-                if(subksp) {
-#if defined(__ASM_H)
-                    PC_ASM      *osm = (PC_ASM*)pc->data;
-                    Mat         X, Y;
-                    Vec         x;
-                    PetscScalar *array;
-                    PetscInt    o;
-                    ierr = VecGetLocalSize(osm->x[0], &o);CHKERRQ(ierr);
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, &x);CHKERRQ(ierr);
-                    ierr = MatCreateSeqDense(PETSC_COMM_SELF, o, mu, NULL, &X);CHKERRQ(ierr);
-                    ierr = MatDenseGetArray(X, &array);CHKERRQ(ierr);
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        ierr = VecPlaceArray(x, in + nu * super::_n);CHKERRQ(ierr);
-                        ierr = VecScatterBegin(osm->restriction, x, osm->lx, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
-                        ierr = VecScatterEnd(osm->restriction, x, osm->lx, INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
-                        ierr = VecResetArray(x);CHKERRQ(ierr);
-                        ierr = VecPlaceArray(osm->x[0], array + nu * o);CHKERRQ(ierr);
-                        ierr = VecScatterBegin(osm->lrestriction[0], osm->lx, osm->x[0], INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
-                        ierr = VecScatterEnd(osm->lrestriction[0], osm->lx, osm->x[0], INSERT_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
-                        ierr = VecResetArray(osm->x[0]);CHKERRQ(ierr);
-                    }
-                    ierr = MatDenseRestoreArray(X, &array);CHKERRQ(ierr);
-                    ierr = MatCreateSeqDense(PETSC_COMM_SELF, o, mu, NULL, &Y);CHKERRQ(ierr);
-                    ierr = KSPMatSolve(subksp[0], X, Y);CHKERRQ(ierr);
-                    ierr = MatDestroy(&X);CHKERRQ(ierr);
-                    ierr = MatDenseGetArray(Y, &array);CHKERRQ(ierr);
-                    std::fill_n(out, mu * super::_n, PetscScalar());
-                    for(unsigned short nu = 0; nu < mu; ++nu) {
-                        ierr = VecSet(osm->ly, 0.0);CHKERRQ(ierr);
-                        ierr = VecPlaceArray(osm->y[0], array + nu * o);CHKERRQ(ierr);
-                        if(osm->lprolongation) {
-                            ierr = VecScatterBegin(osm->lprolongation[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
-                            ierr = VecScatterEnd(osm->lprolongation[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_FORWARD);CHKERRQ(ierr);
-                        }
-                        else {
-                            ierr = VecScatterBegin(osm->lrestriction[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
-                            ierr = VecScatterEnd(osm->lrestriction[0], osm->y[0], osm->ly, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
-                        }
-                        ierr = VecResetArray(osm->y[0]);CHKERRQ(ierr);
-                        ierr = VecPlaceArray(x, out + nu * super::_n);CHKERRQ(ierr);
-                        ierr = VecScatterBegin(osm->restriction, osm->ly, x, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
-                        ierr = VecScatterEnd(osm->restriction, osm->ly, x, ADD_VALUES, SCATTER_REVERSE_LOCAL);CHKERRQ(ierr);
-                        ierr = VecResetArray(x);CHKERRQ(ierr);
-                    }
-                    ierr = MatDenseRestoreArray(Y, &array);CHKERRQ(ierr);
-                    ierr = MatDestroy(&Y);CHKERRQ(ierr);
-                    ierr = VecDestroy(&x);CHKERRQ(ierr);
-#endif
-                }
-                else {
-                    ierr = PCMatApply(pc, _B, _X);CHKERRQ(ierr);
-                }
+                ierr = PCMatApply(pc, _B, _X);CHKERRQ(ierr);
                 if(reset) {
                     ierr = MatDenseResetArray(_X);CHKERRQ(ierr);
                     ierr = MatDenseResetArray(_B);CHKERRQ(ierr);
