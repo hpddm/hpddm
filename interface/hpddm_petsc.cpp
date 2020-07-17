@@ -63,9 +63,10 @@ PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
 }
 #endif
 
-PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm& comm, PetscMPIInt redistribute, PetscInt n, PetscScalar* a, int lda, PetscScalar* b, int ldb, PetscInt k, PetscScalar* vr)
+PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm& comm, PetscMPIInt redistribute, PetscInt n, PetscScalar* a, int lda, PetscScalar* b, int ldb, PetscInt k, PetscScalar* vr, const PetscBool symmetric)
 {
-  EPS            eps;
+  EPS            eps = nullptr;
+  SVD            svd;
   Mat            X = nullptr, Y = nullptr;
   Vec            Vr = nullptr, Vi;
   PetscInt       nconv, i, nrow = n, rbegin = 0;
@@ -190,17 +191,34 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
     }
   }
   if (X) {
-    ierr = EPSCreate(PetscObjectComm((PetscObject)X), &eps);CHKERRQ(ierr);
-    ierr = EPSSetOperators(eps, X, Y);CHKERRQ(ierr);
-    if (redistribute <= 1) {
-      ierr = EPSSetType(eps, EPSLAPACK);CHKERRQ(ierr);
+    if (Y || !symmetric) {
+      ierr = EPSCreate(PetscObjectComm((PetscObject)X), &eps);CHKERRQ(ierr);
+      ierr = EPSSetOperators(eps, X, Y);CHKERRQ(ierr);
+      if (redistribute <= 1) {
+        ierr = EPSSetType(eps, EPSLAPACK);CHKERRQ(ierr);
+      }
+      ierr = EPSSetWhichEigenpairs(eps, EPS_SMALLEST_MAGNITUDE);CHKERRQ(ierr);
+      ierr = EPSSetDimensions(eps, k, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
+      ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
+      if (symmetric) {
+        ierr = EPSSetProblemType(eps, EPS_GHEP);CHKERRQ(ierr);
+      }
+      ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
+      ierr = EPSSolve(eps);CHKERRQ(ierr);
+      ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
+    } else {
+      ierr = SVDCreate(PetscObjectComm((PetscObject)X), &svd);CHKERRQ(ierr);
+      ierr = SVDSetOperator(svd, X);CHKERRQ(ierr);
+      if (redistribute <= 1) {
+        ierr = SVDSetType(svd, SVDLAPACK);CHKERRQ(ierr);
+      }
+      ierr = SVDSetWhichSingularTriplets(svd, SVD_SMALLEST);CHKERRQ(ierr);
+      ierr = SVDSetDimensions(svd, k, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
+      ierr = SVDSetOptionsPrefix(svd, prefix);CHKERRQ(ierr);
+      ierr = SVDSetFromOptions(svd);CHKERRQ(ierr);
+      ierr = SVDSolve(svd);CHKERRQ(ierr);
+      ierr = SVDGetConverged(svd, &nconv);CHKERRQ(ierr);
     }
-    ierr = EPSSetWhichEigenpairs(eps, EPS_SMALLEST_MAGNITUDE);CHKERRQ(ierr);
-    ierr = EPSSetDimensions(eps, k, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
-    ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
-    ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
-    ierr = EPSSolve(eps);CHKERRQ(ierr);
-    ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
     if (!Vr) {
       ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)X), 1, nrow, n, nullptr, &Vr);CHKERRQ(ierr);
     }
@@ -211,16 +229,20 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
     for (i = 0; i < std::min(nconv, k); ++i) {
       PetscScalar eigr, eigi = PetscScalar();
       ierr = VecPlaceArray(Vr, vr + i * n + rbegin);CHKERRQ(ierr);
-      if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
-        ierr = VecPlaceArray(Vi, vr + (i + 1) * n + rbegin);CHKERRQ(ierr);
-      }
-      ierr = EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr);CHKERRQ(ierr);
-      if (std::abs(eigi) > 100 * PETSC_MACHINE_EPSILON) {
-        ++i;
-        ++info;
-      }
-      if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
-        ierr = VecResetArray(Vi);CHKERRQ(ierr);
+      if (eps) {
+        if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
+          ierr = VecPlaceArray(Vi, vr + (i + 1) * n + rbegin);CHKERRQ(ierr);
+        }
+        ierr = EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr);CHKERRQ(ierr);
+        if (std::abs(eigi) > 100 * PETSC_MACHINE_EPSILON) {
+          ++i;
+          ++info;
+        }
+        if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) {
+          ierr = VecResetArray(Vi);CHKERRQ(ierr);
+        }
+      } else {
+        ierr = SVDGetSingularTriplet(svd, i, nullptr, nullptr, Vr);CHKERRQ(ierr);
       }
       ierr = VecResetArray(Vr);CHKERRQ(ierr);
     }
@@ -229,7 +251,11 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       ierr = VecDestroy(&Vi);CHKERRQ(ierr);
     }
     ierr = VecDestroy(&Vr);CHKERRQ(ierr);
-    ierr = EPSDestroy(&eps);CHKERRQ(ierr);
+    if (eps) {
+      ierr = EPSDestroy(&eps);CHKERRQ(ierr);
+    } else {
+      ierr = SVDDestroy(&svd);CHKERRQ(ierr);
+    }
     ierr = MatDestroy(&Y);CHKERRQ(ierr);
     ierr = MatDestroy(&X);CHKERRQ(ierr);
     if (redistribute > 1) {

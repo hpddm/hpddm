@@ -24,7 +24,7 @@
 #define _HPDDM_GCRODR_
 
 #if defined(PETSC_HAVE_SLEPC) && defined(PETSC_USE_SHARED_LIBRARIES)
-static PetscErrorCode (*loadedKSPSym)(const char*, const MPI_Comm&, PetscMPIInt, PetscInt, PetscScalar*, int, PetscScalar*, int, PetscInt, PetscScalar*) = nullptr;
+static PetscErrorCode (*loadedKSPSym)(const char*, const MPI_Comm&, PetscMPIInt, PetscInt, PetscScalar*, int, PetscScalar*, int, PetscInt, PetscScalar*, const PetscBool) = nullptr;
 #endif
 
 #include "HPDDM_GMRES.hpp"
@@ -147,7 +147,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
 #ifdef PETSCHPDDM_H
             ierr = PetscLogEventEnd(KSP_GMRESOrthogonalization, A._ksp, 0, 0, 0);CHKERRQ(ierr);
 #endif
-            if(id[1] != 1 || id[4] / 4 == 0) {
+            if(id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
                 if(!excluded && n)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__1), pt + nu * n, &ldv, H[i] + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
@@ -777,6 +777,12 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(id[4] / 4 <= 1)
 #endif
         {
+#if defined(PETSC_HAVE_SLEPC) && defined(PETSC_USE_SHARED_LIBRARIES)
+            PetscBool symmetric = PETSC_FALSE;
+            ierr = PetscOptionsGetBool(NULL, NULL, std::string("-" + A.prefix() + "ksp_hpddm_recycle_symmetric").c_str(), &symmetric, NULL);CHKERRQ(ierr);
+#else
+            constexpr bool symmetric = false;
+#endif
             if(!U) {
                 int dim = std::min(static_cast<unsigned short>(HPDDM_IT(j, A)), m[0]);
                 if(dim < k)
@@ -785,17 +791,21 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 C = U + k * ldv;
                 if(!excluded && n) {
                     std::fill_n(s, deflated * ldh, K());
-                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &deflated, &(Wrapper<K>::d__1), save[dim - 1] + dim * deflated, &ldh, save[m[0] - 1] + dim * deflated, &ldh, &(Wrapper<K>::d__0), s + (dim - 1) * deflated, &ldh);
+                    if(!symmetric)
+                        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &deflated, &deflated, &deflated, &(Wrapper<K>::d__1), save[dim - 1] + dim * deflated, &ldh, save[m[0] - 1] + dim * deflated, &ldh, &(Wrapper<K>::d__0), s + (dim - 1) * deflated, &ldh);
                     dim *= deflated;
-                    Lapack<K>::trtrs("U", &(Wrapper<K>::transc), "N", &dim, &deflated, *H, &ldh, s, &ldh, &info);
-                    for(i = dim / deflated; i-- > 0; )
-                        Lapack<K>::mqr("L", "N", &N, &deflated, &N, H[i] + i * deflated, &ldh, tau + i * N, s + i * deflated, &ldh, Ax, &lwork, &info);
+                    if(!symmetric) {
+                        Lapack<K>::trtrs("U", &(Wrapper<K>::transc), "N", &dim, &deflated, *H, &ldh, s, &ldh, &info);
+                        for(i = dim / deflated; i-- > 0; )
+                            Lapack<K>::mqr("L", "N", &N, &deflated, &N, H[i] + i * deflated, &ldh, tau + i * N, s + i * deflated, &ldh, Ax, &lwork, &info);
+                    }
                     for(i = 0; i < dim / deflated; ++i)
                         for(unsigned short nu = 0; nu < deflated; ++nu)
                             std::fill(save[i] + nu * ldh + (i + 1) * deflated + nu + 1, save[i] + (nu + 1) * ldh, K());
                     std::copy_n(*save, deflated * ldh * m[0], *H);
-                    for(i = 0; i < deflated; ++i)
-                        Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), s + i * ldh, &i__1, H[dim / deflated - 1] + i * ldh, &i__1);
+                    if(!symmetric)
+                        for(i = 0; i < deflated; ++i)
+                            Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), s + i * ldh, &i__1, H[dim / deflated - 1] + i * ldh, &i__1);
                     int lwork = -1;
                     int row = dim + deflated;
                     int bK = deflated * k;
@@ -835,7 +845,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     if(!loadedKSPSym) {
                         ierr = PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym);CHKERRQ(ierr);
                         if(!loadedKSPSym)
-                            return PetscError(PETSC_COMM_SELF, __LINE__, PETSC_FUNCTION_NAME, __FILE__, -PETSC_ERR_PLIB, PETSC_ERROR_REPEAT, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
+                            SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
                     }
                     ierr = (*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm,
 #if !defined(_KSPIMPL_H)
@@ -843,7 +853,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #else
                             static_cast<PetscMPIInt>(reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[3])
 #endif
-                             , static_cast<PetscInt>(dim), *H, ldh, nullptr, 0, static_cast<PetscInt>(bK), vr);HPDDM_CHKERRQ(ierr);
+                             , static_cast<PetscInt>(dim), *H, ldh, nullptr, 0, static_cast<PetscInt>(bK), vr, symmetric);HPDDM_CHKERRQ(ierr);
 #endif
                     Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::gemm("N", "N", &row, &bK, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H, &ldh);
@@ -859,9 +869,13 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             else if(HPDDM_IT(j, A) > m[0] - k) {
                 int bK = deflated * k;
                 int diff = dim - bK;
-                K* prod = (id[4] % 4 == 1 ? nullptr : new K[bK * (dim + deflated + 1)]);
+                K* prod = (id[4] % 4 == HPDDM_RECYCLE_STRATEGY_B || symmetric ? nullptr : new K[bK * (dim + deflated + 1)]);
                 if(excluded || !n) {
-                    if(id[4] % 4 != 1) {
+                    if(symmetric) {
+                        prod = new K[bK * bK]();
+                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * bK, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                    }
+                    else if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         std::fill_n(prod, bK * (dim + deflated + 1), K());
                         MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
                     }
@@ -874,7 +888,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                         for(unsigned short nu = 0; nu < deflated; ++nu)
                             std::fill(save[i] + nu + 2 + nu * ldh + (i + 1) * deflated, save[i] + (nu + 1) * ldh, K());
                     K* a = new K[dim * (dim + 2 + !Wrapper<K>::is_complex)];
-                    if(id[4] % 4 != 1) {
+                    if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B && !symmetric) {
                         info = dim + deflated;
                         if(d) {
                             Wrapper<K>::diag(n, d, U, C, bK);
@@ -903,7 +917,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     }
                     Wrapper<K>::template omatcopy<'N'>(diff, bK, H[k], ldh, a + bK * dim, dim);
                     info = dim;
-                    if(id[4] % 4 != 1)
+                    if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B && !symmetric)
                         for(unsigned short nu = 0; nu < bK; ++nu)
                             Blas<K>::scal(&diff, prod + bK * (dim + deflated) + nu, a + bK * dim + nu, &info);
                     Wrapper<K>::template omatcopy<'C'>(diff, bK, a + bK * dim, info, a + bK, info);
@@ -911,7 +925,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &bK, &(Wrapper<K>::d__1), H[k], &ldh, H[k], &ldh, &(Wrapper<K>::d__0), a + bK * dim + bK, &info);
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &diff, &diff, &row, &(Wrapper<K>::d__1), *save, &ldh, *save, &ldh, &(Wrapper<K>::d__1), a + bK * dim + bK, &info);
                     K* B = new K[deflated * m[0] * (dim + deflated)]();
-                    if(id[4] % 4 != 1) {
+                    if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B && !symmetric) {
                         row = dim + deflated;
                         for(i = 0; i < bK; ++i)
                             std::transform(prod + i * (dim + deflated), prod + (i + 1) * (dim + deflated), B + i * (dim + deflated), [&](const K& u) { return prod[bK * (dim + deflated) + i] * u; });
@@ -923,10 +937,27 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                             Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, B + i, &row);
                     }
                     else {
-                        for(i = 0; i < bK; ++i)
-                            B[i * (dim + 1)] = 1.0;
-                        Wrapper<K>::template omatcopy<'C'>(diff, bK, H[k], ldh, B + bK, dim);
-                        Wrapper<K>::template omatcopy<'C'>(diff, diff, *save, ldh, B + bK + bK * dim, dim);
+                        if(symmetric) {
+                            for(i = bK; i < dim; ++i)
+                                B[i * (dim + 1)] = 1.0;
+                            if(d) {
+                                Wrapper<K>::diag(n, d, U, C, bK);
+                                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &bK, &n, &(Wrapper<K>::d__1), U, &n, C, &n, &(Wrapper<K>::d__0), B, &bK);
+                            }
+                            else {
+                                Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &bK, &n, &(Wrapper<K>::d__1), U, &n, U, &n, &(Wrapper<K>::d__0), B, &bK);
+                            }
+                            MPI_Allreduce(MPI_IN_PLACE, B, bK * bK, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                            Wrapper<K>::template imatcopy<'N'>(bK, bK, B, bK, dim);
+                            for(i = 0; i < bK; ++i)
+                                std::fill(B + bK + i * dim, B + (i + 1) * dim, K());
+                        }
+                        else {
+                            for(i = 0; i < bK; ++i)
+                                B[i * (dim + 1)] = 1.0;
+                            Wrapper<K>::template omatcopy<'C'>(diff, bK, H[k], ldh, B + bK, dim);
+                            Wrapper<K>::template omatcopy<'C'>(diff, diff, *save, ldh, B + bK + bK * dim, dim);
+                        }
                         row = dim;
                     }
                     int lwork = -1;
@@ -955,7 +986,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     if(!loadedKSPSym) {
                         ierr = PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym);CHKERRQ(ierr);
                         if(!loadedKSPSym)
-                            return PetscError(PETSC_COMM_SELF, __LINE__, PETSC_FUNCTION_NAME, __FILE__, -PETSC_ERR_PLIB, PETSC_ERROR_REPEAT, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
+                            SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
                     }
                     ierr = (*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm,
 #if !defined(_KSPIMPL_H)
@@ -963,7 +994,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #else
                             static_cast<PetscMPIInt>(reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[3])
 #endif
-                             , static_cast<PetscInt>(bDim), a, bDim, B, row, static_cast<PetscInt>(bK), vr);HPDDM_CHKERRQ(ierr);
+                             , static_cast<PetscInt>(bDim), a, bDim, B, row, static_cast<PetscInt>(bK), vr, symmetric);HPDDM_CHKERRQ(ierr);
                     int* perm = new int[1];
                     K* work = new K[2];
 #endif
@@ -972,7 +1003,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     row = diff + deflated;
                     Blas<K>::gemm("N", "N", &row, &bK, &diff, &(Wrapper<K>::d__1), *save, &ldh, vr + bK, &bDim, &(Wrapper<K>::d__0), *H + bK, &ldh);
                     Wrapper<K>::template omatcopy<'N'>(bK, bK, vr, bDim, *H, ldh);
-                    if(id[4] % 4 != 1)
+                    if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B && !symmetric)
                         for(i = 0; i < bK; ++i)
                             Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, *H + i, &ldh);
                     Blas<K>::gemm("N", "N", &bK, &bK, &diff, &(Wrapper<K>::d__1), H[k], &ldh, vr + bK, &bDim, &(Wrapper<K>::d__1), *H, &ldh);
