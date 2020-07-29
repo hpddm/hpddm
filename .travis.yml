@@ -148,7 +148,7 @@ install:
       export CXXFLAGS="-Wno-deprecated-register ${CXXFLAGS}";
       make python;
     else
-      export PYTHON_VERSION=3.8m;
+      export PYTHON_VERSION=3.8;
       if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then
         if { [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; } || [ "$SOLVER" = "HYPRE" ]; then export MPICC="mpicc -fprofile-arcs -ftest-coverage"; export MPICXX="mpic++ -fprofile-arcs -ftest-coverage"; export MPIF90="mpif90 -fprofile-arcs -ftest-coverage"; fi;
         export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HOME}/miniconda/lib; make all -j2;
@@ -158,11 +158,11 @@ install:
     fi
 
 script:
-  - if [ "$PYTHON_VERSION" = "3.8m" ]; then
+  - if [ "$PYTHON_VERSION" = "3.8" ]; then
       make test_cpp test_c;
     fi
   - if [ "$TRAVIS_CPU_ARCH" = "amd64" ]; then make test_python; fi
-  - if [ "$PYTHON_VERSION" = "3.8m" ] && [ "$SOLVER" = "HYPRE" ]; then
+  - if [ "$PYTHON_VERSION" = "3.8" ] && [ "$SOLVER" = "HYPRE" ]; then
       make test_bin/schwarzFromFile_cpp;
       if [ "$?" != "0" ]; then
         exit 1;
@@ -175,7 +175,7 @@ script:
         fi
       fi
     fi
-  - if [ "$PYTHON_VERSION" = "3.8m" ] && [ "$FORCE_SINGLE" = "OFF" ] && [ "$SOLVER" = "MUMPS" ]; then
+  - if [ "$PYTHON_VERSION" = "3.8" ] && [ "$FORCE_SINGLE" = "OFF" ] && [ "$SOLVER" = "MUMPS" ]; then
       export BACKUP="${HPDDMFLAGS}";
       export HPDDMFLAGS="${HPDDMFLAGS} -DHPDDM_MIXED_PRECISION=1";
       mkdir -p bin/wo-mp && mv bin/*_cpp.g* bin/wo-mp || true;
@@ -192,7 +192,7 @@ script:
   - if [ "$FORCE_COMPLEX" = "ON" ]; then export SCALARTYPE="--with-scalar-type=complex"; fi
   - if [ "$FORCE_SINGLE" = "ON" ]; then export PRECISION="--with-precision=single"; else export PRECISION="--download-triangle"; fi
   - if [ "$HPDDM_NUMBERING" = "F" ]; then export INDICES="--with-64-bit-indices"; fi
-  - if [ "$PYTHON_VERSION" = "3.8m" ] && [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; then
+  - if [ "$PYTHON_VERSION" = "3.8" ] && [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; then
       cd .. &&  git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc;
       export PETSC_DIR=${PWD};
       export PETSC_ARCH=arch-travis-petsc;
@@ -223,7 +223,7 @@ script:
     fi
 
 after_success:
-  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ] && [ "$PYTHON_VERSION" = "3.8m" ] && { { [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; } || [ "$SOLVER" = "HYPRE" ] || [ "$SUBSOLVER" = "PETSC" ]; } then
+  - if [ "$TRAVIS_CPU_ARCH" = "amd64" ] && [ "$PYTHON_VERSION" = "3.8" ] && { { [ "$SOLVER" = "MUMPS" ] && [ "$SUBSOLVER" = "MUMPS" ]; } || [ "$SOLVER" = "HYPRE" ] || [ "$SUBSOLVER" = "PETSC" ]; } then
       cd ../hpddm;
       mkdir -p ../petsc;
       if [ "$CXX" = "g++" ]; then
