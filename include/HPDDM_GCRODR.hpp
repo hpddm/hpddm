@@ -670,6 +670,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(N != mu) {
             int nrhs = mu - N;
             Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
+#if HPDDM_PETSC
+            ierr = PetscInfo2(A._ksp, "HPDDM: Deflating %d out of %d RHS\n", mu - N, mu);CHKERRQ(ierr);
+#endif
         }
         if(N != deflated) {
             deflated = N;
