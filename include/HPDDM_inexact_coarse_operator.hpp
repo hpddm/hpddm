@@ -66,7 +66,6 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
         typedef PetscInt      integer_type;
         PC_HPDDM_Level*                 _s;
         PetscInt*                     _idx;
-        Vec                          _v[2];
 #endif
         vectorNeighbor   _recv;
         std::map<unsigned short, std::vector<int>> _send;
@@ -709,7 +708,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #if !HPDDM_PETSC
                                                                     _p(), _communicator(MPI_COMM_NULL), _buff(), _rq(), _x(), _mu()
 #else
-                                                                    _idx(), _v(), _da()
+                                                                    _idx(), _da()
 #endif
                                                                           , _di(), _oi(), _ogj(), _range(), _off() { }
         ~InexactCoarseOperator() {
@@ -738,8 +737,6 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
             delete [] _rq;
 #else
-            VecDestroy(&_v[0]);
-            VecDestroy(&_v[1]);
             if(_idx)
                 PetscFree(_idx);
             delete [] _di;
@@ -789,41 +786,8 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 std::copy_n(_x, mu * _dof * _bs, rhs);
             }
 #else
-            Mat            P, B, X;
-            PetscInt       n, N;
-            PetscErrorCode ierr;
-
             PetscFunctionBeginUser;
-            ierr = KSPGetOperators(_s->ksp, &P, nullptr);CHKERRQ(ierr);
-            ierr = MatGetLocalSize(P, &n, nullptr);CHKERRQ(ierr);
-            ierr = MatGetSize(P, &N, nullptr);CHKERRQ(ierr);
-            if(!_v[0]) {
-                ierr = VecCreateMPI(PetscObjectComm((PetscObject)_s->ksp), n, N, &_v[1]);CHKERRQ(ierr);
-                ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_s->ksp), _bs, n, N, nullptr, &_v[0]);CHKERRQ(ierr);
-            }
-            PetscInt j = std::distance(_s->parent->levels, std::find(_s->parent->levels, _s->parent->levels + _s->parent->N, _s));
-            if(_s->parent->log_separate) {
-                ierr = PetscLogEventBegin(PC_HPDDM_Solve[j], _s->ksp, 0, 0, 0);CHKERRQ(ierr);
-            }
-            if(mu == 1) {
-                for(unsigned short i = 0; i < mu; ++i) {
-                    ierr = VecPlaceArray(_v[0], rhs + i * n);CHKERRQ(ierr);
-                    ierr = KSPSolve(_s->ksp, _v[0], _v[1]);CHKERRQ(ierr);
-                    ierr = VecCopy(_v[1], _v[0]);CHKERRQ(ierr);
-                    ierr = VecResetArray(_v[0]);CHKERRQ(ierr);
-                }
-            }
-            else {
-                ierr = MatCreateDense(PetscObjectComm((PetscObject)_s->ksp), n, PETSC_DECIDE, N, mu, rhs, &B);CHKERRQ(ierr);
-                ierr = MatCreateDense(PetscObjectComm((PetscObject)_s->ksp), n, PETSC_DECIDE, N, mu, nullptr, &X);CHKERRQ(ierr);
-                ierr = KSPMatSolve(_s->ksp, B, X);CHKERRQ(ierr);
-                ierr = MatCopy(X, B, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-                ierr = MatDestroy(&X);CHKERRQ(ierr);
-                ierr = MatDestroy(&B);CHKERRQ(ierr);
-            }
-            if(_s->parent->log_separate) {
-                ierr = PetscLogEventEnd(PC_HPDDM_Solve[j], _s->ksp, 0, 0, 0);CHKERRQ(ierr);
-            }
+            PetscErrorCode ierr = PCHPDDMSolve_Private(_s, rhs, mu);CHKERRQ(ierr);
             PetscFunctionReturn(0);
 #endif
         }
@@ -1627,16 +1591,18 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 ierr = VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &_s->D);CHKERRQ(ierr);
                 {
                     Mat P;
+                    Vec v;
                     ierr = KSPGetOperators(_s->ksp, &P, nullptr);CHKERRQ(ierr);
                     {
                         PetscInt n, N;
                         ierr = MatGetLocalSize(P, &n, nullptr);CHKERRQ(ierr);
                         ierr = MatGetSize(P, &N, nullptr);CHKERRQ(ierr);
-                        ierr = VecCreateMPI(DMatrix::_communicator, n, N, &_v[1]);CHKERRQ(ierr);
+                        ierr = VecCreateMPI(DMatrix::_communicator, n, N, &v);CHKERRQ(ierr);
                     }
                     ierr = ISCreateBlock(PETSC_COMM_SELF, _bs, m / _bs, _idx, PETSC_OWN_POINTER, &is);CHKERRQ(ierr);
+                    ierr = VecScatterCreate(v, is, _s->D, nullptr, &_s->scatter);CHKERRQ(ierr);
+                    ierr = VecDestroy(&v);CHKERRQ(ierr);
                 }
-                ierr = VecScatterCreate(_v[1], is, _s->D, nullptr, &_s->scatter);CHKERRQ(ierr);
                 _idx = nullptr;
                 ierr = ISDestroy(&is);CHKERRQ(ierr);
                 PetscReal* d;
@@ -1761,11 +1727,6 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 }
 #if !HPDDM_PETSC
                 _s->callNumfact();
-#else
-                PetscInt N;
-                ierr = VecGetLocalSize(_v[1], &m);CHKERRQ(ierr);
-                ierr = VecGetSize(_v[1], &N);CHKERRQ(ierr);
-                ierr = VecCreateMPIWithArray(DMatrix::_communicator, _bs, m, N, nullptr, &_v[0]);CHKERRQ(ierr);
 #endif
             }
 #if HPDDM_PETSC
