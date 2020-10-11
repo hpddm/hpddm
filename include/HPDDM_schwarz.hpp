@@ -35,6 +35,10 @@ PETSC_EXTERN PetscLogEvent PC_HPDDM_Strc;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
+#   if PETSC_VERSION_GE(3, 15, 0)
+PETSC_EXTERN PetscLogEvent PC_HPDDM_SetUp[PETSC_HPDDM_MAXLEVELS];
+PETSC_EXTERN PetscLogEvent PC_HPDDM_Solve[PETSC_HPDDM_MAXLEVELS];
+#   endif
 #  endif
 #  include "HPDDM_operator.hpp"
 # endif
@@ -848,8 +852,13 @@ class Schwarz : public Preconditioner<
             PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
-#if PETSC_VERSION_GE(3, 13, 0)
-            ierr = PetscLogEventBegin(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+            if(levels[0]->parent->log_separate) {
+                ierr = PetscLogEventBegin(PC_HPDDM_SetUp[0], levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            }
+            else {
+                ierr = PetscLogEventBegin(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            }
 #endif
             ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
             if(!Subdomain<K>::_rq) {
@@ -1016,8 +1025,10 @@ class Schwarz : public Preconditioner<
                     ierr = VecRestoreArray(levels[0]->D, nullptr);CHKERRQ(ierr);
                 }
             }
-#if PETSC_VERSION_GE(3, 13, 0)
-            ierr = PetscLogEventEnd(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+            if(!levels[0]->parent->log_separate) {
+                ierr = PetscLogEventEnd(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            }
 #endif
             EPS eps;
             ST st;
@@ -1200,9 +1211,19 @@ class Schwarz : public Preconditioner<
                 P = N;
                 ierr = MatISGetLocalMat(P, &N);CHKERRQ(ierr);
             }
+#if PETSC_VERSION_GE(3, 15, 0)
+            if(levels[0]->parent->log_separate) {
+                ierr = PetscLogEventEnd(PC_HPDDM_SetUp[0], levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            }
+#endif
             for(unsigned short i = 1; i < *n; ++i) {
-#if PETSC_VERSION_GE(3, 13, 0)
-                ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+                if(!levels[0]->parent->log_separate) {
+                    ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                }
+                else {
+                    ierr = PetscLogEventBegin(PC_HPDDM_SetUp[i], levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                }
 #endif
                 char fail[2] { };
                 if(decomposition) {
@@ -1232,16 +1253,25 @@ class Schwarz : public Preconditioner<
                 if(i > 1) {
                     ierr = MatDestroy(&A);CHKERRQ(ierr);
                 }
-#if PETSC_VERSION_GE(3, 13, 0)
-                ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+                if(!levels[0]->parent->log_separate) {
+                    ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                }
 #endif
                 if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
+#if PETSC_VERSION_GE(3, 15, 0)
+                    if(levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventEnd(PC_HPDDM_SetUp[i], levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
+#endif
                     *n = i + 1;
                     break;
                 }
                 if(i + 1 < *n && decomposition) {
-#if PETSC_VERSION_GE(3, 13, 0)
-                    ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+                    if(!levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
 #endif
                     CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
                     std::vector<K> overlap;
@@ -1256,9 +1286,11 @@ class Schwarz : public Preconditioner<
                     }
                     if(overlap.size())
                         MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);
-#if PETSC_VERSION_GE(3, 13, 0)
-                    ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+                    if(!levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                        ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
 #endif
                     ierr = decomposition->_co->buildThree(coNeumann, reduction, sizes, extra, &A, &N, levels[i]);CHKERRQ(ierr);
                     delete coNeumann;
@@ -1270,10 +1302,17 @@ class Schwarz : public Preconditioner<
                     else
                         decomposition = nullptr;
                     MPI_Wait(&rs, MPI_STATUS_IGNORE);
-#if PETSC_VERSION_GE(3, 13, 0)
-                    ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+#if PETSC_VERSION_GE(3, 15, 0)
+                    if(!levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
 #endif
                 }
+#if PETSC_VERSION_GE(3, 15, 0)
+                if(levels[0]->parent->log_separate) {
+                    ierr = PetscLogEventEnd(PC_HPDDM_SetUp[i], levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                }
+#endif
             }
             if(ismatis) {
                 ierr = MatDestroy(&P);CHKERRQ(ierr);

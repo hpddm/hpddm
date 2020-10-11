@@ -801,6 +801,10 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 ierr = VecCreateMPI(PetscObjectComm((PetscObject)_s->ksp), n, N, &_v[1]);CHKERRQ(ierr);
                 ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_s->ksp), _bs, n, N, nullptr, &_v[0]);CHKERRQ(ierr);
             }
+            PetscInt j = std::distance(_s->parent->levels, std::find(_s->parent->levels, _s->parent->levels + _s->parent->N, _s));
+            if(_s->parent->log_separate) {
+                ierr = PetscLogEventBegin(PC_HPDDM_Solve[j], _s->ksp, 0, 0, 0);CHKERRQ(ierr);
+            }
             if(mu == 1) {
                 for(unsigned short i = 0; i < mu; ++i) {
                     ierr = VecPlaceArray(_v[0], rhs + i * n);CHKERRQ(ierr);
@@ -816,6 +820,9 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 ierr = MatCopy(X, B, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
                 ierr = MatDestroy(&X);CHKERRQ(ierr);
                 ierr = MatDestroy(&B);CHKERRQ(ierr);
+            }
+            if(_s->parent->log_separate) {
+                ierr = PetscLogEventEnd(PC_HPDDM_Solve[j], _s->ksp, 0, 0, 0);CHKERRQ(ierr);
             }
             PetscFunctionReturn(0);
 #endif
@@ -1701,10 +1708,9 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
                         ierr = STSetMatStructure(st, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
                         ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
-                        PetscInt nev;
+                        PetscInt nev, nconv;
                         ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
                         ierr = EPSSolve(eps);CHKERRQ(ierr);
-                        PetscInt nconv;
                         ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
                         level->nu = std::min(nconv, nev);
                         if(level->threshold >= 0.0) {
