@@ -31,14 +31,9 @@
 #include "HPDDM_coarse_operator_impl.hpp"
 # if HPDDM_SLEPC
 #  if PETSC_VERSION_GE(3, 13, 0)
-PETSC_EXTERN PetscLogEvent PC_HPDDM_Strc;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
-#   if PETSC_VERSION_GE(3, 15, 0)
-PETSC_EXTERN PetscLogEvent PC_HPDDM_SetUp[PETSC_HPDDM_MAXLEVELS];
-PETSC_EXTERN PetscLogEvent PC_HPDDM_Solve[PETSC_HPDDM_MAXLEVELS];
-#   endif
 #  endif
 #  include "HPDDM_operator.hpp"
 # endif
@@ -813,53 +808,16 @@ class Schwarz : public Preconditioner<
             }
             PetscFunctionReturn(0);
         }
-#endif
-#if HPDDM_SLEPC
-    private:
-        HPDDM_HAS_MEMBER(Neumann)
-        template<class Q>
-        static constexpr typename std::enable_if<!has_Neumann<Q>::value, bool>::type Neumann(const Q parent) {
-            return false;
-        }
-        template<class Q>
-        static constexpr typename std::enable_if<has_Neumann<Q>::value, bool>::type Neumann(const Q parent) {
-            return parent->Neumann == PETSC_TRUE;
-        }
-        HPDDM_HAS_MEMBER(B)
-        template<class Q>
-        static constexpr typename std::enable_if<!has_B<Q>::value, Mat>::type B(const Q parent) {
-            return nullptr;
-        }
-        template<class Q>
-        static constexpr typename std::enable_if<has_B<Q>::value, Mat>::type B(const Q parent) {
-            return parent->B;
-        }
-    public:
-        typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
-            PetscErrorCode ierr;
-
-            PetscFunctionBeginUser;
-            ierr = super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels);
-            PetscFunctionReturn(ierr);
-        }
-        PetscErrorCode initialize(const IS interior, IS is, const Mat D, Mat N, std::vector<Vec> initial, PetscInt* const n, PC_HPDDM_Level** const levels) {
-            Mat                    P, local;
+        PetscErrorCode structure(const IS interior, IS is, const Mat D, Mat N, PC_HPDDM_Level** const levels) {
+            Mat                    P;
             ISLocalToGlobalMapping l2g;
             PetscReal              *d;
             const PetscInt         *ptr;
             PetscInt               m, bs;
-            PetscBool              ismatis, solve = PETSC_FALSE, sym;
+            PetscBool              sym, ismatis;
             PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
-#if PETSC_VERSION_GE(3, 15, 0)
-            if(levels[0]->parent->log_separate) {
-                ierr = PetscLogEventBegin(PC_HPDDM_SetUp[0], levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
-            }
-            else {
-                ierr = PetscLogEventBegin(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
-            }
-#endif
             ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
             if(!Subdomain<K>::_rq) {
                 MPI_Comm_dup(PetscObjectComm((PetscObject)levels[0]->ksp), &(Subdomain<K>::_communicator));
@@ -914,10 +872,8 @@ class Schwarz : public Preconditioner<
                     ierr = ISLocalToGlobalMappingGetSize(l2g, &m);CHKERRQ(ierr);
                     for(PetscInt i = 0; i < m / bs; ++i) {
                         std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(), std::make_pair(bs * idx[i], static_cast<PetscInt>(0)));
-                        if(it != v.cend() && it->first == bs * idx[i]) {
-                            solve = PETSC_TRUE;
+                        if(it != v.cend() && it->first == bs * idx[i])
                             std::fill_n(d + it->second, bs, 1.0);
-                        }
                     }
                     for(PetscInt i = 1; i < nproc; ++i) {
                         for(PetscInt j = 0; j < numprocs[i]; ++j) {
@@ -993,10 +949,8 @@ class Schwarz : public Preconditioner<
                     ierr = ISRestoreIndices(interior, &ptr);CHKERRQ(ierr);
                     ierr = ISGetIndices(is, &ptr);CHKERRQ(ierr);
                     for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs) {
-                        if(ptr[i] >= rstart && ptr[i] < rend) {
+                        if(ptr[i] >= rstart && ptr[i] < rend)
                             std::fill_n(d + i, bs, 1.0);
-                            solve = PETSC_TRUE;
-                        }
                         else
                             std::fill_n(d + i, bs, 0.0);
                     }
@@ -1015,9 +969,6 @@ class Schwarz : public Preconditioner<
                     VecGetLocalSize(levels[0]->D, &n);
                     Subdomain<K>::_dof = n;
                 }
-                for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
-                    if(std::abs(1.0 - _d[i]) < HPDDM_EPS)
-                        solve = PETSC_TRUE;
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
                     PetscScalar* c;
                     ierr = VecGetArray(levels[0]->D, &c);CHKERRQ(ierr);
@@ -1025,85 +976,38 @@ class Schwarz : public Preconditioner<
                     ierr = VecRestoreArray(levels[0]->D, nullptr);CHKERRQ(ierr);
                 }
             }
-#if PETSC_VERSION_GE(3, 15, 0)
-            if(!levels[0]->parent->log_separate) {
-                ierr = PetscLogEventEnd(PC_HPDDM_Strc, levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
-            }
+            PetscFunctionReturn(0);
+        }
 #endif
-            EPS eps;
-            ST st;
-            Mat weighted = nullptr, *resized;
-            Vec vr, vreduced;
-            IS sub[1] = { };
-            PetscInt nev, nconv = 0;
-            const char* prefix;
-            PetscInt mbs;
-            const PetscInt *ia, *ja;
-            PetscScalar *v = nullptr;
-            unsigned short type = 0;
-            Mat rhs = B(levels[0]->parent);
-            if(!rhs) {
-                if(Neumann(levels[0]->parent) || ismatis) {
-                    if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare(MATSEQAIJ)) {
-                        bs = 1;
-                        ierr = MatSeqAIJGetArray(D, &v);CHKERRQ(ierr);
-                    }
-#if PETSC_VERSION_GE(3, 12, 2)
-                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare(MATSEQBAIJ)) {
-                        ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
-                        ierr = MatSeqBAIJGetArray(D, &v);CHKERRQ(ierr);
-                        type = 1;
-                    }
-#endif
-                    else if(!std::string(reinterpret_cast<PetscObject>(D)->type_name).compare(MATSEQSBAIJ)) {
-                        ierr = MatGetBlockSize(D, &bs);CHKERRQ(ierr);
-                        ierr = MatSeqSBAIJGetArray(D, &v);CHKERRQ(ierr);
-                        type = 2;
-                    }
-                    if(v) {
-                        PetscBool done;
-                        ierr = MatGetRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, &mbs, &ia, &ja, &done);CHKERRQ(ierr);
-                        if(!done) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "MatGetRowIJ did not return appropriate arrays");
-                    }
-                }
-                if(!v) {
-                    ierr = MatConvert(D, MATSAME, MAT_INITIAL_MATRIX, &weighted);CHKERRQ(ierr);
-                    ierr = MatDiagonalScale(weighted, levels[0]->D, levels[0]->D);CHKERRQ(ierr);
-                }
-                else {
-                    PetscScalar* b = new PetscScalar[ia[mbs] * bs * bs];
-                    for(PetscInt i = 0; i < mbs; ++i) {
-                        for(PetscInt j = ia[i]; j < ia[i + 1]; ++j) {
-                            const underlying_type<K> scal = _d[i * bs] * _d[ja[j] * bs];
-                            std::transform(v + j * bs * bs, v + (j + 1) * bs * bs, b + j * bs * bs, [&scal](PetscScalar x) { return x * scal; });
-                        }
-                    }
-                    ierr = MatCreate(PETSC_COMM_SELF, &weighted);CHKERRQ(ierr);
-                    ierr = MatSetBlockSize(weighted, bs);CHKERRQ(ierr);
-                    ierr = MatSetSizes(weighted, mbs * bs, mbs * bs, mbs * bs, mbs * bs);CHKERRQ(ierr);
-                    if(!type) {
-                        ierr = MatSetType(weighted, MATSEQAIJ);CHKERRQ(ierr);
-                        ierr = MatSeqAIJSetPreallocationCSR(weighted, ia, ja, b);CHKERRQ(ierr);
-                    }
-                    else if(type == 1) {
-                        ierr = MatSetType(weighted, MATSEQBAIJ);CHKERRQ(ierr);
-                        ierr = MatSeqBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
-                    }
-                    else {
-                        ierr = MatSetType(weighted, MATSEQSBAIJ);CHKERRQ(ierr);
-                        ierr = MatSeqSBAIJSetPreallocationCSR(weighted, bs, ia, ja, b);CHKERRQ(ierr);
-                    }
-                    PetscBool done;
-                    ierr = MatRestoreRowIJ(D, 0, PETSC_FALSE, !type ? PETSC_FALSE : PETSC_TRUE, nullptr, &ia, &ja, &done);CHKERRQ(ierr);
-                    v = nullptr;
-                    delete [] b;
-                }
-            }
-            else
-                weighted = rhs;
+#if HPDDM_SLEPC
+    public:
+        typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
+            PetscErrorCode ierr;
+
+            PetscFunctionBeginUser;
+            ierr = super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels);
+            PetscFunctionReturn(ierr);
+        }
+        PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
+            EPS                    eps;
+            ST                     st;
+            Mat                    local, *resized;
+            Vec                    vr, vreduced;
+            ISLocalToGlobalMapping l2g;
+            IS                     sub[1] = { };
+            PetscInt               nev, nconv = 0;
+            PetscBool              sym, ismatis, solve = PETSC_FALSE;
+            const char             *prefix;
+            PetscErrorCode         ierr;
+
+            PetscFunctionBeginUser;
+            for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
+                if(std::abs(_d[i]) > HPDDM_EPS)
+                    solve = PETSC_TRUE;
             ierr = KSPGetOptionsPrefix(levels[0]->ksp, &prefix);CHKERRQ(ierr);
             ierr = EPSCreate(PETSC_COMM_SELF, &eps);CHKERRQ(ierr);
             ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
+            ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
             if(!ismatis) {
                 ierr = EPSSetOperators(eps, N, weighted);CHKERRQ(ierr);
             }
@@ -1137,7 +1041,7 @@ class Schwarz : public Preconditioner<
             ierr = EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE);CHKERRQ(ierr);
             ierr = EPSGetST(eps, &st);CHKERRQ(ierr);
             ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
-            if(Neumann(levels[0]->parent) || ismatis) {
+            if(levels[0]->parent->Neumann || ismatis) {
                 ierr = STSetMatStructure(st, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
             }
             ierr = EPSSetInitialSpace(eps, initial.size(), initial.data());CHKERRQ(ierr);
@@ -1161,11 +1065,11 @@ class Schwarz : public Preconditioner<
                     PetscScalar eigr;
                     ierr = EPSGetEigenvalue(eps, i, &eigr, nullptr);CHKERRQ(ierr);
                     if(std::abs(eigr) > levels[0]->threshold) {
-                      ierr = PetscInfo1(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
+                        ierr = PetscInfo1(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
                         break;
                     }
                     else {
-                      ierr = PetscInfo1(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
+                        ierr = PetscInfo1(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
                     }
                     ++i;
                 }
@@ -1205,123 +1109,103 @@ class Schwarz : public Preconditioner<
                 ierr = MatDestroySubMatrices(1, &resized);CHKERRQ(ierr);
                 ierr = MatISRestoreLocalMat(N, &local);CHKERRQ(ierr);
             }
-            Schwarz<PetscScalar>* decomposition = this;
-            Mat A = D;
-            if(ismatis) {
-                P = N;
-                ierr = MatISGetLocalMat(P, &N);CHKERRQ(ierr);
-            }
+            PetscFunctionReturn(0);
+        }
+        static PetscErrorCode next(Mat* A, Mat* N, PetscInt i, PetscInt* const n, PC_HPDDM_Level** const levels) {
+            PetscErrorCode ierr;
+
+            PetscFunctionBeginUser;
 #if PETSC_VERSION_GE(3, 15, 0)
-            if(levels[0]->parent->log_separate) {
-                ierr = PetscLogEventEnd(PC_HPDDM_SetUp[0], levels[0]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            if(!levels[0]->parent->log_separate) {
+                ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
             }
 #endif
-            for(unsigned short i = 1; i < *n; ++i) {
-#if PETSC_VERSION_GE(3, 15, 0)
-                if(!levels[0]->parent->log_separate) {
-                    ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            char fail[2] { };
+            if(levels[i - 1]->P) {
+                ierr = levels[i - 1]->P->buildTwo(levels[i - 1]->P->getCommunicator(), *A, i - 1, *n, levels);
+                if(ierr != PETSC_ERR_ARG_WRONG && levels[i]->ksp) {
+                    Mat A;
+                    PetscInt rstart, rend;
+                    ierr = KSPGetOperators(levels[i]->ksp, &A, nullptr);CHKERRQ(ierr);
+                    ierr = MatGetOwnershipRange(A, &rstart, &rend);CHKERRQ(ierr);
+                    if(rstart == rend)
+                        fail[1] = 1;
                 }
-                else {
-                    ierr = PetscLogEventBegin(PC_HPDDM_SetUp[i], levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                }
-#endif
-                char fail[2] { };
-                if(decomposition) {
-                    ierr = decomposition->buildTwo(decomposition->getCommunicator(), A, i - 1, *n, levels);
-                    if(ierr != PETSC_ERR_ARG_WRONG && levels[i]->ksp) {
-                        Mat A;
-                        PetscInt rstart, rend;
-                        ierr = KSPGetOperators(levels[i]->ksp, &A, nullptr);CHKERRQ(ierr);
-                        ierr = MatGetOwnershipRange(A, &rstart, &rend);CHKERRQ(ierr);
-                        if(rstart == rend)
-                            fail[1] = 1;
-                    }
-                }
-                else
-                    ierr = PetscErrorCode(0);
-                fail[0] = (ierr == PETSC_ERR_ARG_WRONG ? 1 : 0);
-                MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
-                if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
-                    *n = i;
-                    if(i > 1) {
-                        ierr = MatDestroy(&N);CHKERRQ(ierr);
-                    }
-                }
-                else {
-                    CHKERRQ(ierr);
-                }
+            }
+            else
+                ierr = PetscErrorCode(0);
+            fail[0] = (ierr == PETSC_ERR_ARG_WRONG ? 1 : 0);
+            MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
+            if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
+                *n = i;
                 if(i > 1) {
-                    ierr = MatDestroy(&A);CHKERRQ(ierr);
+                    ierr = MatDestroy(N);CHKERRQ(ierr);
                 }
+            }
+            else {
+                CHKERRQ(ierr);
+            }
+            if(i > 1) {
+                ierr = MatDestroy(A);CHKERRQ(ierr);
+            }
+#if PETSC_VERSION_GE(3, 15, 0)
+            if(!levels[0]->parent->log_separate) {
+                ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+            }
+#endif
+            if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
+                *n = i + 1;
+                PetscFunctionReturn(0);
+            }
+            if(i + 1 < *n && levels[i - 1]->P) {
 #if PETSC_VERSION_GE(3, 15, 0)
                 if(!levels[0]->parent->log_separate) {
-                    ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
                 }
 #endif
-                if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
-#if PETSC_VERSION_GE(3, 15, 0)
-                    if(levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventEnd(PC_HPDDM_SetUp[i], levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    }
-#endif
-                    *n = i + 1;
-                    break;
+                CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
+                std::vector<K> overlap;
+                std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
+                std::map<std::pair<unsigned short, unsigned short>, unsigned short> sizes;
+                std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
+                MPI_Request rs = MPI_REQUEST_NULL;
+                coNeumann = new CoarseOperator<DMatrix, K>;
+                levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra);
+                if(i > 1) {
+                    ierr = MatDestroy(N);CHKERRQ(ierr);
                 }
-                if(i + 1 < *n && decomposition) {
+                if(overlap.size())
+                    MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);
 #if PETSC_VERSION_GE(3, 15, 0)
-                    if(!levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    }
-#endif
-                    CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
-                    std::vector<K> overlap;
-                    std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
-                    std::map<std::pair<unsigned short, unsigned short>, unsigned short> sizes;
-                    std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
-                    MPI_Request rs = MPI_REQUEST_NULL;
-                    coNeumann = new CoarseOperator<DMatrix, K>;
-                    super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(decomposition, decomposition->getCommunicator(), N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra);
-                    if(i > 1) {
-                        ierr = MatDestroy(&N);CHKERRQ(ierr);
-                    }
-                    if(overlap.size())
-                        MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);
-#if PETSC_VERSION_GE(3, 15, 0)
-                    if(!levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                        ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    }
-#endif
-                    ierr = decomposition->_co->buildThree(coNeumann, reduction, sizes, extra, &A, &N, levels[i]);CHKERRQ(ierr);
-                    delete coNeumann;
-                    if(i + 2 == *n) {
-                        ierr = MatDestroy(&N);CHKERRQ(ierr);
-                    }
-                    if(A)
-                        decomposition = decomposition->_co->getSubdomain()->P;
-                    else
-                        decomposition = nullptr;
-                    MPI_Wait(&rs, MPI_STATUS_IGNORE);
-#if PETSC_VERSION_GE(3, 15, 0)
-                    if(!levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    }
-#endif
+                if(!levels[0]->parent->log_separate) {
+                    ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
                 }
+#endif
+                ierr = levels[i - 1]->P->_co->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]);CHKERRQ(ierr);
+                delete coNeumann;
+                if(i + 2 == *n) {
+                    ierr = MatDestroy(N);CHKERRQ(ierr);
+                }
+                if(*A)
+                    levels[i]->P = levels[i - 1]->P->_co->getSubdomain()->P;
+                else
+                    levels[i]->P = nullptr;
+                MPI_Wait(&rs, MPI_STATUS_IGNORE);
 #if PETSC_VERSION_GE(3, 15, 0)
-                if(levels[0]->parent->log_separate) {
-                    ierr = PetscLogEventEnd(PC_HPDDM_SetUp[i], levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                if(!levels[0]->parent->log_separate) {
+                    ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
                 }
 #endif
             }
-            if(ismatis) {
-                ierr = MatDestroy(&P);CHKERRQ(ierr);
-            }
-            for(unsigned short i = 0; i < *n - 1; ++i)
-                if(levels[i]->P) {
-                    levels[i]->P->setBuffer();
-                    levels[i]->P->super::start();
-                }
+            PetscFunctionReturn(0);
+        }
+        PetscErrorCode initialize(IS is, Mat N, Mat weighted, Mat rhs, std::vector<Vec> initial, PC_HPDDM_Level** const levels) {
+            PetscErrorCode ierr;
+
+            PetscFunctionBeginUser;
+            ierr = solveGEVP(is, N, initial, levels, weighted, rhs);CHKERRQ(ierr);
+            ierr = PetscObjectComposeFunction((PetscObject)levels[0]->ksp, "PCHPDDMSetUp_Private_C", next);CHKERRQ(ierr);
             PetscFunctionReturn(0);
         }
 #endif
@@ -1381,10 +1265,9 @@ struct hpddm_method_id<Schwarz<
     K>> { static constexpr char value = 1; };
 } // HPDDM
 #if HPDDM_SLEPC
-PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar>* const P, IS const interior, IS is, Mat const D, Mat const N, std::vector<Vec> initial, PetscInt* const n, PC_HPDDM_Level** const levels) {
+PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar>* const P, IS is, Mat const N, Mat const weighted, Mat const rhs, std::vector<Vec> initial, PC_HPDDM_Level** const levels) {
     if(!P) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal called with no HPDDM object");
-    if(!n) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal called without a number of levels");
-    else return P->initialize(interior, is, D, N, initial, n, levels);
+    else return P->initialize(is, N, weighted, rhs, initial, levels);
 }
 #endif
 #endif // _HPDDM_SCHWARZ_
