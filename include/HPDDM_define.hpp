@@ -43,7 +43,7 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION                                   "2.0.8"
+#define HPDDM_VERSION                                   "2.1.0"
 #define HPDDM_EPS                                       1.0e-12
 #define HPDDM_PEN                                       1.0e+30
 #define HPDDM_GRANULARITY                               50000

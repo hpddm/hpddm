@@ -178,8 +178,11 @@ class Subdomain : public OptionsPrefix<K> {
                 space = 0;
                 for(unsigned short i = 0; i < size; ++i) {
                     MPI_Irecv(recv, _map[i].second.size(), MPI_UNSIGNED_CHAR, _map[i].first, 100, _communicator, rq + i);
-                    for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                        send[j] = (perm[_map[i].second[j]] > 0 ? 'a' : 'b');
+                    if(a->_n)
+                        for(unsigned int j = 0; j < _map[i].second.size(); ++j)
+                            send[j] = (perm[_map[i].second[j]] > 0 ? 'a' : 'b');
+                    else
+                        std::fill_n(send, _map[i].second.size(), 'b');
                     MPI_Isend(send, _map[i].second.size(), MPI_UNSIGNED_CHAR, _map[i].first, 100, _communicator, rq + size + i);
                     send += _map[i].second.size();
                     recv += _map[i].second.size();
