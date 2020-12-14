@@ -488,7 +488,7 @@ class Subdomain : public OptionsPrefix<K> {
                             *(first + i) = beginning++;
                 }
                 else {
-                    for(const std::pair<unsigned int, unsigned int>& p : r)
+                    for(const std::pair<const unsigned int, unsigned int>& p : r)
                         if(removed.find(p.second) == removed.cend())
                             *(first + p.second) = beginning++;
                 }
@@ -522,7 +522,7 @@ class Subdomain : public OptionsPrefix<K> {
                 }
                 else {
                     T j = (N == 'F');
-                    for(const std::pair<unsigned int, unsigned int>& p : r) {
+                    for(const std::pair<const unsigned int, unsigned int>& p : r) {
                         *(first + p.second) = j++;
                     }
                     end = r.size();
