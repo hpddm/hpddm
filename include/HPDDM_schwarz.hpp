@@ -920,7 +920,7 @@ class Schwarz : public Preconditioner<
                     std::unordered_set<PetscInt>* map = new std::unordered_set<PetscInt>[Subdomain<K>::_map.size()];
                     ierr = PetscObjectTypeCompare((PetscObject)D, MATSEQSBAIJ, &sym);CHKERRQ(ierr);
                     if(!sym) {
-                        for(const std::pair<PetscInt, std::unordered_set<PetscInt>>& p : boundary) {
+                        for(const std::pair<const PetscInt, std::unordered_set<PetscInt>>& p : boundary) {
                             PetscInt ncols;
                             const PetscInt *cols;
                             ierr = MatGetRow(D, p.first, &ncols, &cols, nullptr);CHKERRQ(ierr);

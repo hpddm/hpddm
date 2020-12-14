@@ -567,7 +567,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 delete [] D;
             }
             _recv.reserve(allocation.size());
-            for(const std::pair<unsigned short, unsigned int>& p : allocation) {
+            for(const std::pair<const unsigned short, unsigned int>& p : allocation) {
                 _recv.emplace_back(p.first, std::vector<int>());
                 _recv.back().second.reserve(p.second);
             }
@@ -1045,7 +1045,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                     recv[0].emplace_back(std::make_pair(new int[2 * in->_recv[j].second.size()], nullptr));
                     MPI_Irecv(recv[0].back().first, 2 * in->_recv[j].second.size(), MPI_INT, in->_recv[j].first, 322, in->_communicator, rqRecv + j);
                 }
-                for(const std::pair<unsigned short, std::vector<int>>& p : in->_send) {
+                for(const std::pair<const unsigned short, std::vector<int>>& p : in->_send) {
                     send.emplace_back(std::make_pair(new int[2 * p.second.size()](), nullptr));
                     std::vector<int> col;
                     std::vector<K> val;
@@ -1486,7 +1486,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                     displs.resize(_send.size() + 1);
                     off.resize(_recv.size());
                     s += 3 * _recv.size();
-                    for(const std::pair<unsigned short, std::vector<int>>& p : _send) {
+                    for(const std::pair<const unsigned short, std::vector<int>>& p : _send) {
 #if !HPDDM_PETSC
                         MPI_Irecv(s, 3, MPI_UNSIGNED, p.first, 13, _communicator, rq++);
 #else
@@ -1501,7 +1501,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #else
                         MPI_Irecv(ranges + 2 * (_send.size() + i), 2, MPI_UNSIGNED, _recv[i].first, 13, DMatrix::_communicator, rq++);
 #endif
-                    for(const std::pair<unsigned short, std::vector<int>>& p : _send)
+                    for(const std::pair<const unsigned short, std::vector<int>>& p : _send)
 #if !HPDDM_PETSC
                         MPI_Isend(_range, 2, MPI_UNSIGNED, p.first, 13, _communicator, rq++);
 #else
@@ -1562,7 +1562,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 std::vector<std::vector<int>> r(_recv.size() + (S == 'S' ? _send.size() : 0));
                 unsigned short j = 0;
                 if(S == 'S') {
-                    for(const std::pair<unsigned short, std::vector<int>>& p : _send) {
+                    for(const std::pair<const unsigned short, std::vector<int>>& p : _send) {
                         o.emplace_back(p.first);
                         r[j].resize((p.second.size() + displs[j + 1] - displs[j]) * _bs);
                         std::vector<int>::iterator it = r[j].begin();
