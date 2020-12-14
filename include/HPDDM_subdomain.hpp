@@ -643,20 +643,22 @@ class Subdomain : public OptionsPrefix<K> {
         template<bool V, class I, class T = K>
         static void distributedVec(const I* const num, I first, I last, T* const& in, T*& out, const I n, const unsigned short bs = 1) {
             if(first != 0 || last != n) {
-                if(!out) {
-                    unsigned int dof = 0;
-                    for(unsigned int i = 0; i < n; ++i) {
-                        if(num[i] >= first && num[i] < last)
-                            ++dof;
+                if(first != last) {
+                    if(!out) {
+                        unsigned int dof = 0;
+                        for(unsigned int i = 0; i < n; ++i) {
+                            if(num[i] >= first && num[i] < last)
+                                ++dof;
+                        }
+                        out = new T[dof];
                     }
-                    out = new T[dof];
-                }
-                for(unsigned int i = 0; i < n; ++i) {
-                    if(num[i] >= first && num[i] < last) {
-                        if(!V)
-                            std::copy_n(in + bs * i, bs, out + bs * (num[i] - first));
-                        else
-                            std::copy_n(out + bs * (num[i] - first), bs, in + bs * i);
+                    for(unsigned int i = 0; i < n; ++i) {
+                        if(num[i] >= first && num[i] < last) {
+                            if(!V)
+                                std::copy_n(in + bs * i, bs, out + bs * (num[i] - first));
+                            else
+                                std::copy_n(out + bs * (num[i] - first), bs, in + bs * i);
+                        }
                     }
                 }
             }
