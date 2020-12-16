@@ -45,6 +45,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
 #else
     const unsigned short p = opt["p"] = 1;
 #endif
+    ignore(v);
 #else
     unsigned short p = 0;
     {
@@ -1707,6 +1708,9 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
 #endif
                     (!blocked ? 1 : _local);
     }
+#if !HPDDM_INEXACT_COARSE_OPERATOR
+    ignore(rank);
+#endif
 }
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)

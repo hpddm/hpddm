@@ -114,6 +114,8 @@ class IterativeMethod {
                     std::cout << ")";
                 }
                 std::cout << std::endl;
+#else
+                ignore(j);
 #endif
             }
         }
@@ -173,6 +175,8 @@ class IterativeMethod {
                     std::cout << ")";
                 }
                 std::cout <<  std::endl;
+#else
+                ignore(i);
 #endif
             }
             return t * conv;

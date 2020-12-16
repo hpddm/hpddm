@@ -249,7 +249,7 @@ class OperatorBase : protected Members<P != 's' && P != 'u'> {
         template<char S, char N, bool U, char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
         void assembleOperator(int* I, int* J, int coefficients, unsigned int offsetI, unsigned int* offsetJ, unsigned short* const& infoNeighbor) {
 #ifdef HPDDM_CSR_CO
-            (void)I;
+            ignore(I);
 #endif
             if(Members<true>::_consolidate == _map.size()) {
                 unsigned short between = std::distance(_sparsity.cbegin(), std::lower_bound(_sparsity.cbegin(), _sparsity.cend(), _p.getRank()));
@@ -482,7 +482,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         template<char S, char N, bool U, class T>
         void applyFromNeighborMaster(const K* in, unsigned short index, T* I, T* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
 #ifdef HPDDM_CSR_CO
-            (void)I; (void)offsetI;
+            ignore(I, offsetI);
 #endif
             applyFromNeighbor<U>(in, index, S == 'B' && N == 'F' ? C : arrayC, infoNeighbor);
             unsigned int offset = (S == 'B' ? super::_map[index].first + (N == 'F') : (U ? super::_map[index].first * super::_local + (N == 'F') : *offsetJ));

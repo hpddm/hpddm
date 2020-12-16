@@ -303,7 +303,7 @@ class PetscSub {
             PetscFunctionReturn(0);
         }
         template<char N = HPDDM_NUMBERING>
-        PetscErrorCode numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+        PetscErrorCode numfact(MatrixCSR<K>* const& A, bool = false, K* const& = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
             KSP ksp;
             PC  pc;

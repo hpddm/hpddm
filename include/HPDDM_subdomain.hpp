@@ -467,7 +467,7 @@ class Subdomain : public OptionsPrefix<K> {
                 std::unordered_set<unsigned int> removed;
                 removed.reserve(local[rankWorld]);
                 for(unsigned short i = 0; i < _map.size(); ++i)
-                    for(const unsigned int& j : _map[i].second) {
+                    for(const int& j : _map[i].second) {
                         if(d && d[j] < HPDDM_EPS && removed.find(j) == removed.cend() && (!list || list[j] > 0)) {
                             --local[rankWorld];
                             removed.insert(j);
@@ -505,7 +505,7 @@ class Subdomain : public OptionsPrefix<K> {
                         int index;
                         MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
                         T* rbuff = reinterpret_cast<T*>(_buff[index]);
-                        for(const unsigned int& j : _map[index].second) {
+                        for(const int& j : _map[index].second) {
                             if(first[j] == std::numeric_limits<T>::max())
                                 first[j] = *rbuff;
                             ++rbuff;
