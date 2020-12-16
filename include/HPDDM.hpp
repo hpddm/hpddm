@@ -134,6 +134,8 @@ static constexpr int i__1 = 1;
 
 typedef std::pair<unsigned short, std::vector<int>>  pairNeighbor; // MPI_Comm_size < MAX_UNSIGNED_SHORT
 typedef std::vector<pairNeighbor>                  vectorNeighbor;
+template<class... T>
+inline void ignore(const T&...) { }
 # ifdef __GNUG__
 inline std::string demangle(const char* name) {
     int status;

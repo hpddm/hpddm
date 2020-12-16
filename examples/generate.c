@@ -87,7 +87,7 @@ void generate(int rankWorld, int sizeWorld, int* neighbors, int* o, int* sizes, 
         MPI_Get_processor_name(name, &length);
         srand((unsigned)time(NULL)+ rank * size + length);
         underlying_type* pt = (underlying_type*)*f;
-        for(int i = 0; i < mu * (sizeof(K) / sizeof(underlying_type)) * *ndof; ++i)
+        for(unsigned i = 0; i < mu * (sizeof(K) / sizeof(underlying_type)) * *ndof; ++i)
             pt[i] = (rand() % 10000) / 10000.0;
     }
     /*# Structures #*/

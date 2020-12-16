@@ -435,6 +435,8 @@ class Schwarz : public Preconditioner<
                 }
                 opt.setPrefix(std::string());
             }
+#else
+            ignore(A);
 #endif
             return ret;
         }
@@ -443,7 +445,7 @@ class Schwarz : public Preconditioner<
             bool allocate = Subdomain<K>::setBuffer();
             if(!excluded && Subdomain<K>::_a->_ia) {
                 const std::unordered_map<unsigned int, K> map = Subdomain<K>::boundaryConditions();
-                for(const std::pair<unsigned int, K>& p : map)
+                for(const std::pair<const unsigned int, K>& p : map)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         x[nu * Subdomain<K>::_dof + p.first] = b[nu * Subdomain<K>::_dof + p.first] / p.second;
             }
