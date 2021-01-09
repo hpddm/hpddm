@@ -193,8 +193,8 @@ class IterativeMethod {
         }
         template<char T, class K, class Operator>
         static void options(const Operator& A, K* const d, int* const i, unsigned short* const m, char* const id) {
-            const std::string prefix = A.prefix();
 #if !HPDDM_PETSC
+            const std::string prefix = A.prefix();
             const Option& opt = *Option::get();
             m[T == 1 || T == 5 ? 2 : (T == 0 || T == 3 || T == 4 || T == 6 ? 1 : 0)] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
             if(T == 7) {
@@ -229,6 +229,8 @@ class IterativeMethod {
                      << ", forcing the tolerance to " << 4 * std::numeric_limits<underlying_type<K>>::epsilon() << std::endl;
                 d[T == 1 || T == 5 || T == 6] = 4 * std::numeric_limits<underlying_type<K>>::epsilon();
             }
+#else
+            ignore(A, d, i, m, id);
 #endif
         }
         /* Function: allocate
@@ -889,8 +891,8 @@ class IterativeMethod {
         }
         template<class Operator>
         static void checkEnlargedMethod(const Operator& A, const unsigned short& k) {
-            const std::string prefix = A.prefix();
 #if !HPDDM_PETSC
+            const std::string prefix = A.prefix();
             Option& opt = *Option::get();
             if(k <= 1)
                 opt.remove(prefix + "enlarge_krylov_subspace");
@@ -902,6 +904,8 @@ class IterativeMethod {
                         std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
                 }
             }
+#else
+            ignore(A, k);
 #endif
         }
         template<bool excluded, class Operator, class K>

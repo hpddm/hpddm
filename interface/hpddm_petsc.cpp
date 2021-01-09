@@ -127,8 +127,8 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
         ierr = MatCreate(subcomm, &Y);CHKERRQ(ierr);
         ierr = MatSetSizes(Y, PETSC_DECIDE, PETSC_DECIDE, n, n);CHKERRQ(ierr);
       }
-      for(const Mat& m : { X, Y }) {
-        if(m == Y && !b)
+      for (const Mat& m : { X, Y }) {
+        if (m == Y && !b)
           continue;
         ierr = MatSetType(m, type);CHKERRQ(ierr);
         ierr = MatMPIAIJSetPreallocation(m, nrow, nullptr, n - nrow, nullptr);CHKERRQ(ierr);
@@ -137,7 +137,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
         ierr = MatSetOption(m, MAT_NO_OFF_PROC_ENTRIES, PETSC_TRUE);CHKERRQ(ierr);
         ierr = MatSetOption(m, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE);CHKERRQ(ierr);
       }
-      if (std::string(reinterpret_cast<PetscObject>(X)->type_name).compare(MATMPIDENSE) != 0) {
+      if (std::string(reinterpret_cast<PetscObject>(X)->type_name).find(MATDENSE) == std::string::npos) {
         ierr = MatGetOwnershipIS(X, &row, &col);CHKERRQ(ierr);
         ierr = ISGetLocalSize(row, &nrow);CHKERRQ(ierr);
         ierr = ISGetIndices(row, &ia);CHKERRQ(ierr);

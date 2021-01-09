@@ -39,7 +39,9 @@ struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
-#ifdef PETSCSUB
+#ifdef MU_SLEPC
+    SlepcInitialize(&argc, &argv, nullptr, nullptr);
+#elif defined(PETSCSUB)
     PetscInitialize(&argc, &argv, nullptr, nullptr);
 #endif
     /*# Init #*/
@@ -203,7 +205,9 @@ int main(int argc, char** argv) {
     delete MatNeumann;
     delete [] sol;
     delete [] f;
-#ifdef PETSCSUB
+#ifdef MU_SLEPC
+    SlepcFinalize();
+#elif defined(PETSCSUB)
     PetscFinalize();
 #endif
     MPI_Finalize();
