@@ -102,9 +102,9 @@ endif
 ifeq (${EIGENSOLVER}, ARPACK)
     LIBS += ${ARPACK_LIBS}
 endif
-ifeq (${EIGENSOLVER}, FEAST)
-    INCS += ${FEAST_INCS}
-    LIBS += ${FEAST_LIBS}
+ifeq (${EIGENSOLVER}, SLEPC)
+    INCS += ${SLEPC_INCS}
+    LIBS += ${SLEPC_LIBS}
 endif
 ifdef LIBXSMM_INCS
     ifdef LIBXSMM_LIBS

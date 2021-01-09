@@ -43,8 +43,6 @@
 #include "HPDDM_eigensolver.hpp"
 #ifdef MU_ARPACK
 # include "HPDDM_ARPACK.hpp"
-#elif defined(MU_FEAST)
-# include "HPDDM_FEAST.hpp"
 #endif
 
 #ifdef FORCE_SINGLE

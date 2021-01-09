@@ -637,6 +637,7 @@ class Schwarz : public Preconditioner<
 #ifndef PY_MAJOR_VERSION
             bool free = pattern ? pattern->sameSparsity(A) : Subdomain<K>::_a->sameSparsity(A);
 #else
+            ignore(pattern);
             constexpr bool free = false;
 #endif
             MatrixCSR<K>* rhs = nullptr;

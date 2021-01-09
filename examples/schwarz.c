@@ -21,14 +21,18 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef PETSCSUB
+#ifdef MU_SLEPC
+#include <slepc.h>
+#elif defined(PETSCSUB)
 #include <petsc.h>
 #endif
 #include "schwarz.h"
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
-#ifdef PETSCSUB
+#ifdef MU_SLEPC
+    SlepcInitialize(&argc, &argv, NULL, NULL);
+#elif defined(PETSCSUB)
     PetscInitialize(&argc, &argv, NULL, NULL);
 #endif
     /*# Init #*/
@@ -157,7 +161,9 @@ int main(int argc, char** argv) {
     HpddmMatrixCSRDestroy(MatNeumann);
     free(sol);
     free(f);
-#ifdef PETSCSUB
+#ifdef MU_SLEPC
+    SlepcFinalize();
+#elif defined(PETSCSUB)
     PetscFinalize();
 #endif
     MPI_Finalize();

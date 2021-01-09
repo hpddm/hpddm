@@ -277,6 +277,50 @@ class PETScOperator
         }
 };
 
+template<class K>
+inline PetscErrorCode convert(MatrixCSR<K>* const& A, Mat& P) {
+    PetscErrorCode ierr;
+    PetscFunctionBeginUser;
+    ierr = MatCreate(PETSC_COMM_SELF, &P);CHKERRQ(ierr);
+    ierr = MatSetSizes(P, A->_n, A->_m, A->_n, A->_m);CHKERRQ(ierr);
+    if(!A->_sym) {
+        ierr = MatSetType(P, MATSEQAIJ);CHKERRQ(ierr);
+        if(std::is_same<int, PetscInt>::value) {
+            ierr = MatSeqAIJSetPreallocationCSR(P, reinterpret_cast<PetscInt*>(A->_ia), reinterpret_cast<PetscInt*>(A->_ja), A->_a);CHKERRQ(ierr);
+        }
+        else {
+            PetscInt* I = new PetscInt[A->_n + 1];
+            PetscInt* J = new PetscInt[A->_nnz];
+            std::copy_n(A->_ia, A->_n + 1, I);
+            std::copy_n(A->_ja, A->_nnz, J);
+            ierr = MatSeqAIJSetPreallocationCSR(P, I, J, A->_a);CHKERRQ(ierr);
+            delete [] J;
+            delete [] I;
+        }
+    }
+    else {
+        PetscInt* I = new PetscInt[A->_n + 1];
+        PetscInt* J = new PetscInt[A->_nnz];
+        PetscScalar* C = new PetscScalar[A->_nnz];
+        static_assert(sizeof(int) <= sizeof(PetscInt), "Unsupported PetscInt type");
+        Wrapper<K>::template csrcsc<'C', 'C'>(&A->_n, A->_a, A->_ja, A->_ia, C, reinterpret_cast<int*>(J), reinterpret_cast<int*>(I));
+        ierr = MatSetType(P, MATSEQSBAIJ);CHKERRQ(ierr);
+        if(!std::is_same<int, PetscInt>::value) {
+            int* ia = reinterpret_cast<int*>(I);
+            int* ja = reinterpret_cast<int*>(J);
+            for(unsigned int i = A->_n + 1; i-- > 0; )
+                I[i] = ia[i];
+            for(unsigned int i = A->_nnz; i-- > 0; )
+                J[i] = ja[i];
+        }
+        ierr = MatSeqSBAIJSetPreallocationCSR(P, 1, I, J, C);CHKERRQ(ierr);
+        delete [] C;
+        delete [] J;
+        delete [] I;
+    }
+    PetscFunctionReturn(0);
+}
+
 #if defined(PETSCSUB)
 #undef HPDDM_CHECK_COARSEOPERATOR
 #define HPDDM_CHECK_SUBDOMAIN
@@ -307,49 +351,14 @@ class PetscSub {
             Mat P;
             PetscErrorCode ierr;
             const Option& opt = *Option::get();
+            PetscFunctionBeginUser;
             if(!_op) {
                 ierr = KSPCreate(PETSC_COMM_SELF, &ksp);CHKERRQ(ierr);
             }
             else
                 ksp = _op->_ksp;
             if(N == 'C') {
-                ierr = MatCreate(PETSC_COMM_SELF, &P);CHKERRQ(ierr);
-                ierr = MatSetSizes(P, A->_n, A->_m, A->_n, A->_m);CHKERRQ(ierr);
-                if(!A->_sym) {
-                    ierr = MatSetType(P, MATSEQAIJ);CHKERRQ(ierr);
-                    if(std::is_same<int, PetscInt>::value) {
-                        ierr = MatSeqAIJSetPreallocationCSR(P, reinterpret_cast<PetscInt*>(A->_ia), reinterpret_cast<PetscInt*>(A->_ja), A->_a);CHKERRQ(ierr);
-                    }
-                    else {
-                        PetscInt* I = new PetscInt[A->_n + 1];
-                        PetscInt* J = new PetscInt[A->_nnz];
-                        std::copy_n(A->_ia, A->_n + 1, I);
-                        std::copy_n(A->_ja, A->_nnz, J);
-                        ierr = MatSeqAIJSetPreallocationCSR(P, I, J, A->_a);CHKERRQ(ierr);
-                        delete [] J;
-                        delete [] I;
-                    }
-                }
-                else {
-                    PetscInt* I = new PetscInt[A->_n + 1];
-                    PetscInt* J = new PetscInt[A->_nnz];
-                    PetscScalar* C = new PetscScalar[A->_nnz];
-                    static_assert(sizeof(int) <= sizeof(PetscInt), "Unsupported PetscInt type");
-                    Wrapper<K>::template csrcsc<N, 'C'>(&A->_n, A->_a, A->_ja, A->_ia, C, reinterpret_cast<int*>(J), reinterpret_cast<int*>(I));
-                    ierr = MatSetType(P, MATSEQSBAIJ);CHKERRQ(ierr);
-                    if(!std::is_same<int, PetscInt>::value) {
-                        int* ia = reinterpret_cast<int*>(I);
-                        int* ja = reinterpret_cast<int*>(J);
-                        for(unsigned int i = A->_n + 1; i-- > 0; )
-                            I[i] = ia[i];
-                        for(unsigned int i = A->_nnz; i-- > 0; )
-                            J[i] = ja[i];
-                    }
-                    ierr = MatSeqSBAIJSetPreallocationCSR(P, 1, I, J, C);CHKERRQ(ierr);
-                    delete [] C;
-                    delete [] J;
-                    delete [] I;
-                }
+                ierr = convert(A, P);CHKERRQ(ierr);
             }
             else {
                 P = nullptr;

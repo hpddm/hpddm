@@ -328,8 +328,8 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 #     endif
 #     ifdef MU_ARPACK
 #      include "HPDDM_ARPACK.hpp"
-#     elif defined(MU_FEAST)
-#      include "HPDDM_FEAST.hpp"
+#     elif defined(MU_SLEPC)
+#      include "HPDDM_SLEPc.hpp"
 #     endif
 #    endif
 #   endif

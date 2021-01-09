@@ -1,4 +1,4 @@
-name: build
+name: CI
 on:
   push:
     branches: [ master ]
@@ -144,6 +144,11 @@ jobs:
           do
             unset HPDDMFLAGS
             unset EXTERNALPACKAGES
+            if [ "$PRECISION" = "double" ]; then
+              export EIGENSOLVER=SLEPC
+            else
+              unset EIGENSOLVER
+            fi
             if [ "$INDICES" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ]; then export EXTERNALPACKAGES="--download-triangle --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"; fi
             ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../hpddm --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INDICES} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}
             [ -z "`diff -rq ${PETSC_ARCH}/include ../hpddm/include | grep -v Only`" ] || exit 1
