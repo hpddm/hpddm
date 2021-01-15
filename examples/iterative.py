@@ -81,16 +81,19 @@ if hpddm.scalar == numpy.complex64 or hpddm.scalar == numpy.complex128:
 lu = scipy.sparse.linalg.spilu(csr.tocsc(), drop_tol = hpddm.optionApp(opt, b'drop_tol'), fill_factor = hpddm.optionApp(opt, b'fill_factor'))
 @hpddm.precondFunc
 def precond(y, x, n, m):
-    if m == 1:
-        x._shape_ = (n,)
-        y._shape_ = (n,)
-        x = numpy.ctypeslib.as_array(x, (n,))
-        y = numpy.ctypeslib.as_array(y, (n,))
+    if hpddm.scalar is not hpddm.underlying:
+        factor = 2
     else:
-        x._shape_ = (m, n)
-        y._shape_ = (m, n)
-        x = numpy.ctypeslib.as_array(x, (m, n)).transpose()
-        y = numpy.ctypeslib.as_array(y, (m, n)).transpose()
+        factor = 1
+    ptr = ctypes.cast(x, ctypes.POINTER(hpddm.underlying * factor * m * n))
+    x = numpy.frombuffer(ptr.contents)
+    ptr = ctypes.cast(y, ctypes.POINTER(hpddm.underlying * factor * m * n))
+    y = numpy.frombuffer(ptr.contents)
+    x = x.view(dtype = hpddm.scalar)
+    y = y.view(dtype = hpddm.scalar)
+    if m > 1:
+        x = numpy.reshape(x, (n, m), order = 'F')
+        y = numpy.reshape(y, (n, m), order = 'F')
     x[:] = lu.solve(y[:])
 
 it = hpddm.solve(Mat, precond, f, sol)
