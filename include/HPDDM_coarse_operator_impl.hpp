@@ -328,9 +328,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #else
     typedef PetscInt integer_type;
 #endif
-    integer_type* I;
-    integer_type* J;
-    K*   C;
+    integer_type* I = nullptr;
+    integer_type* J = nullptr;
+    K*            C = nullptr;
 
 #if !HPDDM_PETSC
     const Option& opt = *Option::get();
@@ -465,15 +465,15 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             std::copy_n(sparsity.cbegin(), info[0], info + (U != 1 ? 3 : 1));
         }
     }
-    unsigned short** infoSplit;
-    unsigned int*    offsetIdx;
+    unsigned short** infoSplit = nullptr;
+    unsigned int*    offsetIdx = nullptr;
     unsigned short*  infoWorld = nullptr;
 #if HPDDM_INEXACT_COARSE_OPERATOR
     unsigned short*  neighbors;
 #endif
 #ifdef HPDDM_CSR_CO
-    unsigned int nrow;
-    int* loc2glob;
+    unsigned int nrow = 0;
+    int* loc2glob = nullptr;
 #endif
     if(rankSplit) {
         MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, NULL, 0, MPI_DATATYPE_NULL, 0, _scatterComm);

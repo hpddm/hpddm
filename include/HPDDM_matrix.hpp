@@ -214,7 +214,7 @@ class MatrixCSR : public MatrixBase<K> {
                     MatrixBase<K>::_ia[0] = (HPDDM_NUMBERING == 'F');
                     std::fill_n(MatrixBase<K>::_ia + 1, MatrixBase<K>::_n, 0);
                     MatrixBase<K>::_nnz = 0;
-                    bool order;
+                    bool order = true;
                     while(std::getline(file, line)) {
                         if(!line.empty() && line[0] != '#' && line[0] != '%') {
                             if(MatrixBase<K>::_nnz == 0) {
