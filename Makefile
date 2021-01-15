@@ -33,7 +33,7 @@ $(shell mkdir -p ${TOP_DIR}/${LIB_DIR} > /dev/null)
 $(shell mkdir -p ${TOP_DIR}/${TRASH_DIR} > /dev/null)
 
 DEPFLAGS ?= -MT $@ -MMD -MP -MF ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td
-POSTCOMPILE = mv -f ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td ${TOP_DIR}/${TRASH_DIR}/$(subst lib,,$(notdir $(basename $@))).d || true
+POSTCOMPILE = mv -f ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).Td ${TOP_DIR}/${TRASH_DIR}/$(notdir $(basename $@)).d || true
 
 INCS += -I./include -I./interface
 
@@ -137,7 +137,7 @@ else
         override LDFLAGS += -Wl,-rpath,${TOP_DIR}/${LIB_DIR}
     endif
     ifeq (${UNAME_S}, Darwin)
-        MAKE_OS = OSX
+        MAKE_OS = macOS
         EXTENSION_LIB = dylib
     endif
 endif
@@ -148,7 +148,7 @@ endif
 
 LIST_COMPILATION ?= cpp c python fortran
 
-.PHONY: all cpp c python fortran clean test test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarzFromFile_cpp test_bin/driver force
+.PHONY: all cpp c python fortran clean test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarzFromFile_cpp test_bin/driver force
 
 .PRECIOUS: ${TOP_DIR}/${BIN_DIR}/%_cpp.o ${TOP_DIR}/${BIN_DIR}/%_c.o ${TOP_DIR}/${BIN_DIR}/%.o
 
@@ -259,7 +259,7 @@ benchmark/local_solver:
 	fi
 	@$@.py ${TOP_DIR}/${BIN_DIR}/local_solver ${MTX_FILE} ${BENCHMARKFLAGS}
 
-${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
+${TOP_DIR}/${LIB_DIR}/lib%.${EXTENSION_LIB}: interface/%.cpp ${TOP_DIR}/${TRASH_DIR}/lib%.d ${TOP_DIR}/${TRASH_DIR}/compiler_flags_cpp
 	@if [ "$<" = "interface/hpddm_python.cpp" ]; then \
 		echo ${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}; \
 		${MPICXX} ${DEPFLAGS} ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} ${PYTHON_INCS} -shared $< -o $@ ${LIBS} ${PYTHON_LIBS}; \
@@ -275,7 +275,7 @@ test: all $(addprefix test_, ${LIST_COMPILATION})
 
 test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_operator
 test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
-test_python: ${TOP_DIR}/${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} test_examples/schwarz.py
+test_python: python test_examples/schwarz.py
 test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator_fortran
 	cp examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}
 	cd ${TOP_DIR}/${BIN_DIR} && echo 100 2 | ${MPIRUN} 4 ./custom_operator_fortran && cd -
@@ -283,19 +283,19 @@ test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator_fortr
 test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -hpddm_dump_matrices=${TRASH_DIR}/output.txt -hpddm_version
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ] && [ -f ${TRASH_DIR}/output.txt ] && [ "$@" = "test_bin/schwarz_cpp" ]; then \
-		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity"; \
+		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
-		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres"; \
+		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -hpddm_krylov_method=bgmres"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
-		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4"; \
+		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
-		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6"; \
+		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
-		CMD="examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6 -hpddm_qr    cgs"; \
+		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6 -hpddm_qr    cgs"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
@@ -312,7 +312,7 @@ ifdef EIGENSOLVER
 	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20 -hpddm_dump_eigenvectors ${TRASH_DIR}/ev
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=4 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_matrices=${TRASH_DIR}/output -hpddm_level_2_push_prefix -hpddm_dump_matrix=${TRASH_DIR}/co -hpddm_assembly_hierarchy 2 -hpddm_pop_prefix
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
-		CMD="examples/solver.py ${TRASH_DIR}/output_1_4.txt"; \
+		CMD="${MPIRUN} 1 examples/solver.py ${TRASH_DIR}/output_1_4.txt"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
@@ -333,7 +333,7 @@ ifdef EIGENSOLVER
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_deflation_tol=1e-4 -hpddm_qr=cgs -hpddm_gmres_restart=25 -hpddm_orthogonalization=mgs
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr --hpddm_dump_matrices ${TRASH_DIR}/output -hpddm_gmres_restart=25
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
-		examples/solver.py ${TRASH_DIR}/output_2_4.txt; \
+		${MPIRUN} 1 examples/solver.py ${TRASH_DIR}/output_2_4.txt; \
 	fi
 endif
 
@@ -382,3 +382,4 @@ SOURCES = schwarz.cpp schwarzFromFile.cpp generate.cpp generateFromFile.cpp driv
 INTERFACES = hpddm_c.cpp hpddm_python.cpp hpddm_fortran.cpp
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(subst .,_,${SOURCES}))
 -include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/%.d,$(basename ${INTERFACES}))
+-include $(patsubst %,${TOP_DIR}/${TRASH_DIR}/lib%.d,$(basename ${INTERFACES}))

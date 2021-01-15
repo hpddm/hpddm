@@ -1,0 +1,33 @@
+CXXFLAGS = -Wall -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare
+CFLAGS   = -Wall -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare
+
+SOLVER ?= MUMPS
+SUBSOLVER ?= MUMPS
+EIGENSOLVER ?= ARPACK
+MPIF90 ?= mpif90.openmpi # -fprofile-arcs -ftest-coverage
+MPIRUN ?= mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0 -np
+
+override CXXFLAGS += -std=c++11 -O3 -fPIC
+override CFLAGS += -std=c99 -O3
+
+HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'
+
+INCS = 
+LIBS = 
+
+LIST_COMPILATION = c cpp fortran python
+
+MUMPS_INCS = -I/usr/include
+HYPRE_INCS = -I/usr/include/hypre
+PETSC_INCS = -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
+METIS_INCS = -I/usr/include
+PYTHON_INCS = -I/opt/hostedtoolcache/Python/3.9.1/x64/include/python3.9
+
+BLAS_LIBS = -L/usr/lib -lblas -llapack
+ARPACK_LIBS = -L/usr/lib -larpack
+SCALAPACK_LIBS = -L/usr/lib -lscalapack-openmpi
+MUMPS_LIBS = -L/usr/lib -lsmumps -ldmumps -lcmumps -lzmumps -lmumps_common -lpord -lmpi_mpifh
+HYPRE_LIBS = -L/usr/lib  -lHYPRE -lHYPRE_core
+PETSC_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc
+METIS_LIBS = -L/usr/lib  -lmetis
+PYTHON_LIBS = -L/opt/hostedtoolcache/Python/3.9.1/x64/lib -lpython3.9
