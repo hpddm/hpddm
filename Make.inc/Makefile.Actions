@@ -1,5 +1,5 @@
 CXXFLAGS = -Wall -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare
-CFLAGS   = -Wall -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare
+CFLAGS   = -Wall -Wpedantic -Werror -Wno-sign-compare
 
 SOLVER ?= MUMPS
 SUBSOLVER ?= MUMPS

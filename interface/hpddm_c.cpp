@@ -112,8 +112,10 @@ HpddmMatrixCSR* HpddmMatrixCSRCreate(int n, int m, int nnz, K* const a, int* con
     return reinterpret_cast<HpddmMatrixCSR*>(new HPDDM::MatrixCSR<cpp_type<K>>(n, m, nnz, reinterpret_cast<cpp_type<K>*>(a), ia, ja, sym, takeOwnership));
 }
 void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
-    reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a)->destroy(std::free);
-    delete reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
+    if(a) {
+        reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a)->destroy(std::free);
+        delete reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
+    }
 }
 void HpddmCSRMM(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
     HPDDM::MatrixCSR<cpp_type<K>>* A = reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
@@ -132,7 +134,9 @@ void HpddmSubdomainSolve(HpddmSubdomain* S, const K* const b, K* x, unsigned sho
     reinterpret_cast<SUBDOMAIN<cpp_type<K>>*>(S)->solve(reinterpret_cast<const cpp_type<K>*>(b), reinterpret_cast<cpp_type<K>*>(x), n);
 }
 void HpddmSubdomainDestroy(HpddmSubdomain* S) {
-    delete reinterpret_cast<SUBDOMAIN<cpp_type<K>>*>(S);
+    if(S) {
+        delete reinterpret_cast<SUBDOMAIN<cpp_type<K>>*>(S);
+    }
 }
 
 void HpddmInitializeCoarseOperator(HpddmPreconditioner* A, unsigned short nu) {
@@ -180,9 +184,11 @@ void HpddmSchwarzComputeResidual(HpddmSchwarz* A, const K* const sol, const K* c
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->computeResidual(reinterpret_cast<const cpp_type<K>*>(sol), reinterpret_cast<const cpp_type<K>*>(f), storage, mu);
 }
 void HpddmSchwarzDestroy(HpddmSchwarz* A) {
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyMatrix(std::free);
-    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyVectors(std::free);
-    delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A);
+    if(A) {
+        reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyMatrix(std::free);
+        reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyVectors(std::free);
+        delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A);
+    }
 }
 
 int HpddmSolve(HpddmSchwarz* A, const K* const b, K* const sol, int mu, const MPI_Comm* comm) {

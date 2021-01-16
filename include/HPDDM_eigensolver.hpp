@@ -59,9 +59,9 @@ class Eigensolver {
          *  Number of desired eigenvalues. */
         int                       _nu;
         explicit Eigensolver(int n)                                                      : _tol(), _threshold(), _n(n), _nu() { }
-        Eigensolver(int n, int nu)                                                       : _tol(Option::get()->val("eigensolver_tol", 1.0e-6)), _threshold(), _n(n), _nu(std::max(1, std::min(nu, n))) { }
-        Eigensolver(underlying_type<K> threshold, int n, int nu)                         : _tol(threshold > 0.0 ? HPDDM_EPS : Option::get()->val("eigensolver_tol", 1.0e-6)), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }
-        Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : _tol(threshold > 0.0 ? HPDDM_EPS : tol), _threshold(threshold), _n(n), _nu(std::max(1, std::min(nu, n))) { }
+        Eigensolver(int n, int nu)                                                       : _tol(Option::get()->val("eigensolver_tol", 1.0e-6)), _threshold(), _n(n), _nu(std::min(nu, n)) { }
+        Eigensolver(underlying_type<K> threshold, int n, int nu)                         : _tol(threshold > 0.0 ? HPDDM_EPS : Option::get()->val("eigensolver_tol", 1.0e-6)), _threshold(threshold), _n(n), _nu(std::min(nu, n)) { }
+        Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : _tol(threshold > 0.0 ? HPDDM_EPS : tol), _threshold(threshold), _n(n), _nu(std::min(nu, n)) { }
         std::string dump(const K* const eigenvalues, const K* const* const eigenvectors, const MPI_Comm& communicator, std::ios_base::openmode mode = std::ios_base::out) const {
             int rankWorld;
             MPI_Comm_rank(communicator, &rankWorld);
@@ -105,7 +105,7 @@ class Eigensolver {
         void selectNu(const T* const eigenvalues, K**& eigenvectors, const MPI_Comm& communicator, unsigned short m = 0) {
             static_assert(std::is_same<T, K>::value || std::is_same<T, underlying_type<K>>::value, "Wrong types");
             const Option& opt = *Option::get();
-            unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues + 1, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : std::numeric_limits<unsigned short>::max();
+            unsigned short nev = _nu ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues + 1, eigenvalues + _nu, _threshold, [](const T& lhs, const T& rhs) { return std::real(lhs) < std::real(rhs); }))), _nu) : (min ? std::numeric_limits<unsigned short>::max() : 0);
             switch(opt.val<char>("geneo_force_uniformity")) {
                 case HPDDM_GENEO_FORCE_UNIFORMITY_MIN:
                     if(!min)
@@ -128,15 +128,16 @@ class Eigensolver {
                         std::random_device rd;
                         std::default_random_engine generator(rd());
                         std::uniform_real_distribution<underlying_type<K>> uniform;
-                        if(eigenvectors) {
+                        if(eigenvectors && *eigenvectors) {
                             std::copy_n(*eigenvectors, _nu * _n, *basis);
                             std::pair<K*, K*> result = std::minmax_element(*eigenvectors, *eigenvectors + _nu * _n, [](const K& lhs, const K& rhs) { return std::real(lhs) < std::real(rhs); });
                             uniform = std::uniform_real_distribution<underlying_type<K>>(std::real(*(result.first)), std::real(*(result.second)));
                             delete [] *eigenvectors;
-                            delete []  eigenvectors;
                         }
                         else
                             uniform = std::uniform_real_distribution<underlying_type<K>>(0.0, 1.0);
+                        if(eigenvectors)
+                            delete [] eigenvectors;
                         std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { v = uniform(generator); });
                         if(Wrapper<K>::is_complex)
                             std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { imag(v, uniform(generator)); });
@@ -154,6 +155,12 @@ class Eigensolver {
                     break;
             }
             _nu = std::min(_nu, static_cast<int>(nev));
+            if(!_nu && *eigenvectors) {
+                delete [] *eigenvectors;
+                delete [] eigenvectors;
+                eigenvectors = new K*[1];
+                *eigenvectors = nullptr;
+            }
         }
         /* Function: getTol
          *  Returns the value of <Eigensolver::tol>. */

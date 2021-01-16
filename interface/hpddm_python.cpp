@@ -150,7 +150,7 @@ int matrixCSRnRows(void* Mat) {
     return reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat)->_n;
 }
 void matrixCSRDestroy(void** Mat) {
-    if(*Mat != NULL) {
+    if(*Mat) {
         delete reinterpret_cast<HPDDM::MatrixCSR<K>*>(*Mat);
         *Mat = NULL;
     }
@@ -173,7 +173,7 @@ void subdomainSolve(void* S, HPDDM::pod_type<K>* b, HPDDM::pod_type<K>* x, unsig
     reinterpret_cast<SUBDOMAIN<K>*>(S)->solve(reinterpret_cast<K*>(b), reinterpret_cast<K*>(x), n);
 }
 void subdomainDestroy(void** S) {
-    if(*S != NULL) {
+    if(*S) {
         delete reinterpret_cast<SUBDOMAIN<K>*>(*S);
         *S = NULL;
     }
@@ -241,7 +241,7 @@ void schwarzComputeResidual(void* A, HPDDM::pod_type<K>* sol, HPDDM::pod_type<K>
     reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(A)->computeResidual(reinterpret_cast<K*>(sol), reinterpret_cast<K*>(f), storage, mu);
 }
 void schwarzDestroy(void** schwarz) {
-    if(*schwarz != NULL) {
+    if(*schwarz) {
         delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K>*>(*schwarz);
         *schwarz = NULL;
     }

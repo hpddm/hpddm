@@ -105,8 +105,11 @@ int main(int argc, char** argv) {
             unsigned short nu = ref;
 #ifdef EIGENSOLVER
             if(nu > 0) {
-                if(opt.app().find("nonuniform") != opt.app().cend())
+                if(opt.app().find("nonuniform") != opt.app().cend()) {
                     ref += std::max(static_cast<int>(-ref + 1), HPDDM::pow(-1, rankWorld) * rankWorld);
+                    if(rankWorld == 4)
+                        ref = 0;
+                }
                 A.solveGEVP<EIGENSOLVER>(MatNeumann);
                 nu = opt[prefix + "geneo_nu"];
             }
@@ -197,9 +200,7 @@ int main(int argc, char** argv) {
         delete Mat;
     }
     delete [] d;
-
-    if(opt.set(prefix + "schwarz_coarse_correction") && opt[prefix + "geneo_nu"] > 0)
-        delete MatNeumann;
+    delete MatNeumann;
     delete [] sol;
     delete [] f;
 #ifdef PETSCSUB
