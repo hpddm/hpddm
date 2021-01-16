@@ -316,12 +316,20 @@ ifdef EIGENSOLVER
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -hpddm_level_2_distribution sol -hpddm_orthogonalization   mgs -hpddm_gmres_restart=25
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -hpddm_level_2_distribution sol -hpddm_orthogonalization   mgs -hpddm_gmres_restart=25 -hpddm_level_2_hypre_solver=amg
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -hpddm_gmres_restart=25
 	@if [ "$@" = "test_bin/schwarz_cpp" ]; then \
-		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_myPrefix_schwarz_coarse_correction deflated -hpddm_myPrefix_geneo_nu=10 -hpddm_myPrefix_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_myPrefix_level_2_p 2 -hpddm_myPrefix_gmres_restart=25 -hpddm_verbosity=2 -prefix=myPrefix_"; \
-		echo "$${CMD}";\
+		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_myPrefix_schwarz_coarse_correction deflated -hpddm_myPrefix_geneo_nu=10 -hpddm_myPrefix_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_myPrefix_level_2_p 2 -hpddm_myPrefix_gmres_restart=25 -hpddm_verbosity=2 -prefix=myPrefix_ -hpddm_myPrefix_level_2_hypre_solver=pcg"; \
+		echo "$${CMD}"; \
 		$${CMD} || exit; \
+		if [ "${SOLVER}" != "HYPRE" ]; then \
+			CMD="${MPIRUN} 5 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_myPrefix_schwarz_coarse_correction deflated -hpddm_myPrefix_geneo_nu=10 -hpddm_myPrefix_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_myPrefix_level_2_p 2 -hpddm_myPrefix_gmres_restart=25 -hpddm_verbosity=2 -prefix=myPrefix_ -hpddm_myPrefix_geneo_threshold 0.2 -hpddm_myPrefix_geneo_force_uniformity min"; \
+			echo "$${CMD}"; \
+			$${CMD} || exit; \
+			CMD="${MPIRUN} 5 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_myPrefix_schwarz_coarse_correction deflated -hpddm_myPrefix_geneo_nu=10 -hpddm_myPrefix_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_myPrefix_level_2_p 2 -hpddm_myPrefix_gmres_restart=25 -hpddm_verbosity=2 -prefix=myPrefix_ -hpddm_myPrefix_geneo_threshold 0.2 -hpddm_myPrefix_geneo_force_uniformity max"; \
+			echo "$${CMD}"; \
+			$${CMD} || exit; \
+		fi \
 	fi
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -generate_random_rhs 8 -hpddm_krylov_method=bgmres -hpddm_gmres_restart=10 -hpddm_deflation_tol=1e-4 -hpddm_gmres_restart=25
 	@if test ! $(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS}) && test ! $(findstring -DFORCE_SINGLE, ${HPDDMFLAGS}); then \
@@ -350,7 +358,7 @@ test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
 		for NP in 2 4; do \
 			for OVERLAP in 1 3; do \
 				CMD="${MPIRUN} $${NP} ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp -matrix_filename=${TOP_DIR}/${TRASH_DIR}/data/mini.mtx -hpddm_verbosity 2 -overlap $${OVERLAP}"; \
-				if [ "$$NP" = "4" ] && [ "$$OVERLAP" = "1" ]; then CMD="$${CMD} -rhs_filename=${TOP_DIR}/${TRASH_DIR}/data/ones.txt"; fi; \
+				if [ "$${NP}" = "4" ] && [ "$${OVERLAP}" = "1" ]; then CMD="$${CMD} -rhs_filename=${TOP_DIR}/${TRASH_DIR}/data/ones.txt"; fi; \
 				echo "$${CMD}"; \
 				$${CMD} || exit; \
 			done \

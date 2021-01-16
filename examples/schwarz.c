@@ -154,9 +154,7 @@ int main(int argc, char** argv) {
         HpddmMatrixCSRDestroy(Mat);
     }
     free(d);
-
-    if(HpddmOptionSet(opt, "schwarz_coarse_correction") && HpddmOptionVal(opt, "geneo_nu") > 0)
-        HpddmMatrixCSRDestroy(MatNeumann);
+    HpddmMatrixCSRDestroy(MatNeumann);
     free(sol);
     free(f);
 #ifdef PETSCSUB
