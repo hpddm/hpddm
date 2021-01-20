@@ -292,7 +292,7 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity -generate_random_rhs 4"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
-		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6"; \
+		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 4 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 		CMD="${MPIRUN} 1 examples/iterative.py -matrix_filename ${TRASH_DIR}/output.txt -hpddm_verbosity 1 -hpddm_krylov_method=bgmres -generate_random_rhs=4 -hpddm_gmres_restart 5 -hpddm_deflation_tol 1e-6 -hpddm_qr    cgs"; \

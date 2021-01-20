@@ -115,6 +115,7 @@ void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
     if(a) {
         reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a)->destroy(std::free);
         delete reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
+        a = nullptr;
     }
 }
 void HpddmCSRMM(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
@@ -136,6 +137,7 @@ void HpddmSubdomainSolve(HpddmSubdomain* S, const K* const b, K* x, unsigned sho
 void HpddmSubdomainDestroy(HpddmSubdomain* S) {
     if(S) {
         delete reinterpret_cast<SUBDOMAIN<cpp_type<K>>*>(S);
+        S = nullptr;
     }
 }
 
@@ -188,6 +190,7 @@ void HpddmSchwarzDestroy(HpddmSchwarz* A) {
         reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyMatrix(std::free);
         reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A)->destroyVectors(std::free);
         delete reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>>*>(A);
+        A = nullptr;
     }
 }
 
