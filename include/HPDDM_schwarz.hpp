@@ -1055,7 +1055,6 @@ class Schwarz : public Preconditioner<
             ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
             if(levels[0]->parent->share) {
                 KSP ksp;
-                PC pc;
                 if(!levels[0]->pc) {
                     ierr = PCCreate(PETSC_COMM_SELF, &levels[0]->pc);CHKERRQ(ierr);
                     ierr = PCSetOptionsPrefix(levels[0]->pc, prefix);CHKERRQ(ierr);
