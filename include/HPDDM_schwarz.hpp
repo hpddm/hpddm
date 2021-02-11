@@ -353,7 +353,7 @@ class Schwarz : public Preconditioner<
          *  Computes the first part of a coarse correction asynchronously.
          *
          * Template parameter:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
          *    in             - Input vector.
@@ -376,7 +376,7 @@ class Schwarz : public Preconditioner<
          *  Assembles and factorizes the coarse operator by calling <Preconditioner::buildTwo>.
          *
          * Template Parameter:
-         *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
+         *    excluded       - Greater than 0 if the main processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
          * Parameter:
          *    comm           - Global MPI communicator.
@@ -465,7 +465,7 @@ class Schwarz : public Preconditioner<
          *  Applies the global Schwarz preconditioner.
          *
          * Template Parameter:
-         *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
+         *    excluded       - Greater than 0 if the main processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
          * Parameters:
          *    in             - Input vectors, modified internally if no workspace array is specified!
@@ -1237,7 +1237,7 @@ class Schwarz : public Preconditioner<
          *  Computes a coarse correction.
          *
          * Template parameter:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
          *    in             - Input vectors.

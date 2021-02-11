@@ -268,7 +268,7 @@ class Subdomain : public OptionsPrefix<K> {
         }
         void end(const bool free = true) const { clearBuffer(free); }
         /* Function: initialize(dummy)
-         *  Dummy function for masters excluded from the domain decomposition. */
+         *  Dummy function for main processes excluded from the domain decomposition. */
         void initialize(MPI_Comm* const& comm = nullptr) {
             if(comm)
                 _communicator = *comm;
@@ -677,9 +677,9 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
     int size;
     if(excluded) {
         MPI_Comm_size(comm, &size);
-        int master;
-        MPI_Comm_size(A.getCommunicator(), &master);
-        size -= master;
+        int main;
+        MPI_Comm_size(A.getCommunicator(), &main);
+        size -= main;
     }
     else
         MPI_Comm_size(A.getCommunicator(), &size);

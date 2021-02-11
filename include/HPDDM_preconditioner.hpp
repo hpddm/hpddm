@@ -96,7 +96,7 @@ class Preconditioner : public Subdomain<K> {
          *  Assembles and factorizes the coarse operator.
          *
          * Template Parameter:
-         *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
+         *    excluded       - Greater than 0 if the main processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
          * Parameters:
          *    A              - Operator used in the definition of the Galerkin matrix.
