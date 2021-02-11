@@ -470,7 +470,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
             Wrapper<K>::diag(super::_n, D_, _work, work, super::_local);
         }
         template<char S, bool U>
-        void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void assembleForMain(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<U>(in, index, arrayC, infoNeighbor);
             if(S != 'B')
                 for(unsigned short j = 0; j < (U ? super::_local : *infoNeighbor); ++j) {
@@ -480,7 +480,7 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
                 }
         }
         template<char S, char N, bool U, class T>
-        void applyFromNeighborMaster(const K* in, unsigned short index, T* I, T* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void applyFromNeighborMain(const K* in, unsigned short index, T* I, T* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
 #ifdef HPDDM_CSR_CO
             ignore(I, offsetI);
 #endif
@@ -524,7 +524,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
         MatrixAccumulation(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Mat A, PC_HPDDM_Level* level, std::string& prefix, First&, Second& arg2, Third& arg3, Fourth& arg4, Fifth& arg5, Rest&... args) : super(p, c, max, A, level, prefix, args...), _overlap(arg2), _reduction(arg3), _sizes(arg4), _extra(arg5) { static_assert(std::is_same<typename std::remove_pointer<First>::type, typename Preconditioner::super::co_type>::value, "Wrong constructor"); }
 #endif
         static constexpr bool _factorize = false;
-        int getMaster(const int rank) const {
+        int getMain(const int rank) const {
             int* it = std::lower_bound(_ldistribution, _ldistribution + _size, rank);
             if(it == _ldistribution + _size)
                 return _size - 1;
@@ -546,11 +546,11 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 pattern[rank * size + super::_map[i].first] = 1;
             MPI_Allreduce(MPI_IN_PLACE, pattern, size * size, MPI_CHAR, MPI_SUM, super::_p.getCommunicator());
             if(split) {
-                int self = getMaster(rank);
+                int self = getMain(rank);
                 _reduction.resize(sizeSplit);
                 for(unsigned short i = 0; i < sizeSplit; ++i) {
                     for(unsigned short j = 0; j < split[i][0]; ++j) {
-                        if(getMaster(split[i][(U != 1 ? 3 : 1) + j]) != self) {
+                        if(getMain(split[i][(U != 1 ? 3 : 1) + j]) != self) {
                             _sizes[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + j])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + j]] : super::_local);
                             _reduction[i].emplace_back(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + j]);
                             if(S == 'S' && split[i][(U != 1 ? 3 : 1) + j] < rank + i) {
@@ -564,7 +564,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                                 std::get<2>(it->second).emplace_back(split[i][(U != 1 ? 3 : 1) + j]);
                             }
                             for(unsigned short k = j + 1; k < split[i][0]; ++k) {
-                                if(pattern[split[i][(U != 1 ? 3 : 1) + j] * size + split[i][(U != 1 ? 3 : 1) + k]] && getMaster(split[i][(U != 1 ? 3 : 1) + k]) != self) {
+                                if(pattern[split[i][(U != 1 ? 3 : 1) + j] * size + split[i][(U != 1 ? 3 : 1) + k]] && getMain(split[i][(U != 1 ? 3 : 1) + k]) != self) {
                                     _sizes[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + k])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + k]] : super::_local);
                                     if(S != 'S')
                                         _sizes[std::make_pair(split[i][(U != 1 ? 3 : 1) + k], split[i][(U != 1 ? 3 : 1) + j])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + j]] : super::_local);
@@ -608,13 +608,13 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
         template<char S, bool U, class T>
         void applyToNeighbor(T& in, K*& work, MPI_Request*& rs, const unsigned short* info, T = nullptr, MPI_Request* = nullptr) {
             std::pair<int, int>** block = nullptr;
-            std::vector<unsigned short> masters, interior, overlap, extraSend, extraRecv;
+            std::vector<unsigned short> worker, interior, overlap, extraSend, extraRecv;
             int rank;
             MPI_Comm_rank(super::_p.getCommunicator(), &rank);
-            const unsigned short master = getMaster(rank);
-            masters.reserve(super::_map.size());
+            const unsigned short main = getMain(rank);
+            worker.reserve(super::_map.size());
             for(unsigned short i = 0; i < super::_map.size(); ++i)
-                masters.emplace_back(getMaster(super::_map[i].first));
+                worker.emplace_back(getMain(super::_map[i].first));
             if(super::_map.size()) {
                 block = new std::pair<int, int>*[super::_map.size()];
                 *block = new std::pair<int, int>[super::_map.size() * super::_map.size()]();
@@ -645,13 +645,13 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             }
             int m = 0;
             for(unsigned short i = 0; i < super::_map.size(); ++i) {
-                if(masters[i] != master) {
+                if(worker[i] != main) {
                     overlap.emplace_back(i);
                     block[i][i] = std::make_pair(U == 1 ? super::_local : info[i], U == 1 ? super::_local : info[i]);
                     if(block[i][i].first != 0)
                         m += (U == 1 ? super::_local * super::_local : info[i] * info[i]);
                     for(unsigned short j = (S != 'S' ? 0 : i + 1); j < super::_map.size(); ++j) {
-                        if(i != j && masters[j] != master && std::binary_search(accumulate[j].cbegin(), accumulate[j].cend(), super::_map[i].first)) {
+                        if(i != j && worker[j] != main && std::binary_search(accumulate[j].cbegin(), accumulate[j].cend(), super::_map[i].first)) {
                             block[i][j] = std::make_pair(U == 1 ? super::_local : info[i], U == 1 ? super::_local : info[j]);
                             if(block[i][j].first != 0 && block[i][j].second != 0)
                                 m += (U == 1 ? super::_local * super::_local : info[i] * info[j]);
@@ -666,12 +666,12 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             for(unsigned short i = 0; i < overlap.size(); ++i) {
                 unsigned short size = 0;
                 for(unsigned short j = 0; j < accumulate[overlap[i]].size(); ++j) {
-                    if(getMaster(accumulate[overlap[i]][j]) == masters[overlap[i]]) {
+                    if(getMain(accumulate[overlap[i]][j]) == worker[overlap[i]]) {
                         unsigned short* pt = std::lower_bound(neighbors, neighbors + super::_map.size(), accumulate[overlap[i]][j]);
                         if(pt != neighbors + super::_map.size() && *pt == accumulate[overlap[i]][j])
                             accumulate[overlap[i]][size++] = std::distance(neighbors, pt);
                     }
-                    if(S == 'S' && getMaster(accumulate[overlap[i]][j]) == master) {
+                    if(S == 'S' && getMain(accumulate[overlap[i]][j]) == main) {
                         unsigned short* pt = std::lower_bound(neighbors, neighbors + super::_map.size(), accumulate[overlap[i]][j]);
                         if(pt != neighbors + super::_map.size() && *pt == accumulate[overlap[i]][j])
                             accumulate[super::_map.size() + overlap[i]].emplace_back(std::distance(neighbors, pt));
@@ -1221,7 +1221,7 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
                 delete [] infoNeighbor;
         }
         template<char S, bool U>
-        void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void assembleForMain(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             if(++super::_consolidate == super::_map.size()) {
                 if(S != 'S')
@@ -1234,8 +1234,8 @@ class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' 
             }
         }
         template<char S, char N, bool U>
-        void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
-            assembleForMaster<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
+        void applyFromNeighborMain(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+            assembleForMain<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
             super::template assembleOperator<S, N, U>(I, J, coefficients, offsetI, offsetJ, infoNeighbor);
         }
 };
@@ -1401,7 +1401,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 delete [] infoNeighbor;
         }
         template<char S, bool U>
-        void assembleForMaster(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+        void assembleForMain(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
             applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
             if(++super::_consolidate == super::_map.size()) {
                 const underlying_type<K>* const m = super::_p.getScaling();
@@ -1417,8 +1417,8 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             }
         }
         template<char S, char N, bool U>
-        void applyFromNeighborMaster(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
-            assembleForMaster<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
+        void applyFromNeighborMain(const K* in, unsigned short index, int* I, int* J, K* C, int coefficients, unsigned int offsetI, unsigned int* offsetJ, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
+            assembleForMain<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
             super::template assembleOperator<S, N, U>(I, J, coefficients, offsetI, offsetJ, infoNeighbor);
         }
 };

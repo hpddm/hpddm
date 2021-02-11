@@ -110,7 +110,7 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
          * Template Parameters:
          *    U              - True if the distribution of the coarse operator is uniform, false otherwise.
          *    D              - <DMatrix::Distribution> of right-hand sides and solution vectors.
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise. */
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise. */
         template<bool U, typename DMatrix::Distribution D, bool excluded>
         void constructionCollective(const unsigned short* = nullptr, unsigned short = 0, const unsigned short* = nullptr);
         /* Function: constructionMap
@@ -120,7 +120,7 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
          * Template Parameters:
          *    T              - Coarse operator distribution topology.
          *    U              - True if the distribution of the coarse operator is uniform, false otherwise.
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise. */
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise. */
         template<char T, bool U, bool excluded>
         void constructionMap(unsigned short, const unsigned short* = nullptr);
         /* Function: constructionMatrix
@@ -130,7 +130,7 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
          * Template Parameters:
          *    T              - Coarse operator distribution topology.
          *    U              - True if the distribution of the coarse operator is uniform, false otherwise.
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    Operator       - Operator used in the definition of the Galerkin matrix. */
         template<char T, unsigned short U, unsigned short excluded, class Operator>
         return_type constructionMatrix(typename std::enable_if<Operator::_pattern != 'u', Operator>::type&);
@@ -143,8 +143,8 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
          *  Builds both communicators <Coarse operator::gatherComm> and <DMatrix::scatterComm> needed for coarse corrections.
          *
          * Template Parameter:
-         *    countMasters   - True if the master processes must be taken into consideration, false otherwise. */
-        template<bool countMasters>
+         *    count          - True if the main processes must be taken into consideration, false otherwise. */
+        template<bool count>
         void constructionCommunicatorCollective(const unsigned short* const pt, unsigned short size, MPI_Comm& in, MPI_Comm* const out = nullptr) {
             unsigned short sizeComm = std::count_if(pt, pt + size, [](const unsigned short& nu) { return nu != 0; });
             if(sizeComm != size && in != MPI_COMM_NULL) {
@@ -157,7 +157,7 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
                 for(unsigned short i = 1, j = 1, k = 0; j < sizeComm; ++i) {
                     if(pt[i] != 0)
                         array[j++] = i - k;
-                    else if(countMasters && super::_ldistribution[k + 1] == i)
+                    else if(count && super::_ldistribution[k + 1] == i)
                         ++k;
                 }
                 MPI_Group_incl(oldComm, sizeComm, array, &newComm);

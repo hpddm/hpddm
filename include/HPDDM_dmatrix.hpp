@@ -43,14 +43,14 @@ class DMatrix {
         };
         /* Function: splitCommunicator
          *
-         *  If requested, splits a communicator into one made of master processes and another one made of slave processes.
+         *  If requested, splits a communicator into one made of main processes and another one made of helper processes.
          *
          * Parameters:
          *    in             - Original communicator.
          *    out            - Output communicator which may be left untouched.
-         *    exclude        - True if the master processes have to be excluded from the original communicator.
-         *    p              - Number of master processes.
-         *    T              - Master processes distribution topology. */
+         *    exclude        - True if the main processes have to be excluded from the original communicator.
+         *    p              - Number of main processes.
+         *    T              - Main processes distribution topology. */
         static bool splitCommunicator(const MPI_Comm& in, MPI_Comm& out, const bool& exclude, unsigned short& p, const unsigned short& T) {
             int size, rank;
             MPI_Comm_size(in, &size);
@@ -58,7 +58,7 @@ class DMatrix {
             if(p > size / 2 && size > 1) {
                 p = size / 2;
                 if(rank == 0)
-                    std::cout << "WARNING -- the number of master processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
+                    std::cout << "WARNING -- the number of main processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
             }
             else if(p < 1)
                 p = 1;
@@ -139,7 +139,7 @@ class DMatrix {
          *  Size of the coarse operator. */
         int                               _n;
         /* Variable: rank
-         *  Rank of the current master process in <Coarse operator::communicator>. */
+         *  Rank of the current main process in <Coarse operator::communicator>. */
         int                            _rank;
 #ifdef DMUMPS
         /* Variable: distribution

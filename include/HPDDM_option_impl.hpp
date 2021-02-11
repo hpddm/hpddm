@@ -130,7 +130,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #endif
         std::forward_as_tuple("", "", Arg::anything),
 #if !defined(DSUITESPARSE) && !defined(DLAPACK)
-        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "p=<1>", "Number of master processes", Arg::positive),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "p=<1>", "Number of main processes", Arg::positive),
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "distribution=(centralized|sol)", "Distribution of coarse right-hand sides and solution vectors", Arg::argument),
 #endif
@@ -138,14 +138,14 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #if !defined(HPDDM_CONTIGUOUS)
             std::string("1|") +
 #endif
-            std::string("2)"), "Distribution of the master processes", Arg::integer),
+            std::string("2)"), "Distribution of the main processes", Arg::integer),
 #endif
         std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "assembly_hierarchy=<val>", "Hierarchy used for the assembly of the coarse operator", Arg::positive),
 #if HPDDM_INEXACT_COARSE_OPERATOR
-        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "aggregate_size=<val>", "Number of master processes per MPI sub-communicators", Arg::positive),
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "aggregate_size=<val>", "Number of main processes per MPI sub-communicators", Arg::positive),
 #endif
         std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "dump_matrix=<output_file>", "Save the coarse operator to disk", Arg::argument),
-        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "exclude=(0|1)", "Exclude the master processes from the domain decomposition", Arg::argument)
+        std::forward_as_tuple(std::string(HPDDM_REGEX_LEVEL) + "exclude=(0|1)", "Exclude the main processes from the domain decomposition", Arg::argument)
 #endif
     };
 

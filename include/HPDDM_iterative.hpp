@@ -262,7 +262,7 @@ class IterativeMethod {
          *  Updates a solution vector after convergence of <Iterative method::GMRES>.
          *
          * Template Parameters:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    K              - Scalar type.
          *
          * Parameters:
@@ -500,7 +500,7 @@ class IterativeMethod {
          *  Orthogonalizes a block of vectors against a contiguous set of block of vectors.
          *
          * Template Parameters:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    K              - Scalar type.
          *
          * Parameters:
@@ -1009,7 +1009,7 @@ class IterativeMethod {
          *  Implements the GMRES.
          *
          * Template Parameters:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    K              - Scalar type.
          *
          * Parameters:
@@ -1031,7 +1031,7 @@ class IterativeMethod {
          *  Implements the CG method.
          *
          * Template Parameters:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    K              - Scalar type.
          *
          * Parameters:
@@ -1079,7 +1079,7 @@ class IterativeMethod {
          *  Implements the projected CG method.
          *
          * Template Parameters:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    K              - Scalar type.
          *
          * Parameters:

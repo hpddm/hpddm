@@ -101,7 +101,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Projected Conjugate Gradient initialization.
          *
          * Template Parameter:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
          *    f              - Right-hand side.
@@ -223,7 +223,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Projects into the coarse space.
          *
          * Template Parameters:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    trans          - 'T' if the transposed projection should be applied, 'N' otherwise.
          *
          * Parameters:
@@ -277,7 +277,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Assembles and factorizes the coarse operator by calling <Preconditioner::buildTwo>.
          *
          * Template Parameter:
-         *    excluded       - Greater than 0 if the master processes are excluded from the domain decomposition, equal to 0 otherwise.
+         *    excluded       - Greater than 0 if the main processes are excluded from the domain decomposition, equal to 0 otherwise.
          *
          * Parameter:
          *    comm           - Global MPI communicator.
@@ -292,7 +292,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Computes the solution after convergence of the Projected Conjugate Gradient.
          *
          * Template Parameter:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
          *    f              - Right-hand side.
@@ -318,7 +318,7 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Computes the dot product of two vectors.
          *
          * Template Parameter:
-         *    excluded       - True if the master processes are excluded from the domain decomposition, false otherwise.
+         *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *
          * Parameters:
          *    a              - Left-hand side.

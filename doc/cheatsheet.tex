@@ -90,13 +90,13 @@ When using multilevel methods, there are additional options, that are all prefix
 \begin{center}
     \begin{longtable}{| >{\tt}p{.305\textwidth} | p{.4\textwidth}| p{.12\textwidth}| >{\tt}p{.095\textwidth} | @{}m{0pt}@{}} \hline
         \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \normalfont{\emph{Default}} & \\ \hline
-        level\_([2-9]|[1-9]\textbackslash{}d+)\_p & Number of master processes & Integer & $1$ & \\ \hline
+        level\_([2-9]|[1-9]\textbackslash{}d+)\_p & Number of main processes & Integer & $1$ & \\ \hline
         \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_distribution & Distribution of coarse right-hand sides and solution vectors & \texttt{centralized}, \texttt{sol} & cen\-tra\-li\-zed & \\ \hline
-        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_topology & Distribution of the master processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_topology & Distribution of the main processes & \texttt{0}, \texttt{1}, \texttt{2} & 0 & \\ \hline
         \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_assembly\_hierarchy & Hierarchy used for the assembly of the coarse operator & Integer & & \\ \hline
-        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_aggregate\_size & Number of master processes per MPI sub-communicators & Integer & \texttt{p} & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_aggregate\_size & Number of main processes per MPI sub-communicators & Integer & \texttt{p} & \\ \hline
         level\_([2-9]|[1-9]\textbackslash{}d+)\_dump\_matrix & Save the coarse operator to disk & String & & \\ \hline
-        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_exclude & Exclude the master processes from the domain decomposition & Boolean & & \\ \hline
+        \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_exclude & Exclude the main processes from the domain decomposition & Boolean & & \\ \hline
     \end{longtable}
 \vspace*{\parspace}
 \end{center}
