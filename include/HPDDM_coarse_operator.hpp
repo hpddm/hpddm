@@ -34,7 +34,7 @@
 #endif
 
 #if HPDDM_INEXACT_COARSE_OPERATOR
-# if !defined(DMKL_PARDISO) && !defined(DMUMPS) && !defined(HPDDM_PETSC)
+# if !defined(DMKL_PARDISO) && !defined(DMUMPS) && !HPDDM_PETSC
 #  undef HPDDM_INEXACT_COARSE_OPERATOR
 #  define HPDDM_INEXACT_COARSE_OPERATOR 0
 #  pragma message("Inexact coarse operators require either: PARDISO or MUMPS as a distributed direct solver, or compilation with HPDDM_PETSC")
