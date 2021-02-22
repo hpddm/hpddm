@@ -504,7 +504,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
         if(converged)
             break;
     }
-#if !defined(HPDDM_PETSC)
+#if !HPDDM_PETSC
     if(HPDDM_IT(j, A) != 0 && HPDDM_IT(j, A) != HPDDM_MAX_IT(m[1], A) + 1 && id[4] / 4)
         (*Option::get())[A.prefix("recycle_same_system")] += 1;
     convergence<4>(id[0], HPDDM_IT(j, A), HPDDM_MAX_IT(m[1], A));
