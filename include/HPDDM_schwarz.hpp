@@ -994,6 +994,7 @@ class Schwarz : public Preconditioner<
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
             ST                     st;
+            PC                     empty;
             Mat                    local, *resized;
             Vec                    vr, vreduced;
             ISLocalToGlobalMapping l2g;
@@ -1052,6 +1053,19 @@ class Schwarz : public Preconditioner<
             std::vector<Vec>().swap(initial);
             ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
             ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
+            if(levels[0]->parent->share) {
+                KSP ksp;
+                if(!levels[0]->pc) {
+                    ierr = PCCreate(PETSC_COMM_SELF, &levels[0]->pc);CHKERRQ(ierr);
+                    ierr = PCSetOptionsPrefix(levels[0]->pc, prefix);CHKERRQ(ierr);
+                    ierr = PCAppendOptionsPrefix(levels[0]->pc, "sub_");CHKERRQ(ierr);
+                    ierr = PCSetFromOptions(levels[0]->pc);CHKERRQ(ierr);
+                }
+                ierr = STGetKSP(st, &ksp);CHKERRQ(ierr);
+                ierr = KSPGetPC(ksp, &empty);CHKERRQ(ierr);
+                ierr = PetscObjectReference((PetscObject)empty);CHKERRQ(ierr);
+                ierr = KSPSetPC(ksp, levels[0]->pc);CHKERRQ(ierr);
+            }
             if(solve) {
                 MatStructure str;
                 ierr = STGetMatStructure(st, &str);CHKERRQ(ierr);
@@ -1100,6 +1114,12 @@ class Schwarz : public Preconditioner<
                 ierr = VecResetArray(vr);CHKERRQ(ierr);
             }
             ierr = VecDestroy(&vr);CHKERRQ(ierr);
+            if(levels[0]->parent->share) {
+                KSP ksp;
+                ierr = STGetKSP(st, &ksp);CHKERRQ(ierr);
+                ierr = KSPSetPC(ksp, empty);CHKERRQ(ierr);
+                ierr = PetscObjectDereference((PetscObject)empty);CHKERRQ(ierr);
+            }
             ierr = EPSDestroy(&eps);CHKERRQ(ierr);
             if(!ismatis) {
                 if(!rhs) {

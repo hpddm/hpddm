@@ -1211,7 +1211,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
         if(Operator::_factorize) {
             PetscErrorCode ierr;
-            Mat E;
+            Mat E, A;
             ierr = MatCreate(DMatrix::_communicator, &E);CHKERRQ(ierr);
             ierr = MatSetOptionsPrefix(E, v._prefix.c_str());CHKERRQ(ierr);
             ierr = MatSetFromOptions(E);CHKERRQ(ierr);
@@ -1245,8 +1245,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                         ierr = MatMPIAIJSetPreallocationCSR(E, I, J, pt);CHKERRQ(ierr);
                     }
                 }
-                ierr = MatSetOption(E, MAT_SYMMETRIC, PETSC_TRUE);CHKERRQ(ierr);
             }
+            ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
+            ierr = MatPropagateSymmetryOptions(A, E);CHKERRQ(ierr);
             ierr = KSPCreate(DMatrix::_communicator, &v._level->ksp);CHKERRQ(ierr);
             ierr = KSPSetOperators(v._level->ksp, E, E);CHKERRQ(ierr);
             ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);

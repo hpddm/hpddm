@@ -91,7 +91,7 @@ class IterativeMethod {
                 if(conv[nu] == -sentinel && ((tol > 0.0 && std::abs(res[nu]) / norm[nu] <= tol) || (tol < 0.0 && std::abs(res[nu]) <= -tol)))
                     conv[nu] = i;
             if(verbosity > 2) {
-#if !defined(HPDDM_PETSC)
+#if !defined(HPDDM_PETSC) || defined(PETSCSUB) || defined(MU_SLEPC)
                 constexpr auto method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : "GMRES"));
                 unsigned short tmp[2] { 0, 0 };
                 underlying_type<K> beta = std::abs(res[0]);
@@ -150,7 +150,7 @@ class IterativeMethod {
                     ++conv;
             }
             if(verbosity > 2) {
-#if !defined(HPDDM_PETSC)
+#if !defined(HPDDM_PETSC) || defined(PETSCSUB) || defined(MU_SLEPC)
                 constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
                 underlying_type<K>* max;
                 if(tol > 0.0) {
