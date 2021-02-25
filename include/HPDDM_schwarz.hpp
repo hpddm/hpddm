@@ -841,9 +841,8 @@ class Schwarz : public Preconditioner<
                     ierr = KSPGetOperators(levels[0]->ksp, nullptr, &P);CHKERRQ(ierr);
                     ierr = MatGetBlockSize(P, &bs);CHKERRQ(ierr);
                 }
-                if(Subdomain<K>::_dof % bs) {
+                if(Subdomain<K>::_dof % bs)
                     SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %D", Subdomain<K>::_dof, bs);
-                }
                 if(!ismatis) {
                     PetscInt* idx;
                     ierr = PetscMalloc1(Subdomain<K>::_dof / bs, &idx);CHKERRQ(ierr);
@@ -994,7 +993,7 @@ class Schwarz : public Preconditioner<
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
             ST                     st;
-            PC                     empty;
+            KSP                    empty;
             Mat                    local, *resized;
             Vec                    vr, vreduced;
             ISLocalToGlobalMapping l2g;
@@ -1054,17 +1053,13 @@ class Schwarz : public Preconditioner<
             ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
             ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
             if(levels[0]->parent->share) {
-                KSP ksp;
-                if(!levels[0]->pc) {
-                    ierr = PCCreate(PETSC_COMM_SELF, &levels[0]->pc);CHKERRQ(ierr);
-                    ierr = PCSetOptionsPrefix(levels[0]->pc, prefix);CHKERRQ(ierr);
-                    ierr = PCAppendOptionsPrefix(levels[0]->pc, "sub_");CHKERRQ(ierr);
-                    ierr = PCSetFromOptions(levels[0]->pc);CHKERRQ(ierr);
-                }
-                ierr = STGetKSP(st, &ksp);CHKERRQ(ierr);
-                ierr = KSPGetPC(ksp, &empty);CHKERRQ(ierr);
+                KSP *ksp;
+                if(!levels[0]->pc)
+                    SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
+                ierr = PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));CHKERRQ(ierr);
+                ierr = STGetKSP(st, &empty);CHKERRQ(ierr);
                 ierr = PetscObjectReference((PetscObject)empty);CHKERRQ(ierr);
-                ierr = KSPSetPC(ksp, levels[0]->pc);CHKERRQ(ierr);
+                ierr = STSetKSP(st, ksp[0]);CHKERRQ(ierr);
             }
             if(solve) {
                 MatStructure str;
@@ -1115,9 +1110,7 @@ class Schwarz : public Preconditioner<
             }
             ierr = VecDestroy(&vr);CHKERRQ(ierr);
             if(levels[0]->parent->share) {
-                KSP ksp;
-                ierr = STGetKSP(st, &ksp);CHKERRQ(ierr);
-                ierr = KSPSetPC(ksp, empty);CHKERRQ(ierr);
+                ierr = STSetKSP(st, empty);CHKERRQ(ierr);
                 ierr = PetscObjectDereference((PetscObject)empty);CHKERRQ(ierr);
             }
             ierr = EPSDestroy(&eps);CHKERRQ(ierr);
