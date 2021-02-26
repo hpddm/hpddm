@@ -208,7 +208,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
     } else {
       ierr = SVDCreate(PetscObjectComm((PetscObject)X), &svd);CHKERRQ(ierr);
-      ierr = SVDSetOperator(svd, X);CHKERRQ(ierr);
+      ierr = SVDSetOperators(svd, X, nullptr);CHKERRQ(ierr);
       if (redistribute <= 1) {
         ierr = SVDSetType(svd, SVDLAPACK);CHKERRQ(ierr);
       }
