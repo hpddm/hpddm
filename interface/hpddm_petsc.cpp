@@ -246,7 +246,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       }
       ierr = VecResetArray(Vr);CHKERRQ(ierr);
     }
-    if (i != k) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_LIB, "Unhandled mismatch %D != %D", i, k);
+    if (i != k) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_LIB, "Unhandled mismatch %D != %D", i, k); // LCOV_EXCL_LINE
     if (std::is_same<PetscReal, PetscScalar>::value) {
       ierr = VecDestroy(&Vi);CHKERRQ(ierr);
     }
