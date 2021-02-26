@@ -31,7 +31,7 @@ jobs:
       id: cache-dependencies
       with:
         path: "~/.cache"
-        key: dependencies-v2
+        key: dependencies-v1
     - name: Install dependencies
       env:
         CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
@@ -123,7 +123,7 @@ jobs:
       run: |
         export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | tail -n 1 | cut -d'/' -f3-`
         if [ "$BRANCH" = "" ]; then export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*feature*" | tail -n 1 | cut -d'/' -f3-`; fi
-        if [ "$BRANCH" = "" ]; then export BRANCH="master"; fi
+        if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
         cd .. &&  git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         wget -nv http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
     - name: Build and test with PETSc and SLEPc
@@ -140,6 +140,11 @@ jobs:
         export SUBSOLVER=PETSC
         export LD_LIBRARY_PATH_0=${LD_LIBRARY_PATH}
         export REPOSITORY_NAME="$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')"
+        sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %/hpddm/hpddm.o,$^) $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$(filter %/hpddm/hpddm.o,$^))) $(PETSC_EXTERNAL_LIB_BASIC)=' gmakefile
+        sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
+        sed -i -e 's=\( SETERRQ.*\);=\1; // LCOV_EXCL_LINE=g' src/ksp/*/impls/hpddm/hpddm.cxx
+        diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
+        diff src/ksp/pc/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/pc/hpddm.cxx || (echo PCHPDDM source file has diverged; exit 1)
         for PRECISION in single double
         do
           for TYPE in complex real
@@ -148,20 +153,25 @@ jobs:
             do
               if [ "$INT64" = "1" ] && { { [ "$TYPE" = "double" ] && [ "$PRECISION" = "complex" ]; } || { [ "$TYPE" = "single" ] && [ "$PRECISION" = "real" ]; } }; then continue; fi
               unset HPDDMFLAGS
-              unset EXTERNALPACKAGES
+              export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"
               if [ "$PRECISION" = "double" ]; then
                 export EIGENSOLVER=SLEPC
               else
                 unset EIGENSOLVER
               fi
-              if [ "$INT64" = "0" ] && [ "$PRECISION" = "double" ]; then export EXTERNALPACKAGES="--with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/x86_64-linux-gnu/libparmetis.so"; fi
-              if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"; fi
+              if [ "$INT64" = "0" ]; then
+                export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-include=/usr/include --with-mumps-lib=[/usr/lib/x86_64-linux-gnu/libcmumps.so,/usr/lib/x86_64-linux-gnu/libdmumps.so,/usr/lib/x86_64-linux-gnu/libzmumps.so,/usr/lib/x86_64-linux-gnu/libsmumps.so,/usr/lib/x86_64-linux-gnu/libpord.so,/usr/lib/x86_64-linux-gnu/libmumps_common.so]"
+                if [ "$PRECISION" = "double" ]; then
+                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/x86_64-linux-gnu/libparmetis.so";
+                  if [ "$TYPE" = "real" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle"; fi
+                fi
+              fi
               ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp -fprofile-arcs -ftest-coverage@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
-              make all "CXX=mpicxx.openmpi -fprofile-arcs -ftest-coverage -I`pwd`/../`echo ${REPOSITORY_NAME}`/include" "CLINKER=mpicc.openmpi -fprofile-arcs -ftest-coverage" || (cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log; exit 1)
+              make all "CXX=mpicxx.openmpi -fprofile-arcs -ftest-coverage -I`pwd`/../`echo ${REPOSITORY_NAME}`/include" 'CLINKER=mpicc.openmpi -fprofile-arcs -ftest-coverage' || (cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log; exit 1)
               cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
-              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' 'CC=mpicc.openmpi -fprofile-arcs -ftest-coverage' 'CLINKER=mpicc.openmpi -fprofile-arcs -ftest-coverage' check-test-errors
+              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' 'CC=mpicc.openmpi -fprofile-arcs -ftest-coverage' 'CLINKER=mpicc.openmpi -fprofile-arcs -ftest-coverage' EXTRA_OPTIONS='-malloc_dump' check-test-errors
               if [ "$PRECISION" = "single" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
               if [ "$TYPE" = "complex" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
               cd ../${REPOSITORY_NAME}
