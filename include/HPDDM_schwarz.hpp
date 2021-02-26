@@ -791,8 +791,7 @@ class Schwarz : public Preconditioner<
 #ifdef PETSCHPDDM_H
         static PetscErrorCode destroy(PC_HPDDM_Level* const ctx, PetscBool all) {
             PetscFunctionBeginUser;
-            if(!ctx)
-                SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context");
+            if(!ctx) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context"); // LCOV_EXCL_LINE
             static_assert(std::is_same<K, PetscScalar>::value, "Wrong type");
             if(ctx->P && ctx->P->_dof != -1) {
                 if(all) {
@@ -841,8 +840,7 @@ class Schwarz : public Preconditioner<
                     ierr = KSPGetOperators(levels[0]->ksp, nullptr, &P);CHKERRQ(ierr);
                     ierr = MatGetBlockSize(P, &bs);CHKERRQ(ierr);
                 }
-                if(Subdomain<K>::_dof % bs)
-                    SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %D", Subdomain<K>::_dof, bs);
+                if(Subdomain<K>::_dof % bs) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %D", Subdomain<K>::_dof, bs); // LCOV_EXCL_LINE
                 if(!ismatis) {
                     PetscInt* idx;
                     ierr = PetscMalloc1(Subdomain<K>::_dof / bs, &idx);CHKERRQ(ierr);
@@ -1054,8 +1052,7 @@ class Schwarz : public Preconditioner<
             ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
             if(levels[0]->parent->share) {
                 KSP *ksp;
-                if(!levels[0]->pc)
-                    SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
+                if(!levels[0]->pc) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?"); // LCOV_EXCL_LINE
                 ierr = PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));CHKERRQ(ierr);
                 ierr = STGetKSP(st, &empty);CHKERRQ(ierr);
                 ierr = PetscObjectReference((PetscObject)empty);CHKERRQ(ierr);
@@ -1282,7 +1279,7 @@ struct hpddm_method_id<Schwarz<
 } // HPDDM
 #if HPDDM_SLEPC
 PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar>* const P, IS is, Mat const N, Mat const weighted, Mat const rhs, std::vector<Vec> initial, PC_HPDDM_Level** const levels) {
-    if(!P) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal called with no HPDDM object");
+    if(!P) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal called with no HPDDM object"); // LCOV_EXCL_LINE
     else return P->initialize(is, N, weighted, rhs, initial, levels);
 }
 #endif

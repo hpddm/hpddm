@@ -847,8 +847,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) {
                         ierr = PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym);CHKERRQ(ierr);
-                        if(!loadedKSPSym)
-                            SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
+                        if(!loadedKSPSym) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
                     }
                     ierr = (*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm,
 #if !defined(_KSPIMPL_H)
@@ -988,8 +987,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) {
                         ierr = PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym);CHKERRQ(ierr);
-                        if(!loadedKSPSym)
-                            SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
+                        if(!loadedKSPSym) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
                     }
                     ierr = (*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm,
 #if !defined(_KSPIMPL_H)
