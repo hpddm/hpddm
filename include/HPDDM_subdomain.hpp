@@ -672,7 +672,7 @@ class Subdomain : public OptionsPrefix<K> {
 };
 
 #if !HPDDM_PETSC || defined(_KSPIMPL_H)
-template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value>::type*>
+template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type*>
 inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
     int size;
     if(excluded) {
