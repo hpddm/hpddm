@@ -1416,7 +1416,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         }
     }
     unsigned short** infoSplit;
-    unsigned int*    offsetIdx;
     unsigned short*  infoWorld = nullptr;
 #ifdef HPDDM_CSR_CO
     unsigned int nrow;
@@ -1433,7 +1432,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             infoSplit[i] = *infoSplit + i * ((U != 1 ? 3 : 1) + v.getConnectivity());
         if(S == 'S' && Operator::_pattern == 's')
             **infoSplit -= first;
-        offsetIdx = new unsigned int[std::max(_sizeSplit - 1, 2 * p)];
+        unsigned int* offsetIdx = new unsigned int[std::max(_sizeSplit - 1, 2 * p)];
         if(U != 1) {
             infoWorld = *infoSplit + _sizeSplit * (3 + v.getConnectivity());
             int* recvcounts = reinterpret_cast<int*>(offsetIdx);
@@ -1501,6 +1500,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             if(_sizeSplit == 1)
                 offsetIdx[0] = size;
         }
+        delete [] offsetIdx;
     }
     if(rankSplit) {
         delete [] info;
@@ -1548,6 +1548,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         const K* const E = v._p.getOperator();
 #if defined(DSUITESPARSE) || defined(DLAPACK)
         super::template numfact<S>(DMatrix::_n, nullptr, nullptr, const_cast<K*&>(E));
+        delete [] loc2glob;
 #elif defined(HPDDM_CONTIGUOUS)
         super::template numfact<S>(!blocked ? 1 : _local, nullptr, loc2glob, nullptr, const_cast<K*&>(E));
 #endif
