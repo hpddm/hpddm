@@ -25,15 +25,23 @@
 #ifndef _HPDDM_PRECONDITIONER_
 #define _HPDDM_PRECONDITIONER_
 
-#define HPDDM_LAMBDA_F(in, input, inout, output, N)                                                          \
-    unsigned short* input = static_cast<unsigned short*>(in);                                                \
-    unsigned short* output = static_cast<unsigned short*>(inout);                                            \
-    output[0] = std::max(output[0], input[0]);                                                               \
-    output[1] = std::max(output[1], input[1]);                                                               \
-    output[2] = output[2] & input[2];                                                                        \
-    output[3] = output[3] & input[3];                                                                        \
-    if(N == 4)                                                                                               \
-        output[4] = output[4] & input[4];
+#define HPDDM_LAMBDA_F(in, input, inout, output, len, N)                                                     \
+    if(len && *len) {                                                                                        \
+        unsigned short* input = static_cast<unsigned short*>(in);                                            \
+        unsigned short* output = static_cast<unsigned short*>(inout);                                        \
+        output[0] = std::max(output[0], input[0]);                                                           \
+        if(*len > 1) {                                                                                       \
+            output[1] = std::max(output[1], input[1]);                                                       \
+            if(*len > 2) {                                                                                   \
+                output[2] = output[2] & input[2];                                                            \
+                if(*len > 3) {                                                                               \
+                    output[3] = output[3] & input[3];                                                        \
+                    if(N == 4 && *len > 4)                                                                   \
+                        output[4] = output[4] & input[4];                                                    \
+                }                                                                                            \
+            }                                                                                                \
+        }                                                                                                    \
+    }
 
 #include "HPDDM_subdomain.hpp"
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
@@ -63,8 +71,8 @@ class Preconditioner : public Subdomain<K> {
     private:
 #ifdef __MINGW32__
         template<unsigned short N>
-        static void __stdcall f(void* in, void* inout, int*, MPI_Datatype*) {
-            HPDDM_LAMBDA_F(in, input, inout, output, N)
+        static void __stdcall f(void* in, void* inout, int* len, MPI_Datatype*) {
+            HPDDM_LAMBDA_F(in, input, inout, output, len, N)
         }
 #endif
         template<typename... Types>
@@ -144,8 +152,8 @@ class Preconditioner : public Subdomain<K> {
 #ifdef __MINGW32__
                 MPI_Op_create(&f<N>, 1, &op);
 #else
-                auto f = [](void* in, void* inout, int*, MPI_Datatype*) -> void {
-                    HPDDM_LAMBDA_F(in, input, inout, output, N)
+                auto f = [](void* in, void* inout, int* len, MPI_Datatype*) -> void {
+                    HPDDM_LAMBDA_F(in, input, inout, output, len, N)
                 };
                 MPI_Op_create(f, 1, &op);
 #endif
