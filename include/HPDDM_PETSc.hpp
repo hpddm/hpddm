@@ -39,10 +39,10 @@ class PETScOperator
         const KSP _ksp;
     private:
         Vec _b, _x;
-        Mat _B, _X;
+        Mat _B, _X, _C, _Y;
     public:
         PETScOperator(const PETScOperator&) = delete;
-        PETScOperator(const KSP& ksp, PetscInt n) : super(n), _ksp(ksp), _b(), _x(), _B(), _X() {
+        PETScOperator(const KSP& ksp, PetscInt n) : super(n), _ksp(ksp), _b(), _x(), _B(), _X(), _C(), _Y() {
             PC pc;
             KSPGetPC(ksp, &pc);
             PCSetFromOptions(pc);
@@ -50,6 +50,8 @@ class PETScOperator
         }
         PETScOperator(const KSP& ksp, PetscInt n, PetscInt) : PETScOperator(ksp, n) { }
         ~PETScOperator() {
+            MatDestroy(&_Y);
+            MatDestroy(&_C);
             MatDestroy(&_X);
             MatDestroy(&_B);
             VecDestroy(&_x);
@@ -105,7 +107,7 @@ class PETScOperator
                         ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
                         reset = true;
                     }
-                    ierr = MatProductNumeric(_X); CHKERRQ(ierr);
+                    ierr = MatProductNumeric(_X);CHKERRQ(ierr);
                     if(m && S)
                         Blas<PetscScalar>::axpy(&m, S, in, &i__1, out, &i__1);
                     delete [] work;
@@ -144,8 +146,8 @@ class PETScOperator
             else {
                 PetscInt M = 0;
                 bool reset = false;
-                if(_B) {
-                    ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
+                if(_X) {
+                    ierr = MatGetSize(_X, NULL, &M);CHKERRQ(ierr);
                 }
                 if(M != mu) {
                     PetscInt N;
@@ -167,7 +169,7 @@ class PETScOperator
                     reset = true;
                 }
 #if PETSC_VERSION_GE(3, 14, 0)
-                ierr = MatProductNumeric(_X); CHKERRQ(ierr);
+                ierr = MatProductNumeric(_X);CHKERRQ(ierr);
 #else
                 ierr = MatMatMult(A, _B, MAT_REUSE_MATRIX, PETSC_DEFAULT, const_cast<Mat*>(&_X));CHKERRQ(ierr);
 #endif
@@ -225,28 +227,24 @@ class PETScOperator
             if(mu > 1) {
                 PetscInt M = 0;
                 bool reset = false;
-                if(_B) {
-                    ierr = MatGetSize(_B, NULL, &M);CHKERRQ(ierr);
+                if(_Y) {
+                    ierr = MatGetSize(_Y, NULL, &M);CHKERRQ(ierr);
                 }
                 if(M != mu) {
-                    ierr = MatDestroy(const_cast<Mat*>(&_X));CHKERRQ(ierr);
-                    ierr = MatDestroy(const_cast<Mat*>(&_B));CHKERRQ(ierr);
-                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_B));CHKERRQ(ierr);
-                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, out, const_cast<Mat*>(&_X));CHKERRQ(ierr);
-                    ierr = MatProductCreateWithMat(A, _B, NULL, _X);CHKERRQ(ierr);
-                    ierr = MatProductSetType(_X, MATPRODUCT_AB);CHKERRQ(ierr);
-                    ierr = MatProductSetFromOptions(_X);CHKERRQ(ierr);
-                    ierr = MatProductSymbolic(_X);CHKERRQ(ierr);
+                    ierr = MatDestroy(const_cast<Mat*>(&_Y));CHKERRQ(ierr);
+                    ierr = MatDestroy(const_cast<Mat*>(&_C));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_C));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, out, const_cast<Mat*>(&_Y));CHKERRQ(ierr);
                 }
                 else {
-                    ierr = MatDensePlaceArray(_B, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
-                    ierr = MatDensePlaceArray(_X, out);CHKERRQ(ierr);
+                    ierr = MatDensePlaceArray(_C, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
+                    ierr = MatDensePlaceArray(_Y, out);CHKERRQ(ierr);
                     reset = true;
                 }
-                ierr = PCMatApply(pc, _B, _X);CHKERRQ(ierr);
+                ierr = PCMatApply(pc, _C, _Y);CHKERRQ(ierr);
                 if(reset) {
-                    ierr = MatDenseResetArray(_X);CHKERRQ(ierr);
-                    ierr = MatDenseResetArray(_B);CHKERRQ(ierr);
+                    ierr = MatDenseResetArray(_Y);CHKERRQ(ierr);
+                    ierr = MatDenseResetArray(_C);CHKERRQ(ierr);
                 }
             }
             else
