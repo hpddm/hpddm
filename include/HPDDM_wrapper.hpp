@@ -266,7 +266,7 @@ template<char N, char M>
 const char matdescr<N, M>::b[4] { 'S',  M , 'N', N };
 
 
-#if INTEL_MKL_VERSION > 20180001
+#if INTEL_MKL_VERSION > 20180001 || __INTEL_MKL_BUILD_DATE > 20200000
 #define HPDDM_GENERATE_SPARSE_MKL(C, T)                                                                      \
 template<>                                                                                                   \
 template<char N>                                                                                             \
