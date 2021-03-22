@@ -67,7 +67,7 @@
 # define HPDDM_BDD            0
 #endif // HPDDM_MPI
 
-#if defined(__powerpc__) || defined(INTEL_MKL_VERSION)
+#if (defined(__powerpc__) && !defined(PETSC_BLASLAPACK_UNDERSCORE) && !defined(Add_)) || defined(INTEL_MKL_VERSION)
 # define HPDDM_F77(func) func
 #else
 # define HPDDM_F77(func) func ## _
