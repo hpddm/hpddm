@@ -37,6 +37,10 @@ PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
 #  endif
 #  include "HPDDM_operator.hpp"
 # endif
+# if defined(PETSC_HAVE_HTOOL) && HPDDM_SLEPC
+#  include <petscmathtool.h>
+#  include <htool/solvers/coarse_space.hpp>
+# endif
 #endif
 
 #include "HPDDM_preconditioner.hpp"
@@ -982,10 +986,40 @@ class Schwarz : public Preconditioner<
 #if HPDDM_SLEPC
     public:
         typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
+            Mat            A;
+            PetscBool      flg;
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
-            ierr = super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels);
+            ierr = KSPGetOperators(levels[n]->ksp, nullptr, &A);
+            ierr = PetscObjectTypeCompare((PetscObject)A, MATHTOOL, &flg);
+            if(!flg) {
+                ierr = super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels);
+            }
+            else {
+#if defined(PETSC_HAVE_HTOOL)
+                struct ClassWithPtr {
+                    typedef Schwarz<PetscScalar> super;
+                    const super*              const _A;
+                    const PetscScalar* const        _E;
+                    ClassWithPtr(const super* const A, const PetscScalar* const E) : _A(A), _E(E) { }
+                    const MPI_Comm& getCommunicator() const { return _A->getCommunicator(); }
+                    const vectorNeighbor& getMap() const { return _A->getMap(); }
+                    constexpr int getDof() const { return _A->getDof(); }
+                    constexpr unsigned short getLocal() const { return _A->getLocal(); }
+                    const K* const* getVectors() const { return _A->getVectors(); }
+                    const K* getOperator() const { return _E; }
+                };
+                const htool::HMatrixVirtual<PetscScalar>* hmatrix;
+                MatHtoolGetHierarchicalMat(A, &hmatrix);
+                std::vector<PetscScalar> E;
+                htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::getDof(), super::getVectors(), E);
+                ClassWithPtr Op(levels[n]->P, E.data());
+                ierr = super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels);
+#else
+                SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "MatType %s but !defined(PETSC_HAVE_HTOOL)", MATHTOOL);
+#endif
+            }
             PetscFunctionReturn(ierr);
         }
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
@@ -1187,8 +1221,9 @@ class Schwarz : public Preconditioner<
                 if(i > 1) {
                     ierr = MatDestroy(N);CHKERRQ(ierr);
                 }
-                if(overlap.size())
-                    MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);
+                if(overlap.size()) {
+                    ierr = MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);CHKERRMPI(ierr);
+                }
 #if PETSC_VERSION_GE(3, 15, 0)
                 if(!levels[0]->parent->log_separate) {
                     ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
@@ -1204,7 +1239,7 @@ class Schwarz : public Preconditioner<
                     levels[i]->P = levels[i - 1]->P->_co->getSubdomain()->P;
                 else
                     levels[i]->P = nullptr;
-                MPI_Wait(&rs, MPI_STATUS_IGNORE);
+                ierr = MPI_Wait(&rs, MPI_STATUS_IGNORE);CHKERRMPI(ierr);
 #if PETSC_VERSION_GE(3, 15, 0)
                 if(!levels[0]->parent->log_separate) {
                     ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
@@ -1235,9 +1270,16 @@ class Schwarz : public Preconditioner<
          *    mu             - Number of vectors. */
         template<bool excluded>
         void deflation(const K* const in, K* const out, const unsigned short& mu) const {
+#if HPDDM_PETSC
+            PetscFunctionBeginUser;
+#endif
             if(super::_cc) {
                 (*super::_cc)(in, out, Subdomain<K>::_dof, mu);
+#if !HPDDM_PETSC
                 return;
+#else
+                PetscFunctionReturnVoid();
+#endif
             }
             if(excluded)
                 super::_co->template callSolver<excluded>(super::_uc, mu);
@@ -1252,6 +1294,9 @@ class Schwarz : public Preconditioner<
                     Blas<K>::gemm("N", "N", &(Subdomain<K>::_dof), &tmp, &local, &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &local, &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));                   // out = _ev E \ _ev^T D in
                 exchange(out, mu);
             }
+#if HPDDM_PETSC
+            PetscFunctionReturnVoid();
+#endif
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Schwarz::d>. */
