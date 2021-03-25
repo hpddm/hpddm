@@ -47,7 +47,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
 #endif
     ignore(v);
 #else
-    unsigned short p = 0;
+    unsigned short p;
     {
         PetscInt n = 1;
         PetscOptionsGetInt(nullptr, v._prefix.c_str(), "-p", &n, nullptr);
@@ -1319,10 +1319,18 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #endif
 }
 
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)
+template<char
 #if !HPDDM_PETSC
-template<template<class> class Solver, char S, class K>
-template<char T, unsigned short U, unsigned short excluded, class Operator>
-inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<Solver, S, K>::constructionMatrix(typename std::enable_if<Operator::_pattern == 'u', Operator>::type& v) {
+              T
+#else
+              S
+#endif
+               , unsigned short U, unsigned short excluded, class Operator>
+inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(typename std::enable_if<Operator::_pattern == 'u', Operator>::type& v) {
+#if HPDDM_PETSC
+    PetscFunctionBeginUser;
+#endif
     unsigned short* const info = new unsigned short[(U != 1 ? 3 : 1) + v.getConnectivity()]();
     const std::vector<unsigned short>& sparsity = v.getPattern();
     info[0] = sparsity.size(); // number of intersections
@@ -1335,8 +1343,18 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 
     unsigned int size = 0;
 
+#if !HPDDM_PETSC
     const Option& opt = *Option::get();
     const unsigned short p = opt.val<unsigned short>("p", 1);
+#else
+    constexpr unsigned short T = 0;
+    unsigned short p;
+    {
+        PetscInt n = 1;
+        PetscOptionsGetInt(nullptr, v._prefix.c_str(), "-p", &n, nullptr);
+        p = n;
+    }
+#endif
     constexpr bool blocked = false;
     if(U != 1) {
         infoNeighbor = new unsigned short[info[0]];
@@ -1548,17 +1566,44 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         if(U != 1)
             delete [] infoNeighbor;
         const K* const E = v._p.getOperator();
+#if !HPDDM_PETSC
 #if defined(DSUITESPARSE) || defined(DLAPACK)
         super::template numfact<S>(DMatrix::_n, nullptr, nullptr, const_cast<K*&>(E));
         delete [] loc2glob;
 #elif defined(HPDDM_CONTIGUOUS)
         super::template numfact<S>(!blocked ? 1 : _local, nullptr, loc2glob, nullptr, const_cast<K*&>(E));
 #endif
+#else
+#ifdef HPDDM_CONTIGUOUS
+        ignore(nrow);
+        delete [] loc2glob;
+#endif
+        PetscErrorCode ierr;
+        Mat P, A;
+        PetscScalar* ptr;
+        ierr = MatCreateDense(DMatrix::_communicator, DMatrix::_n, DMatrix::_n, DMatrix::_n, DMatrix::_n, nullptr, &P);CHKERRQ(ierr);
+        ierr = MatDenseGetArrayWrite(P, &ptr);CHKERRQ(ierr);
+        std::copy_n(E, DMatrix::_n * DMatrix::_n, ptr);
+        ierr = MatDenseRestoreArrayWrite(P, &ptr);CHKERRQ(ierr);
+        ierr = MatSetOptionsPrefix(P, v._prefix.c_str());CHKERRQ(ierr);
+        ierr = MatSetFromOptions(P);CHKERRQ(ierr);
+        ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
+        ierr = MatPropagateSymmetryOptions(A, P);CHKERRQ(ierr);
+        ierr = KSPCreate(DMatrix::_communicator, &v._level->ksp);CHKERRQ(ierr);
+        ierr = KSPSetOperators(v._level->ksp, P, P);CHKERRQ(ierr);
+        ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);
+        ierr = KSPSetFromOptions(v._level->ksp);CHKERRQ(ierr);
+        ierr = MatDestroy(&P);CHKERRQ(ierr);
+        super::_s = v._level;
+#endif
     }
     finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
+#if !HPDDM_PETSC
     return nullptr;
-}
+#else
+    PetscFunctionReturn(0);
 #endif
+}
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)
 template<char T, unsigned short U, unsigned short excluded, bool blocked>

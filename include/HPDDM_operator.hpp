@@ -317,9 +317,21 @@ template<class Preconditioner, class K>
 class UserCoarseOperator : public OperatorBase<'u', Preconditioner, K> {
     private:
         typedef OperatorBase<'u', Preconditioner, K> super;
+#if HPDDM_PETSC
+    protected:
+        const Mat                                       A_;
+        Mat                                             C_;
+        PC_HPDDM_Level*                             _level;
+        const std::string&                         _prefix;
+#endif
     public:
         HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
-        UserCoarseOperator(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max)  { }
+#if HPDDM_PETSC
+        template<typename... Types>
+        UserCoarseOperator(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Mat A, PC_HPDDM_Level* level, std::string& prefix, Types...) : super(p, c, max), A_(A), C_(), _level(level), _prefix(prefix) { static_assert(sizeof...(Types) == 0, "Wrong constructor"); }
+#else
+        UserCoarseOperator(const Preconditioner& p, const unsigned short& c, const unsigned int& max) : super(p, c, max) { }
+#endif
 };
 
 #if HPDDM_SCHWARZ || HPDDM_SLEPC
