@@ -986,18 +986,22 @@ class Schwarz : public Preconditioner<
 #if HPDDM_SLEPC
     public:
         typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
+#if defined(PETSC_HAVE_HTOOL)
             Mat            A;
             PetscBool      flg;
+#endif
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
+#if defined(PETSC_HAVE_HTOOL)
             ierr = KSPGetOperators(levels[n]->ksp, nullptr, &A);
             ierr = PetscObjectTypeCompare((PetscObject)A, MATHTOOL, &flg);
             if(!flg) {
+#endif
                 ierr = super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels);
+#if defined(PETSC_HAVE_HTOOL)
             }
             else {
-#if defined(PETSC_HAVE_HTOOL)
                 struct ClassWithPtr {
                     typedef Schwarz<PetscScalar> super;
                     const super*              const _A;
@@ -1016,10 +1020,8 @@ class Schwarz : public Preconditioner<
                 htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::getDof(), super::getVectors(), E);
                 ClassWithPtr Op(levels[n]->P, E.data());
                 ierr = super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels);
-#else
-                SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "MatType %s but !defined(PETSC_HAVE_HTOOL)", MATHTOOL);
-#endif
             }
+#endif
             PetscFunctionReturn(ierr);
         }
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
