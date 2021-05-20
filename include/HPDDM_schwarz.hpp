@@ -1126,8 +1126,9 @@ class Schwarz : public Preconditioner<
             for(unsigned short i = 1; i < levels[0]->nu; ++i)
                 super::_ev[i] = *super::_ev + i * Subdomain<K>::_dof;
             ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::_dof, levels[0]->nu ? super::_ev[0] : nullptr, &vr);CHKERRQ(ierr);
-            if(ismatis)
+            if(ismatis) {
                 ierr = MatCreateVecs(resized[0], &vreduced, nullptr);CHKERRQ(ierr);
+            }
             for(PetscInt i = 0; i < levels[0]->nu; ++i) {
                 ierr = VecPlaceArray(vr, super::_ev[i]);CHKERRQ(ierr);
                 if(!ismatis) {
