@@ -38,7 +38,7 @@ This project was initiated by [Pierre Jolivet](http://jolivet.perso.enseeiht.fr/
 If you use this software, please cite the appropriate references from the list below, thank you.
 * [Scalable domain decomposition preconditioners for heterogeneous elliptic problems](http://dl.acm.org/citation.cfm?doid=2503210.2503212) (domain decomposition and coarse operator assembly)
 * [Block iterative methods and recycling for improved scalability of linear solvers](http://dl.acm.org/citation.cfm?id=3014927) (advanced Krylov methods)
-* [KSPHPDDM and PCHPDDM: extending PETSc with advanced Krylov methods and robust multilevel overlapping Schwarz preconditioners](http://jolivet.perso.enseeiht.fr/article.pdf) (interface with PETSc)
+* [KSPHPDDM and PCHPDDM: extending PETSc with advanced Krylov methods and robust multilevel overlapping Schwarz preconditioners](https://www.sciencedirect.com/science/article/abs/pii/S0898122121000055) (interface with PETSc)
 * [An introduction to domain decomposition methods: algorithms, theory, and parallel implementation](http://www.siam.org/books/ot144/) (monograph on domain decomposition methods)
 
 #### Acknowledgments

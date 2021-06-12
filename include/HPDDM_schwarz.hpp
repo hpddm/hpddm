@@ -1014,7 +1014,7 @@ class Schwarz : public Preconditioner<
                     const K* const* getVectors() const { return _A->getVectors(); }
                     const K* getOperator() const { return _E; }
                 };
-                const htool::HMatrixVirtual<PetscScalar>* hmatrix;
+                const htool::VirtualHMatrix<PetscScalar>* hmatrix;
                 MatHtoolGetHierarchicalMat(A, &hmatrix);
                 std::vector<PetscScalar> E;
                 htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::getDof(), super::getVectors(), E);
