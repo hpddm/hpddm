@@ -161,7 +161,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         else
             break;
     }
-    if(!excluded && HPDDM_IT(j, A) == HPDDM_MAX_IT(m[1], A) + 1) {
+    if(!excluded && HPDDM_IT(j, A) == HPDDM_MAX_IT(m[1], A) + 1 && m[0] > 0) {
         const int rem = HPDDM_MAX_IT(m[1], A) % m[0];
         std::for_each(hasConverged, hasConverged + mu, [&rem](short& d) { if(d < 0) d = rem > 0 ? rem : -d; });
     }
@@ -329,7 +329,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         else
             break;
     }
-    if(!excluded && HPDDM_IT(j, A) != 0 && HPDDM_IT(j, A) == HPDDM_MAX_IT(m[2], A) + 1) {
+    if(!excluded && HPDDM_IT(j, A) != 0 && HPDDM_IT(j, A) == HPDDM_MAX_IT(m[2], A) + 1 && m[0] > 0) {
         const int rem = HPDDM_MAX_IT(m[2], A) % m[0];
         if(rem != 0)
             dim = deflated * rem;
