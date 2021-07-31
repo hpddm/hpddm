@@ -133,6 +133,7 @@ jobs:
       run: |
         if [ "$CC" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++; fi
         cd ../petsc
+        bash ../hpddm/.github/workflows/aldaas2021robust.sh
         export PETSC_DIR=${PWD} && export DATAFILESPATH=${PWD}/datafiles
         export PETSC_ARCH=arch-ci
         export CXXPPFLAGS="-Wall -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare"
@@ -164,7 +165,7 @@ jobs:
                 export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-include=/usr/include --with-mumps-lib=[/usr/lib/x86_64-linux-gnu/libcmumps.so,/usr/lib/x86_64-linux-gnu/libdmumps.so,/usr/lib/x86_64-linux-gnu/libzmumps.so,/usr/lib/x86_64-linux-gnu/libsmumps.so,/usr/lib/x86_64-linux-gnu/libpord.so,/usr/lib/x86_64-linux-gnu/libmumps_common.so]"
                 if [ "$PRECISION" = "double" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool";
-                  if [ "$TYPE" = "real" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle"; fi
+                  if [ "$TYPE" = "real" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"; fi
                 fi
               fi
               ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}

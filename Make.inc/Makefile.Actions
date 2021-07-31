@@ -22,7 +22,7 @@ HYPRE_INCS = -I/usr/include/hypre
 PETSC_INCS = -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
 SLEPC_INCS = -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
 METIS_INCS = -I/usr/include
-PYTHON_INCS = -I/opt/hostedtoolcache/Python/3.9.5/x64/include/python3.9
+PYTHON_INCS = -I/opt/hostedtoolcache/Python/3.9.6/x64/include/python3.9
 
 BLAS_LIBS = -L/usr/lib -lblas -llapack
 ARPACK_LIBS = -L/usr/lib -larpack
@@ -32,4 +32,4 @@ HYPRE_LIBS = -L/usr/lib  -lHYPRE -lHYPRE_core
 PETSC_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc
 SLEPC_LIBS = -L${PETSC_DIR}/${PETSC_ARCH}/lib -lslepc
 METIS_LIBS = -L/usr/lib  -lmetis
-PYTHON_LIBS = -L/opt/hostedtoolcache/Python/3.9.5/x64/lib -lpython3.9
+PYTHON_LIBS = -L/opt/hostedtoolcache/Python/3.9.6/x64/lib -lpython3.9
