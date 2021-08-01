@@ -338,11 +338,30 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #else
     constexpr unsigned short T = 0;
     unsigned short p;
+    const bool coarse = (v._prefix.substr(v._prefix.size() - 7).compare("coarse_") == 0);
     {
         PetscInt n = 1;
         PetscOptionsGetInt(nullptr, v._prefix.c_str(), "-p", &n, nullptr);
         p = n;
     }
+#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+    MPI_Comm extended = MPI_COMM_NULL;
+    if(Operator::_factorize && coarse) {
+        PetscInt n = 1;
+        PetscOptionsGetInt(nullptr, v._prefix.c_str(), "-mat_mumps_use_omp_threads", &n, nullptr);
+        if(n > 1) {
+            int* group = new int[n * p];
+            for(unsigned short i = 0; i < p; ++i) std::iota(group + n * i, group + n * (i + 1), DMatrix::_ldistribution[i]);
+            MPI_Group world, main;
+            MPI_Comm_group(v._p.getCommunicator(), &world);
+            MPI_Group_incl(world, n * p, group, &main);
+            delete [] group;
+            MPI_Comm_create(v._p.getCommunicator(), main, &extended);
+            MPI_Group_free(&world);
+            MPI_Group_free(&main);
+        }
+    }
+#endif
 #endif
     constexpr bool blocked =
 #if defined(DMKL_PARDISO) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
@@ -794,6 +813,47 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         int nbRq = std::distance(v._p.getRq(), rqSend);
         MPI_Waitall(nbRq, rqSend - nbRq, MPI_STATUSES_IGNORE);
         delete [] work;
+#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+        if(extended != MPI_COMM_NULL) {
+            PetscErrorCode ierr;
+            PC pc;
+            Mat E, A;
+            PetscInt zero = 0;
+            ierr = MPI_Bcast(&rank, 1, MPI_INT, 0, extended);CHKERRMPI(ierr);
+            ierr = KSPCreate(extended, &v._level->ksp);CHKERRQ(ierr);
+            ierr = MatCreate(extended, &E);CHKERRQ(ierr);
+            ierr = MatSetOptionsPrefix(E, v._prefix.c_str());CHKERRQ(ierr);
+            ierr = MatSetFromOptions(E);CHKERRQ(ierr);
+            ierr = MatSetBlockSize(E, !blocked ? 1 : _local);CHKERRQ(ierr);
+            ierr = MatSetSizes(E, 0, 0, rank, rank);CHKERRQ(ierr);
+            if(S == 'S') {
+                ierr = MatSetType(E, MATSBAIJ);CHKERRQ(ierr);
+                ierr = MatMPISBAIJSetPreallocationCSR(E, !blocked ? 1 : _local, &zero, nullptr, nullptr);CHKERRQ(ierr);
+            }
+            else {
+                if(blocked && _local > 1) {
+                    ierr = MatSetType(E, MATBAIJ);CHKERRQ(ierr);
+                    ierr = MatMPIBAIJSetPreallocationCSR(E, _local, &zero, nullptr, nullptr);CHKERRQ(ierr);
+                }
+                else {
+                    ierr = MatSetType(E, MATAIJ);CHKERRQ(ierr);
+                    ierr = MatMPIAIJSetPreallocationCSR(E, &zero, nullptr, nullptr);CHKERRQ(ierr);
+                }
+            }
+            ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
+            ierr = MatPropagateSymmetryOptions(A, E);CHKERRQ(ierr);
+            ierr = KSPSetOperators(v._level->ksp, E, E);CHKERRQ(ierr);
+            ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);
+            ierr = KSPSetType(v._level->ksp, KSPPREONLY);CHKERRQ(ierr);
+            ierr = KSPGetPC(v._level->ksp, &pc);CHKERRQ(ierr);
+            if(blocked) {
+                ierr = PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU);CHKERRQ(ierr);
+            }
+            ierr = KSPSetFromOptions(v._level->ksp);CHKERRQ(ierr);
+            ierr = MatDestroy(&E);CHKERRQ(ierr);
+            super::_s = v._level;
+        }
+#endif
     }
     else {
         const unsigned short relative = (T == 1 ? p + _rankWorld * ((_sizeWorld / p) - 1) - 1 : _rankWorld);
@@ -1202,24 +1262,30 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 if(T == 1)
                     DMatrix::_n += (end - super::_di[2]) * _local;
             }
-        }
+        } // }
         super::_bs = (!blocked ? 1 : _local);
 #if !HPDDM_PETSC
         super::template numfact<T, Operator::_factorize>(nrow / (!blocked ? 1 : _local), I, loc2glob, J, pt, neighbors);
 #else
-        const bool coarse = (v._prefix.substr(v._prefix.size() - 7).compare("coarse_") == 0);
         std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
         if(Operator::_factorize) {
             PetscErrorCode ierr;
             Mat E, A;
-            ierr = MatCreate(DMatrix::_communicator, &E);CHKERRQ(ierr);
+#if !defined(PETSC_HAVE_MUMPS)
+            const MPI_Comm extended = MPI_COMM_NULL;
+#endif
+            if(extended != MPI_COMM_NULL) {
+                ierr = MPI_Bcast(&rank, 1, MPI_INT, 0, extended);CHKERRMPI(ierr);
+            }
+            ierr = KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::_communicator, &v._level->ksp);CHKERRQ(ierr);
+            ierr = MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::_communicator, &E);CHKERRQ(ierr);
             ierr = MatSetOptionsPrefix(E, v._prefix.c_str());CHKERRQ(ierr);
             ierr = MatSetFromOptions(E);CHKERRQ(ierr);
             ierr = MatSetBlockSize(E, !blocked ? 1 : _local);CHKERRQ(ierr);
             ierr = MatSetSizes(E, nrow, nrow, rank, rank);CHKERRQ(ierr);
             if(S == 'S') {
                 ierr = MatSetType(E, MATSBAIJ);CHKERRQ(ierr);
-                if(p == 1) {
+                if(p == 1 && extended == MPI_COMM_NULL) {
                     ierr = MatSeqSBAIJSetPreallocationCSR(E, super::_bs, I, J, pt);CHKERRQ(ierr);
                 }
                 else {
@@ -1229,7 +1295,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             else {
                 if(super::_bs > 1) {
                     ierr = MatSetType(E, MATBAIJ);CHKERRQ(ierr);
-                    if(p == 1) {
+                    if(p == 1 && extended == MPI_COMM_NULL) {
                         ierr = MatSeqBAIJSetPreallocationCSR(E, super::_bs, I, J, pt);CHKERRQ(ierr);
                     }
                     else {
@@ -1238,7 +1304,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 }
                 else {
                     ierr = MatSetType(E, MATAIJ);CHKERRQ(ierr);
-                    if(p == 1) {
+                    if(p == 1 && extended == MPI_COMM_NULL) {
                         ierr = MatSeqAIJSetPreallocationCSR(E, I, J, pt);CHKERRQ(ierr);
                     }
                     else {
@@ -1248,7 +1314,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             }
             ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
             ierr = MatPropagateSymmetryOptions(A, E);CHKERRQ(ierr);
-            ierr = KSPCreate(DMatrix::_communicator, &v._level->ksp);CHKERRQ(ierr);
             ierr = KSPSetOperators(v._level->ksp, E, E);CHKERRQ(ierr);
             ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);
             if(coarse) {
@@ -1256,7 +1321,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 ierr = KSPSetType(v._level->ksp, KSPPREONLY);CHKERRQ(ierr);
                 ierr = KSPGetPC(v._level->ksp, &pc);CHKERRQ(ierr);
                 if(blocked) {
-#if !(PETSC_HAVE_MUMPS || PETSC_HAVE_MKL_CPARDISO)
+#if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
                     if(p == 1)
 #endif
                     {
@@ -1315,6 +1380,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #if !HPDDM_PETSC
     return ret;
 #else
+#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+    if(extended != MPI_COMM_NULL)
+        MPI_Comm_free(&extended);
+#endif
     PetscFunctionReturn(0);
 #endif
 }
@@ -1856,6 +1925,10 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                 }
                 else {
                     MPI_Gatherv(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
+#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+                    if(super::_s)
+                        super::solve(nullptr, mu);
+#endif
                     MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
                 }
             }
@@ -1869,6 +1942,10 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                 }
                 else {
                     MPI_Gather(rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, _gatherComm);
+#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+                    if(super::_s)
+                        super::solve(nullptr, mu);
+#endif
                     MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
                 }
             }
