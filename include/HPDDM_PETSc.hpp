@@ -360,10 +360,12 @@ class PetscSub {
                 P = nullptr;
                 std::cerr << "Not implemented" << std::endl;
             }
+            std::string prefix("petsc_" + std::string(HPDDM_PREFIX) + opt.getPrefix());
+            ierr = MatSetOptionsPrefix(P, prefix.c_str());CHKERRQ(ierr);
+            ierr = KSPSetOptionsPrefix(ksp, prefix.c_str());CHKERRQ(ierr);
             ierr = KSPSetOperators(ksp, P, P);CHKERRQ(ierr);
             ierr = MatDestroy(&P);CHKERRQ(ierr);
             ierr = KSPSetType(ksp, KSPPREONLY);CHKERRQ(ierr);
-            ierr = KSPSetOptionsPrefix(ksp, std::string("petsc_" + std::string(HPDDM_PREFIX) + opt.getPrefix()).c_str());CHKERRQ(ierr);
             ierr = KSPGetPC(ksp, &pc);CHKERRQ(ierr);
             ierr = PCSetType(pc, A->_sym ? PCCHOLESKY : PCLU);CHKERRQ(ierr);
             ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
