@@ -32,7 +32,7 @@ cat << EOF >> ../aldaas2021robust/sparse_ls.c
 /*TEST
 
    testset:
-      requires: hpddm double !complex !define(PETSC_USE_64BIT_INDICES)
+      requires: hpddm double !complex !defined(PETSC_USE_64BIT_INDICES)
       nsize: 4
       args: -ksp_view -pc_type hpddm
       filter: egrep -v "[0-9]+ KSP " | grep -v "rows=" | grep -v "total: nonzeros=" | grep -v " I-node " | sed -e "s/CONVERGED_RTOL iterations 14/CONVERGED_RTOL iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL iterations 21/CONVERGED_RTOL_NORMAL iterations 18/g"

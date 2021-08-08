@@ -93,16 +93,16 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
 #endif
     }
   } else {
-    ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-    ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
-    ierr = MPI_Comm_group(comm, &world);CHKERRQ(ierr);
+    ierr = MPI_Comm_rank(comm, &rank);CHKERRMPI(ierr);
+    ierr = MPI_Comm_size(comm, &size);CHKERRMPI(ierr);
+    ierr = MPI_Comm_group(comm, &world);CHKERRMPI(ierr);
     PetscMPIInt* ranks = new PetscMPIInt[redistribute];
     std::iota(ranks, ranks + redistribute, 0);
-    ierr = MPI_Group_incl(world, redistribute, ranks, &worker);CHKERRQ(ierr);
+    ierr = MPI_Group_incl(world, redistribute, ranks, &worker);CHKERRMPI(ierr);
     delete [] ranks;
-    ierr = MPI_Comm_create(comm, worker, &subcomm);
-    ierr = MPI_Group_free(&worker);CHKERRQ(ierr);
-    ierr = MPI_Group_free(&world);CHKERRQ(ierr);
+    ierr = MPI_Comm_create(comm, worker, &subcomm);CHKERRMPI(ierr);
+    ierr = MPI_Group_free(&worker);CHKERRMPI(ierr);
+    ierr = MPI_Group_free(&world);CHKERRMPI(ierr);
     if (subcomm != MPI_COMM_NULL) {
       IS             row, col;
       PetscInt       ncol;
@@ -259,12 +259,12 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
     ierr = MatDestroy(&Y);CHKERRQ(ierr);
     ierr = MatDestroy(&X);CHKERRQ(ierr);
     if (redistribute > 1) {
-      ierr = MPI_Allreduce(MPI_IN_PLACE, vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), MPI_SUM, subcomm);CHKERRQ(ierr);
-      ierr = MPI_Comm_free(&subcomm);CHKERRQ(ierr);
+      ierr = MPIU_Allreduce(MPI_IN_PLACE, vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), MPI_SUM, subcomm);CHKERRMPI(ierr);
+      ierr = MPI_Comm_free(&subcomm);CHKERRMPI(ierr);
     }
   }
   if (redistribute > 1 && redistribute < size) {
-    ierr = MPI_Bcast(vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), 0, comm);CHKERRQ(ierr);
+    ierr = MPI_Bcast(vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), 0, comm);CHKERRMPI(ierr);
   }
   PetscFunctionReturn(0);
 }
