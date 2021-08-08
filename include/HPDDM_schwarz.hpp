@@ -30,11 +30,9 @@
 #include "HPDDM_dmatrix.hpp"
 #include "HPDDM_coarse_operator_impl.hpp"
 # if HPDDM_SLEPC
-#  if PETSC_VERSION_GE(3, 13, 0)
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
-#  endif
 #  include "HPDDM_operator.hpp"
 # endif
 # if defined(PETSC_HAVE_HTOOL) && HPDDM_SLEPC
@@ -831,8 +829,9 @@ class Schwarz : public Preconditioner<
                 Subdomain<K>::_dof = m;
                 if(!std::is_same<PetscScalar, PetscReal>::value)
                     d = new PetscReal[Subdomain<K>::_dof];
-                else
-                    VecGetArray(levels[0]->D, reinterpret_cast<PetscScalar**>(&d));
+                else {
+                    ierr = VecGetArray(levels[0]->D, reinterpret_cast<PetscScalar**>(&d));CHKERRQ(ierr);
+                }
                 _d = d;
                 ierr = ISGetIndices(is, &ptr);CHKERRQ(ierr);
                 std::vector<std::pair<PetscInt, PetscInt>> v;
@@ -1027,7 +1026,7 @@ class Schwarz : public Preconditioner<
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
             ST                     st;
-            KSP                    empty;
+            KSP                    empty = NULL;
             Mat                    local, *resized;
             Vec                    vr, vreduced;
             ISLocalToGlobalMapping l2g;
@@ -1086,7 +1085,7 @@ class Schwarz : public Preconditioner<
             std::vector<Vec>().swap(initial);
             ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
             ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
-            if(levels[0]->parent->share) {
+            if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
                 KSP *ksp;
                 if(!levels[0]->pc) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?"); // LCOV_EXCL_LINE
                 ierr = PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));CHKERRQ(ierr);
@@ -1143,7 +1142,7 @@ class Schwarz : public Preconditioner<
                 ierr = VecResetArray(vr);CHKERRQ(ierr);
             }
             ierr = VecDestroy(&vr);CHKERRQ(ierr);
-            if(levels[0]->parent->share) {
+            if(empty) {
                 ierr = STSetKSP(st, empty);CHKERRQ(ierr);
                 ierr = PetscObjectDereference((PetscObject)empty);CHKERRQ(ierr);
             }
@@ -1162,6 +1161,8 @@ class Schwarz : public Preconditioner<
             PetscFunctionReturn(0);
         }
         static PetscErrorCode next(Mat* A, Mat* N, PetscInt i, PetscInt* const n, PC_HPDDM_Level** const levels) {
+            Mat            P;
+            PetscInt       rstart, rend;
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
@@ -1174,10 +1175,8 @@ class Schwarz : public Preconditioner<
             if(levels[i - 1]->P) {
                 ierr = levels[i - 1]->P->buildTwo(levels[i - 1]->P->getCommunicator(), *A, i - 1, *n, levels);
                 if(ierr != PETSC_ERR_ARG_WRONG && levels[i]->ksp) {
-                    Mat A;
-                    PetscInt rstart, rend;
-                    ierr = KSPGetOperators(levels[i]->ksp, &A, nullptr);CHKERRQ(ierr);
-                    ierr = MatGetOwnershipRange(A, &rstart, &rend);CHKERRQ(ierr);
+                    ierr = KSPGetOperators(levels[i]->ksp, &P, nullptr);CHKERRQ(ierr);
+                    ierr = MatGetOwnershipRange(P, &rstart, &rend);CHKERRQ(ierr);
                     if(rstart == rend)
                         fail[1] = 1;
                 }
@@ -1188,14 +1187,14 @@ class Schwarz : public Preconditioner<
             MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
             if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
                 *n = i;
-                if(i > 1) {
+                if(i > 1 && N) {
                     ierr = MatDestroy(N);CHKERRQ(ierr);
                 }
             }
             else {
                 CHKERRQ(ierr);
             }
-            if(i > 1) {
+            if(i > 1 && A) {
                 ierr = MatDestroy(A);CHKERRQ(ierr);
             }
 #if PETSC_VERSION_GE(3, 15, 0)
