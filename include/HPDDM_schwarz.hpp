@@ -1100,6 +1100,16 @@ class Schwarz : public Preconditioner<
                 if(str != SAME_NONZERO_PATTERN) {
                     ierr = PetscInfo2(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat\n", int(str), prefix);CHKERRQ(ierr);
                 }
+                if (!ismatis) {
+                    ierr = PetscObjectTypeCompare((PetscObject)N, MATSHELL, &ismatis);CHKERRQ(ierr);
+                    if (ismatis) {
+                        PC pc;
+                        ierr = STGetKSP(st, &empty);CHKERRQ(ierr);
+                        ierr = KSPGetPC(empty, &pc);CHKERRQ(ierr);
+                        ierr = PCSetType(pc, PCMAT);CHKERRQ(ierr);
+                        ismatis = PETSC_FALSE;
+                    }
+                }
                 ierr = EPSSolve(eps);CHKERRQ(ierr);
                 ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
             }

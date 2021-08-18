@@ -776,7 +776,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
   const char               *pcpre;
   const PetscScalar *const *ev;
   PetscInt                 n, requested = data->N, reused = 0;
-  PetscBool                subdomains = PETSC_FALSE, flag = PETSC_FALSE, ismatis, swap = PETSC_FALSE;
+  PetscBool                subdomains = PETSC_FALSE, flg = PETSC_FALSE, ismatis, swap = PETSC_FALSE;
   DM                       dm;
   PetscErrorCode           ierr;
 
@@ -939,15 +939,20 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           ierr = ISDestroy(&intersect);CHKERRQ(ierr);
           if (!equal) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "IS of the auxiliary Mat does not include all local rows of A"); // LCOV_EXCL_LINE
         }
+        ierr = PetscObjectTypeCompare((PetscObject)data->aux, MATSHELL, &flg);CHKERRQ(ierr);
+        if (flg) {
+          ierr = MatHasOperation(data->aux, MATOP_MULT, &flg);CHKERRQ(ierr);
+          if (!flg) SETERRQ(PetscObjectComm((PetscObject)data->aux), PETSC_ERR_USER, "Need to call MatShellSetOperation(aux,MATOP_MULT,(void (*)(void))MatMult_Aux) before PCSetUp()"); // LCOV_EXCL_LINE
+        }
         if (!data->Neumann) {
-          ierr = PetscObjectTypeCompare((PetscObject)P, MATMPISBAIJ, &flag);CHKERRQ(ierr);
-          if (flag) {
+          ierr = PetscObjectTypeCompare((PetscObject)P, MATMPISBAIJ, &flg);CHKERRQ(ierr);
+          if (flg) {
             /* maybe better to ISSort(is[0]), MatCreateSubMatrices(), and then MatPermute() */
             /* but there is no MatPermute_SeqSBAIJ(), so as before, just use MATMPIBAIJ     */
             ierr = MatConvert(P, MATMPIBAIJ, MAT_INITIAL_MATRIX, &uaux);CHKERRQ(ierr);
-            flag = PETSC_FALSE;
           }
         }
+        flg = PETSC_FALSE;
       }
       if (!uaux) {
         if (data->Neumann) sub = &data->aux;
@@ -1071,14 +1076,14 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
       /* matrix pencil of the generalized eigenvalue problem on the overlap (GenEO) */
       if (!data->B) {
         ierr = MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted);CHKERRQ(ierr);
-        ierr = PetscObjectTypeCompare((PetscObject)weighted, MATNORMAL, &flag);CHKERRQ(ierr);
-        if (!flag) {
+        ierr = PetscObjectTypeCompare((PetscObject)weighted, MATNORMAL, &flg);CHKERRQ(ierr);
+        if (!flg) {
           ierr = MatDiagonalScale(weighted, data->levels[0]->D, data->levels[0]->D);CHKERRQ(ierr);
         } else { /* MATNORMAL applies MatDiagonalScale() in a matrix-free fashion, not what is needed since this won't be passed to SLEPc during the eigensolve */
           ierr = MatNormalGetMat(weighted, &data->B);CHKERRQ(ierr);
           ierr = MatDiagonalScale(data->B, NULL, data->levels[0]->D);CHKERRQ(ierr);
           data->B = NULL;
-          flag = PETSC_FALSE;
+          flg = PETSC_FALSE;
         }
         /* neither MatDuplicate() nor MatDiagonaleScale() handles the symmetry options, so propagate the options explicitly */
         /* only useful for -mat_type baij -pc_hpddm_levels_1_st_pc_type cholesky (no problem with MATAIJ or MATSBAIJ)       */
@@ -1151,9 +1156,9 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           ierr = PCSetUp(spc);CHKERRQ(ierr);
         }
       }
-    } else flag = reused ? PETSC_FALSE : PETSC_TRUE;
+    } else flg = reused ? PETSC_FALSE : PETSC_TRUE;
     if (!ismatis && subdomains) {
-      if (flag) {
+      if (flg) {
         ierr = KSPGetPC(data->levels[0]->ksp, &inner);CHKERRQ(ierr);
       } else inner = data->levels[0]->pc;
       if (inner) {
