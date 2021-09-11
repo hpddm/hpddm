@@ -34,6 +34,13 @@ PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
 #  include "HPDDM_operator.hpp"
+typedef struct _n_Aux *Aux;
+struct _n_Aux {
+    Mat V;
+    Vec sigma;
+    IS  is;
+};
+static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
 # endif
 # if defined(PETSC_HAVE_HTOOL) && HPDDM_SLEPC
 #  include <petscmathtool.h>
@@ -799,8 +806,6 @@ class Schwarz : public Preconditioner<
                 if(all) {
                     if(!std::is_same<K, PetscReal>::value)
                         delete [] ctx->P->_d;
-                    if(ctx->parent->levels[0] == ctx)
-                        MPI_Comm_free(&ctx->P->_communicator);
                     ctx->P->dtor();
                     delete ctx->P;
                     ctx->P = nullptr;
@@ -824,7 +829,7 @@ class Schwarz : public Preconditioner<
             PetscFunctionBeginUser;
             ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
             if(!Subdomain<K>::_rq) {
-                MPI_Comm_dup(PetscObjectComm((PetscObject)levels[0]->ksp), &(Subdomain<K>::_communicator));
+                ierr = PetscObjectGetComm((PetscObject)levels[0]->ksp, &(Subdomain<K>::_communicator));CHKERRQ(ierr);
                 ierr = ISGetLocalSize(is, &m);CHKERRQ(ierr);
                 Subdomain<K>::_dof = m;
                 if(!std::is_same<PetscScalar, PetscReal>::value)
@@ -1032,8 +1037,9 @@ class Schwarz : public Preconditioner<
             ISLocalToGlobalMapping l2g;
             IS                     sub[1] = { };
             PetscInt               nev, nconv = 0;
-            PetscBool              sym, ismatis, solve = PETSC_FALSE;
+            PetscBool              flg, ismatis, solve = PETSC_FALSE;
             const char             *prefix;
+            Aux                    aux = NULL;
             PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
@@ -1045,6 +1051,40 @@ class Schwarz : public Preconditioner<
             ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
             ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
             if(!ismatis) {
+                Mat compact;
+                IS  is;
+                ierr = PetscObjectQuery((PetscObject)N, "_PCHPDDM_Embed", (PetscObject*)&is);CHKERRQ(ierr);
+                ierr = PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject*)&compact);CHKERRQ(ierr);
+                if(compact && is && solve) {
+                    SVD         svd;
+                    PetscScalar *values;
+                    PetscInt    m, p;
+                    ierr = PetscNew(&aux);CHKERRQ(ierr);
+                    aux->is = is;
+                    ierr = SVDCreate(PETSC_COMM_SELF, &svd);CHKERRQ(ierr);
+                    ierr = SVDSetOptionsPrefix(svd, prefix);CHKERRQ(ierr);
+                    ierr = SVDSetOperators(svd, compact, NULL);CHKERRQ(ierr);
+                    ierr = SVDSetType(svd, SVDLAPACK);CHKERRQ(ierr);
+                    ierr = SVDSetFromOptions(svd);CHKERRQ(ierr);
+                    ierr = SVDSetUp(svd);CHKERRQ(ierr);
+                    ierr = SVDSolve(svd);CHKERRQ(ierr);
+                    ierr = MatGetLocalSize(compact, &m, &p);CHKERRQ(ierr);
+                    ierr = VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma);CHKERRQ(ierr);
+                    ierr = MatCreateSeqDense(PETSC_COMM_SELF, p, m, NULL, &aux->V);CHKERRQ(ierr);
+                    ierr = VecGetArrayWrite(aux->sigma, &values);CHKERRQ(ierr);
+                    for(PetscInt n = 0; n < m; ++n) {
+                        PetscReal s;
+                        Vec       v;
+                        ierr = MatDenseGetColumnVecWrite(aux->V, n, &v);CHKERRQ(ierr);
+                        ierr = SVDGetSingularTriplet(svd, n, &s, NULL, v);CHKERRQ(ierr);
+                        values[n] = 1.0/s;
+                        ierr = MatDenseRestoreColumnVecWrite(aux->V, n, &v);CHKERRQ(ierr);
+                    }
+                    ierr = MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N);CHKERRQ(ierr);
+                    ierr = MatShellSetOperation(N, MATOP_MULT, (void (*)(void))MatMult_Aux);CHKERRQ(ierr);
+                    ierr = VecRestoreArrayWrite(aux->sigma, &values);CHKERRQ(ierr);
+                    ierr = SVDDestroy(&svd);CHKERRQ(ierr);
+                }
                 ierr = EPSSetOperators(eps, N, weighted);CHKERRQ(ierr);
             }
             else {
@@ -1056,8 +1096,8 @@ class Schwarz : public Preconditioner<
                     ierr = MatDestroy(&weighted);CHKERRQ(ierr);
                 }
                 ierr = MatISGetLocalMat(N, &local);CHKERRQ(ierr);
-                ierr = PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &sym);CHKERRQ(ierr);
-                if(sym) {
+                ierr = PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &flg);CHKERRQ(ierr);
+                if(flg) {
                     /* going back from SEQBAIJ to SEQSBAIJ */
                     ierr = MatSetOption(resized[0], MAT_SYMMETRIC, PETSC_TRUE);CHKERRQ(ierr);
                     ierr = MatConvert(resized[0], MATSEQSBAIJ, MAT_INPLACE_MATRIX, &resized[0]);CHKERRQ(ierr);
@@ -1097,7 +1137,7 @@ class Schwarz : public Preconditioner<
                 MatStructure str;
                 ierr = STGetMatStructure(st, &str);CHKERRQ(ierr);
                 if(str != SAME_NONZERO_PATTERN) {
-                    ierr = PetscInfo2(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat\n", int(str), prefix);CHKERRQ(ierr);
+                    ierr = PetscInfo2(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix);CHKERRQ(ierr);
                 }
                 ierr = EPSSolve(eps);CHKERRQ(ierr);
                 ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
@@ -1106,9 +1146,14 @@ class Schwarz : public Preconditioner<
             if(levels[0]->threshold >= 0.0) {
                 PetscInt i = 0;
                 while(i < levels[0]->nu) {
-                    PetscScalar eigr;
-                    ierr = EPSGetEigenvalue(eps, i, &eigr, nullptr);CHKERRQ(ierr);
-                    if(std::abs(eigr) > levels[0]->threshold) {
+                    PetscScalar eigr, eigi;
+                    ierr = EPSGetEigenvalue(eps, i, &eigr, &eigi);CHKERRQ(ierr);
+#if defined(PETSC_USE_COMPLEX)
+                    if(std::abs(eigr) > levels[0]->threshold)
+#else
+                    if(std::hypot(eigr, eigi) > levels[0]->threshold)
+#endif
+                    {
                         ierr = PetscInfo1(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
                         break;
                     }
@@ -1130,16 +1175,26 @@ class Schwarz : public Preconditioner<
             if(ismatis) {
                 ierr = MatCreateVecs(resized[0], &vreduced, nullptr);CHKERRQ(ierr);
             }
-            for(PetscInt i = 0; i < levels[0]->nu; ++i) {
+            for(PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
                 ierr = VecPlaceArray(vr, super::_ev[i]);CHKERRQ(ierr);
                 if(!ismatis) {
-                    ierr = EPSGetEigenvector(eps, i, vr, nullptr);CHKERRQ(ierr);
+                    ierr = EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr);CHKERRQ(ierr);
                 }
                 else {
-                    ierr = EPSGetEigenvector(eps, i, vreduced, nullptr);CHKERRQ(ierr);
+                    ierr = EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr);CHKERRQ(ierr);
                     ierr = VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced);CHKERRQ(ierr);
                 }
                 ierr = VecResetArray(vr);CHKERRQ(ierr);
+#if !defined(PETSC_USE_COMPLEX)
+                if(!flg) {
+                    PetscScalar eigi;
+                    ierr = EPSGetEigenvalue(eps, i, nullptr, &eigi);CHKERRQ(ierr);
+                    if(std::abs(eigi) > std::numeric_limits<PetscReal>::epsilon())
+                        flg = PETSC_TRUE;
+                }
+                else
+                    flg = PETSC_FALSE;
+#endif
             }
             ierr = VecDestroy(&vr);CHKERRQ(ierr);
             if(empty) {
@@ -1150,6 +1205,12 @@ class Schwarz : public Preconditioner<
             if(!ismatis) {
                 if(!rhs) {
                     ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                }
+                if(aux) {
+                    ierr = MatDestroy(&aux->V);CHKERRQ(ierr);
+                    ierr = VecDestroy(&aux->sigma);CHKERRQ(ierr);
+                    ierr = PetscFree(aux);CHKERRQ(ierr);
+                    ierr = MatDestroy(&N);CHKERRQ(ierr);
                 }
             }
             else {
@@ -1207,46 +1268,101 @@ class Schwarz : public Preconditioner<
                 PetscFunctionReturn(0);
             }
             if(i + 1 < *n && levels[i - 1]->P) {
+                PetscBool algebraic;
+                char type[256]; /* same size as in src/ksp/pc/interface/pcset.c */
+                std::string prefix(((PetscObject)levels[i - 1]->ksp)->prefix);
+                unsigned int pos = prefix.rfind("levels_", prefix.size() - 1);
+                unsigned short level = std::stoi(prefix.substr(pos + 7, prefix.size() - 1));
+                prefix = prefix.substr(0, pos + 7) + std::to_string(level + 1) + "_";
+                ierr = PetscOptionsGetString(NULL, prefix.c_str(), "-st_pc_type", type, sizeof(type), NULL);CHKERRQ(ierr);
+                ierr = PetscStrcmp(type, PCMAT, &algebraic);CHKERRQ(ierr);
+                if(!levels[0]->parent->aux || algebraic) {
+                    if(levels[i]->ksp) {
+                        Mat              *sub, weighted;
+                        IS               loc, uis;
+                        Vec              xin;
+                        PetscInt         m;
+                        std::vector<Vec> initial;
+                        delete levels[i]->P;
+                        levels[i]->P = new HPDDM::Schwarz<PetscScalar>();
+                        ierr = ISCreateStride(PETSC_COMM_SELF, rend - rstart, rstart, 1, &uis);CHKERRQ(ierr);
+                        ierr = ISDuplicate(uis, &loc);CHKERRQ(ierr);
+                        ierr = MatIncreaseOverlap(P, 1, &uis, 1);CHKERRQ(ierr);
+                        ierr = ISSort(uis);CHKERRQ(ierr);
+                        ierr = ISSetInfo(uis, IS_SORTED, IS_GLOBAL, PETSC_TRUE, PETSC_TRUE);CHKERRQ(ierr);
+                        ierr = ISGetLocalSize(uis, &m);CHKERRQ(ierr);
+                        ierr = VecDestroy(&levels[i]->D);CHKERRQ(ierr);
+                        ierr = VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &levels[i]->D);CHKERRQ(ierr);
+                        ierr = VecScatterDestroy(&levels[i]->scatter);CHKERRQ(ierr);
+                        ierr = MatCreateVecs(P, &xin, NULL);CHKERRQ(ierr);
+                        ierr = VecScatterCreate(xin, uis, levels[i]->D, NULL, &levels[i]->scatter);CHKERRQ(ierr);
+                        ierr = VecDestroy(&xin);CHKERRQ(ierr);
+                        ierr = PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[]), (P, &uis, &sub));CHKERRQ(ierr);
+                        ierr = levels[i]->P->structure(loc, uis, sub[0], NULL, levels + i);CHKERRQ(ierr);
+                        ierr = ISDestroy(&loc);CHKERRQ(ierr);
+                        ierr = MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted);CHKERRQ(ierr);
+                        ierr = MatDiagonalScale(weighted, levels[i]->D, levels[i]->D);CHKERRQ(ierr);
+                        ierr = MatPropagateSymmetryOptions(sub[0], weighted);CHKERRQ(ierr);
+                        ierr = levels[i]->P->solveGEVP(uis, sub[0], initial, levels + 1, weighted, NULL);CHKERRQ(ierr);
+                        ierr = PetscObjectReference((PetscObject)sub[0]);CHKERRQ(ierr);
+                        Mat Q = sub[0];
+                        ierr = next(&Q, NULL, i + 1, n, levels);CHKERRQ(ierr);
+                        ierr = ISDestroy(&uis);CHKERRQ(ierr);
+                        ierr = PetscObjectQuery((PetscObject)sub[0], "_PCHPDDM_Embed", (PetscObject*)&uis);CHKERRQ(ierr);
+                        ierr = ISDestroy(&uis);CHKERRQ(ierr);
+                        ierr = PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Embed", NULL);CHKERRQ(ierr);
+                        ierr = PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Compact", NULL);CHKERRQ(ierr);
+                        ierr = MatDestroySubMatrices(2, &sub);CHKERRQ(ierr);
+                    }
+                    else {
+                        delete levels[i]->P;
+                        levels[i]->P = nullptr;
+                        ierr = next(NULL, NULL, i + 1, n, levels);CHKERRQ(ierr);
+                    }
+                    ierr = PetscObjectComposeFunction((PetscObject)levels[0]->parent->levels[0]->ksp, "PCHPDDMSetUp_Private_C", NULL);CHKERRQ(ierr);
+                }
+                else {
 #if PETSC_VERSION_GE(3, 15, 0)
-                if(!levels[0]->parent->log_separate) {
-                    ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                }
+                    if(!levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
 #endif
-                CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
-                std::vector<K> overlap;
-                std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
-                std::map<std::pair<unsigned short, unsigned short>, unsigned short> sizes;
-                std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
-                MPI_Request rs = MPI_REQUEST_NULL;
-                coNeumann = new CoarseOperator<DMatrix, K>;
-                levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra);
-                if(i > 1) {
-                    ierr = MatDestroy(N);CHKERRQ(ierr);
-                }
-                if(overlap.size()) {
-                    ierr = MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);CHKERRMPI(ierr);
-                }
+                    CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
+                    std::vector<K> overlap;
+                    std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
+                    std::map<std::pair<unsigned short, unsigned short>, unsigned short> sizes;
+                    std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
+                    MPI_Request rs = MPI_REQUEST_NULL;
+                    coNeumann = new CoarseOperator<DMatrix, K>;
+                    levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra);
+                    if(i > 1) {
+                        ierr = MatDestroy(N);CHKERRQ(ierr);
+                    }
+                    if(overlap.size()) {
+                        ierr = MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);CHKERRMPI(ierr);
+                    }
 #if PETSC_VERSION_GE(3, 15, 0)
-                if(!levels[0]->parent->log_separate) {
-                    ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                }
+                    if(!levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                        ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
 #endif
-                ierr = levels[i - 1]->P->_co->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]);CHKERRQ(ierr);
-                delete coNeumann;
-                if(i + 2 == *n) {
-                    ierr = MatDestroy(N);CHKERRQ(ierr);
-                }
-                if(*A)
-                    levels[i]->P = levels[i - 1]->P->_co->getSubdomain()->P;
-                else
-                    levels[i]->P = nullptr;
-                ierr = MPI_Wait(&rs, MPI_STATUS_IGNORE);CHKERRMPI(ierr);
+                    ierr = levels[i - 1]->P->_co->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]);CHKERRQ(ierr);
+                    delete coNeumann;
+                    if(i + 2 == *n) {
+                        ierr = MatDestroy(N);CHKERRQ(ierr);
+                    }
+                    if(*A)
+                        levels[i]->P = levels[i - 1]->P->_co->getSubdomain()->P;
+                    else
+                        levels[i]->P = nullptr;
+                    ierr = MPI_Wait(&rs, MPI_STATUS_IGNORE);CHKERRMPI(ierr);
 #if PETSC_VERSION_GE(3, 15, 0)
-                if(!levels[0]->parent->log_separate) {
-                    ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                }
+                    if(!levels[0]->parent->log_separate) {
+                        ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                    }
 #endif
+                }
             }
             PetscFunctionReturn(0);
         }
@@ -1326,8 +1442,31 @@ struct hpddm_method_id<Schwarz<
 } // HPDDM
 #if HPDDM_SLEPC
 PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar>* const P, IS is, Mat const N, Mat const weighted, Mat const rhs, std::vector<Vec> initial, PC_HPDDM_Level** const levels) {
-    if(!P) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal called with no HPDDM object"); // LCOV_EXCL_LINE
+    if(!P) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal() called with no HPDDM object"); // LCOV_EXCL_LINE
     else return P->initialize(is, N, weighted, rhs, initial, levels);
+}
+static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
+    Aux            aux;
+    Vec            left, right, leftEcon;
+    PetscErrorCode ierr;
+
+    PetscFunctionBeginUser;
+    ierr = MatShellGetContext(A, &aux);CHKERRQ(ierr);
+    ierr = MatCreateVecs(aux->V, &right, &left);CHKERRQ(ierr);
+    ierr = MatCreateVecs(aux->V, NULL, &leftEcon);CHKERRQ(ierr);
+    ierr = VecZeroEntries(left);CHKERRQ(ierr);
+    ierr = VecISCopy(left, aux->is, SCATTER_FORWARD, x);CHKERRQ(ierr);
+    ierr = MatMultTranspose(aux->V, left, right);CHKERRQ(ierr);
+    ierr = MatMult(aux->V, right, leftEcon);CHKERRQ(ierr);
+    ierr = VecAXPY(leftEcon, -1.0, left);CHKERRQ(ierr);
+    ierr = VecPointwiseMult(y, aux->sigma, right);CHKERRQ(ierr);
+    ierr = MatMult(aux->V, y, left);CHKERRQ(ierr);
+    ierr = VecAXPY(left, -1.0 / PETSC_SMALL, leftEcon);CHKERRQ(ierr);
+    ierr = VecISCopy(left, aux->is, SCATTER_REVERSE, y);CHKERRQ(ierr);
+    ierr = VecDestroy(&left);CHKERRQ(ierr);
+    ierr = VecDestroy(&right);CHKERRQ(ierr);
+    ierr = VecDestroy(&leftEcon);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
 }
 #endif
 #endif // _HPDDM_SCHWARZ_
