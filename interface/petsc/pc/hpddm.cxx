@@ -1066,7 +1066,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
         ierr = ISSort(data->is);CHKERRQ(ierr);
         ierr = ISSetInfo(data->is, IS_SORTED, IS_GLOBAL, PETSC_TRUE, PETSC_TRUE);CHKERRQ(ierr);
       } else {
-        ierr = PetscInfo1(pc, "Cannot assemble a fully-algebraic coarse operator with an assembled Pmat and -%spc_hpddm_levels_1_st_pc_type != mat\n", pcpre ? pcpre : "");CHKERRQ(ierr);
+        ierr = PetscInfo1(pc, "Cannot assemble a fully-algebraic coarse operator with an assembled Pmat and -%spc_hpddm_levels_1_st_pc_type != mat\n", pcpre ? pcpre : "");CHKERRQ(ierr); // LCOV_EXCL_LINE
       }
     }
   }
@@ -1176,7 +1176,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           ierr = ISDestroy(&uis);CHKERRQ(ierr);
           data->share = PETSC_FALSE;
           if (size == -1) {
-            ierr = PetscInfo(pc, "Cannot share PC between ST and subdomain solver since PCASMGetSubKSP() not found in fine-level PC\n");CHKERRQ(ierr);
+            ierr = PetscInfo(pc, "Cannot share PC between ST and subdomain solver since PCASMGetSubKSP() not found in fine-level PC\n");CHKERRQ(ierr); // LCOV_EXCL_LINE
           } else SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Number of subdomain solver %D != 1", size); // LCOV_EXCL_LINE
         } else {
           Mat        D;

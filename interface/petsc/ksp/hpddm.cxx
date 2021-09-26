@@ -250,7 +250,7 @@ PETSC_STATIC_INLINE PetscErrorCode KSPSolve_HPDDM_Private(KSP ksp, const PetscSc
         ctx->initialrtol = PETSC_TRUE;
       }
     } else {
-      ierr = PetscInfo(ksp, "Using a special \"converged\" callback, be careful, it is used in KSPHPDDM to track blocks of residuals\n");CHKERRQ(ierr);
+      ierr = PetscInfo(ksp, "Using a special \"converged\" callback, be careful, it is used in KSPHPDDM to track blocks of residuals\n");CHKERRQ(ierr); // LCOV_EXCL_LINE
     }
   }
   /* initial guess is always nonzero with recycling methods if there is a deflation subspace available */
@@ -596,7 +596,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_HPDDM(KSP ksp)
   else if (i == 1) data->cntl[0] = HPDDM_KRYLOV_METHOD_CG;
   else if (i == 2) data->cntl[0] = HPDDM_KRYLOV_METHOD_NONE;
   if (data->cntl[0] != static_cast<char>(PETSC_DECIDE)) {
-    ierr = PetscInfo1(ksp, "Using the previously set KSPType %s\n", common[i]);CHKERRQ(ierr);
+    ierr = PetscInfo1(ksp, "Using the previously set KSPType %s\n", common[i]);CHKERRQ(ierr); // LCOV_EXCL_LINE
   }
   ierr = PetscObjectComposeFunction((PetscObject)ksp, "KSPHPDDMSetDeflationSpace_C", KSPHPDDMSetDeflationSpace_HPDDM);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)ksp, "KSPHPDDMGetDeflationSpace_C", KSPHPDDMGetDeflationSpace_HPDDM);CHKERRQ(ierr);
