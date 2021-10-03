@@ -1297,7 +1297,7 @@ class Schwarz : public Preconditioner<
                         ierr = MatCreateVecs(P, &xin, NULL);CHKERRQ(ierr);
                         ierr = VecScatterCreate(xin, uis, levels[i]->D, NULL, &levels[i]->scatter);CHKERRQ(ierr);
                         ierr = VecDestroy(&xin);CHKERRQ(ierr);
-                        ierr = PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[]), (P, &uis, &sub));CHKERRQ(ierr);
+                        ierr = PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[], PetscBool), (P, &uis, &sub, PETSC_FALSE));CHKERRQ(ierr);
                         ierr = levels[i]->P->structure(loc, uis, sub[0], NULL, levels + i);CHKERRQ(ierr);
                         ierr = ISDestroy(&loc);CHKERRQ(ierr);
                         ierr = MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted);CHKERRQ(ierr);
