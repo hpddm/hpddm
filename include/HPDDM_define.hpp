@@ -50,7 +50,7 @@
 #if !defined(HPDDM_PETSC) && defined(PETSC_HPDDM_MAXLEVELS)
 # define HPDDM_PETSC                                    1
 #endif
-#if defined(PETSC_HAVE_MKL) && !defined(HPDDM_MKL)
+#if defined(PETSC_HAVE_MKL_LIBS) && !defined(HPDDM_MKL)
 # define HPDDM_MKL                                      1
 #endif
 #if defined(HPDDM_PETSC) && HPDDM_PETSC
