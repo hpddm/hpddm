@@ -848,7 +848,7 @@ class Schwarz : public Preconditioner<
                     ierr = KSPGetOperators(levels[0]->ksp, nullptr, &P);CHKERRQ(ierr);
                     ierr = MatGetBlockSize(P, &bs);CHKERRQ(ierr);
                 }
-                if(Subdomain<K>::_dof % bs) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %D", Subdomain<K>::_dof, bs); // LCOV_EXCL_LINE
+                if(Subdomain<K>::_dof % bs) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT, Subdomain<K>::_dof, bs); // LCOV_EXCL_LINE
                 if(!ismatis) {
                     PetscInt* idx;
                     ierr = PetscMalloc1(Subdomain<K>::_dof / bs, &idx);CHKERRQ(ierr);
@@ -1164,7 +1164,7 @@ class Schwarz : public Preconditioner<
                 }
                 levels[0]->nu = i;
             }
-            ierr = PetscInfo2(eps, "HPDDM: Using %D out of %D computed eigenvectors\n", levels[0]->nu, nconv);CHKERRQ(ierr);
+            ierr = PetscInfo2(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv);CHKERRQ(ierr);
             if(levels[0]->nu) {
                 super::_ev = new K*[levels[0]->nu];
                 *super::_ev = new K[Subdomain<K>::_dof * levels[0]->nu]();
