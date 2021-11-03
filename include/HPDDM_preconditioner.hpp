@@ -69,9 +69,13 @@ template<
 class Preconditioner : public Subdomain<K> {
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
     private:
-#ifdef __MINGW32__
+#if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
         template<unsigned short N>
-        static void __stdcall f(void* in, void* inout, int* len, MPI_Datatype*) {
+        static void
+#ifdef __MINGW32__
+                    __stdcall
+#endif
+                              f(void* in, void* inout, int* len, MPI_Datatype*) {
             HPDDM_LAMBDA_F(in, input, inout, output, len, N)
         }
 #endif
@@ -149,7 +153,7 @@ class Preconditioner : public Subdomain<K> {
                 allUniform[4] = nu > 0 ? nu : std::numeric_limits<unsigned short>::max();
             {
                 MPI_Op op;
-#ifdef __MINGW32__
+#if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
                 MPI_Op_create(&f<N>, 1, &op);
 #else
                 auto f = [](void* in, void* inout, int* len, MPI_Datatype*) -> void {
