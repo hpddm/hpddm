@@ -95,11 +95,11 @@ class Subdomain : public OptionsPrefix<K> {
                 }
                 for(unsigned short i = 0; i < _map.size(); ++i) {
                     int index;
-                    MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
+                    ignore(MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE));
                     for(unsigned int j = 0; j < _map[index].second.size(); ++j)
                         in[_map[index].second[j] + nu * _dof] += _buff[index][j];
                 }
-                MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
+                ignore(MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE));
             }
         }
         template<class T, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex && std::is_same<K, underlying_type<T>>::value>::type* = nullptr>
