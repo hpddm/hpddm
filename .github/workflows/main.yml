@@ -175,8 +175,9 @@ jobs:
               fi
               ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
-              rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS}@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
-              make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` -I`pwd`/../`echo ${REPOSITORY_NAME}`/include" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+              INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
+              rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
+              make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
               cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
               make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors
               if [ "$PRECISION" = "single" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
