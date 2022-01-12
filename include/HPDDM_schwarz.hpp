@@ -800,7 +800,7 @@ class Schwarz : public Preconditioner<
 #ifdef PETSCHPDDM_H
         static PetscErrorCode destroy(PC_HPDDM_Level* const ctx, PetscBool all) {
             PetscFunctionBeginUser;
-            if(!ctx) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context"); // LCOV_EXCL_LINE
+            PetscCheck(ctx, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context"); // LCOV_EXCL_LINE
             static_assert(std::is_same<K, PetscScalar>::value, "Wrong type");
             if(ctx->P && ctx->P->_dof != -1) {
                 if(all) {
@@ -848,7 +848,7 @@ class Schwarz : public Preconditioner<
                     ierr = KSPGetOperators(levels[0]->ksp, nullptr, &P);CHKERRQ(ierr);
                     ierr = MatGetBlockSize(P, &bs);CHKERRQ(ierr);
                 }
-                if(Subdomain<K>::_dof % bs) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT, Subdomain<K>::_dof, bs); // LCOV_EXCL_LINE
+                PetscCheck(Subdomain<K>::_dof % bs == 0, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT, Subdomain<K>::_dof, bs); // LCOV_EXCL_LINE
                 if(!ismatis) {
                     PetscInt* idx;
                     ierr = PetscMalloc1(Subdomain<K>::_dof / bs, &idx);CHKERRQ(ierr);
@@ -1127,7 +1127,7 @@ class Schwarz : public Preconditioner<
             ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
             if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
                 KSP *ksp;
-                if(!levels[0]->pc) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?"); // LCOV_EXCL_LINE
+                PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?"); // LCOV_EXCL_LINE
                 ierr = PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));CHKERRQ(ierr);
                 ierr = STGetKSP(st, &empty);CHKERRQ(ierr);
                 ierr = PetscObjectReference((PetscObject)empty);CHKERRQ(ierr);
@@ -1137,7 +1137,7 @@ class Schwarz : public Preconditioner<
                 MatStructure str;
                 ierr = STGetMatStructure(st, &str);CHKERRQ(ierr);
                 if(str != SAME_NONZERO_PATTERN) {
-                    ierr = PetscInfo2(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix);CHKERRQ(ierr);
+                    ierr = PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix);CHKERRQ(ierr);
                 }
                 ierr = EPSSolve(eps);CHKERRQ(ierr);
                 ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
@@ -1154,17 +1154,17 @@ class Schwarz : public Preconditioner<
                     if(std::hypot(eigr, eigi) > levels[0]->threshold)
 #endif
                     {
-                        ierr = PetscInfo1(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
+                        ierr = PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
                         break;
                     }
                     else {
-                        ierr = PetscInfo1(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
+                        ierr = PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
                     }
                     ++i;
                 }
                 levels[0]->nu = i;
             }
-            ierr = PetscInfo2(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv);CHKERRQ(ierr);
+            ierr = PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv);CHKERRQ(ierr);
             if(levels[0]->nu) {
                 super::_ev = new K*[levels[0]->nu];
                 *super::_ev = new K[Subdomain<K>::_dof * levels[0]->nu]();
