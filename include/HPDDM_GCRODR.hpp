@@ -671,7 +671,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             int nrhs = mu - N;
             Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
 #if HPDDM_PETSC
-            ierr = PetscInfo2(A._ksp, "HPDDM: Deflating %d out of %d RHS\n", mu - N, mu);CHKERRQ(ierr);
+            ierr = PetscInfo(A._ksp, "HPDDM: Deflating %d out of %d RHS\n", mu - N, mu);CHKERRQ(ierr);
 #endif
         }
         if(N != deflated) {
@@ -847,7 +847,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) {
                         ierr = PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym);CHKERRQ(ierr);
-                        if(!loadedKSPSym) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
+                        PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
                     }
                     ierr = (*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm,
 #if !defined(_KSPIMPL_H)
@@ -987,7 +987,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) {
                         ierr = PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym);CHKERRQ(ierr);
-                        if(!loadedKSPSym) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
+                        PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
                     }
                     ierr = (*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm,
 #if !defined(_KSPIMPL_H)
