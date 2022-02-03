@@ -92,13 +92,23 @@ class Schwarz : public Preconditioner<
         /* Variable: d
          *  Local partition of unity. */
         const underlying_type<K>* _d;
+#if HPDDM_SCHWARZ
         std::size_t            _hash;
         /* Variable: type
          *  Type of <Prcndtnr> used in <Schwarz::apply> and <Schwarz::deflation>. */
         Prcndtnr               _type;
+#endif
     public:
-        Schwarz() : _d(), _hash(), _type(Prcndtnr::NO) { }
-        explicit Schwarz(const Subdomain<K>& s) : super(s), _d(), _hash(), _type(Prcndtnr::NO) { }
+        Schwarz() : _d()
+#if HPDDM_SCHWARZ
+                        , _hash(), _type(Prcndtnr::NO)
+#endif
+                                                       { }
+        explicit Schwarz(const Subdomain<K>& s) : super(s), _d()
+#if HPDDM_SCHWARZ
+                                                                , _hash(), _type(Prcndtnr::NO)
+#endif
+                                                                                               { }
         ~Schwarz() { _d = nullptr; }
         void operator=(const Schwarz& B) {
             dtor();
@@ -1391,14 +1401,12 @@ class Schwarz : public Preconditioner<
 #if HPDDM_PETSC
             PetscFunctionBeginUser;
 #endif
+#if HPDDM_SCHWARZ
             if(super::_cc) {
                 (*super::_cc)(in, out, Subdomain<K>::_dof, mu);
-#if !HPDDM_PETSC
                 return;
-#else
-                PetscFunctionReturnVoid();
-#endif
             }
+#endif
             if(excluded)
                 super::_co->template callSolver<excluded>(super::_uc, mu);
             else {
