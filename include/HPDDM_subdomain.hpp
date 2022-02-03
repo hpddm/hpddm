@@ -37,11 +37,17 @@ namespace HPDDM {
  * Template Parameter:
  *    K              - Scalar type. */
 template<class K>
-class Subdomain : public OptionsPrefix<K> {
+class Subdomain
+#if !HPDDM_PETSC
+                : public OptionsPrefix<K>
+#endif
+                                          {
     protected:
+#ifndef PETSCHPDDM_H
         /* Variable: a
          *  Local matrix. */
         MatrixCSR<K>*                _a;
+#endif
         /* Variable : buff
          *  Array used as the receiving and receiving buffer for point-to-point communications with neighboring subdomains. */
         K**                       _buff;
@@ -65,11 +71,27 @@ class Subdomain : public OptionsPrefix<K> {
             vectorNeighbor().swap(_map);
             delete [] _buff;
             _buff = nullptr;
+#ifndef PETSCHPDDM_H
             destroyMatrix(nullptr);
+#endif
         }
     public:
-        Subdomain() : OptionsPrefix<K>(), _a(), _buff(), _map(), _rq(), _dof() { }
-        Subdomain(const Subdomain<K>& s) : OptionsPrefix<K>(), _a(), _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
+        Subdomain() :
+#if !HPDDM_PETSC
+                      OptionsPrefix<K>(),
+#endif
+#ifndef PETSCHPDDM_H
+                                          _a(),
+#endif
+                                                _buff(), _map(), _rq(), _dof() { }
+        Subdomain(const Subdomain<K>& s) :
+#if !HPDDM_PETSC
+                                           OptionsPrefix<K>(),
+#endif
+#ifndef PETSCHPDDM_H
+                                                               _a(),
+#endif
+                                                                     _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
         ~Subdomain() {
             dtor();
         }
@@ -141,6 +163,7 @@ class Subdomain : public OptionsPrefix<K> {
             else
                 _communicator = MPI_COMM_WORLD;
             unsigned int* perm = nullptr;
+#ifndef PETSCHPDDM_H
             if(a && restriction) {
                 perm = new unsigned int[a->_n]();
                 for(unsigned int i = 0; i < restriction->_n; ++i)
@@ -151,6 +174,7 @@ class Subdomain : public OptionsPrefix<K> {
                 _a = a;
             if(_a)
                 _dof = _a->_n;
+#endif
             std::vector<unsigned short> sortable;
             std::copy(o.begin(), o.end(), std::back_inserter(sortable));
             _map.reserve(sortable.size());
@@ -213,6 +237,7 @@ class Subdomain : public OptionsPrefix<K> {
             _rq = new MPI_Request[2 * _map.size()];
             _buff = new K*[2 * _map.size()]();
         }
+#ifndef PETSCHPDDM_H
         void initialize(MatrixCSR<K>* const& a, const int neighbors, const int* const list, const int* const sizes, const int* const* const connectivity, MPI_Comm* const& comm = nullptr) {
             if(comm)
                 _communicator = *comm;
@@ -238,6 +263,7 @@ class Subdomain : public OptionsPrefix<K> {
             _rq = new MPI_Request[2 * _map.size()];
             _buff = new K*[2 * _map.size()]();
         }
+#endif
         bool setBuffer(K* wk = nullptr, const int& space = 0) const {
             int n = std::accumulate(_map.cbegin(), _map.cend(), 0, [](unsigned int init, const pairNeighbor& i) { return init + i.second.size(); });
             if(n == 0)
@@ -286,6 +312,7 @@ class Subdomain : public OptionsPrefix<K> {
             MPI_Comm_compare(_communicator, comm, &result);
             return result != MPI_CONGRUENT && result != MPI_IDENT;
         }
+#ifndef PETSCHPDDM_H
         K boundaryCond(const unsigned int i) const {
             if(_a->_ia) {
                 const int shift = _a->_ia[0];
@@ -320,15 +347,21 @@ class Subdomain : public OptionsPrefix<K> {
             }
             return map;
         }
+#endif
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */
         constexpr int getDof() const { return _dof; }
         /* Function: setDof
          *  Sets the value of <Subdomain::dof>. */
         void setDof(int dof) {
-            if(!_dof && !_a)
+            if(!_dof
+#ifndef PETSCHPDDM_H
+                    && !_a
+#endif
+                          )
                 _dof = dof;
         }
+#ifndef PETSCHPDDM_H
         /* Function: getMatrix
          *  Returns a pointer to <Subdomain::a>. */
         const MatrixCSR<K>* getMatrix() const { return _a; }
@@ -351,8 +384,8 @@ class Subdomain : public OptionsPrefix<K> {
                 if(!isFinalized) {
                     int rankWorld;
                     MPI_Comm_rank(_communicator, &rankWorld);
-                    const std::string prefix = OptionsPrefix<K>::prefix();
 #if !HPDDM_PETSC
+                    const std::string prefix = OptionsPrefix<K>::prefix();
                     const Option& opt = *Option::get();
                     std::string filename = opt.prefix(prefix + "dump_matrices", true);
                     if(filename.size() == 0)
@@ -371,6 +404,7 @@ class Subdomain : public OptionsPrefix<K> {
                 _a = nullptr;
             }
         }
+#endif
         /* Function: getRq
          *  Returns a pointer to <Subdomain::rq>. */
         MPI_Request* getRq() const { return _rq; }
@@ -430,6 +464,7 @@ class Subdomain : public OptionsPrefix<K> {
             }
 #endif
         }
+#ifndef PETSCHPDDM_H
         /* Function: globalMapping
          *
          *  Computes a global numbering of all unknowns.
@@ -669,6 +704,7 @@ class Subdomain : public OptionsPrefix<K> {
                     std::copy_n(out, bs * n, in);
             }
         }
+#endif
 };
 
 #if !HPDDM_PETSC || defined(_KSPIMPL_H)

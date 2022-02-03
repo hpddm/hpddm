@@ -279,6 +279,7 @@ class Preconditioner : public Subdomain<K> {
             K** ptr = const_cast<K**>(&_uc);
             *ptr = new K[mu * _co->getSizeRHS()];
         }
+#if HPDDM_SCHWARZ
         struct CoarseCorrection {
             virtual void operator()(const K* const in, K* const out) = 0;
             virtual void operator()(const K* const in, K* const out, int n, unsigned short mu) {
@@ -288,7 +289,12 @@ class Preconditioner : public Subdomain<K> {
             virtual ~CoarseCorrection() { };
         };
         CoarseCorrection*  _cc;
-        Preconditioner() : _co(), _ev(), _uc(), _cc() { }
+#endif
+        Preconditioner() : _co(), _ev(), _uc()
+#if HPDDM_SCHWARZ
+                                              , _cc()
+#endif
+                                                      { }
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
@@ -344,7 +350,10 @@ class Preconditioner : public Subdomain<K> {
     protected:
         explicit Preconditioner(const Subdomain<K>& s) : super(s)
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
-                                                                 , _co(), _ev(), _uc(), _cc()
+                                                                 , _co(), _ev(), _uc()
+#if HPDDM_SCHWARZ
+                                                                                      , _cc()
+#endif
 #endif
                                                                                               { };
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
@@ -360,8 +369,10 @@ class Preconditioner : public Subdomain<K> {
             _ev = nullptr;
             delete [] _uc;
             _uc = nullptr;
+#if HPDDM_SCHWARZ
             delete _cc;
             _cc = nullptr;
+#endif
         }
 #endif
     public:
