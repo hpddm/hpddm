@@ -52,7 +52,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         v[i] = *v + i * mu * n;
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(*v + (m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) * mu * n);
     underlying_type<K>* const sn = norm + mu;
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     short* const hasConverged = new short[mu];
     std::fill_n(hasConverged, mu, -m[0]);
     bool allocate;
@@ -181,7 +181,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     char id[3];
     options<1>(A, tol, nullptr, m, id);
 #else
-    underlying_type<K>* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
+    PetscReal* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
 #endif
@@ -192,7 +192,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     int ldh = mu * (m[0] + 1);
     int info;
     int N = 2 * mu;
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     int lwork = mu * (d ? n + ldh : std::max(n, ldh));
     *H = new K[lwork + mu * ((m[0] + 1) * ldh + n * (m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) + 2 * m[0]) + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)];
     *v = *H + m[0] * mu * ldh;
@@ -239,7 +239,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         else if(HPDDM_IT(j, A) == 1) {
             A._ksp->rnorm = std::abs(s[0]);
             for(unsigned short nu = 1; nu < mu; ++nu)
-                A._ksp->rnorm = std::max(A._ksp->rnorm, std::abs(s[nu * (mu + 1)]));
+                A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(std::abs(s[nu * (mu + 1)])));
             ierr = KSPLogResidualHistory(A._ksp, A._ksp->rnorm);CHKERRQ(ierr);
             ierr = KSPMonitor(A._ksp, 0, A._ksp->rnorm);CHKERRQ(ierr);
             if(tol[0] <= -0.9 && N != mu)

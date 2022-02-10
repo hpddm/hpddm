@@ -47,7 +47,7 @@
 #define HPDDM_EPS                                       1.0e-12
 #define HPDDM_PEN                                       1.0e+30
 #define HPDDM_GRANULARITY                               50000
-#if !defined(HPDDM_PETSC) && defined(PETSC_HPDDM_MAXLEVELS)
+#if !defined(HPDDM_PETSC) && defined(PETSC_PCHPDDM_MAXLEVELS)
 # define HPDDM_PETSC                                    1
 #endif
 #if defined(PETSC_HAVE_MKL_LIBS) && !defined(HPDDM_MKL)

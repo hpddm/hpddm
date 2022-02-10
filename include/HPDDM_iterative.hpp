@@ -49,7 +49,7 @@ struct EmptyOperator : OptionsPrefix<K> {
     explicit EmptyOperator(T n) : OptionsPrefix<K>(), _n(n) { }
     constexpr T getDof() const { return _n; }
     static constexpr underlying_type<K>* getScaling() { return nullptr; }
-    template<bool> static constexpr bool start(const K* const, K* const, const unsigned short& = 1) { return false; }
+    template<bool, class U> static constexpr bool start(const U* const, U* const, const unsigned short& = 1) { return false; }
     static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
     static constexpr bool end(const bool) { return false; }
 };
@@ -372,7 +372,7 @@ class IterativeMethod {
                         if(!excluded && n) {
                             K* const pt = A.getScaling() ? work : v[shift];
                             if(A.getScaling())
-                                Wrapper<K>::diag(n, A.getScaling(), v[shift], pt, mu);
+                                Wrapper<K>::diag(n, reinterpret_cast<const underlying_type<K>*>(A.getScaling()), v[shift], pt, mu);
                             for(unsigned short nu = 0; nu < mu; ++nu) {
                                 if(std::abs(hasConverged[nu])) {
                                     K alpha = norm[nu];
@@ -399,7 +399,7 @@ class IterativeMethod {
                         if(!excluded && n) {
                             std::copy_n(v[shift], deflated * n, work);
                             Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K*>(norm), &ldh, work, &n);
-                            Wrapper<K>::diag(n, A.getScaling(), work, mu);
+                            Wrapper<K>::diag(n, reinterpret_cast<const underlying_type<K>*>(A.getScaling()), work, mu);
                             Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
                             for(unsigned short i = 0; i < deflated; ++i)
                                 std::copy_n(s + i * ldh, bK, work + i * bK);
@@ -461,7 +461,7 @@ class IterativeMethod {
         template<bool excluded, class Operator, class K>
         static int initializeNorm(const Operator& A, const char variant, const K* const b, K* const x, K* const v, const int n, K* work, underlying_type<K>* const norm, const unsigned short mu, const unsigned short k, bool& allocate) {
             allocate = A.template start<excluded>(b, x, mu);
-            const underlying_type<K>* const d = A.getScaling();
+            const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
             if(variant == HPDDM_VARIANT_LEFT) {
                 int ierr = A.template apply<excluded>(b, v, mu, work);HPDDM_CHKERRQ(ierr);
                 if(d)
@@ -482,7 +482,7 @@ class IterativeMethod {
                     for(unsigned short nu = 0; nu < k; ++nu)
                         Blas<K>::axpy(&n, &(Wrapper<K>::d__1), b + nu * n, &i__1, work, &i__1);
                 }
-                const std::unordered_map<unsigned int, K> map = A.boundaryConditions();
+                const std::unordered_map<unsigned int, typename Operator::scalar_type> map = A.boundaryConditions();
                 for(unsigned short nu = 0; nu < mu / k; ++nu) {
                     norm[nu] = 0.0;
                     for(int i = 0; i < n; ++i) {
