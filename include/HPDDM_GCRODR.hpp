@@ -57,10 +57,12 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     unsigned short j, m[2];
     char id[5];
     options<4>(A, &tol, &k, m, id);
+    constexpr unsigned short factor = 1;
 #else
     int k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->icntl[0];
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
+    const unsigned short factor = (reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->precision > PETSC_KSPHPDDM_DEFAULT_PRECISION ? 2 : 1);
 #endif
     if(k <= 0) {
 #if !defined(_KSPIMPL_H)
@@ -76,9 +78,9 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     K** const save = H + m[0];
     *save = new K[ldh * m[0]];
     K** const v = save + m[0];
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     const int ldv = mu * n;
-    K* U = A.storage(), *C = nullptr;
+    K* U = reinterpret_cast<K*>(A.storage()), *C = nullptr;
     if(U) {
         std::pair<unsigned short, unsigned short> storage = A.k();
         k = (storage.first >= mu ? storage.second : (storage.second * storage.first) / mu);
@@ -290,7 +292,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short& lhs, const short& rhs) { return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs; }));
                 if(HPDDM_IT(j, A) < k || dim < k)
                     k = dim;
-                U = const_cast<Operator&>(A).allocate(n, mu, k);
+                U = reinterpret_cast<K*>(const_cast<Operator&>(A).allocate(factor * n, mu, k));
                 C = U + k * ldv;
                 if(!excluded && n) {
                     std::fill_n(s, dim * mu, K());
@@ -525,7 +527,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     char id[5];
     options<5>(A, tol, &k, m, id);
 #else
-    underlying_type<K>* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
+    PetscReal* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
     int k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->icntl[0];
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
@@ -546,9 +548,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     K** const v = save + m[0];
     int info;
     int N = 2 * mu;
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     int ldv = mu * n;
-    K* U = A.storage(), *C = nullptr;
+    K* U = reinterpret_cast<K*>(A.storage()), *C = nullptr;
     if(U) {
         std::pair<unsigned short, unsigned short> storage = A.k();
         if(storage.second * storage.first < mu) {
@@ -651,7 +653,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(HPDDM_IT(j, A) == 1) {
             A._ksp->rnorm = std::abs(s[0]);
             for(unsigned short nu = 1; nu < mu; ++nu)
-                A._ksp->rnorm = std::max(A._ksp->rnorm, std::abs(s[nu * (mu + 1)]));
+                A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(std::abs(s[nu * (mu + 1)])));
             ierr = KSPLogResidualHistory(A._ksp, A._ksp->rnorm);CHKERRQ(ierr);
             ierr = KSPMonitor(A._ksp, 0, A._ksp->rnorm);CHKERRQ(ierr);
             if(tol[0] <= -0.9 && N != mu)
@@ -790,7 +792,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 int dim = std::min(static_cast<unsigned short>(HPDDM_IT(j, A)), m[0]);
                 if(dim < k)
                     k = dim;
-                U = const_cast<Operator&>(A).allocate(n, mu, k);
+                U = reinterpret_cast<K*>(const_cast<Operator&>(A).allocate(n, mu, k));
                 C = U + k * ldv;
                 if(!excluded && n) {
                     std::fill_n(s, deflated * ldh, K());
@@ -855,7 +857,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #else
                             static_cast<PetscMPIInt>(reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[3])
 #endif
-                             , static_cast<PetscInt>(dim), *H, ldh, nullptr, 0, static_cast<PetscInt>(bK), vr, symmetric);HPDDM_CHKERRQ(ierr);
+                             , static_cast<PetscInt>(dim), reinterpret_cast<PetscScalar*>(*H), ldh, nullptr, 0, static_cast<PetscInt>(bK), reinterpret_cast<PetscScalar*>(vr), symmetric);HPDDM_CHKERRQ(ierr);
 #endif
                     Blas<K>::gemm("N", "N", &n, &bK, &dim, &(Wrapper<K>::d__1), v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0], &n, vr, &dim, &(Wrapper<K>::d__0), U, &n);
                     Blas<K>::gemm("N", "N", &row, &bK, &dim, &(Wrapper<K>::d__1), *save, &ldh, vr, &dim, &(Wrapper<K>::d__0), *H, &ldh);
@@ -995,7 +997,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #else
                             static_cast<PetscMPIInt>(reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[3])
 #endif
-                             , static_cast<PetscInt>(bDim), a, bDim, B, row, static_cast<PetscInt>(bK), vr, symmetric);HPDDM_CHKERRQ(ierr);
+                             , static_cast<PetscInt>(bDim), reinterpret_cast<PetscScalar*>(a), bDim, reinterpret_cast<PetscScalar*>(B), row, static_cast<PetscInt>(bK), reinterpret_cast<PetscScalar*>(vr), symmetric);HPDDM_CHKERRQ(ierr);
                     int* perm = new int[1];
                     K* work = new K[2];
 #endif

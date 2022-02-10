@@ -457,6 +457,7 @@ class OptionsPrefix {
             _prefix = nullptr;
 #endif
         }
+        typedef K scalar_type;
 #if !HPDDM_PETSC
         void setPrefix(const char* prefix) {
             if(_prefix)

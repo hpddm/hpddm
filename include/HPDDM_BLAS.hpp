@@ -45,12 +45,9 @@ void    HPDDM_F77(C ## trmm)(const char*, const char*, const char*, const char*,
                              const T*, const T*, const int*, T*, const int*);                                \
 void    HPDDM_F77(C ## trsm)(const char*, const char*, const char*, const char*, const int*, const int*,     \
                              const T*, const T*, const int*, T*, const int*);
-#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                       \
+#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U)                                                  \
 HPDDM_GENERATE_EXTERN_BLAS(B, U)                                                                             \
 HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                             \
-U    HPDDM_F77(B ## nrm2)(const int*, const U*, const int*);                                                 \
-U    HPDDM_F77(B ## C ## nrm2)(const int*, const T*, const int*);                                            \
-U    HPDDM_F77(B ## dot)(const int*, const U*, const int*, const U*, const int*);                            \
 void HPDDM_F77(B ## syr)(const char* const, const int* const, const U* const, const U* const,                \
                          const int* const, U* const, const int* const);                                      \
 void HPDDM_F77(C ## her)(const char* const, const int* const, const U* const, const T* const,                \
@@ -65,6 +62,11 @@ void HPDDM_F77(B ## syrk)(const char* const, const char* const, const int* const
 void HPDDM_F77(C ## herk)(const char* const, const char* const, const int* const, const int* const,          \
                           const U* const, const T* const, const int* const, const U* const, T* const,        \
                           const int* const);
+#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                       \
+U HPDDM_F77(B ## nrm2)(const int*, const U*, const int*);                                                    \
+U HPDDM_F77(B ## C ## nrm2)(const int*, const T*, const int*);                                               \
+U HPDDM_F77(B ## dot)(const int*, const U*, const int*, const U*, const int*);                               \
+HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U)
 
 #if HPDDM_MKL
 # define HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                  \
@@ -88,7 +90,7 @@ HPDDM_GENERATE_EXTERN_GEMMT(C, T)
 #ifndef INTEL_MKL_VERSION
 # ifdef __cplusplus
 extern "C" {
-HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(c, std::complex<float>, s, float)
+HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, std::complex<double>, d, double)
 #  if defined(__APPLE__) || HPDDM_MKL
 #   if !HPDDM_MKL
@@ -109,7 +111,7 @@ HPDDM_GENERATE_EXTERN_AXPBY(z, std::complex<double>, d, double)
 #  endif
 }
 # else
-HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(c, void, s, float)
+HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(c, void, s, float)
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, void, d, double)
 # endif // __cplusplus
 #endif // INTEL_MKL_VERSION
@@ -127,6 +129,11 @@ struct Blas {
     /* Function: axpy
      *  Computes a scalar-vector product and adds the result to a vector. */
     static void axpy(const int* const, const K* const, const K* const, const int* const, K* const, const int* const);
+    template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value)>::type* = nullptr>
+    static void axpy(const int* const n, const K* const a, const U* const x, const int* const incx, V* const y, const int* const incy) {
+        const U alpha(*a);
+        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += alpha * x[j];
+    }
     /* Function: axpby
      *  Computes two scalar-vector products. */
     static void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
@@ -135,10 +142,30 @@ struct Blas {
     static void scal(const int* const, const K* const, K* const, const int* const);
     /* Function: nrm2
      *  Computes the Euclidean norm of a vector. */
-    static underlying_type<K> nrm2(const int* const, const K* const, const int* const);
+    template<class U, typename std::enable_if<!std::is_same<underlying_type<U>, float>::value>::type* = nullptr>
+    static underlying_type<U> nrm2(const int* const, const U* const, const int* const);
+    template<class U, typename std::enable_if<std::is_same<underlying_type<U>, float>::value>::type* = nullptr>
+    static underlying_type<U> nrm2(const int* const n, const U* const x, const int* const incx) {
+        underlying_type<U> sum = underlying_type<U>();
+        for(int i = 0, j = 0; i < *n; ++i, j += *incx) sum += std::norm(x[j]);
+        return std::sqrt(sum);
+    }
     /* Function: dot
      *  Computes a vector-vector dot product. */
-    static K dot(const int* const, const K* const, const int* const, const K* const, const int* const);
+    template<class U, typename std::enable_if<std::is_same<U, double>::value>::type* = nullptr>
+    static U dot(const int* const, const U* const, const int* const, const U* const, const int* const);
+    template<class U, typename std::enable_if<std::is_same<U, float>::value>::type* = nullptr>
+    static U dot(const int* const n, const U* const x, const int* const incx, const U* const y, const int* const incy) {
+        U sum = U();
+        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) sum += x[j] * y[k];
+        return sum;
+    }
+    template<class U, typename std::enable_if<!std::is_same<U, float>::value && !std::is_same<U, double>::value>::type* = nullptr>
+    static U dot(const int* const n, const U* const x, const int* const incx, const U* const y, const int* const incy) {
+        U sum = U();
+        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) sum += std::conj(x[j]) * y[k];
+        return sum;
+    }
     /* Function: lacpy
      *  Copies all or part of a two-dimensional matrix. */
     static void lacpy(const char* const, const int* const, const int* const, const K* const, const int* const, K* const, const int* const);
@@ -296,31 +323,11 @@ inline void Blas<T>::axpby(const int& n, const T& alpha, const T* const u, const
     HPDDM_PREFIX_AXPBY(C ## axpby)(n, &alpha, u, incx, &beta, v, incy);                                      \
 }
 # endif
-# define HPDDM_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                             \
+# define HPDDM_GENERATE_BLAS_COMPLEX_VOID(C, T, B, U)                                                        \
 HPDDM_GENERATE_BLAS(B, U)                                                                                    \
 HPDDM_GENERATE_GEMM(B, U)                                                                                    \
 HPDDM_GENERATE_GEMM_COMPLEX(C, T)                                                                            \
 HPDDM_GENERATE_BLAS(C, T)                                                                                    \
-template<>                                                                                                   \
-inline U Blas<U>::nrm2(const int* const n, const U* const x, const int* const incx) {                        \
-    return HPDDM_F77(B ## nrm2)(n, x, incx);                                                                 \
-}                                                                                                            \
-template<>                                                                                                   \
-inline U Blas<T>::nrm2(const int* const n, const T* const x, const int* const incx) {                        \
-    return HPDDM_F77(B ## C ## nrm2)(n, x, incx);                                                            \
-}                                                                                                            \
-template<>                                                                                                   \
-inline T Blas<T>::dot(const int* const n, const T* const x, const int* const incx,                           \
-                      const T* const y, const int* const incy) {                                             \
-    T sum = T();                                                                                             \
-    for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) sum += std::conj(x[j]) * y[k];         \
-    return sum;                                                                                              \
-}                                                                                                            \
-template<>                                                                                                   \
-inline U Blas<U>::dot(const int* const n, const U* const x, const int* const incx,                           \
-                      const U* const y, const int* const incy) {                                             \
-    return HPDDM_F77(B ## dot)(n, x, incx, y, incy);                                                         \
-}                                                                                                            \
                                                                                                              \
 template<>                                                                                                   \
 inline void Blas<U>::her(const char* const uplo, const int* const n, const U* const alpha,                   \
@@ -357,7 +364,25 @@ inline void Blas<T>::herk(const char* const uplo, const char* const trans, const
                           const U* const beta, T* const c, const int* const ldc) {                           \
     HPDDM_F77(C ## herk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);                                    \
 }
-HPDDM_GENERATE_BLAS_COMPLEX(c, std::complex<float>, s, float)
+# define HPDDM_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                             \
+template<>                                                                                                   \
+template<>                                                                                                   \
+inline U Blas<U>::nrm2(const int* const n, const U* const x, const int* const incx) {                        \
+    return HPDDM_F77(B ## nrm2)(n, x, incx);                                                                 \
+}                                                                                                            \
+template<>                                                                                                   \
+template<>                                                                                                   \
+inline U Blas<T>::nrm2(const int* const n, const T* const x, const int* const incx) {                        \
+    return HPDDM_F77(B ## C ## nrm2)(n, x, incx);                                                            \
+}                                                                                                            \
+template<>                                                                                                   \
+template<>                                                                                                   \
+inline U Blas<U>::dot(const int* const n, const U* const x, const int* const incx,                           \
+                      const U* const y, const int* const incy) {                                             \
+    return HPDDM_F77(B ## dot)(n, x, incx, y, incy);                                                         \
+}                                                                                                            \
+HPDDM_GENERATE_BLAS_COMPLEX_VOID(C, T, B, U)
+HPDDM_GENERATE_BLAS_COMPLEX_VOID(c, std::complex<float>, s, float)
 HPDDM_GENERATE_BLAS_COMPLEX(z, std::complex<double>, d, double)
 # if HPDDM_MKL || defined(__APPLE__)
 HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)

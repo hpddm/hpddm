@@ -53,7 +53,8 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
             VecDestroy(&_x);
             VecDestroy(&_b);
         }
-        PetscErrorCode GMV(const PetscScalar* const in, PetscScalar* const out, const int& mu = 1) const {
+        template<class K>
+        PetscErrorCode GMV(const K* const in, K* const out, const int& mu = 1) const {
             Mat            A, *x = const_cast<Mat*>(_X);
             PetscBool      flg;
             PetscErrorCode ierr;
@@ -81,16 +82,20 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                         std::copy_n(in, m, work);
                     else if(m)
                         Blas<PetscScalar>::axpy(&m, T, in, &i__1, work, &i__1);
-                    PetscInt K = 0, M = 0;
+                    PetscInt P = 0, Q = 0;
                     bool reset = false;
                     if(_X[1]) {
-                        ierr = MatGetSize(_X[1], &K, &M);CHKERRQ(ierr);
+                        ierr = MatGetSize(_X[1], &P, &Q);CHKERRQ(ierr);
                     }
-                    if(K != N / bs || M != mu) {
+                    if(P != N / bs || Q != mu) {
                         ierr = MatDestroy(x);CHKERRQ(ierr);
                         ierr = MatDestroy(x + 1);CHKERRQ(ierr);
                         ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), n / bs, PETSC_DECIDE, N / bs, mu, work, x + 1);CHKERRQ(ierr);
-                        ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), n / bs, PETSC_DECIDE, N / bs, mu, out, x);CHKERRQ(ierr);
+                        ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), n / bs, PETSC_DECIDE, N / bs, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, x);CHKERRQ(ierr);
+                        if(!std::is_same<PetscScalar, K>::value) {
+                            ierr = MatAssemblyBegin(_X[0], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                            ierr = MatAssemblyEnd(_X[0], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                        }
                         ierr = MatKAIJGetAIJ(A, &a);CHKERRQ(ierr);
                         ierr = MatProductCreateWithMat(a, _X[1], NULL, _X[0]);CHKERRQ(ierr);
                         ierr = MatProductSetType(_X[0], MATPRODUCT_AB);CHKERRQ(ierr);
@@ -99,7 +104,9 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
                     else {
                         ierr = MatDensePlaceArray(_X[1], work);CHKERRQ(ierr);
-                        ierr = MatDensePlaceArray(_X[0], out);CHKERRQ(ierr);
+                        if(std::is_same<PetscScalar, K>::value) {
+                            ierr = MatDensePlaceArray(_X[0], reinterpret_cast<PetscScalar*>(out));CHKERRQ(ierr);
+                        }
                         reset = true;
                     }
                     ierr = MatProductNumeric(_X[0]);CHKERRQ(ierr);
@@ -109,25 +116,53 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     ierr = MatKAIJRestoreTRead(A, &T);CHKERRQ(ierr);
                     ierr = MatKAIJRestoreSRead(A, &S);CHKERRQ(ierr);
                     if(reset) {
-                        ierr = MatDenseResetArray(_X[0]);CHKERRQ(ierr);
+                        if(std::is_same<PetscScalar, K>::value) {
+                            ierr = MatDenseResetArray(_X[0]);CHKERRQ(ierr);
+                        }
                         ierr = MatDenseResetArray(_X[1]);CHKERRQ(ierr);
+                    }
+                    if(!std::is_same<PetscScalar, K>::value) {
+                        const PetscScalar* work;
+                        ierr = MatDenseGetArrayRead(_X[0], &work);CHKERRQ(ierr);
+                        std::copy_n(work, m, out);
+                        ierr = MatDenseRestoreArrayRead(_X[0], &work);CHKERRQ(ierr);
                     }
                     PetscFunctionReturn(0);
                 }
             }
             if(mu == 1) {
+                const PetscScalar *read;
+                PetscScalar       *write;
                 if(!_b) {
                     PetscInt N;
                     ierr = MatGetSize(A, &N, NULL);CHKERRQ(ierr);
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    if(std::is_same<PetscScalar, K>::value) {
+                        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    }
+                    else {
+                        ierr = VecCreateMPI(PetscObjectComm((PetscObject)_ksp), super::_n, N, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                        ierr = VecCreateMPI(PetscObjectComm((PetscObject)_ksp), super::_n, N, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    }
                 }
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    ierr = VecPlaceArray(_b, in + nu * super::_n);CHKERRQ(ierr);
-                    ierr = VecPlaceArray(_x, out + nu * super::_n);CHKERRQ(ierr);
-                    ierr = MatMult(A, _b, _x);CHKERRQ(ierr);
+                if(!std::is_same<PetscScalar, K>::value) {
+                    ierr = VecGetArrayWrite(_b, &write);CHKERRQ(ierr);
+                    std::copy_n(in, super::_n, write);
+                    ierr = VecGetArrayRead(_x, &read);CHKERRQ(ierr);
+                }
+                else {
+                    ierr = VecPlaceArray(_b, reinterpret_cast<const PetscScalar*>(in));CHKERRQ(ierr);
+                    ierr = VecPlaceArray(_x, reinterpret_cast<PetscScalar*>(out));CHKERRQ(ierr);
+                }
+                ierr = MatMult(A, _b, _x);CHKERRQ(ierr);
+                if(std::is_same<PetscScalar, K>::value) {
                     ierr = VecResetArray(_x);CHKERRQ(ierr);
                     ierr = VecResetArray(_b);CHKERRQ(ierr);
+                }
+                else {
+                    std::copy_n(read, super::_n, out);
+                    ierr = VecRestoreArrayRead(_x, &read);CHKERRQ(ierr);
+                    ierr = VecRestoreArrayWrite(_b, &write);CHKERRQ(ierr);
                 }
             }
             else {
@@ -171,21 +206,25 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                             ierr = MatAssemblyEnd(_X[0], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
                         }
                         else {
-                            ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, out, x);CHKERRQ(ierr);
+                            ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, x);CHKERRQ(ierr);
                         }
 #endif
                     }
                     else {
-                        ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), x + 1);CHKERRQ(ierr);
-                        ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, out, x);CHKERRQ(ierr);
+                        ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(const_cast<K*>(in)) : NULL, x + 1);CHKERRQ(ierr);
+                        ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, x);CHKERRQ(ierr);
+                        if(!std::is_same<PetscScalar, K>::value) {
+                            ierr = MatAssemblyBegin(_X[1], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                            ierr = MatAssemblyEnd(_X[1], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                            ierr = MatAssemblyBegin(_X[0], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                            ierr = MatAssemblyEnd(_X[0], MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                        }
                     }
                     ierr = MatProductCreateWithMat(A, _X[1], NULL, _X[0]);CHKERRQ(ierr);
                     ierr = MatProductSetType(_X[0], MATPRODUCT_AB);CHKERRQ(ierr);
                     ierr = MatProductSetFromOptions(_X[0]);CHKERRQ(ierr);
                     ierr = MatProductSymbolic(_X[0]);CHKERRQ(ierr);
                     if(flg) {
-                        ierr = MatDensePlaceArray(_X[1], const_cast<PetscScalar*>(in));CHKERRQ(ierr);
-                        ierr = MatDensePlaceArray(_X[0], out);CHKERRQ(ierr);
                         reset = true;
                         if(!container) {
                             ierr = PetscContainerCreate(PetscObjectComm((PetscObject)A), &container);CHKERRQ(ierr);
@@ -195,29 +234,49 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
                 }
                 else {
-                    ierr = MatDensePlaceArray(_X[1], const_cast<PetscScalar*>(in));CHKERRQ(ierr);
-                    ierr = MatDensePlaceArray(_X[0], out);CHKERRQ(ierr);
                     reset = true;
                     if(container) {
                         ierr = MatProductReplaceMats(NULL, _X[1], NULL, _X[0]);CHKERRQ(ierr);
                     }
                 }
+                if(std::is_same<PetscScalar, K>::value) {
+                    if (reset) {
+                        ierr = MatDensePlaceArray(_X[1], reinterpret_cast<PetscScalar*>(const_cast<K*>(in)));CHKERRQ(ierr);
+                        ierr = MatDensePlaceArray(_X[0], reinterpret_cast<PetscScalar*>(out));CHKERRQ(ierr);
+                    }
+                }
+                else {
+                    PetscScalar* work;
+                    ierr = MatDenseGetArrayWrite(_X[1], &work);CHKERRQ(ierr);
+                    std::copy_n(in, mu * super::_n, work);
+                    ierr = MatDenseRestoreArrayWrite(_X[1], &work);CHKERRQ(ierr);
+                }
                 ierr = MatProductNumeric(_X[0]);CHKERRQ(ierr);
-                if(reset) {
-                    ierr = MatDenseResetArray(_X[0]);CHKERRQ(ierr);
-                    ierr = MatDenseResetArray(_X[1]);CHKERRQ(ierr);
+                if(std::is_same<PetscScalar, K>::value) {
+                    if(reset) {
+                        ierr = MatDenseResetArray(_X[0]);CHKERRQ(ierr);
+                        ierr = MatDenseResetArray(_X[1]);CHKERRQ(ierr);
+                    }
+                }
+                else {
+                    const PetscScalar* work;
+                    ierr = MatDenseGetArrayRead(_X[0], &work);CHKERRQ(ierr);
+                    std::copy_n(work, mu * super::_n, out);
+                    ierr = MatDenseRestoreArrayRead(_X[0], &work);CHKERRQ(ierr);
                 }
             }
             PetscFunctionReturn(0);
         }
 #if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || defined(PETSCSUB)
-        template<bool = false>
-        PetscErrorCode apply(const PetscScalar* const in, PetscScalar* const out, const unsigned short& mu = 1, PetscScalar* = nullptr, const unsigned short& = 0) const {
-            PC             pc;
-            Mat            A;
-            PetscInt       N;
-            PetscBool      match;
-            PetscErrorCode ierr;
+        template<bool = false, class K>
+        PetscErrorCode apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
+            PC                pc;
+            Mat               A;
+            const PetscScalar *read;
+            PetscScalar       *write;
+            PetscInt          N;
+            PetscBool         match;
+            PetscErrorCode    ierr;
 
             PetscFunctionBeginUser;
             ierr = KSPGetPC(_ksp, &pc);CHKERRQ(ierr);
@@ -233,21 +292,43 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 const unsigned short eta = (id == PETSC_TRUE ? mu / bs : mu);
                 PetscCheck(id != PETSC_TRUE || eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu)); // LCOV_EXCL_LINE
                 if(!_b) {
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, nullptr, const_cast<Vec*>(&_b));CHKERRQ(ierr);
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, nullptr, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    if(std::is_same<PetscScalar, K>::value) {
+                        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    }
+                    else {
+                        ierr = VecCreateMPI(PetscObjectComm((PetscObject)_ksp), n, N, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                        ierr = VecCreateMPI(PetscObjectComm((PetscObject)_ksp), n, N, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    }
+                }
+                if(!std::is_same<PetscScalar, K>::value) {
+                    ierr = VecGetArrayWrite(_b, &write);CHKERRQ(ierr);
+                    ierr = VecGetArrayRead(_x, &read);CHKERRQ(ierr);
                 }
                 for(unsigned short nu = 0; nu < eta; ++nu) {
-                    ierr = VecPlaceArray(_b, in + nu * n);CHKERRQ(ierr);
-                    ierr = VecPlaceArray(_x, out + nu * n);CHKERRQ(ierr);
                     if(id)
-                        Wrapper<PetscScalar>::imatcopy<'T'>(bs, super::_n, const_cast<PetscScalar*>(in + nu * n), super::_n, bs);
-                    ierr = PCApply(pc, _b, _x);CHKERRQ(ierr);
-                    if(id) {
-                        Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, bs, const_cast<PetscScalar*>(in + nu * n), bs, super::_n);
-                        Wrapper<PetscScalar>::imatcopy<'T'>(super::_n, bs, out + nu * n, bs, super::_n);
+                        Wrapper<K>::template imatcopy<'T'>(bs, super::_n, const_cast<K*>(in + nu * n), super::_n, bs);
+                    if(std::is_same<PetscScalar, K>::value) {
+                        ierr = VecPlaceArray(_b, reinterpret_cast<const PetscScalar*>(in + nu * n));CHKERRQ(ierr);
+                        ierr = VecPlaceArray(_x, reinterpret_cast<PetscScalar*>(out + nu * n));CHKERRQ(ierr);
                     }
-                    ierr = VecResetArray(_x);CHKERRQ(ierr);
-                    ierr = VecResetArray(_b);CHKERRQ(ierr);
+                    else
+                        std::copy_n(in + nu * n, n, write);
+                    ierr = PCApply(pc, _b, _x);CHKERRQ(ierr);
+                    if(std::is_same<PetscScalar, K>::value) {
+                        ierr = VecResetArray(_x);CHKERRQ(ierr);
+                        ierr = VecResetArray(_b);CHKERRQ(ierr);
+                    }
+                    else
+                        std::copy_n(read, n, out + nu * n);
+                    if(id) {
+                        Wrapper<K>::template imatcopy<'T'>(super::_n, bs, const_cast<K*>(in + nu * n), bs, super::_n);
+                        Wrapper<K>::template imatcopy<'T'>(super::_n, bs, out + nu * n, bs, super::_n);
+                    }
+                }
+                if(!std::is_same<PetscScalar, K>::value) {
+                    ierr = VecRestoreArrayRead(_x, &read);CHKERRQ(ierr);
+                    ierr = VecRestoreArrayWrite(_b, &write);CHKERRQ(ierr);
                 }
                 PetscFunctionReturn(0);
             }
@@ -260,31 +341,65 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 if(M != mu) {
                     ierr = MatDestroy(const_cast<Mat*>(&_Y));CHKERRQ(ierr);
                     ierr = MatDestroy(const_cast<Mat*>(&_C));CHKERRQ(ierr);
-                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, const_cast<PetscScalar*>(in), const_cast<Mat*>(&_C));CHKERRQ(ierr);
-                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, out, const_cast<Mat*>(&_Y));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(const_cast<K*>(in)) : NULL, const_cast<Mat*>(&_C));CHKERRQ(ierr);
+                    ierr = MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, const_cast<Mat*>(&_Y));CHKERRQ(ierr);
+                    if(!std::is_same<PetscScalar, K>::value) {
+                        ierr = MatAssemblyBegin(_C, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                        ierr = MatAssemblyEnd(_C, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+                    }
                 }
-                else {
-                    ierr = MatDensePlaceArray(_C, const_cast<PetscScalar*>(in));CHKERRQ(ierr);
-                    ierr = MatDensePlaceArray(_Y, out);CHKERRQ(ierr);
+                else if(std::is_same<PetscScalar, K>::value) {
+                    ierr = MatDensePlaceArray(_C, reinterpret_cast<PetscScalar*>(const_cast<K*>(in)));CHKERRQ(ierr);
+                    ierr = MatDensePlaceArray(_Y, reinterpret_cast<PetscScalar*>(out));CHKERRQ(ierr);
                     reset = true;
+                }
+                if(!std::is_same<PetscScalar, K>::value) {
+                    PetscScalar* work;
+                    ierr = MatDenseGetArrayWrite(_C, &work);CHKERRQ(ierr);
+                    std::copy_n(in, mu * super::_n, work);
+                    ierr = MatDenseRestoreArrayWrite(_C, &work);CHKERRQ(ierr);
                 }
                 ierr = PCMatApply(pc, _C, _Y);CHKERRQ(ierr);
                 if(reset) {
                     ierr = MatDenseResetArray(_Y);CHKERRQ(ierr);
                     ierr = MatDenseResetArray(_C);CHKERRQ(ierr);
                 }
+                else if(!std::is_same<PetscScalar, K>::value) {
+                    const PetscScalar* work;
+                    ierr = MatDenseGetArrayRead(_Y, &work);CHKERRQ(ierr);
+                    std::copy_n(work, mu * super::_n, out);
+                    ierr = MatDenseRestoreArrayRead(_Y, &work);CHKERRQ(ierr);
+                }
             }
             else {
                 if(!_b) {
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
-                    ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    if(std::is_same<PetscScalar, K>::value) {
+                        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                        ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, super::_n, N, NULL, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    }
+                    else {
+                        ierr = VecCreateMPI(PetscObjectComm((PetscObject)_ksp), super::_n, N, const_cast<Vec*>(&_b));CHKERRQ(ierr);
+                        ierr = VecCreateMPI(PetscObjectComm((PetscObject)_ksp), super::_n, N, const_cast<Vec*>(&_x));CHKERRQ(ierr);
+                    }
                 }
-                for(unsigned short nu = 0; nu < mu; ++nu) {
-                    ierr = VecPlaceArray(_b, in + nu * super::_n);CHKERRQ(ierr);
-                    ierr = VecPlaceArray(_x, out + nu * super::_n);CHKERRQ(ierr);
-                    ierr = PCApply(pc, _b, _x);CHKERRQ(ierr);
+                if(!std::is_same<PetscScalar, K>::value) {
+                    ierr = VecGetArrayWrite(_b, &write);CHKERRQ(ierr);
+                    std::copy_n(in, super::_n, write);
+                    ierr = VecGetArrayRead(_x, &read);CHKERRQ(ierr);
+                }
+                else {
+                    ierr = VecPlaceArray(_b, reinterpret_cast<const PetscScalar*>(in));CHKERRQ(ierr);
+                    ierr = VecPlaceArray(_x, reinterpret_cast<PetscScalar*>(out));CHKERRQ(ierr);
+                }
+                ierr = PCApply(pc, _b, _x);CHKERRQ(ierr);
+                if(std::is_same<PetscScalar, K>::value) {
                     ierr = VecResetArray(_x);CHKERRQ(ierr);
                     ierr = VecResetArray(_b);CHKERRQ(ierr);
+                }
+                else {
+                    std::copy_n(read, super::_n, out);
+                    ierr = VecRestoreArrayRead(_x, &read);CHKERRQ(ierr);
+                    ierr = VecRestoreArrayWrite(_b, &write);CHKERRQ(ierr);
                 }
             }
             PetscFunctionReturn(0);

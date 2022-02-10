@@ -179,7 +179,8 @@ int main(int argc, char** argv) {
         K* tmp = new K[mu * ndof];
         HPDDM::Wrapper<K>::csrmm(Mat->_sym, &ndof, &mu, Mat->_a, Mat->_ia, Mat->_ja, sol, tmp);
         ndof *= mu;
-        HPDDM::Blas<K>::axpy(&ndof, &(HPDDM::Wrapper<K>::d__2), f, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
+        float minus = -1.0;
+        HPDDM::Blas<float>::axpy(&ndof, &minus, f, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
         ndof /= mu;
         HPDDM::underlying_type<K>* nrmAx = nrmb + mu;
         for(unsigned short nu = 0; nu < mu; ++nu) {

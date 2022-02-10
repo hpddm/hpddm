@@ -55,7 +55,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     K* const z = trash + dim;
     K* const r = z + dim;
     K* const p = r + dim;
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     bool allocate = A.template start<excluded>(b, x, mu);
     if(!excluded) {
         ierr = A.GMV(x, z, mu);HPDDM_CHKERRQ(ierr);
@@ -81,7 +81,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     if(A._ksp->guess_zero) {
         A._ksp->rnorm = *dir / *norm;
         for(unsigned short nu = 1; nu < mu; ++nu)
-            A._ksp->rnorm = std::max(A._ksp->rnorm, dir[nu] / norm[nu]);
+            A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(dir[nu] / norm[nu]));
         ierr = KSPLogResidualHistory(A._ksp, A._ksp->rnorm);CHKERRQ(ierr);
         ierr = KSPMonitor(A._ksp, 0, A._ksp->rnorm);CHKERRQ(ierr);
     }
@@ -216,7 +216,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     K* const rho = r + dim;
     K* const rhs = rho + 2 * mu * mu;
     K* const gamma = rhs + mu * mu;
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     bool allocate = A.template start<excluded>(b, x, mu);
     if(!excluded) {
         ierr = A.GMV(x, z, mu);HPDDM_CHKERRQ(ierr);
@@ -399,7 +399,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
             return CG<excluded>(A, b, x, mu, comm);
     }
 #else
-    underlying_type<K>* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
+    PetscReal* tol = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->rcntl;
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl;
 #endif
@@ -412,7 +412,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     K* const p = r + dim;
     K* const z = p + dim;
     K* const gamma = z + dim;
-    const underlying_type<K>* const d = A.getScaling();
+    const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
     bool allocate = A.template start<excluded>(b, x, mu);
     int* const piv = new int[mu];
     int deflated = -1;
