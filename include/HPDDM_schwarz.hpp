@@ -1127,9 +1127,6 @@ class Schwarz : public Preconditioner<
             ierr = EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE);CHKERRQ(ierr);
             ierr = EPSGetST(eps, &st);CHKERRQ(ierr);
             ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
-            if(levels[0]->parent->Neumann || ismatis) {
-                ierr = STSetMatStructure(st, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-            }
             ierr = EPSSetInitialSpace(eps, initial.size(), initial.data());CHKERRQ(ierr);
             std::for_each(initial.begin(), initial.end(), [&](Vec v) { VecDestroy(&v); });
             std::vector<Vec>().swap(initial);
