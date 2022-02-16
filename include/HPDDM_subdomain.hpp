@@ -43,11 +43,9 @@ class Subdomain
 #endif
                                           {
     protected:
-#ifndef PETSCHPDDM_H
         /* Variable: a
          *  Local matrix. */
         MatrixCSR<K>*                _a;
-#endif
         /* Variable : buff
          *  Array used as the receiving and receiving buffer for point-to-point communications with neighboring subdomains. */
         K**                       _buff;
@@ -80,18 +78,12 @@ class Subdomain
 #if !HPDDM_PETSC
                       OptionsPrefix<K>(),
 #endif
-#ifndef PETSCHPDDM_H
-                                          _a(),
-#endif
-                                                _buff(), _map(), _rq(), _dof() { }
+                                          _a(), _buff(), _map(), _rq(), _dof() { }
         Subdomain(const Subdomain<K>& s) :
 #if !HPDDM_PETSC
                                            OptionsPrefix<K>(),
 #endif
-#ifndef PETSCHPDDM_H
-                                                               _a(),
-#endif
-                                                                     _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
+                                                               _a(), _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
         ~Subdomain() {
             dtor();
         }
