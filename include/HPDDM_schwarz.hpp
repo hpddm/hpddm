@@ -851,7 +851,11 @@ class Schwarz : public Preconditioner<
                 ierr = ISGetIndices(is, &ptr);CHKERRQ(ierr);
                 std::vector<std::pair<PetscInt, PetscInt>> v;
                 if(ismatis) {
+#if PETSC_VERSION_LT(3, 17, 0)
                     ierr = MatGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+#else
+                    ierr = MatISGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+#endif
                     ierr = ISLocalToGlobalMappingGetBlockSize(l2g, &bs);CHKERRQ(ierr);
                 }
                 else {
@@ -1098,7 +1102,11 @@ class Schwarz : public Preconditioner<
                 ierr = EPSSetOperators(eps, N, weighted);CHKERRQ(ierr);
             }
             else {
+#if PETSC_VERSION_LT(3, 17, 0)
                 ierr = MatGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+#else
+                ierr = MatISGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+#endif
                 ierr = ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]);CHKERRQ(ierr);
                 ierr = ISDestroy(&is);CHKERRQ(ierr);
                 ierr = MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized);CHKERRQ(ierr);
