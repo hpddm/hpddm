@@ -1284,7 +1284,7 @@ class Schwarz : public Preconditioner<
             }
             if(i + 1 < *n && levels[i - 1]->P) {
                 PetscBool algebraic;
-                char type[256]; /* same size as in src/ksp/pc/interface/pcset.c */
+                char type[256] = { }; /* same size as in src/ksp/pc/interface/pcset.c */
                 std::string prefix(((PetscObject)levels[i - 1]->ksp)->prefix);
                 unsigned int pos = prefix.rfind("levels_", prefix.size() - 1);
                 unsigned short level = std::stoi(prefix.substr(pos + 7, prefix.size() - 1));
