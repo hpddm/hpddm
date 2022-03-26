@@ -121,7 +121,7 @@ class Mumps : public DMatrix {
             _id->icntl[4]  = 0;
             _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
             _id->icntl[17] = 3;
-            for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34 }) {
+            for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34, 35, 36 }) {
                 int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
                     _id->icntl[i] = val;
@@ -262,7 +262,7 @@ class MumpsSub {
                 _id->icntl[3] = 0;
             }
             _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
-            for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34 }) {
+            for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34, 35, 36 }) {
                 int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
                     _id->icntl[i] = val;
