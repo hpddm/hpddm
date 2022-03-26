@@ -834,41 +834,39 @@ class Schwarz : public Preconditioner<
             const PetscInt         *ptr;
             PetscInt               m, bs;
             PetscBool              sym, ismatis;
-            PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
-            ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
+            PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
             if(!Subdomain<K>::_rq) {
-                ierr = PetscObjectGetComm((PetscObject)levels[0]->ksp, &(Subdomain<K>::_communicator));CHKERRQ(ierr);
-                ierr = ISGetLocalSize(is, &m);CHKERRQ(ierr);
+                PetscCall(PetscObjectGetComm((PetscObject)levels[0]->ksp, &(Subdomain<K>::_communicator)));
+                PetscCall(ISGetLocalSize(is, &m));
                 Subdomain<K>::_dof = m;
                 if(!std::is_same<PetscScalar, PetscReal>::value)
                     d = new PetscReal[Subdomain<K>::_dof];
-                else {
-                    ierr = VecGetArray(levels[0]->D, reinterpret_cast<PetscScalar**>(&d));CHKERRQ(ierr);
-                }
+                else
+                    PetscCall(VecGetArray(levels[0]->D, reinterpret_cast<PetscScalar**>(&d)));
                 _d = d;
-                ierr = ISGetIndices(is, &ptr);CHKERRQ(ierr);
+                PetscCall(ISGetIndices(is, &ptr));
                 std::vector<std::pair<PetscInt, PetscInt>> v;
                 if(ismatis) {
 #if PETSC_VERSION_LT(3, 17, 0)
-                    ierr = MatGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+                    PetscCall(MatGetLocalToGlobalMapping(N, &l2g, nullptr));
 #else
-                    ierr = MatISGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+                    PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
 #endif
-                    ierr = ISLocalToGlobalMappingGetBlockSize(l2g, &bs);CHKERRQ(ierr);
+                    PetscCall(ISLocalToGlobalMappingGetBlockSize(l2g, &bs));
                 }
                 else {
-                    ierr = KSPGetOperators(levels[0]->ksp, nullptr, &P);CHKERRQ(ierr);
-                    ierr = MatGetBlockSize(P, &bs);CHKERRQ(ierr);
+                    PetscCall(KSPGetOperators(levels[0]->ksp, nullptr, &P));
+                    PetscCall(MatGetBlockSize(P, &bs));
                 }
                 PetscCheck(Subdomain<K>::_dof % bs == 0, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT, Subdomain<K>::_dof, bs); // LCOV_EXCL_LINE
                 if(!ismatis) {
                     PetscInt* idx;
-                    ierr = PetscMalloc1(Subdomain<K>::_dof / bs, &idx);CHKERRQ(ierr);
+                    PetscCall(PetscMalloc1(Subdomain<K>::_dof / bs, &idx));
                     for(PetscInt i = 0; i < Subdomain<K>::_dof / bs; ++i)
                         idx[i] = ptr[i * bs] / bs;
-                    ierr = ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, Subdomain<K>::_dof / bs, idx, PETSC_OWN_POINTER, &l2g);CHKERRQ(ierr);
+                    PetscCall(ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, Subdomain<K>::_dof / bs, idx, PETSC_OWN_POINTER, &l2g));
                 }
                 v.reserve(Subdomain<K>::_dof / bs);
                 for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs)
@@ -878,7 +876,7 @@ class Schwarz : public Preconditioner<
                 PetscInt* procs;
                 PetscInt* numprocs;
                 PetscInt** indices;
-                ierr = ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                PetscCall(ISLocalToGlobalMappingGetBlockInfo(l2g, &nproc, &procs, &numprocs, &indices));
                 nproc = std::max(nproc, static_cast<PetscInt>(1));
                 unsigned short* sorted = new unsigned short[nproc - 1];
                 std::iota(sorted, sorted + nproc - 1, 0);
@@ -890,8 +888,8 @@ class Schwarz : public Preconditioner<
                     std::fill_n(d, Subdomain<K>::_dof, 0.0);
                     std::unordered_map<PetscInt, std::unordered_set<PetscInt>> boundary;
                     const PetscInt* idx;
-                    ierr = ISLocalToGlobalMappingGetBlockIndices(l2g, &idx);CHKERRQ(ierr);
-                    ierr = ISLocalToGlobalMappingGetSize(l2g, &m);CHKERRQ(ierr);
+                    PetscCall(ISLocalToGlobalMappingGetBlockIndices(l2g, &idx));
+                    PetscCall(ISLocalToGlobalMappingGetSize(l2g, &m));
                     for(PetscInt i = 0; i < m / bs; ++i) {
                         std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(), std::make_pair(bs * idx[i], static_cast<PetscInt>(0)));
                         if(it != v.cend() && it->first == bs * idx[i])
@@ -903,26 +901,26 @@ class Schwarz : public Preconditioner<
                             boundary[it->second].insert(i - 1);
                         }
                     }
-                    ierr = ISLocalToGlobalMappingRestoreBlockIndices(l2g, &idx);CHKERRQ(ierr);
+                    PetscCall(ISLocalToGlobalMappingRestoreBlockIndices(l2g, &idx));
                     std::unordered_set<PetscInt>* map = new std::unordered_set<PetscInt>[Subdomain<K>::_map.size()];
-                    ierr = PetscObjectTypeCompare((PetscObject)D, MATSEQSBAIJ, &sym);CHKERRQ(ierr);
+                    PetscCall(PetscObjectTypeCompare((PetscObject)D, MATSEQSBAIJ, &sym));
                     if(!sym) {
                         for(const std::pair<const PetscInt, std::unordered_set<PetscInt>>& p : boundary) {
                             PetscInt ncols;
                             const PetscInt *cols;
-                            ierr = MatGetRow(D, p.first, &ncols, &cols, nullptr);CHKERRQ(ierr);
+                            PetscCall(MatGetRow(D, p.first, &ncols, &cols, nullptr));
                             for(const PetscInt& i : p.second)
                                 map[i].insert(cols, cols + ncols);
-                            ierr = MatRestoreRow(D, p.first, &ncols, &cols, nullptr);CHKERRQ(ierr);
+                            PetscCall(MatRestoreRow(D, p.first, &ncols, &cols, nullptr));
                             std::fill_n(d + p.first, bs, 1.0 / underlying_type<K>(1 + p.second.size()));
                         }
                     }
                     else {
-                        ierr = MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_TRUE);CHKERRQ(ierr);
+                        PetscCall(MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_TRUE));
                         for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs) {
                             PetscInt ncols;
                             const PetscInt *cols;
-                            ierr = MatGetRow(D, i, &ncols, &cols, nullptr);CHKERRQ(ierr);
+                            PetscCall(MatGetRow(D, i, &ncols, &cols, nullptr));
                             std::unordered_map<PetscInt, std::unordered_set<PetscInt>>::const_iterator it = boundary.find(i);
                             if(it != boundary.cend()) {
                                 for(const PetscInt& i : it->second)
@@ -937,9 +935,9 @@ class Schwarz : public Preconditioner<
                                             map[k].insert(i + j);
                                 }
                             }
-                            ierr = MatRestoreRow(D, i, &ncols, &cols, nullptr);CHKERRQ(ierr);
+                            PetscCall(MatRestoreRow(D, i, &ncols, &cols, nullptr));
                         }
-                        ierr = MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_FALSE);CHKERRQ(ierr);
+                        PetscCall(MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_FALSE));
                     }
                     for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
                         Subdomain<K>::_map[i].first = procs[1 + sorted[i]];
@@ -947,7 +945,7 @@ class Schwarz : public Preconditioner<
                         std::copy(map[sorted[i]].cbegin(), map[sorted[i]].cend(), std::back_inserter(Subdomain<K>::_map[i].second));
                         std::sort(Subdomain<K>::_map[i].second.begin(), Subdomain<K>::_map[i].second.end(), [&ptr] (const PetscInt& lhs, const PetscInt& rhs) { return ptr[lhs] < ptr[rhs]; });
                     }
-                    ierr = ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
+                    PetscCall(ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices));
                     delete [] sorted;
                     delete [] map;
                 }
@@ -961,15 +959,15 @@ class Schwarz : public Preconditioner<
                         }
                     }
                     delete [] sorted;
-                    ierr = ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices);CHKERRQ(ierr);
-                    ierr = ISLocalToGlobalMappingDestroy(&l2g);CHKERRQ(ierr);
-                    ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
-                    ierr = ISGetLocalSize(interior, &m);CHKERRQ(ierr);
-                    ierr = ISGetIndices(interior, &ptr);CHKERRQ(ierr);
+                    PetscCall(ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices));
+                    PetscCall(ISLocalToGlobalMappingDestroy(&l2g));
+                    PetscCall(ISRestoreIndices(is, &ptr));
+                    PetscCall(ISGetLocalSize(interior, &m));
+                    PetscCall(ISGetIndices(interior, &ptr));
                     PetscInt rstart = m ? ptr[0] : 0;
                     PetscInt rend = rstart + m;
-                    ierr = ISRestoreIndices(interior, &ptr);CHKERRQ(ierr);
-                    ierr = ISGetIndices(is, &ptr);CHKERRQ(ierr);
+                    PetscCall(ISRestoreIndices(interior, &ptr));
+                    PetscCall(ISGetIndices(is, &ptr));
                     for(PetscInt i = 0; i < Subdomain<K>::_dof; i += bs) {
                         if(ptr[i] >= rstart && ptr[i] < rend)
                             std::fill_n(d + i, bs, 1.0);
@@ -977,13 +975,13 @@ class Schwarz : public Preconditioner<
                             std::fill_n(d + i, bs, 0.0);
                     }
                 }
-                ierr = ISRestoreIndices(is, &ptr);CHKERRQ(ierr);
+                PetscCall(ISRestoreIndices(is, &ptr));
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
                     PetscScalar* c;
-                    ierr = VecGetArray(levels[0]->D, &c);CHKERRQ(ierr);
+                    PetscCall(VecGetArray(levels[0]->D, &c));
                     std::copy_n(d, Subdomain<K>::_dof, c);
                 }
-                ierr = VecRestoreArray(levels[0]->D, nullptr);CHKERRQ(ierr);
+                PetscCall(VecRestoreArray(levels[0]->D, nullptr));
             }
             else {
                 if(Subdomain<K>::_dof == -1) {
@@ -993,9 +991,9 @@ class Schwarz : public Preconditioner<
                 }
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
                     PetscScalar* c;
-                    ierr = VecGetArray(levels[0]->D, &c);CHKERRQ(ierr);
+                    PetscCall(VecGetArray(levels[0]->D, &c));
                     std::copy_n(_d, Subdomain<K>::_dof, c);
-                    ierr = VecRestoreArray(levels[0]->D, nullptr);CHKERRQ(ierr);
+                    PetscCall(VecRestoreArray(levels[0]->D, nullptr));
                 }
             }
             PetscFunctionReturn(0);
@@ -1054,156 +1052,151 @@ class Schwarz : public Preconditioner<
             PetscBool              flg, ismatis, solve = PETSC_FALSE;
             const char             *prefix;
             Aux                    aux = NULL;
-            PetscErrorCode         ierr;
 
             PetscFunctionBeginUser;
             for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
                 if(std::abs(_d[i]) > HPDDM_EPS)
                     solve = PETSC_TRUE;
-            ierr = KSPGetOptionsPrefix(levels[0]->ksp, &prefix);CHKERRQ(ierr);
-            ierr = EPSCreate(PETSC_COMM_SELF, &eps);CHKERRQ(ierr);
-            ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
-            ierr = PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis);CHKERRQ(ierr);
+            PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
+            PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+            PetscCall(EPSSetOptionsPrefix(eps, prefix));
+            PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
             if(!ismatis) {
                 Mat compact;
                 IS  is;
-                ierr = PetscObjectQuery((PetscObject)N, "_PCHPDDM_Embed", (PetscObject*)&is);CHKERRQ(ierr);
-                ierr = PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject*)&compact);CHKERRQ(ierr);
+                PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Embed", (PetscObject*)&is));
+                PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject*)&compact));
                 if(compact && is && solve) {
                     SVD         svd;
                     PetscScalar *values;
                     PetscInt    m, p;
-                    ierr = PetscNew(&aux);CHKERRQ(ierr);
+                    PetscCall(PetscNew(&aux));
                     aux->is = is;
-                    ierr = SVDCreate(PETSC_COMM_SELF, &svd);CHKERRQ(ierr);
-                    ierr = SVDSetOptionsPrefix(svd, prefix);CHKERRQ(ierr);
-                    ierr = SVDSetOperators(svd, compact, NULL);CHKERRQ(ierr);
-                    ierr = SVDSetType(svd, SVDLAPACK);CHKERRQ(ierr);
-                    ierr = SVDSetFromOptions(svd);CHKERRQ(ierr);
-                    ierr = SVDSetUp(svd);CHKERRQ(ierr);
-                    ierr = SVDSolve(svd);CHKERRQ(ierr);
-                    ierr = MatGetLocalSize(compact, &m, &p);CHKERRQ(ierr);
-                    ierr = VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma);CHKERRQ(ierr);
-                    ierr = MatCreateSeqDense(PETSC_COMM_SELF, p, m, NULL, &aux->V);CHKERRQ(ierr);
-                    ierr = VecGetArrayWrite(aux->sigma, &values);CHKERRQ(ierr);
+                    PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
+                    PetscCall(SVDSetOptionsPrefix(svd, prefix));
+                    PetscCall(SVDSetOperators(svd, compact, NULL));
+                    PetscCall(SVDSetType(svd, SVDLAPACK));
+                    PetscCall(SVDSetFromOptions(svd));
+                    PetscCall(SVDSetUp(svd));
+                    PetscCall(SVDSolve(svd));
+                    PetscCall(MatGetLocalSize(compact, &m, &p));
+                    PetscCall(VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma));
+                    PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, p, m, NULL, &aux->V));
+                    PetscCall(VecGetArrayWrite(aux->sigma, &values));
                     for(PetscInt n = 0; n < m; ++n) {
                         PetscReal s;
                         Vec       v;
-                        ierr = MatDenseGetColumnVecWrite(aux->V, n, &v);CHKERRQ(ierr);
-                        ierr = SVDGetSingularTriplet(svd, n, &s, NULL, v);CHKERRQ(ierr);
+                        PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
+                        PetscCall(SVDGetSingularTriplet(svd, n, &s, NULL, v));
                         values[n] = 1.0/s;
-                        ierr = MatDenseRestoreColumnVecWrite(aux->V, n, &v);CHKERRQ(ierr);
+                        PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
                     }
-                    ierr = MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N);CHKERRQ(ierr);
-                    ierr = MatShellSetOperation(N, MATOP_MULT, (void (*)(void))MatMult_Aux);CHKERRQ(ierr);
-                    ierr = VecRestoreArrayWrite(aux->sigma, &values);CHKERRQ(ierr);
-                    ierr = SVDDestroy(&svd);CHKERRQ(ierr);
+                    PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
+                    PetscCall(MatShellSetOperation(N, MATOP_MULT, (void (*)(void))MatMult_Aux));
+                    PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
+                    PetscCall(SVDDestroy(&svd));
                 }
-                ierr = EPSSetOperators(eps, N, weighted);CHKERRQ(ierr);
+                PetscCall(EPSSetOperators(eps, N, weighted));
             }
             else {
 #if PETSC_VERSION_LT(3, 17, 0)
-                ierr = MatGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+                PetscCall(MatGetLocalToGlobalMapping(N, &l2g, nullptr));
 #else
-                ierr = MatISGetLocalToGlobalMapping(N, &l2g, nullptr);CHKERRQ(ierr);
+                PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
 #endif
-                ierr = ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]);CHKERRQ(ierr);
-                ierr = ISDestroy(&is);CHKERRQ(ierr);
-                ierr = MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized);CHKERRQ(ierr);
+                PetscCall(ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]));
+                PetscCall(ISDestroy(&is));
+                PetscCall(MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized));
                 if(!rhs) {
-                    ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                    PetscCall(MatDestroy(&weighted));
                 }
-                ierr = MatISGetLocalMat(N, &local);CHKERRQ(ierr);
-                ierr = PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &flg);CHKERRQ(ierr);
+                PetscCall(MatISGetLocalMat(N, &local));
+                PetscCall(PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &flg));
                 if(flg) {
                     /* going back from SEQBAIJ to SEQSBAIJ */
-                    ierr = MatSetOption(resized[0], MAT_SYMMETRIC, PETSC_TRUE);CHKERRQ(ierr);
-                    ierr = MatConvert(resized[0], MATSEQSBAIJ, MAT_INPLACE_MATRIX, &resized[0]);CHKERRQ(ierr);
+                    PetscCall(MatSetOption(resized[0], MAT_SYMMETRIC, PETSC_TRUE));
+                    PetscCall(MatConvert(resized[0], MATSEQSBAIJ, MAT_INPLACE_MATRIX, &resized[0]));
                 }
-                ierr = EPSSetOperators(eps, local, resized[0]);CHKERRQ(ierr);
+                PetscCall(EPSSetOperators(eps, local, resized[0]));
                 if(!initial.empty()) {
                     std::vector<Vec> full = initial;
                     for(PetscInt i = 0; i < full.size(); ++i) {
-                        ierr = MatCreateVecs(resized[0], &initial[i], nullptr);CHKERRQ(ierr);
-                        ierr = VecISCopy(full[i], sub[0], SCATTER_REVERSE, initial[i]);CHKERRQ(ierr);
-                        ierr = VecDestroy(&full[i]);CHKERRQ(ierr);
+                        PetscCall(MatCreateVecs(resized[0], &initial[i], nullptr));
+                        PetscCall(VecISCopy(full[i], sub[0], SCATTER_REVERSE, initial[i]));
+                        PetscCall(VecDestroy(&full[i]));
                     }
                 }
             }
-            ierr = EPSSetProblemType(eps, EPS_GHEP);CHKERRQ(ierr);
-            ierr = EPSSetTarget(eps, 0.0);CHKERRQ(ierr);
-            ierr = EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE);CHKERRQ(ierr);
-            ierr = EPSGetST(eps, &st);CHKERRQ(ierr);
-            ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
-            ierr = EPSSetInitialSpace(eps, initial.size(), initial.data());CHKERRQ(ierr);
+            PetscCall(EPSSetProblemType(eps, EPS_GHEP));
+            PetscCall(EPSSetTarget(eps, 0.0));
+            PetscCall(EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE));
+            PetscCall(EPSGetST(eps, &st));
+            PetscCall(STSetType(st, STSINVERT));
+            PetscCall(EPSSetInitialSpace(eps, initial.size(), initial.data()));
             std::for_each(initial.begin(), initial.end(), [&](Vec v) { VecDestroy(&v); });
             std::vector<Vec>().swap(initial);
-            ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
-            ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
+            PetscCall(EPSSetFromOptions(eps));
+            PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
             if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
                 KSP *ksp;
                 PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?"); // LCOV_EXCL_LINE
-                ierr = PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));CHKERRQ(ierr);
-                ierr = STGetKSP(st, &empty);CHKERRQ(ierr);
-                ierr = PetscObjectReference((PetscObject)empty);CHKERRQ(ierr);
-                ierr = STSetKSP(st, ksp[0]);CHKERRQ(ierr);
+                PetscCall(PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp)));
+                PetscCall(STGetKSP(st, &empty));
+                PetscCall(PetscObjectReference((PetscObject)empty));
+                PetscCall(STSetKSP(st, ksp[0]));
             }
             if(solve) {
                 MatStructure str;
-                ierr = STGetMatStructure(st, &str);CHKERRQ(ierr);
-                if(str != SAME_NONZERO_PATTERN) {
-                    ierr = PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix);CHKERRQ(ierr);
-                }
-                ierr = EPSSolve(eps);CHKERRQ(ierr);
-                ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
+                PetscCall(STGetMatStructure(st, &str));
+                if(str != SAME_NONZERO_PATTERN)
+                    PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
+                PetscCall(EPSSolve(eps));
+                PetscCall(EPSGetConverged(eps, &nconv));
             }
             levels[0]->nu = std::min(nconv, nev);
             if(levels[0]->threshold >= 0.0) {
                 PetscInt i = 0;
                 while(i < levels[0]->nu) {
                     PetscScalar eigr, eigi;
-                    ierr = EPSGetEigenvalue(eps, i, &eigr, &eigi);CHKERRQ(ierr);
+                    PetscCall(EPSGetEigenvalue(eps, i, &eigr, &eigi));
 #if defined(PETSC_USE_COMPLEX)
                     if(std::abs(eigr) > levels[0]->threshold)
 #else
                     if(std::hypot(eigr, eigi) > levels[0]->threshold)
 #endif
                     {
-                        ierr = PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
+                        PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr))));
                         break;
                     }
-                    else {
-                        ierr = PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr)));CHKERRQ(ierr);
-                    }
+                    else
+                        PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr))));
                     ++i;
                 }
                 levels[0]->nu = i;
             }
-            ierr = PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv);CHKERRQ(ierr);
+            PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv));
             if(levels[0]->nu) {
                 super::_ev = new K*[levels[0]->nu];
                 *super::_ev = new K[Subdomain<K>::_dof * levels[0]->nu]();
             }
             for(unsigned short i = 1; i < levels[0]->nu; ++i)
                 super::_ev[i] = *super::_ev + i * Subdomain<K>::_dof;
-            ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::_dof, levels[0]->nu ? super::_ev[0] : nullptr, &vr);CHKERRQ(ierr);
-            if(ismatis) {
-                ierr = MatCreateVecs(resized[0], &vreduced, nullptr);CHKERRQ(ierr);
-            }
+            PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::_dof, levels[0]->nu ? super::_ev[0] : nullptr, &vr));
+            if(ismatis)
+                PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
             for(PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
-                ierr = VecPlaceArray(vr, super::_ev[i]);CHKERRQ(ierr);
-                if(!ismatis) {
-                    ierr = EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr);CHKERRQ(ierr);
-                }
+                PetscCall(VecPlaceArray(vr, super::_ev[i]));
+                if(!ismatis)
+                    PetscCall(EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr));
                 else {
-                    ierr = EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr);CHKERRQ(ierr);
-                    ierr = VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced);CHKERRQ(ierr);
+                    PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr));
+                    PetscCall(VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced));
                 }
-                ierr = VecResetArray(vr);CHKERRQ(ierr);
+                PetscCall(VecResetArray(vr));
 #if !defined(PETSC_USE_COMPLEX)
                 if(!flg) {
                     PetscScalar eigi;
-                    ierr = EPSGetEigenvalue(eps, i, nullptr, &eigi);CHKERRQ(ierr);
+                    PetscCall(EPSGetEigenvalue(eps, i, nullptr, &eigi));
                     if(std::abs(eigi) > std::numeric_limits<PetscReal>::epsilon())
                         flg = PETSC_TRUE;
                 }
@@ -1211,28 +1204,27 @@ class Schwarz : public Preconditioner<
                     flg = PETSC_FALSE;
 #endif
             }
-            ierr = VecDestroy(&vr);CHKERRQ(ierr);
+            PetscCall(VecDestroy(&vr));
             if(empty) {
-                ierr = STSetKSP(st, empty);CHKERRQ(ierr);
-                ierr = PetscObjectDereference((PetscObject)empty);CHKERRQ(ierr);
+                PetscCall(STSetKSP(st, empty));
+                PetscCall(PetscObjectDereference((PetscObject)empty));
             }
-            ierr = EPSDestroy(&eps);CHKERRQ(ierr);
+            PetscCall(EPSDestroy(&eps));
             if(!ismatis) {
-                if(!rhs) {
-                    ierr = MatDestroy(&weighted);CHKERRQ(ierr);
-                }
+                if(!rhs)
+                    PetscCall(MatDestroy(&weighted));
                 if(aux) {
-                    ierr = MatDestroy(&aux->V);CHKERRQ(ierr);
-                    ierr = VecDestroy(&aux->sigma);CHKERRQ(ierr);
-                    ierr = PetscFree(aux);CHKERRQ(ierr);
-                    ierr = MatDestroy(&N);CHKERRQ(ierr);
+                    PetscCall(MatDestroy(&aux->V));
+                    PetscCall(VecDestroy(&aux->sigma));
+                    PetscCall(PetscFree(aux));
+                    PetscCall(MatDestroy(&N));
                 }
             }
             else {
-                ierr = VecDestroy(&vreduced);CHKERRQ(ierr);
-                ierr = ISDestroy(&sub[0]);CHKERRQ(ierr);
-                ierr = MatDestroySubMatrices(1, &resized);CHKERRQ(ierr);
-                ierr = MatISRestoreLocalMat(N, &local);CHKERRQ(ierr);
+                PetscCall(VecDestroy(&vreduced));
+                PetscCall(ISDestroy(&sub[0]));
+                PetscCall(MatDestroySubMatrices(1, &resized));
+                PetscCall(MatISRestoreLocalMat(N, &local));
             }
             PetscFunctionReturn(0);
         }
@@ -1243,16 +1235,15 @@ class Schwarz : public Preconditioner<
 
             PetscFunctionBeginUser;
 #if PETSC_VERSION_GE(3, 15, 0)
-            if(!levels[0]->parent->log_separate) {
-                ierr = PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-            }
+            if(!levels[0]->parent->log_separate)
+                PetscCall(PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0));
 #endif
             char fail[2] { };
             if(levels[i - 1]->P) {
                 ierr = levels[i - 1]->P->buildTwo(levels[i - 1]->P->getCommunicator(), *A, i - 1, *n, levels);
                 if(ierr != PETSC_ERR_ARG_WRONG && levels[i]->ksp) {
-                    ierr = KSPGetOperators(levels[i]->ksp, &P, nullptr);CHKERRQ(ierr);
-                    ierr = MatGetOwnershipRange(P, &rstart, &rend);CHKERRQ(ierr);
+                    PetscCall(KSPGetOperators(levels[i]->ksp, &P, nullptr));
+                    PetscCall(MatGetOwnershipRange(P, &rstart, &rend));
                     if(rstart == rend)
                         fail[1] = 1;
                 }
@@ -1263,19 +1254,16 @@ class Schwarz : public Preconditioner<
             MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
             if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
                 *n = i;
-                if(i > 1 && N) {
-                    ierr = MatDestroy(N);CHKERRQ(ierr);
-                }
+                if(i > 1 && N)
+                    PetscCall(MatDestroy(N));
             }
-            else {
-                CHKERRQ(ierr);
-            }
-            if(i > 1 && A) {
-                ierr = MatDestroy(A);CHKERRQ(ierr);
-            }
+            else
+                PetscCall(ierr);
+            if(i > 1 && A)
+                PetscCall(MatDestroy(A));
 #if PETSC_VERSION_GE(3, 15, 0)
             if(!levels[0]->parent->log_separate) {
-                ierr = PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                PetscCall(PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0));
             }
 #endif
             if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
@@ -1289,8 +1277,8 @@ class Schwarz : public Preconditioner<
                 unsigned int pos = prefix.rfind("levels_", prefix.size() - 1);
                 unsigned short level = std::stoi(prefix.substr(pos + 7, prefix.size() - 1));
                 prefix = prefix.substr(0, pos + 7) + std::to_string(level + 1) + "_";
-                ierr = PetscOptionsGetString(NULL, prefix.c_str(), "-st_pc_type", type, sizeof(type), NULL);CHKERRQ(ierr);
-                ierr = PetscStrcmp(type, PCMAT, &algebraic);CHKERRQ(ierr);
+                PetscCall(PetscOptionsGetString(NULL, prefix.c_str(), "-st_pc_type", type, sizeof(type), NULL));
+                PetscCall(PetscStrcmp(type, PCMAT, &algebraic));
                 if(!levels[0]->parent->aux || algebraic) {
                     if(levels[i]->ksp) {
                         Mat              *sub, weighted;
@@ -1300,47 +1288,46 @@ class Schwarz : public Preconditioner<
                         std::vector<Vec> initial;
                         delete levels[i]->P;
                         levels[i]->P = new HPDDM::Schwarz<PetscScalar>();
-                        ierr = ISCreateStride(PETSC_COMM_SELF, rend - rstart, rstart, 1, &uis);CHKERRQ(ierr);
-                        ierr = ISDuplicate(uis, &loc);CHKERRQ(ierr);
-                        ierr = MatIncreaseOverlap(P, 1, &uis, 1);CHKERRQ(ierr);
-                        ierr = ISSort(uis);CHKERRQ(ierr);
-                        ierr = ISSetInfo(uis, IS_SORTED, IS_GLOBAL, PETSC_TRUE, PETSC_TRUE);CHKERRQ(ierr);
-                        ierr = ISGetLocalSize(uis, &m);CHKERRQ(ierr);
-                        ierr = VecDestroy(&levels[i]->D);CHKERRQ(ierr);
-                        ierr = VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &levels[i]->D);CHKERRQ(ierr);
-                        ierr = VecScatterDestroy(&levels[i]->scatter);CHKERRQ(ierr);
-                        ierr = MatCreateVecs(P, &xin, NULL);CHKERRQ(ierr);
-                        ierr = VecScatterCreate(xin, uis, levels[i]->D, NULL, &levels[i]->scatter);CHKERRQ(ierr);
-                        ierr = VecDestroy(&xin);CHKERRQ(ierr);
-                        ierr = PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[], PetscBool), (P, &uis, &sub, PETSC_FALSE));CHKERRQ(ierr);
-                        ierr = levels[i]->P->structure(loc, uis, sub[0], NULL, levels + i);CHKERRQ(ierr);
-                        ierr = ISDestroy(&loc);CHKERRQ(ierr);
-                        ierr = MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted);CHKERRQ(ierr);
-                        ierr = MatDiagonalScale(weighted, levels[i]->D, levels[i]->D);CHKERRQ(ierr);
-                        ierr = MatPropagateSymmetryOptions(sub[0], weighted);CHKERRQ(ierr);
-                        ierr = levels[i]->P->solveGEVP(uis, sub[0], initial, levels + 1, weighted, NULL);CHKERRQ(ierr);
-                        ierr = PetscObjectReference((PetscObject)sub[0]);CHKERRQ(ierr);
+                        PetscCall(ISCreateStride(PETSC_COMM_SELF, rend - rstart, rstart, 1, &uis));
+                        PetscCall(ISDuplicate(uis, &loc));
+                        PetscCall(MatIncreaseOverlap(P, 1, &uis, 1));
+                        PetscCall(ISSort(uis));
+                        PetscCall(ISSetInfo(uis, IS_SORTED, IS_GLOBAL, PETSC_TRUE, PETSC_TRUE));
+                        PetscCall(ISGetLocalSize(uis, &m));
+                        PetscCall(VecDestroy(&levels[i]->D));
+                        PetscCall(VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &levels[i]->D));
+                        PetscCall(VecScatterDestroy(&levels[i]->scatter));
+                        PetscCall(MatCreateVecs(P, &xin, NULL));
+                        PetscCall(VecScatterCreate(xin, uis, levels[i]->D, NULL, &levels[i]->scatter));
+                        PetscCall(VecDestroy(&xin));
+                        PetscCall(PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[], PetscBool), (P, &uis, &sub, PETSC_FALSE)));
+                        PetscCall(levels[i]->P->structure(loc, uis, sub[0], NULL, levels + i));
+                        PetscCall(ISDestroy(&loc));
+                        PetscCall(MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted));
+                        PetscCall(MatDiagonalScale(weighted, levels[i]->D, levels[i]->D));
+                        PetscCall(MatPropagateSymmetryOptions(sub[0], weighted));
+                        PetscCall(levels[i]->P->solveGEVP(uis, sub[0], initial, levels + 1, weighted, NULL));
+                        PetscCall(PetscObjectReference((PetscObject)sub[0]));
                         Mat Q = sub[0];
-                        ierr = next(&Q, NULL, i + 1, n, levels);CHKERRQ(ierr);
-                        ierr = ISDestroy(&uis);CHKERRQ(ierr);
-                        ierr = PetscObjectQuery((PetscObject)sub[0], "_PCHPDDM_Embed", (PetscObject*)&uis);CHKERRQ(ierr);
-                        ierr = ISDestroy(&uis);CHKERRQ(ierr);
-                        ierr = PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Embed", NULL);CHKERRQ(ierr);
-                        ierr = PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Compact", NULL);CHKERRQ(ierr);
-                        ierr = MatDestroySubMatrices(2, &sub);CHKERRQ(ierr);
+                        PetscCall(next(&Q, NULL, i + 1, n, levels));
+                        PetscCall(ISDestroy(&uis));
+                        PetscCall(PetscObjectQuery((PetscObject)sub[0], "_PCHPDDM_Embed", (PetscObject*)&uis));
+                        PetscCall(ISDestroy(&uis));
+                        PetscCall(PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Embed", NULL));
+                        PetscCall(PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Compact", NULL));
+                        PetscCall(MatDestroySubMatrices(2, &sub));
                     }
                     else {
                         delete levels[i]->P;
                         levels[i]->P = nullptr;
-                        ierr = next(NULL, NULL, i + 1, n, levels);CHKERRQ(ierr);
+                        PetscCall(next(NULL, NULL, i + 1, n, levels));
                     }
-                    ierr = PetscObjectComposeFunction((PetscObject)levels[0]->parent->levels[0]->ksp, "PCHPDDMSetUp_Private_C", NULL);CHKERRQ(ierr);
+                    PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->parent->levels[0]->ksp, "PCHPDDMSetUp_Private_C", NULL));
                 }
                 else {
 #if PETSC_VERSION_GE(3, 15, 0)
-                    if(!levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    }
+                    if(!levels[0]->parent->log_separate)
+                        PetscCall(PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0));
 #endif
                     CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
                     std::vector<K> overlap;
@@ -1350,43 +1337,37 @@ class Schwarz : public Preconditioner<
                     MPI_Request rs = MPI_REQUEST_NULL;
                     coNeumann = new CoarseOperator<DMatrix, K>;
                     levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra);
-                    if(i > 1) {
-                        ierr = MatDestroy(N);CHKERRQ(ierr);
-                    }
-                    if(overlap.size()) {
-                        ierr = MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs);CHKERRMPI(ierr);
-                    }
+                    if(i > 1)
+                        PetscCall(MatDestroy(N));
+                    if(overlap.size())
+                        PetscCallMPI(MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs));
 #if PETSC_VERSION_GE(3, 15, 0)
                     if(!levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                        ierr = PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
+                        PetscCall(PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0));
+                        PetscCall(PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
                     }
 #endif
-                    ierr = levels[i - 1]->P->_co->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]);CHKERRQ(ierr);
+                    PetscCall(levels[i - 1]->P->_co->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]));
                     delete coNeumann;
-                    if(i + 2 == *n) {
-                        ierr = MatDestroy(N);CHKERRQ(ierr);
-                    }
+                    if(i + 2 == *n)
+                        PetscCall(MatDestroy(N));
                     if(*A)
                         levels[i]->P = levels[i - 1]->P->_co->getSubdomain()->P;
                     else
                         levels[i]->P = nullptr;
-                    ierr = MPI_Wait(&rs, MPI_STATUS_IGNORE);CHKERRMPI(ierr);
+                    PetscCallMPI(MPI_Wait(&rs, MPI_STATUS_IGNORE));
 #if PETSC_VERSION_GE(3, 15, 0)
-                    if(!levels[0]->parent->log_separate) {
-                        ierr = PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0);CHKERRQ(ierr);
-                    }
+                    if(!levels[0]->parent->log_separate)
+                        PetscCall(PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
 #endif
                 }
             }
             PetscFunctionReturn(0);
         }
         PetscErrorCode initialize(IS is, Mat N, Mat weighted, Mat rhs, std::vector<Vec> initial, PC_HPDDM_Level** const levels) {
-            PetscErrorCode ierr;
-
             PetscFunctionBeginUser;
-            ierr = solveGEVP(is, N, initial, levels, weighted, rhs);CHKERRQ(ierr);
-            ierr = PetscObjectComposeFunction((PetscObject)levels[0]->ksp, "PCHPDDMSetUp_Private_C", next);CHKERRQ(ierr);
+            PetscCall(solveGEVP(is, N, initial, levels, weighted, rhs));
+            PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->ksp, "PCHPDDMSetUp_Private_C", next));
             PetscFunctionReturn(0);
         }
 #endif
@@ -1459,26 +1440,25 @@ PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar>* const 
     else return P->initialize(is, N, weighted, rhs, initial, levels);
 }
 static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
-    Aux            aux;
-    Vec            left, right, leftEcon;
-    PetscErrorCode ierr;
+    Aux aux;
+    Vec left, right, leftEcon;
 
     PetscFunctionBeginUser;
-    ierr = MatShellGetContext(A, &aux);CHKERRQ(ierr);
-    ierr = MatCreateVecs(aux->V, &right, &left);CHKERRQ(ierr);
-    ierr = MatCreateVecs(aux->V, NULL, &leftEcon);CHKERRQ(ierr);
-    ierr = VecZeroEntries(left);CHKERRQ(ierr);
-    ierr = VecISCopy(left, aux->is, SCATTER_FORWARD, x);CHKERRQ(ierr);
-    ierr = MatMultTranspose(aux->V, left, right);CHKERRQ(ierr);
-    ierr = MatMult(aux->V, right, leftEcon);CHKERRQ(ierr);
-    ierr = VecAXPY(leftEcon, -1.0, left);CHKERRQ(ierr);
-    ierr = VecPointwiseMult(y, aux->sigma, right);CHKERRQ(ierr);
-    ierr = MatMult(aux->V, y, left);CHKERRQ(ierr);
-    ierr = VecAXPY(left, -1.0 / PETSC_SMALL, leftEcon);CHKERRQ(ierr);
-    ierr = VecISCopy(left, aux->is, SCATTER_REVERSE, y);CHKERRQ(ierr);
-    ierr = VecDestroy(&left);CHKERRQ(ierr);
-    ierr = VecDestroy(&right);CHKERRQ(ierr);
-    ierr = VecDestroy(&leftEcon);CHKERRQ(ierr);
+    PetscCall(MatShellGetContext(A, &aux));
+    PetscCall(MatCreateVecs(aux->V, &right, &left));
+    PetscCall(MatCreateVecs(aux->V, NULL, &leftEcon));
+    PetscCall(VecZeroEntries(left));
+    PetscCall(VecISCopy(left, aux->is, SCATTER_FORWARD, x));
+    PetscCall(MatMultTranspose(aux->V, left, right));
+    PetscCall(MatMult(aux->V, right, leftEcon));
+    PetscCall(VecAXPY(leftEcon, -1.0, left));
+    PetscCall(VecPointwiseMult(y, aux->sigma, right));
+    PetscCall(MatMult(aux->V, y, left));
+    PetscCall(VecAXPY(left, -1.0 / PETSC_SMALL, leftEcon));
+    PetscCall(VecISCopy(left, aux->is, SCATTER_REVERSE, y));
+    PetscCall(VecDestroy(&left));
+    PetscCall(VecDestroy(&right));
+    PetscCall(VecDestroy(&leftEcon));
     PetscFunctionReturn(0);
 }
 #endif

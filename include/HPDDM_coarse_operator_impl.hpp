@@ -282,16 +282,15 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     char type[256];
     char S;
     PetscBool flg;
-    PetscErrorCode ierr;
-    ierr = PetscOptionsBegin(v._p.getCommunicator(), v._prefix.c_str(), "", "");CHKERRQ(ierr);
-    ierr = PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, deft, type, 256, &flg);CHKERRQ(ierr);
+    PetscErrorCode ierr = PetscOptionsBegin(v._p.getCommunicator(), v._prefix.c_str(), "", "");PetscCall(ierr);
+    PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, deft, type, 256, &flg));
     if(!flg)
         S = 'S';
     else {
-        ierr = PetscStrcmp(type, MATSBAIJ, &flg);CHKERRQ(ierr);
+        PetscCall(PetscStrcmp(type, MATSBAIJ, &flg));
         S = (flg ? 'S' : 'G');
     }
-    ierr = PetscOptionsEnd();CHKERRQ(ierr);
+    ierr = PetscOptionsEnd();PetscCall(ierr);
     if(!std::is_same<PetscScalar, PetscComplex>::value && S == 'S')
         ierr = constructionMatrix<'S', U, excluded, Operator>(v);
     else
@@ -815,42 +814,40 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         delete [] work;
 #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
         if(extended != MPI_COMM_NULL) {
-            PetscErrorCode ierr;
             PC pc;
             Mat E, A;
             PetscInt zero = 0;
-            ierr = MPI_Bcast(&rank, 1, MPI_INT, 0, extended);CHKERRMPI(ierr);
-            ierr = KSPCreate(extended, &v._level->ksp);CHKERRQ(ierr);
-            ierr = MatCreate(extended, &E);CHKERRQ(ierr);
-            ierr = MatSetOptionsPrefix(E, v._prefix.c_str());CHKERRQ(ierr);
-            ierr = MatSetFromOptions(E);CHKERRQ(ierr);
-            ierr = MatSetBlockSize(E, !blocked ? 1 : _local);CHKERRQ(ierr);
-            ierr = MatSetSizes(E, 0, 0, rank, rank);CHKERRQ(ierr);
+            PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
+            PetscCall(KSPCreate(extended, &v._level->ksp));
+            PetscCall(MatCreate(extended, &E));
+            PetscCall(MatSetOptionsPrefix(E, v._prefix.c_str()));
+            PetscCall(MatSetFromOptions(E));
+            PetscCall(MatSetBlockSize(E, !blocked ? 1 : _local));
+            PetscCall(MatSetSizes(E, 0, 0, rank, rank));
             if(S == 'S') {
-                ierr = MatSetType(E, MATSBAIJ);CHKERRQ(ierr);
-                ierr = MatMPISBAIJSetPreallocationCSR(E, !blocked ? 1 : _local, &zero, nullptr, nullptr);CHKERRQ(ierr);
+                PetscCall(MatSetType(E, MATSBAIJ));
+                PetscCall(MatMPISBAIJSetPreallocationCSR(E, !blocked ? 1 : _local, &zero, nullptr, nullptr));
             }
             else {
                 if(blocked && _local > 1) {
-                    ierr = MatSetType(E, MATBAIJ);CHKERRQ(ierr);
-                    ierr = MatMPIBAIJSetPreallocationCSR(E, _local, &zero, nullptr, nullptr);CHKERRQ(ierr);
+                    PetscCall(MatSetType(E, MATBAIJ));
+                    PetscCall(MatMPIBAIJSetPreallocationCSR(E, _local, &zero, nullptr, nullptr));
                 }
                 else {
-                    ierr = MatSetType(E, MATAIJ);CHKERRQ(ierr);
-                    ierr = MatMPIAIJSetPreallocationCSR(E, &zero, nullptr, nullptr);CHKERRQ(ierr);
+                    PetscCall(MatSetType(E, MATAIJ));
+                    PetscCall(MatMPIAIJSetPreallocationCSR(E, &zero, nullptr, nullptr));
                 }
             }
-            ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
-            ierr = MatPropagateSymmetryOptions(A, E);CHKERRQ(ierr);
-            ierr = KSPSetOperators(v._level->ksp, E, E);CHKERRQ(ierr);
-            ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);
-            ierr = KSPSetType(v._level->ksp, KSPPREONLY);CHKERRQ(ierr);
-            ierr = KSPGetPC(v._level->ksp, &pc);CHKERRQ(ierr);
-            if(blocked) {
-                ierr = PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU);CHKERRQ(ierr);
-            }
-            ierr = KSPSetFromOptions(v._level->ksp);CHKERRQ(ierr);
-            ierr = MatDestroy(&E);CHKERRQ(ierr);
+            PetscCall(KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A));
+            PetscCall(MatPropagateSymmetryOptions(A, E));
+            PetscCall(KSPSetOperators(v._level->ksp, E, E));
+            PetscCall(KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str()));
+            PetscCall(KSPSetType(v._level->ksp, KSPPREONLY));
+            PetscCall(KSPGetPC(v._level->ksp, &pc));
+            if(blocked)
+                PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
+            PetscCall(KSPSetFromOptions(v._level->ksp));
+            PetscCall(MatDestroy(&E));
             super::_s = v._level;
         }
 #endif
@@ -1269,68 +1266,58 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #else
         std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : _local), I);
         if(Operator::_factorize) {
-            PetscErrorCode ierr;
             Mat E, A;
 #if !defined(PETSC_HAVE_MUMPS)
             const MPI_Comm extended = MPI_COMM_NULL;
 #endif
-            if(extended != MPI_COMM_NULL) {
-                ierr = MPI_Bcast(&rank, 1, MPI_INT, 0, extended);CHKERRMPI(ierr);
-            }
-            ierr = KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::_communicator, &v._level->ksp);CHKERRQ(ierr);
-            ierr = MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::_communicator, &E);CHKERRQ(ierr);
-            ierr = MatSetOptionsPrefix(E, v._prefix.c_str());CHKERRQ(ierr);
-            ierr = MatSetFromOptions(E);CHKERRQ(ierr);
-            ierr = MatSetBlockSize(E, !blocked ? 1 : _local);CHKERRQ(ierr);
-            ierr = MatSetSizes(E, nrow, nrow, rank, rank);CHKERRQ(ierr);
+            if(extended != MPI_COMM_NULL)
+                PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
+            PetscCall(KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::_communicator, &v._level->ksp));
+            PetscCall(MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::_communicator, &E));
+            PetscCall(MatSetOptionsPrefix(E, v._prefix.c_str()));
+            PetscCall(MatSetFromOptions(E));
+            PetscCall(MatSetBlockSize(E, !blocked ? 1 : _local));
+            PetscCall(MatSetSizes(E, nrow, nrow, rank, rank));
             if(S == 'S') {
-                ierr = MatSetType(E, MATSBAIJ);CHKERRQ(ierr);
-                if(p == 1 && extended == MPI_COMM_NULL) {
-                    ierr = MatSeqSBAIJSetPreallocationCSR(E, super::_bs, I, J, pt);CHKERRQ(ierr);
-                }
-                else {
-                    ierr = MatMPISBAIJSetPreallocationCSR(E, super::_bs, I, J, pt);CHKERRQ(ierr);
-                }
+                PetscCall(MatSetType(E, MATSBAIJ));
+                if(p == 1 && extended == MPI_COMM_NULL)
+                    PetscCall(MatSeqSBAIJSetPreallocationCSR(E, super::_bs, I, J, pt));
+                else
+                    PetscCall(MatMPISBAIJSetPreallocationCSR(E, super::_bs, I, J, pt));
             }
             else {
                 if(super::_bs > 1) {
-                    ierr = MatSetType(E, MATBAIJ);CHKERRQ(ierr);
-                    if(p == 1 && extended == MPI_COMM_NULL) {
-                        ierr = MatSeqBAIJSetPreallocationCSR(E, super::_bs, I, J, pt);CHKERRQ(ierr);
-                    }
-                    else {
-                        ierr = MatMPIBAIJSetPreallocationCSR(E, super::_bs, I, J, pt);CHKERRQ(ierr);
-                    }
+                    PetscCall(MatSetType(E, MATBAIJ));
+                    if(p == 1 && extended == MPI_COMM_NULL)
+                        PetscCall(MatSeqBAIJSetPreallocationCSR(E, super::_bs, I, J, pt));
+                    else
+                        PetscCall(MatMPIBAIJSetPreallocationCSR(E, super::_bs, I, J, pt));
                 }
                 else {
-                    ierr = MatSetType(E, MATAIJ);CHKERRQ(ierr);
-                    if(p == 1 && extended == MPI_COMM_NULL) {
-                        ierr = MatSeqAIJSetPreallocationCSR(E, I, J, pt);CHKERRQ(ierr);
-                    }
-                    else {
-                        ierr = MatMPIAIJSetPreallocationCSR(E, I, J, pt);CHKERRQ(ierr);
-                    }
+                    PetscCall(MatSetType(E, MATAIJ));
+                    if(p == 1 && extended == MPI_COMM_NULL)
+                        PetscCall(MatSeqAIJSetPreallocationCSR(E, I, J, pt));
+                    else
+                        PetscCall(MatMPIAIJSetPreallocationCSR(E, I, J, pt));
                 }
             }
-            ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
-            ierr = MatPropagateSymmetryOptions(A, E);CHKERRQ(ierr);
-            ierr = KSPSetOperators(v._level->ksp, E, E);CHKERRQ(ierr);
-            ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);
+            PetscCall(KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A));
+            PetscCall(MatPropagateSymmetryOptions(A, E));
+            PetscCall(KSPSetOperators(v._level->ksp, E, E));
+            PetscCall(KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str()));
             if(coarse) {
                 PC pc;
-                ierr = KSPSetType(v._level->ksp, KSPPREONLY);CHKERRQ(ierr);
-                ierr = KSPGetPC(v._level->ksp, &pc);CHKERRQ(ierr);
+                PetscCall(KSPSetType(v._level->ksp, KSPPREONLY));
+                PetscCall(KSPGetPC(v._level->ksp, &pc));
                 if(blocked) {
 #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
                     if(p == 1)
 #endif
-                    {
-                        ierr = PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU);CHKERRQ(ierr);
-                    }
+                        PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
                 }
             }
-            ierr = KSPSetFromOptions(v._level->ksp);CHKERRQ(ierr);
-            ierr = MatDestroy(&E);CHKERRQ(ierr);
+            PetscCall(KSPSetFromOptions(v._level->ksp));
+            PetscCall(MatDestroy(&E));
             super::_s = v._level;
         }
         if(!coarse)
@@ -1647,22 +1634,21 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         ignore(nrow);
         delete [] loc2glob;
 #endif
-        PetscErrorCode ierr;
         Mat P, A;
         PetscScalar* ptr;
-        ierr = MatCreateDense(DMatrix::_communicator, DMatrix::_n, DMatrix::_n, DMatrix::_n, DMatrix::_n, nullptr, &P);CHKERRQ(ierr);
-        ierr = MatDenseGetArrayWrite(P, &ptr);CHKERRQ(ierr);
+        PetscCall(MatCreateDense(DMatrix::_communicator, DMatrix::_n, DMatrix::_n, DMatrix::_n, DMatrix::_n, nullptr, &P));
+        PetscCall(MatDenseGetArrayWrite(P, &ptr));
         std::copy_n(E, DMatrix::_n * DMatrix::_n, ptr);
-        ierr = MatDenseRestoreArrayWrite(P, &ptr);CHKERRQ(ierr);
-        ierr = MatSetOptionsPrefix(P, v._prefix.c_str());CHKERRQ(ierr);
-        ierr = MatSetFromOptions(P);CHKERRQ(ierr);
-        ierr = KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A);CHKERRQ(ierr);
-        ierr = MatPropagateSymmetryOptions(A, P);CHKERRQ(ierr);
-        ierr = KSPCreate(DMatrix::_communicator, &v._level->ksp);CHKERRQ(ierr);
-        ierr = KSPSetOperators(v._level->ksp, P, P);CHKERRQ(ierr);
-        ierr = KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str());CHKERRQ(ierr);
-        ierr = KSPSetFromOptions(v._level->ksp);CHKERRQ(ierr);
-        ierr = MatDestroy(&P);CHKERRQ(ierr);
+        PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
+        PetscCall(MatSetOptionsPrefix(P, v._prefix.c_str()));
+        PetscCall(MatSetFromOptions(P));
+        PetscCall(KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A));
+        PetscCall(MatPropagateSymmetryOptions(A, P));
+        PetscCall(KSPCreate(DMatrix::_communicator, &v._level->ksp));
+        PetscCall(KSPSetOperators(v._level->ksp, P, P));
+        PetscCall(KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str()));
+        PetscCall(KSPSetFromOptions(v._level->ksp));
+        PetscCall(MatDestroy(&P));
         super::_s = v._level;
 #endif
     }

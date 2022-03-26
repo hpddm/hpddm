@@ -787,7 +787,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
 #else
             PetscFunctionBeginUser;
-            PetscErrorCode ierr = PCHPDDMSolve_Private(_s, rhs, mu);CHKERRQ(ierr);
+            PetscCall(PCHPDDMSolve_Private(_s, rhs, mu));
             PetscFunctionReturn(0);
 #endif
         }
@@ -1406,8 +1406,6 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #endif
                 ) {
 #if HPDDM_PETSC
-            PetscErrorCode ierr;
-
             PetscFunctionBeginUser;
 #endif
             if(DMatrix::_communicator != MPI_COMM_NULL) {
@@ -1584,33 +1582,33 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 const char* prefix;
                 PetscInt m;
                 IS is;
-                ierr = KSPGetOptionsPrefix(_s->ksp, &prefix);CHKERRQ(ierr);
-                ierr = MatGetLocalSize(overlapDirichlet, &m, nullptr);CHKERRQ(ierr);
+                PetscCall(KSPGetOptionsPrefix(_s->ksp, &prefix));
+                PetscCall(MatGetLocalSize(overlapDirichlet, &m, nullptr));
                 static_cast<Subdomain<K>*>(s)->initialize(nullptr, o, r, &(DMatrix::_communicator));
                 s->setDof(m);
-                ierr = VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &_s->D);CHKERRQ(ierr);
+                PetscCall(VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &_s->D));
                 {
                     Mat P;
                     Vec v;
-                    ierr = KSPGetOperators(_s->ksp, &P, nullptr);CHKERRQ(ierr);
+                    PetscCall(KSPGetOperators(_s->ksp, &P, nullptr));
                     {
                         PetscInt n, N;
-                        ierr = MatGetLocalSize(P, &n, nullptr);CHKERRQ(ierr);
-                        ierr = MatGetSize(P, &N, nullptr);CHKERRQ(ierr);
-                        ierr = VecCreateMPI(DMatrix::_communicator, n, N, &v);CHKERRQ(ierr);
+                        PetscCall(MatGetLocalSize(P, &n, nullptr));
+                        PetscCall(MatGetSize(P, &N, nullptr));
+                        PetscCall(VecCreateMPI(DMatrix::_communicator, n, N, &v));
                     }
-                    ierr = ISCreateBlock(PETSC_COMM_SELF, _bs, m / _bs, _idx, PETSC_OWN_POINTER, &is);CHKERRQ(ierr);
-                    ierr = VecScatterCreate(v, is, _s->D, nullptr, &_s->scatter);CHKERRQ(ierr);
-                    ierr = VecDestroy(&v);CHKERRQ(ierr);
+                    PetscCall(ISCreateBlock(PETSC_COMM_SELF, _bs, m / _bs, _idx, PETSC_OWN_POINTER, &is));
+                    PetscCall(VecScatterCreate(v, is, _s->D, nullptr, &_s->scatter));
+                    PetscCall(VecDestroy(&v));
                 }
                 _idx = nullptr;
-                ierr = ISDestroy(&is);CHKERRQ(ierr);
+                PetscCall(ISDestroy(&is));
                 PetscReal* d;
                 if(!std::is_same<PetscScalar, PetscReal>::value)
                     d = new PetscReal[m]();
                 else {
-                    ierr = VecSet(_s->D, 0.0);CHKERRQ(ierr);
-                    ierr = VecGetArray(_s->D, reinterpret_cast<PetscScalar**>(&d));CHKERRQ(ierr);
+                    PetscCall(VecSet(_s->D, 0.0));
+                    PetscCall(VecGetArray(_s->D, reinterpret_cast<PetscScalar**>(&d)));
                 }
 #endif
                 std::fill_n(d, _dof * _bs, Wrapper<underlying_type<K>>::d__1);
@@ -1660,30 +1658,30 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         std::map<unsigned short, std::vector<int>>().swap(_send);
                         vectorNeighbor().swap(_recv);
                         Mat weighted;
-                        ierr = MatConvert(overlapDirichlet, MATSAME, MAT_INITIAL_MATRIX, &weighted);CHKERRQ(ierr);
-                        ierr = MatDiagonalScale(weighted, _s->D, _s->D);CHKERRQ(ierr);
+                        PetscCall(MatConvert(overlapDirichlet, MATSAME, MAT_INITIAL_MATRIX, &weighted));
+                        PetscCall(MatDiagonalScale(weighted, _s->D, _s->D));
                         EPS eps;
                         ST st;
-                        ierr = EPSCreate(PETSC_COMM_SELF, &eps);CHKERRQ(ierr);
-                        ierr = EPSSetOptionsPrefix(eps, prefix);CHKERRQ(ierr);
-                        ierr = EPSSetOperators(eps, overlapNeumann, weighted);CHKERRQ(ierr);
-                        ierr = EPSSetProblemType(eps, EPS_GHEP);CHKERRQ(ierr);
-                        ierr = EPSSetTarget(eps, 0.0);CHKERRQ(ierr);
-                        ierr = EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE);CHKERRQ(ierr);
-                        ierr = EPSGetST(eps, &st);CHKERRQ(ierr);
-                        ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
-                        ierr = STSetMatStructure(st, SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-                        ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
+                        PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+                        PetscCall(EPSSetOptionsPrefix(eps, prefix));
+                        PetscCall(EPSSetOperators(eps, overlapNeumann, weighted));
+                        PetscCall(EPSSetProblemType(eps, EPS_GHEP));
+                        PetscCall(EPSSetTarget(eps, 0.0));
+                        PetscCall(EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE));
+                        PetscCall(EPSGetST(eps, &st));
+                        PetscCall(STSetType(st, STSINVERT));
+                        PetscCall(STSetMatStructure(st, SAME_NONZERO_PATTERN));
+                        PetscCall(EPSSetFromOptions(eps));
                         PetscInt nev, nconv;
-                        ierr = EPSGetDimensions(eps, &nev, nullptr, nullptr);CHKERRQ(ierr);
-                        ierr = EPSSolve(eps);CHKERRQ(ierr);
-                        ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
+                        PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
+                        PetscCall(EPSSolve(eps));
+                        PetscCall(EPSGetConverged(eps, &nconv));
                         level->nu = std::min(nconv, nev);
                         if(level->threshold >= 0.0) {
                             PetscInt i = 0;
                             while(i < level->nu) {
                                 PetscScalar eigr;
-                                ierr = EPSGetEigenvalue(eps, i, &eigr, nullptr);CHKERRQ(ierr);
+                                PetscCall(EPSGetEigenvalue(eps, i, &eigr, nullptr));
                                 if(std::abs(eigr) > level->threshold)
                                     break;
                                 ++i;
@@ -1696,17 +1694,17 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                             for(unsigned short i = 1; i < level->nu; ++i)
                                 ev[i] = *ev + i * m;
                             Vec vr;
-                            ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, m, ev[0], &vr);CHKERRQ(ierr);
+                            PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, m, ev[0], &vr));
                             for(int i = 0; i < level->nu; ++i) {
                                 VecPlaceArray(vr, ev[i]);
-                                ierr = EPSGetEigenvector(eps, i, vr, nullptr);CHKERRQ(ierr);
-                                ierr = VecResetArray(vr);CHKERRQ(ierr);
+                                PetscCall(EPSGetEigenvector(eps, i, vr, nullptr));
+                                PetscCall(VecResetArray(vr));
                             }
-                            ierr = VecDestroy(&vr);CHKERRQ(ierr);
+                            PetscCall(VecDestroy(&vr));
                             s->setVectors(ev);
                         }
-                        ierr = EPSDestroy(&eps);CHKERRQ(ierr);
-                        ierr = MatDestroy(&weighted);CHKERRQ(ierr);
+                        PetscCall(EPSDestroy(&eps));
+                        PetscCall(MatDestroy(&weighted));
 #endif
                     }
 #if !HPDDM_PETSC
