@@ -105,7 +105,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #endif
 #if defined(DMUMPS) || defined(MUMPSSUB)
         std::forward_as_tuple("", "", [](std::string&, const std::string&, bool) { std::cout << "\n MUMPS-specific options:"; return true; }),
-        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[34789]|35)=<val>", "Integer control parameters", Arg::integer),
+        std::forward_as_tuple("mumps_icntl_([678]|1[234]|2[34789]|3[567])=<val>", "Integer control parameters", Arg::integer),
         std::forward_as_tuple("mumps_cntl_([123457])=<val>", "Real control parameters", Arg::numeric),
 #endif
 #endif
