@@ -63,24 +63,23 @@ class Slepc : public Eigensolver<K> {
             ST st;
             Vec vr, vi = nullptr;
             PetscInt nconv;
-            PetscErrorCode ierr;
             K* evr = nullptr;
             const Option& opt = *Option::get();
             PetscFunctionBeginUser;
             if(Eigensolver<K>::_nu) {
-                ierr = convert(A, P);CHKERRQ(ierr);
-                ierr = convert(B, Q);CHKERRQ(ierr);
-                ierr = EPSCreate(PETSC_COMM_SELF, &eps);CHKERRQ(ierr);
-                ierr = EPSSetOperators(eps, P, Q);CHKERRQ(ierr);
-                ierr = EPSSetTarget(eps, 0.0);CHKERRQ(ierr);
-                ierr = EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE);CHKERRQ(ierr);
-                ierr = EPSGetST(eps, &st);CHKERRQ(ierr);
-                ierr = STSetType(st, STSINVERT);CHKERRQ(ierr);
-                ierr = EPSSetOptionsPrefix(eps, std::string("slepc_" + std::string(HPDDM_PREFIX) + opt.getPrefix()).c_str());CHKERRQ(ierr);
-                ierr = EPSSetDimensions(eps, Eigensolver<K>::_nu, PETSC_DEFAULT, PETSC_DEFAULT);CHKERRQ(ierr);
-                ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
-                ierr = EPSSolve(eps);CHKERRQ(ierr);
-                ierr = EPSGetConverged(eps, &nconv);CHKERRQ(ierr);
+                PetscCall(convert(A, P));
+                PetscCall(convert(B, Q));
+                PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+                PetscCall(EPSSetOperators(eps, P, Q));
+                PetscCall(EPSSetTarget(eps, 0.0));
+                PetscCall(EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE));
+                PetscCall(EPSGetST(eps, &st));
+                PetscCall(STSetType(st, STSINVERT));
+                PetscCall(EPSSetOptionsPrefix(eps, std::string("slepc_" + std::string(HPDDM_PREFIX) + opt.getPrefix()).c_str()));
+                PetscCall(EPSSetDimensions(eps, Eigensolver<K>::_nu, PETSC_DEFAULT, PETSC_DEFAULT));
+                PetscCall(EPSSetFromOptions(eps));
+                PetscCall(EPSSolve(eps));
+                PetscCall(EPSGetConverged(eps, &nconv));
                 Eigensolver<K>::_nu = std::min(static_cast<int>(nconv), Eigensolver<K>::_nu);
                 if(Eigensolver<K>::_nu) {
                     evr = new K[Eigensolver<K>::_nu];
@@ -88,33 +87,32 @@ class Slepc : public Eigensolver<K> {
                     *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
                     for(unsigned short i = 1; i < Eigensolver<K>::_nu; ++i)
                         ev[i] = *ev + i * Eigensolver<K>::_n;
-                    ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::_n, nullptr, &vr);CHKERRQ(ierr);
-                    if(std::is_same<PetscScalar, PetscReal>::value) {
-                        ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::_n, nullptr, &vi);CHKERRQ(ierr);
-                    }
+                    PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::_n, nullptr, &vr));
+                    if(std::is_same<PetscScalar, PetscReal>::value)
+                        PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::_n, nullptr, &vi));
                     for(unsigned short i = 0; i < Eigensolver<K>::_nu; ++i) {
                         bool conjugate = false;
                         PetscScalar evi;
-                        ierr = EPSGetEigenvalue(eps, i, evr + i, &evi);CHKERRQ(ierr);
-                        ierr = VecPlaceArray(vr, ev[i]);CHKERRQ(ierr);
+                        PetscCall(EPSGetEigenvalue(eps, i, evr + i, &evi));
+                        PetscCall(VecPlaceArray(vr, ev[i]));
                         if(std::is_same<PetscScalar, PetscReal>::value && std::abs(evi) > HPDDM_EPS && i < Eigensolver<K>::_nu - 1) {
                             evr[i + 1] = evi;
-                            ierr = VecPlaceArray(vi, ev[i + 1]);CHKERRQ(ierr);
+                            PetscCall(VecPlaceArray(vi, ev[i + 1]));
                             conjugate = true;
                         }
-                        ierr = EPSGetEigenvector(eps, i, vr, conjugate ? vi : nullptr);CHKERRQ(ierr);
-                        ierr = VecResetArray(vr);CHKERRQ(ierr);
+                        PetscCall(EPSGetEigenvector(eps, i, vr, conjugate ? vi : nullptr));
+                        PetscCall(VecResetArray(vr));
                         if(conjugate) {
-                            ierr = VecResetArray(vi);CHKERRQ(ierr);
+                            PetscCall(VecResetArray(vi));
                             ++i;
                         }
                     }
-                    ierr = VecDestroy(&vi);CHKERRQ(ierr);
-                    ierr = VecDestroy(&vr);CHKERRQ(ierr);
+                    PetscCall(VecDestroy(&vi));
+                    PetscCall(VecDestroy(&vr));
                 }
-                ierr = EPSDestroy(&eps);CHKERRQ(ierr);
-                ierr = MatDestroy(&Q);CHKERRQ(ierr);
-                ierr = MatDestroy(&P);CHKERRQ(ierr);
+                PetscCall(EPSDestroy(&eps));
+                PetscCall(MatDestroy(&Q));
+                PetscCall(MatDestroy(&P));
                 std::string name = Eigensolver<K>::dump(evr, ev, communicator, mode);
                 ignore(name);
             }

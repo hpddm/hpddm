@@ -28,17 +28,17 @@
 #include "HPDDM_LAPACK.hpp"
 
 #if !defined(_KSPIMPL_H)
-#define HPDDM_CHKERRQ(ierr)    if((ierr) < 0) return (ierr)
-#define HPDDM_TOL(tol, A)      tol
-#define HPDDM_MAX_IT(max, A)   max
-#define HPDDM_IT(i, A)         i
-#define HPDDM_RET(i)           i
+#define HPDDM_CALL(arg)      do { int ierr = (arg); if(ierr < 0) return (ierr); } while(0)
+#define HPDDM_TOL(tol, A)    tol
+#define HPDDM_MAX_IT(max, A) max
+#define HPDDM_IT(i, A)       i
+#define HPDDM_RET(i)         i
 #else
-#define HPDDM_CHKERRQ(ierr)    CHKERRQ(ierr)
-#define HPDDM_TOL(tol, A)      ((A._ksp)->rtol)
-#define HPDDM_MAX_IT(max, A)   ((A._ksp)->max_it)
-#define HPDDM_IT(i, A)         ((A._ksp)->its)
-#define HPDDM_RET(i)           0
+#define HPDDM_CALL(arg)      PetscCall(arg)
+#define HPDDM_TOL(tol, A)    ((A._ksp)->rtol)
+#define HPDDM_MAX_IT(max, A) ((A._ksp)->max_it)
+#define HPDDM_IT(i, A)       ((A._ksp)->its)
+#define HPDDM_RET(i)         0
 #endif
 
 namespace HPDDM {
@@ -298,12 +298,10 @@ class IterativeMethod {
         template<bool excluded, class Operator, class K, class T>
         static int addSol(const Operator& A, const char variant, const int& n, K* const x, const int& ldh, const K* const s, T* const* const v, const short* const hasConverged, const int& mu, K* const work, const int& deflated = -1) {
             static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
-            int ierr;
             K* const correction = (variant == HPDDM_VARIANT_RIGHT ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K*>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
             if(excluded || !n) {
-                if(variant == HPDDM_VARIANT_RIGHT) {
-                    ierr = A.template apply<excluded>(work, correction, deflated == -1 ? mu : deflated);HPDDM_CHKERRQ(ierr);
-                }
+                if(variant == HPDDM_VARIANT_RIGHT)
+                    HPDDM_CALL(A.template apply<excluded>(work, correction, deflated == -1 ? mu : deflated));
             }
             else {
                 if(deflated == -1) {
@@ -320,9 +318,8 @@ class IterativeMethod {
                             int dim = std::abs(hasConverged[nu]);
                             Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
                         }
-                        if(variant == HPDDM_VARIANT_RIGHT) {
-                            ierr = A.template apply<excluded>(work, correction, mu);HPDDM_CHKERRQ(ierr);
-                        }
+                        if(variant == HPDDM_VARIANT_RIGHT)
+                            HPDDM_CALL(A.template apply<excluded>(work, correction, mu));
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             if(hasConverged[nu])
                                 Blas<K>::axpy(&n, &(Wrapper<K>::d__1), correction + nu * n, &i__1, x + nu * n, &i__1);
@@ -336,7 +333,7 @@ class IterativeMethod {
                         else {
                             Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
                             if(variant == HPDDM_VARIANT_RIGHT) {
-                                ierr = A.template apply<excluded>(work, correction, mu);HPDDM_CHKERRQ(ierr);
+                                HPDDM_CALL(A.template apply<excluded>(work, correction, mu));
                             }
                             Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
                         }
@@ -344,7 +341,7 @@ class IterativeMethod {
                     else {
                         Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
                         if(variant == HPDDM_VARIANT_RIGHT) {
-                            ierr = A.template apply<excluded>(work, correction, deflated);HPDDM_CHKERRQ(ierr);
+                            HPDDM_CALL(A.template apply<excluded>(work, correction, deflated));
                         }
                         Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d__1), x + deflated * n, &n);
                         Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
@@ -463,7 +460,7 @@ class IterativeMethod {
             allocate = A.template start<excluded>(b, x, mu);
             const underlying_type<K>* const d = reinterpret_cast<const underlying_type<K>*>(A.getScaling());
             if(variant == HPDDM_VARIANT_LEFT) {
-                int ierr = A.template apply<excluded>(b, v, mu, work);HPDDM_CHKERRQ(ierr);
+                HPDDM_CALL(A.template apply<excluded>(b, v, mu, work));
                 if(d)
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         norm[nu / k] = 0.0;
@@ -1055,18 +1052,16 @@ class IterativeMethod {
                 options<7>(A, &d, nullptr, &it, nullptr);
                 factor = d;
             }
-            int ierr;
             const int n = excluded ? 0 : mu * A.getDof();
             K* work = new K[2 * n];
             K* r = work + n;
             bool allocate = A.template start<excluded>(b, x, mu);
             unsigned short j = 1;
             while(j++ <= it) {
-                if(!excluded) {
-                    ierr = A.GMV(x, r, mu);HPDDM_CHKERRQ(ierr);
-                }
+                if(!excluded)
+                    HPDDM_CALL(A.GMV(x, r, mu));
                 Blas<K>::axpby(n, 1.0, b, 1, -1.0, r, 1);
-                ierr = A.template apply<excluded>(r, work, mu);HPDDM_CHKERRQ(ierr);
+                HPDDM_CALL(A.template apply<excluded>(r, work, mu));
                 Blas<K>::axpy(&n, &factor, work, &i__1, x, &i__1);
             }
             delete [] work;
@@ -1148,7 +1143,7 @@ class IterativeMethod {
                 case HPDDM_KRYLOV_METHOD_BGMRES:     it = BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
                 default:                             it = GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
-            HPDDM_CHKERRQ(it);
+            HPDDM_CALL(it);
             if(HPDDM_IT(it, A) >= 0) {
                 postprocess<excluded>(A, b, sb, x, sx, k);
 #if !HPDDM_PETSC
