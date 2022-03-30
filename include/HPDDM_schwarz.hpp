@@ -1140,7 +1140,7 @@ class Schwarz : public Preconditioner<
             if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
                 KSP *ksp;
                 PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?"); // LCOV_EXCL_LINE
-                PetscCall(PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp)));
+                PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));
                 PetscCall(STGetKSP(st, &empty));
                 PetscCall(PetscObjectReference((PetscObject)empty));
                 PetscCall(STSetKSP(st, ksp[0]));
@@ -1300,7 +1300,7 @@ class Schwarz : public Preconditioner<
                         PetscCall(MatCreateVecs(P, &xin, NULL));
                         PetscCall(VecScatterCreate(xin, uis, levels[i]->D, NULL, &levels[i]->scatter));
                         PetscCall(VecDestroy(&xin));
-                        PetscCall(PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[], PetscBool), (P, &uis, &sub, PETSC_FALSE)));
+                        PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[], PetscBool), (P, &uis, &sub, PETSC_FALSE));
                         PetscCall(levels[i]->P->structure(loc, uis, sub[0], NULL, levels + i));
                         PetscCall(ISDestroy(&loc));
                         PetscCall(MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted));

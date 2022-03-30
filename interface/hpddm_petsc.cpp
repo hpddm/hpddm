@@ -209,7 +209,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
     PetscCall(MatDestroy(&Y));
     PetscCall(MatDestroy(&X));
     if (redistribute > 1) {
-      PetscCallMPI(MPIU_Allreduce(MPI_IN_PLACE, vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), MPI_SUM, subcomm));
+      PetscCall(MPIU_Allreduce(MPI_IN_PLACE, vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), MPI_SUM, subcomm));
       PetscCallMPI(MPI_Comm_free(&subcomm));
     }
   }
