@@ -72,7 +72,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(MatGetLocalSize(A, &n, NULL));
                     PetscCall(MatGetSize(A, &N, NULL));
                     const unsigned short eta = mu / bs;
-                    PetscCheck(eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu)); // LCOV_EXCL_LINE
+                    PetscCheck(eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu));
                     PetscCall(MatKAIJGetSRead(A, nullptr, nullptr, &S));
                     PetscCall(MatKAIJGetTRead(A, nullptr, nullptr, &T));
                     const PetscBLASInt m = eta * n;
@@ -282,7 +282,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 PetscCall(MatGetBlockSize(A, &bs));
                 PetscCall(MatKAIJGetScaledIdentity(A, &id));
                 const unsigned short eta = (id == PETSC_TRUE ? mu / bs : mu);
-                PetscCheck(id != PETSC_TRUE || eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu)); // LCOV_EXCL_LINE
+                PetscCheck(id != PETSC_TRUE || eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu));
                 if(!_b) {
                     if(std::is_same<PetscScalar, K>::value) {
                         PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)_ksp), 1, n, N, NULL, const_cast<Vec*>(&_b)));

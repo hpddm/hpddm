@@ -94,7 +94,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       PetscCall(MatCreate(subcomm, &X));
       PetscCall(MatSetSizes(X, PETSC_DECIDE, PETSC_DECIDE, n, n));
       PetscCall(MatSetOptionsPrefix(X, prefix));
-      PetscObjectOptionsBegin((PetscObject)X);;
+      PetscObjectOptionsBegin((PetscObject)X);
 #if defined(PETSC_HAVE_ELEMENTAL)
       std::string str(b ? MATELEMENTAL : MATDENSE);
 #else
@@ -201,7 +201,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       } else PetscCall(SVDGetSingularTriplet(svd, i, nullptr, nullptr, Vr));
       PetscCall(VecResetArray(Vr));
     }
-    PetscCheck(i == k, PETSC_COMM_SELF, PETSC_ERR_LIB, "Unhandled mismatch %" PetscInt_FMT " != %" PetscInt_FMT, i, k); // LCOV_EXCL_LINE
+    PetscCheck(i == k, PETSC_COMM_SELF, PETSC_ERR_LIB, "Unhandled mismatch %" PetscInt_FMT " != %" PetscInt_FMT, i, k);
     if (std::is_same<PetscReal, PetscScalar>::value) PetscCall(VecDestroy(&Vi));
     PetscCall(VecDestroy(&Vr));
     if (eps) PetscCall(EPSDestroy(&eps));
