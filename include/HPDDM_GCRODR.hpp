@@ -834,7 +834,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) {
                         PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym));
-                        PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
+                        PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
                     }
 #if !defined(_KSPIMPL_H)
                     HPDDM_CALL((*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm, 1, static_cast<PetscInt>(dim), reinterpret_cast<PetscScalar*>(*H), ldh, nullptr, 0, static_cast<PetscInt>(bK), reinterpret_cast<PetscScalar*>(vr), symmetric));
@@ -970,10 +970,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Lapack<K>::lapmt(&i__1, &bDim, &(info = i), vr, &bDim, perm);
 #else
                     K* vr = new K[bK * dim]();
-                    if(!loadedKSPSym) {
+                    if(!loadedKSPSym) { // LCOV_EXCL_START
                         PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym));
-                        PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc"); // LCOV_EXCL_LINE
-                    }
+                        PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
+                    } // LCOV_EXCL_STOP
 #if !defined(_KSPIMPL_H)
                     HPDDM_CALL((*loadedKSPSym)(std::string(A.prefix() + "ksp_hpddm_recycle_").c_str(), comm, 1, static_cast<PetscInt>(bDim), reinterpret_cast<PetscScalar*>(a), bDim, reinterpret_cast<PetscScalar*>(B), row, static_cast<PetscInt>(bK), reinterpret_cast<PetscScalar*>(vr), symmetric));
 #else

@@ -138,24 +138,22 @@ jobs:
         bash ../${REPOSITORY_NAME}/.github/workflows/aldaas2021robust.sh
         export PETSC_DIR=${PWD} && export DATAFILESPATH=${PWD}/datafiles
         export PETSC_ARCH=arch-ci
-        export CXXPPFLAGS="-Wall -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare"
+        export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-implicit-fallthrough -Wno-unknown-warning-option"
         export TYPE=double
         export INT64=0
         export SUBSOLVER=PETSC
         export LD_LIBRARY_PATH_0=${LD_LIBRARY_PATH}
         sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %/hpddm/hpddm.o,$^) $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$(filter %/hpddm/hpddm.o,$^))) $(PETSC_EXTERNAL_LIB_BASIC)=' gmakefile
-        sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
-        sed -i -e 's=\( SETERRQ.*\);=\1; // LCOV_EXCL_LINE=g' src/ksp/*/impls/hpddm/hpddm.cxx
-        sed -i -e 's=\(PetscCheck(.*\);=\1; // LCOV_EXCL_LINE=g' src/ksp/*/impls/hpddm/hpddm.cxx
+        sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
         diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
-        diff src/ksp/pc/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/pc/hpddm.cxx || (echo PCHPDDM source file has diverged; exit 1)
+        diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/pc/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
         for PRECISION in single double
         do
           for TYPE in complex real
           do
             for INT64 in 1 0
             do
-              if [ "$INT64" = "1" ] && { { [ "$TYPE" = "double" ] && [ "$PRECISION" = "complex" ]; } || { [ "$TYPE" = "single" ] && [ "$PRECISION" = "real" ]; } }; then continue; fi
+              if [ "$INT64" = "1" ] && { { [ "$TYPE" = "complex" ] && [ "$PRECISION" = "double" ]; } || { [ "$TYPE" = "real" ] && [ "$PRECISION" = "single" ]; } }; then continue; fi
               unset HPDDMFLAGS
               export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"
               if [ "$PRECISION" = "double" ]; then
