@@ -1861,7 +1861,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
                 }
                 else
-                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatter(NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
             }
         }
         else {
@@ -1899,7 +1899,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     MPI_Scatter(rhs, mu * *DMatrix::_gatherCounts, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, _scatterComm);
                 }
                 else
-                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatter(NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
             }
         }
 #else
@@ -1932,7 +1932,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     if(super::_s)
                         super::solve(nullptr, mu);
 #endif
-                    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
+                    MPI_Scatter(NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * _local, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
                 }
             }
 #endif
