@@ -282,7 +282,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     char type[256];
     char S;
     PetscBool flg;
-    PetscErrorCode ierr = PetscOptionsBegin(v._p.getCommunicator(), v._prefix.c_str(), "", "");PetscCall(ierr);
+    PetscErrorCode ierr;
+    PetscOptionsBegin(v._p.getCommunicator(), v._prefix.c_str(), "", "");
     PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, deft, type, 256, &flg));
     if(!flg)
         S = 'S';
@@ -290,7 +291,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         PetscCall(PetscStrcmp(type, MATSBAIJ, &flg));
         S = (flg ? 'S' : 'G');
     }
-    ierr = PetscOptionsEnd();PetscCall(ierr);
+    PetscOptionsEnd();
     if(!std::is_same<PetscScalar, PetscComplex>::value && S == 'S')
         ierr = constructionMatrix<'S', U, excluded, Operator>(v);
     else

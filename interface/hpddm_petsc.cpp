@@ -94,7 +94,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       PetscCall(MatCreate(subcomm, &X));
       PetscCall(MatSetSizes(X, PETSC_DECIDE, PETSC_DECIDE, n, n));
       PetscCall(MatSetOptionsPrefix(X, prefix));
-      PetscErrorCode ierr = PetscObjectOptionsBegin((PetscObject)X);PetscCall(ierr);
+      PetscObjectOptionsBegin((PetscObject)X);;
 #if defined(PETSC_HAVE_ELEMENTAL)
       std::string str(b ? MATELEMENTAL : MATDENSE);
 #else
@@ -103,7 +103,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
       str.copy(type, str.size() + 1);
       type[str.size()] = '\0';
       PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, type, type, 256, nullptr));
-      ierr = PetscOptionsEnd();PetscCall(ierr);
+      PetscOptionsEnd();
       nrow = PETSC_DECIDE;
       PetscCall(PetscSplitOwnership(subcomm, &nrow, &n));
       if (b) {
