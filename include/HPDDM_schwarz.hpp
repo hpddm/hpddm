@@ -1054,177 +1054,191 @@ class Schwarz : public Preconditioner<
             Aux                    aux = NULL;
 
             PetscFunctionBeginUser;
-            for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
-                if(std::abs(_d[i]) > HPDDM_EPS)
-                    solve = PETSC_TRUE;
-            PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
-            PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
-            PetscCall(EPSSetOptionsPrefix(eps, prefix));
-            PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
-            if(!ismatis) {
-                Mat compact;
-                IS  is;
-                PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Embed", (PetscObject*)&is));
-                PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject*)&compact));
-                if(compact && is && solve) {
-                    SVD         svd;
-                    PetscScalar *values;
-                    PetscInt    m, p;
-                    PetscCall(PetscNew(&aux));
-                    aux->is = is;
-                    PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
-                    PetscCall(SVDSetOptionsPrefix(svd, prefix));
-                    PetscCall(SVDSetOperators(svd, compact, NULL));
-                    PetscCall(SVDSetType(svd, SVDLAPACK));
-                    PetscCall(SVDSetFromOptions(svd));
-                    PetscCall(SVDSetUp(svd));
-                    PetscCall(SVDSolve(svd));
-                    PetscCall(MatGetLocalSize(compact, &m, &p));
-                    PetscCall(VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma));
-                    PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, p, m, NULL, &aux->V));
-                    PetscCall(VecGetArrayWrite(aux->sigma, &values));
-                    for(PetscInt n = 0; n < m; ++n) {
-                        PetscReal s;
-                        Vec       v;
-                        PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
-                        PetscCall(SVDGetSingularTriplet(svd, n, &s, NULL, v));
-                        values[n] = 1.0/s;
-                        PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
+            if(!levels[0]->parent->deflation) {
+                for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
+                    if(std::abs(_d[i]) > HPDDM_EPS)
+                        solve = PETSC_TRUE;
+                PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
+                PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+                PetscCall(EPSSetOptionsPrefix(eps, prefix));
+                PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
+                if(!ismatis) {
+                    Mat compact;
+                    IS  is;
+                    PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Embed", (PetscObject*)&is));
+                    PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject*)&compact));
+                    if(compact && is && solve) {
+                        SVD         svd;
+                        PetscScalar *values;
+                        PetscInt    m, p;
+                        PetscCall(PetscNew(&aux));
+                        aux->is = is;
+                        PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
+                        PetscCall(SVDSetOptionsPrefix(svd, prefix));
+                        PetscCall(SVDSetOperators(svd, compact, NULL));
+                        PetscCall(SVDSetType(svd, SVDLAPACK));
+                        PetscCall(SVDSetFromOptions(svd));
+                        PetscCall(SVDSetUp(svd));
+                        PetscCall(SVDSolve(svd));
+                        PetscCall(MatGetLocalSize(compact, &m, &p));
+                        PetscCall(VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma));
+                        PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, p, m, NULL, &aux->V));
+                        PetscCall(VecGetArrayWrite(aux->sigma, &values));
+                        for(PetscInt n = 0; n < m; ++n) {
+                            PetscReal s;
+                            Vec       v;
+                            PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
+                            PetscCall(SVDGetSingularTriplet(svd, n, &s, NULL, v));
+                            values[n] = 1.0/s;
+                            PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
+                        }
+                        PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
+                        PetscCall(MatShellSetOperation(N, MATOP_MULT, (void (*)(void))MatMult_Aux));
+                        PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
+                        PetscCall(SVDDestroy(&svd));
                     }
-                    PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
-                    PetscCall(MatShellSetOperation(N, MATOP_MULT, (void (*)(void))MatMult_Aux));
-                    PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
-                    PetscCall(SVDDestroy(&svd));
+                    PetscCall(EPSSetOperators(eps, N, weighted));
                 }
-                PetscCall(EPSSetOperators(eps, N, weighted));
+                else {
+#if PETSC_VERSION_LT(3, 17, 0)
+                    PetscCall(MatGetLocalToGlobalMapping(N, &l2g, nullptr));
+#else
+                    PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
+#endif
+                    PetscCall(ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]));
+                    PetscCall(ISDestroy(&is));
+                    PetscCall(MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized));
+                    if(!rhs) {
+                        PetscCall(MatDestroy(&weighted));
+                    }
+                    PetscCall(MatISGetLocalMat(N, &local));
+                    PetscCall(PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &flg));
+                    if(flg) {
+                        /* going back from SEQBAIJ to SEQSBAIJ */
+                        PetscCall(MatSetOption(resized[0], MAT_SYMMETRIC, PETSC_TRUE));
+                        PetscCall(MatConvert(resized[0], MATSEQSBAIJ, MAT_INPLACE_MATRIX, &resized[0]));
+                    }
+                    PetscCall(EPSSetOperators(eps, local, resized[0]));
+                    if(!initial.empty()) {
+                        std::vector<Vec> full = initial;
+                        for(PetscInt i = 0; i < full.size(); ++i) {
+                            PetscCall(MatCreateVecs(resized[0], &initial[i], nullptr));
+                            PetscCall(VecISCopy(full[i], sub[0], SCATTER_REVERSE, initial[i]));
+                            PetscCall(VecDestroy(&full[i]));
+                        }
+                    }
+                }
+                PetscCall(EPSSetProblemType(eps, EPS_GHEP));
+                PetscCall(EPSSetTarget(eps, 0.0));
+                PetscCall(EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE));
+                PetscCall(EPSGetST(eps, &st));
+                PetscCall(STSetType(st, STSINVERT));
+                PetscCall(EPSSetInitialSpace(eps, initial.size(), initial.data()));
+                std::for_each(initial.begin(), initial.end(), [&](Vec v) { VecDestroy(&v); });
+                std::vector<Vec>().swap(initial);
+                PetscCall(EPSSetFromOptions(eps));
+                PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
+                if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
+                    KSP *ksp;
+                    PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
+                    PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));
+                    PetscCall(STGetKSP(st, &empty));
+                    PetscCall(PetscObjectReference((PetscObject)empty));
+                    PetscCall(STSetKSP(st, ksp[0]));
+                }
+                if(solve) {
+                    MatStructure str;
+                    PetscCall(STGetMatStructure(st, &str));
+                    if(str != SAME_NONZERO_PATTERN)
+                        PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
+                    PetscCall(EPSSolve(eps));
+                    PetscCall(EPSGetConverged(eps, &nconv));
+                }
+                levels[0]->nu = std::min(nconv, nev);
+                if(levels[0]->threshold >= 0.0) {
+                    PetscInt i = 0;
+                    while(i < levels[0]->nu) {
+                        PetscScalar eigr, eigi;
+                        PetscCall(EPSGetEigenvalue(eps, i, &eigr, &eigi));
+#if defined(PETSC_USE_COMPLEX)
+                        if(std::abs(eigr) > levels[0]->threshold)
+#else
+                            if(std::hypot(eigr, eigi) > levels[0]->threshold)
+#endif
+                            {
+                                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr))));
+                                break;
+                            }
+                            else
+                                PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr))));
+                        ++i;
+                    }
+                    levels[0]->nu = i;
+                }
+                PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv));
             }
             else {
-#if PETSC_VERSION_LT(3, 17, 0)
-                PetscCall(MatGetLocalToGlobalMapping(N, &l2g, nullptr));
-#else
-                PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
-#endif
-                PetscCall(ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]));
-                PetscCall(ISDestroy(&is));
-                PetscCall(MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized));
-                if(!rhs) {
-                    PetscCall(MatDestroy(&weighted));
-                }
-                PetscCall(MatISGetLocalMat(N, &local));
-                PetscCall(PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &flg));
-                if(flg) {
-                    /* going back from SEQBAIJ to SEQSBAIJ */
-                    PetscCall(MatSetOption(resized[0], MAT_SYMMETRIC, PETSC_TRUE));
-                    PetscCall(MatConvert(resized[0], MATSEQSBAIJ, MAT_INPLACE_MATRIX, &resized[0]));
-                }
-                PetscCall(EPSSetOperators(eps, local, resized[0]));
-                if(!initial.empty()) {
-                    std::vector<Vec> full = initial;
-                    for(PetscInt i = 0; i < full.size(); ++i) {
-                        PetscCall(MatCreateVecs(resized[0], &initial[i], nullptr));
-                        PetscCall(VecISCopy(full[i], sub[0], SCATTER_REVERSE, initial[i]));
-                        PetscCall(VecDestroy(&full[i]));
-                    }
-                }
+                PetscInt n;
+                PetscCall(MatGetSize(weighted, NULL, &n));
+                levels[0]->nu = n;
             }
-            PetscCall(EPSSetProblemType(eps, EPS_GHEP));
-            PetscCall(EPSSetTarget(eps, 0.0));
-            PetscCall(EPSSetWhichEigenpairs(eps, EPS_TARGET_MAGNITUDE));
-            PetscCall(EPSGetST(eps, &st));
-            PetscCall(STSetType(st, STSINVERT));
-            PetscCall(EPSSetInitialSpace(eps, initial.size(), initial.data()));
-            std::for_each(initial.begin(), initial.end(), [&](Vec v) { VecDestroy(&v); });
-            std::vector<Vec>().swap(initial);
-            PetscCall(EPSSetFromOptions(eps));
-            PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
-            if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
-                KSP *ksp;
-                PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
-                PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));
-                PetscCall(STGetKSP(st, &empty));
-                PetscCall(PetscObjectReference((PetscObject)empty));
-                PetscCall(STSetKSP(st, ksp[0]));
-            }
-            if(solve) {
-                MatStructure str;
-                PetscCall(STGetMatStructure(st, &str));
-                if(str != SAME_NONZERO_PATTERN)
-                    PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
-                PetscCall(EPSSolve(eps));
-                PetscCall(EPSGetConverged(eps, &nconv));
-            }
-            levels[0]->nu = std::min(nconv, nev);
-            if(levels[0]->threshold >= 0.0) {
-                PetscInt i = 0;
-                while(i < levels[0]->nu) {
-                    PetscScalar eigr, eigi;
-                    PetscCall(EPSGetEigenvalue(eps, i, &eigr, &eigi));
-#if defined(PETSC_USE_COMPLEX)
-                    if(std::abs(eigr) > levels[0]->threshold)
-#else
-                    if(std::hypot(eigr, eigi) > levels[0]->threshold)
-#endif
-                    {
-                        PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr))));
-                        break;
-                    }
-                    else
-                        PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr))));
-                    ++i;
-                }
-                levels[0]->nu = i;
-            }
-            PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv));
             if(levels[0]->nu) {
                 super::_ev = new K*[levels[0]->nu];
                 *super::_ev = new K[Subdomain<K>::_dof * levels[0]->nu]();
             }
             for(unsigned short i = 1; i < levels[0]->nu; ++i)
                 super::_ev[i] = *super::_ev + i * Subdomain<K>::_dof;
-            PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::_dof, levels[0]->nu ? super::_ev[0] : nullptr, &vr));
-            if(ismatis)
-                PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
-            for(PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
-                PetscCall(VecPlaceArray(vr, super::_ev[i]));
-                if(!ismatis)
-                    PetscCall(EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr));
-                else {
-                    PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr));
-                    PetscCall(VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced));
-                }
-                PetscCall(VecResetArray(vr));
+            if(!levels[0]->parent->deflation) {
+                PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::_dof, levels[0]->nu ? super::_ev[0] : nullptr, &vr));
+                if(ismatis)
+                    PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
+                for(PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
+                    PetscCall(VecPlaceArray(vr, super::_ev[i]));
+                    if(!ismatis)
+                        PetscCall(EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr));
+                    else {
+                        PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr));
+                        PetscCall(VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced));
+                    }
+                    PetscCall(VecResetArray(vr));
 #if !defined(PETSC_USE_COMPLEX)
-                if(!flg) {
-                    PetscScalar eigi;
-                    PetscCall(EPSGetEigenvalue(eps, i, nullptr, &eigi));
-                    if(std::abs(eigi) > std::numeric_limits<PetscReal>::epsilon())
-                        flg = PETSC_TRUE;
-                }
-                else
-                    flg = PETSC_FALSE;
+                    if(!flg) {
+                        PetscScalar eigi;
+                        PetscCall(EPSGetEigenvalue(eps, i, nullptr, &eigi));
+                        if(std::abs(eigi) > std::numeric_limits<PetscReal>::epsilon())
+                            flg = PETSC_TRUE;
+                    }
+                    else
+                        flg = PETSC_FALSE;
 #endif
-            }
-            PetscCall(VecDestroy(&vr));
-            if(empty) {
-                PetscCall(STSetKSP(st, empty));
-                PetscCall(PetscObjectDereference((PetscObject)empty));
-            }
-            PetscCall(EPSDestroy(&eps));
-            if(!ismatis) {
-                if(!rhs)
-                    PetscCall(MatDestroy(&weighted));
-                if(aux) {
-                    PetscCall(MatDestroy(&aux->V));
-                    PetscCall(VecDestroy(&aux->sigma));
-                    PetscCall(PetscFree(aux));
-                    PetscCall(MatDestroy(&N));
+                }
+                PetscCall(VecDestroy(&vr));
+                if(empty) {
+                    PetscCall(STSetKSP(st, empty));
+                    PetscCall(PetscObjectDereference((PetscObject)empty));
+                }
+                PetscCall(EPSDestroy(&eps));
+                if(!ismatis) {
+                    if(!rhs)
+                        PetscCall(MatDestroy(&weighted));
+                    if(aux) {
+                        PetscCall(MatDestroy(&aux->V));
+                        PetscCall(VecDestroy(&aux->sigma));
+                        PetscCall(PetscFree(aux));
+                        PetscCall(MatDestroy(&N));
+                    }
+                }
+                else {
+                    PetscCall(VecDestroy(&vreduced));
+                    PetscCall(ISDestroy(&sub[0]));
+                    PetscCall(MatDestroySubMatrices(1, &resized));
+                    PetscCall(MatISRestoreLocalMat(N, &local));
                 }
             }
             else {
-                PetscCall(VecDestroy(&vreduced));
-                PetscCall(ISDestroy(&sub[0]));
-                PetscCall(MatDestroySubMatrices(1, &resized));
-                PetscCall(MatISRestoreLocalMat(N, &local));
+                PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, Subdomain<K>::_dof, levels[0]->nu, *super::_ev, &local));
+                PetscCall(MatCopy(weighted, local, SAME_NONZERO_PATTERN));
+                PetscCall(MatDestroy(&local));
             }
             PetscFunctionReturn(0);
         }
