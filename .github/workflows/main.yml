@@ -121,7 +121,7 @@ jobs:
       if: matrix.compiler == 'gcc'
     - name: Fetch PETSc and data files
       run: |
-        export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | tail -n 1 | cut -d'/' -f3-`
+        export BRANCH=barry/2022-04-01/fix-petsc-options-begin-end/release-rebased
         if [ "$BRANCH" = "" ]; then export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*htool*" | tail -n 1 | cut -d'/' -f3-`; fi
         if [ "$BRANCH" = "" ]; then export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*feature*" | tail -n 1 | cut -d'/' -f3-`; fi
         if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
@@ -173,7 +173,7 @@ jobs:
                   fi
                 fi
               fi
-              ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}
+              ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-slepc-commit=origin/barry/2022-04-02/update-options-begin-end --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
