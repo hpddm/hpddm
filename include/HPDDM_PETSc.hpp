@@ -90,10 +90,6 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                         PetscCall(MatDestroy(x + 1));
                         PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), n / bs, PETSC_DECIDE, N / bs, mu, work, x + 1));
                         PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), n / bs, PETSC_DECIDE, N / bs, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, x));
-                        if(!std::is_same<PetscScalar, K>::value) {
-                            PetscCall(MatAssemblyBegin(_X[0], MAT_FINAL_ASSEMBLY));
-                            PetscCall(MatAssemblyEnd(_X[0], MAT_FINAL_ASSEMBLY));
-                        }
                         PetscCall(MatKAIJGetAIJ(A, &a));
                         PetscCall(MatProductCreateWithMat(a, _X[1], NULL, _X[0]));
                         PetscCall(MatProductSetType(_X[0], MATPRODUCT_AB));
@@ -193,26 +189,12 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                         PCHPDDMCoarseCorrectionType type;
                         PetscCall(PCHPDDMGetCoarseCorrectionType(pc, &type));
                         PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, NULL, x + 1));
-                        PetscCall(MatAssemblyBegin(_X[1], MAT_FINAL_ASSEMBLY));
-                        PetscCall(MatAssemblyEnd(_X[1], MAT_FINAL_ASSEMBLY));
-                        if(type == PC_HPDDM_COARSE_CORRECTION_BALANCED) {
-                            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, NULL, x));
-                            PetscCall(MatAssemblyBegin(_X[0], MAT_FINAL_ASSEMBLY));
-                            PetscCall(MatAssemblyEnd(_X[0], MAT_FINAL_ASSEMBLY));
-                        }
-                        else
-                            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, x));
+                        PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, (!std::is_same<PetscScalar, K>::value || type == PC_HPDDM_COARSE_CORRECTION_BALANCED) ? NULL : reinterpret_cast<PetscScalar*>(out), x));
 #endif
                     }
                     else {
                         PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(const_cast<K*>(in)) : NULL, x + 1));
                         PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, x));
-                        if(!std::is_same<PetscScalar, K>::value) {
-                            PetscCall(MatAssemblyBegin(_X[1], MAT_FINAL_ASSEMBLY));
-                            PetscCall(MatAssemblyEnd(_X[1], MAT_FINAL_ASSEMBLY));
-                            PetscCall(MatAssemblyBegin(_X[0], MAT_FINAL_ASSEMBLY));
-                            PetscCall(MatAssemblyEnd(_X[0], MAT_FINAL_ASSEMBLY));
-                        }
                     }
                     PetscCall(MatProductCreateWithMat(A, _X[1], NULL, _X[0]));
                     PetscCall(MatProductSetType(_X[0], MATPRODUCT_AB));
@@ -334,10 +316,6 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(MatDestroy(const_cast<Mat*>(&_C)));
                     PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(const_cast<K*>(in)) : NULL, const_cast<Mat*>(&_C)));
                     PetscCall(MatCreateDense(PetscObjectComm((PetscObject)_ksp), super::_n, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar*>(out) : NULL, const_cast<Mat*>(&_Y)));
-                    if(!std::is_same<PetscScalar, K>::value) {
-                        PetscCall(MatAssemblyBegin(_C, MAT_FINAL_ASSEMBLY));
-                        PetscCall(MatAssemblyEnd(_C, MAT_FINAL_ASSEMBLY));
-                    }
                 }
                 else if(std::is_same<PetscScalar, K>::value) {
                     PetscCall(MatDensePlaceArray(_C, reinterpret_cast<PetscScalar*>(const_cast<K*>(in))));

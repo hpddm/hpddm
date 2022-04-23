@@ -138,6 +138,12 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
         PetscCall(MatCreateVecs(X, nullptr, &Vr));
         PetscCall(VecGetLocalSize(Vr, &nrow));
         PetscCall(VecGetOwnershipRange(Vr, &rbegin, nullptr));
+        PetscCall(MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY));
+        PetscCall(MatAssemblyEnd(X, MAT_FINAL_ASSEMBLY));
+        if (b) {
+          PetscCall(MatAssemblyBegin(Y, MAT_FINAL_ASSEMBLY));
+          PetscCall(MatAssemblyEnd(Y, MAT_FINAL_ASSEMBLY));
+        }
       } else {
         Mat loc;
         PetscCall(MatGetOwnershipRange(X, &rbegin, nullptr));
@@ -152,20 +158,13 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
           PetscCall(MatDensePlaceArray(loc, b + rbegin));
         }
       }
-      PetscCall(MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY));
-      PetscCall(MatAssemblyEnd(X, MAT_FINAL_ASSEMBLY));
-      if (b) {
-        PetscCall(MatAssemblyBegin(Y, MAT_FINAL_ASSEMBLY));
-        PetscCall(MatAssemblyEnd(Y, MAT_FINAL_ASSEMBLY));
-      }
     }
   }
   if (X) {
     if (Y || !symmetric) {
       PetscCall(EPSCreate(PetscObjectComm((PetscObject)X), &eps));
       PetscCall(EPSSetOperators(eps, X, Y));
-      if (redistribute <= 1)
-        PetscCall(EPSSetType(eps, EPSLAPACK));
+      if (redistribute <= 1) PetscCall(EPSSetType(eps, EPSLAPACK));
       PetscCall(EPSSetWhichEigenpairs(eps, EPS_SMALLEST_MAGNITUDE));
       PetscCall(EPSSetDimensions(eps, k, PETSC_DEFAULT, PETSC_DEFAULT));
       PetscCall(EPSSetOptionsPrefix(eps, prefix));
