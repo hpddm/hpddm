@@ -39,19 +39,19 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
         PETScOperator(const PETScOperator&) = delete;
         PETScOperator(const KSP& ksp, PetscInt n) : super(n), _ksp(ksp), _b(), _x(), _C(), _Y() {
             PC pc;
-            KSPGetPC(ksp, &pc);
-            PCSetFromOptions(pc);
-            PCSetUp(pc);
+            PetscCallVoid(KSPGetPC(ksp, &pc));
+            PetscCallVoid(PCSetFromOptions(pc));
+            PetscCallVoid(PCSetUp(pc));
             std::fill_n(_X, 2, nullptr);
         }
         PETScOperator(const KSP& ksp, PetscInt n, PetscInt) : PETScOperator(ksp, n) { }
         ~PETScOperator() {
-            MatDestroy(&_Y);
-            MatDestroy(&_C);
-            MatDestroy(_X);
-            MatDestroy(_X + 1);
-            VecDestroy(&_x);
-            VecDestroy(&_b);
+            PetscCallVoid(MatDestroy(&_Y));
+            PetscCallVoid(MatDestroy(&_C));
+            PetscCallVoid(MatDestroy(_X));
+            PetscCallVoid(MatDestroy(_X + 1));
+            PetscCallVoid(VecDestroy(&_x));
+            PetscCallVoid(VecDestroy(&_b));
         }
         template<class K>
         PetscErrorCode GMV(const K* const in, K* const out, const int& mu = 1) const {
