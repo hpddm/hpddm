@@ -849,11 +849,7 @@ class Schwarz : public Preconditioner<
                 PetscCall(ISGetIndices(is, &ptr));
                 std::vector<std::pair<PetscInt, PetscInt>> v;
                 if(ismatis) {
-#if PETSC_VERSION_LT(3, 17, 0)
-                    PetscCall(MatGetLocalToGlobalMapping(N, &l2g, nullptr));
-#else
                     PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
-#endif
                     PetscCall(ISLocalToGlobalMappingGetBlockSize(l2g, &bs));
                 }
                 else {
@@ -1100,11 +1096,7 @@ class Schwarz : public Preconditioner<
                     PetscCall(EPSSetOperators(eps, N, weighted));
                 }
                 else {
-#if PETSC_VERSION_LT(3, 17, 0)
-                    PetscCall(MatGetLocalToGlobalMapping(N, &l2g, nullptr));
-#else
                     PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
-#endif
                     PetscCall(ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]));
                     PetscCall(ISDestroy(&is));
                     PetscCall(MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized));
@@ -1248,10 +1240,8 @@ class Schwarz : public Preconditioner<
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
-#if PETSC_VERSION_GE(3, 15, 0)
             if(!levels[0]->parent->log_separate)
                 PetscCall(PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0));
-#endif
             char fail[2] { };
             if(levels[i - 1]->P) {
                 ierr = levels[i - 1]->P->buildTwo(levels[i - 1]->P->getCommunicator(), *A, i - 1, *n, levels);
@@ -1275,11 +1265,9 @@ class Schwarz : public Preconditioner<
                 PetscCall(ierr);
             if(i > 1 && A)
                 PetscCall(MatDestroy(A));
-#if PETSC_VERSION_GE(3, 15, 0)
             if(!levels[0]->parent->log_separate) {
                 PetscCall(PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0));
             }
-#endif
             if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
                 *n = i + 1;
                 PetscFunctionReturn(0);
@@ -1339,10 +1327,8 @@ class Schwarz : public Preconditioner<
                     PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->parent->levels[0]->ksp, "PCHPDDMSetUp_Private_C", NULL));
                 }
                 else {
-#if PETSC_VERSION_GE(3, 15, 0)
                     if(!levels[0]->parent->log_separate)
                         PetscCall(PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0));
-#endif
                     CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
                     std::vector<K> overlap;
                     std::vector<std::vector<std::pair<unsigned short, unsigned short>>> reduction;
@@ -1355,12 +1341,10 @@ class Schwarz : public Preconditioner<
                         PetscCall(MatDestroy(N));
                     if(overlap.size())
                         PetscCallMPI(MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs));
-#if PETSC_VERSION_GE(3, 15, 0)
                     if(!levels[0]->parent->log_separate) {
                         PetscCall(PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0));
                         PetscCall(PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
                     }
-#endif
                     PetscCall(levels[i - 1]->P->_co->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]));
                     delete coNeumann;
                     if(i + 2 == *n)
@@ -1370,10 +1354,8 @@ class Schwarz : public Preconditioner<
                     else
                         levels[i]->P = nullptr;
                     PetscCallMPI(MPI_Wait(&rs, MPI_STATUS_IGNORE));
-#if PETSC_VERSION_GE(3, 15, 0)
                     if(!levels[0]->parent->log_separate)
                         PetscCall(PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
-#endif
                 }
             }
             PetscFunctionReturn(0);
