@@ -121,9 +121,7 @@ jobs:
       if: matrix.compiler == 'gcc'
     - name: Fetch PETSc and data files
       run: |
-        export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*hpddm*" | tail -n 1 | cut -d'/' -f3-`
-        if [ "$BRANCH" = "" ]; then export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*htool*" | tail -n 1 | cut -d'/' -f3-`; fi
-        if [ "$BRANCH" = "" ]; then export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*feature*" | tail -n 1 | cut -d'/' -f3-`; fi
+        export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
         if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
         cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         wget -nv http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
