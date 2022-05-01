@@ -22,7 +22,7 @@
 #  along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-cd .. &&  git clone --depth 1 -b qr --single-branch https://github.com/prj-/aldaas2021robust.git && cd - 1> /dev/null
+cd .. &&  git clone --depth 1 https://github.com/prj-/aldaas2021robust.git && cd - 1> /dev/null
 sed -i -e '/[0-9] KSP/d' ../aldaas2021robust/output/*out
 sed -i -e '/rows=/d' ../aldaas2021robust/output/*out
 sed -i -e '/total: nonzeros=/d' ../aldaas2021robust/output/*out
