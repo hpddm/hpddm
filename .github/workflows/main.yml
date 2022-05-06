@@ -9,52 +9,51 @@ jobs:
     strategy:
       matrix:
         compiler: [ gcc, clang ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: "!contains(github.event.head_commit.message, '[ci skip]')"
     steps:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
-    - name: Local Python fix
-      run: |
-        # Hack to get setup-python to work on act
-        # (see https://github.com/nektos/act/issues/251)
-        if [ ! -f "/etc/lsb-release" ]; then
-          echo "DISTRIB_RELEASE=20.04" > /etc/lsb-release
-        fi
     - name: Setup Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: '3.10'
     - name: Cache dependencies
-      uses: actions/cache@v1.0.3
+      uses: actions/cache@v3
       id: cache-dependencies
       with:
         path: "~/.cache"
-        key: dependencies-v1
+        key: dependencies-v0
     - name: Install dependencies
       env:
         CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
-        PKGS: "libmumps-dev libarpack2-dev libhypre-dev libparmetis-dev libmetis-dev lcov     \
-               ibverbs-providers libarpack2 libcaf-openmpi-3 libcoarrays-dev libparmetis4.0   \
-               libcoarrays-openmpi-dev libcombblas1.16.0 libcommon-sense-perl libevent-dev    \
-               libevent-extra-2.1-7 libevent-openssl-2.1-7 libfabric1 libgd-perl              \
-               libhwloc-dev libhwloc-plugins libhwloc15 libhypre libibverbs-dev libibverbs1   \
-               libjson-perl libjson-xs-perl libmetis5 libmumps-5.2.1 libnl-3-200              \
-               libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev libopenmpi-dev     \
-               libopenmpi3 libperlio-gzip-perl libpmix2 libpsm-infinipath1 libpsm2-2          \
-               librdmacm1 libscalapack-mpi-dev libscalapack-openmpi-dev                       \
-               libscalapack-openmpi2.1 libsuperlu-dev libsuperlu-dist6 libsuperlu5            \
-               libtypes-serialiser-perl libxnvctrl0 mpi-default-bin mpi-default-dev           \
-               ocl-icd-libopencl1 openmpi-bin openmpi-common"
+        PKGS: "clang clang-14 ibverbs-providers lcov libarpack2 libarpack2-dev                \
+               libcaf-openmpi-3 libclang-common-14-dev libclang-cpp14 libclang1-14            \
+               libcoarrays-dev libcoarrays-openmpi-dev libcombblas1.16.0 libevent-2.1-7       \
+               libevent-dev libevent-extra-2.1-7 libevent-openssl-2.1-7 libfabric1            \
+               libgd-perl libhwloc-dev libhwloc-plugins libhwloc15 libhypre-2.22.1            \
+               libhypre-dev libibverbs-dev libibverbs1 libjs-jquery-ui libllvm14              \
+               libmetis-dev libmetis5 libmumps-5.4 libmumps-dev libmumps-headers-dev          \
+               libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev libomp-14-dev      \
+               libomp-dev libomp5-14 libopenmpi-dev libopenmpi3 libparmetis-dev               \
+               libparmetis4.0 libpciaccess0 libperlio-gzip-perl libpmix-dev libpmix2          \
+               libpsm-infinipath1 libpsm2-2 libptscotch-6.1 librdmacm1 libscalapack-mpi-dev   \
+               libscalapack-openmpi-dev libscalapack-openmpi2.1 libsuperlu-dev                \
+               libsuperlu-dist7 libsuperlu5 libucx0 libxnvctrl0 llvm-14 llvm-14-dev           \
+               llvm-14-linker-tools llvm-14-runtime llvm-14-tools mpi-default-bin             \
+               mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
       run: |
         if [[ "$CACHE_HIT" == "true" ]]; then
           mv ~/.cache/.local ~/.local
           sudo cp --force --recursive ~/.cache/lib/* /lib
           rm -rf ~/.cache/lib
           sudo cp --force --recursive ~/.cache/* /
-          sudo update-alternatives --install /usr/include/x86_64-linux-gnu/mpi mpi-x86_64-linux-gnu /usr/lib/x86_64-linux-gnu/openmpi/include 0
           sudo update-alternatives --install /usr/lib/x86_64-linux-gnu/libpsm_infinipath.so.1 libpsm_infinipath.so.1 /usr/lib/libpsm1/libpsm_infinipath.so.1.16 0
+          sudo mkdir /usr/include/clang/14.0.0
+          sudo ln -s /usr/include/clang/14.0.0/../../../lib/llvm-14/lib/clang/14.0.0/include /usr/include/clang/14.0.0/include
+          sudo mkdir /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/
+          sudo ln -s /usr/lib/x86_64-linux-gnu/openmpi/lib/ /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/gfortran
         else
           sudo apt-get update && sudo apt-get install -yq `echo $PKGS`
           mkdir -p ~/.cache
@@ -67,21 +66,25 @@ jobs:
           cp -R ~/.local ~/.cache
           rm -rf ~/.cache/pip
         fi
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 0
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 0
-        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-10 0
-        sudo update-alternatives --set g++ /usr/bin/g++-10
-        sudo update-alternatives --set gcc /usr/bin/gcc-10
-        sudo update-alternatives --set gfortran /usr/bin/gfortran-10
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 0
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 0
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-14/bin/clang++ 0
+        sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-14/bin/clang 0
+        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-11 0
+        sudo update-alternatives --set g++ /usr/bin/g++-11
+        sudo update-alternatives --set gcc /usr/bin/gcc-11
+        sudo update-alternatives --set clang++ /usr/lib/llvm-14/bin/clang++
+        sudo update-alternatives --set clang /usr/lib/llvm-14/bin/clang
+        sudo update-alternatives --set gfortran /usr/bin/gfortran-11
     - name: Build and test with MUMPS and single-precision complex scalars
       env:
         CC: ${{ matrix.compiler }}
       run: |
         if [ "$CC" = "clang" ]; then
           export OMPI_CC=clang && export OMPI_CXX=clang++;
-          echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
+          echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
         else
-          echo -e "MPICXX ?= mpicxx.openmpi -fprofile-arcs -ftest-coverage\nMPICC ?= mpicc.openmpi -fprofile-arcs -ftest-coverage\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
+          echo -e "MPICXX ?= mpicxx.openmpi -fprofile-arcs -ftest-coverage\nMPICC ?= mpicc.openmpi -fprofile-arcs -ftest-coverage\nMPIF90 ?= mpif90.openmpi -fprofile-arcs -ftest-coverage" | cat - Make.inc/Makefile.Actions > Makefile.inc
         fi
         export HPDDMFLAGS="-DFORCE_SINGLE -DFORCE_COMPLEX"
         make python
@@ -165,17 +168,21 @@ jobs:
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool"
                   if [ "$TYPE" = "real" ]; then
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"
-                    if [ "$CC" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-hwloc --download-mumps --with-openmp"; fi
+                    if [ "$CC" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                   fi
                 fi
               fi
-              ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES}
+              ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
-              make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+              if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ] && [ "$CC" = "gcc" ]; then
+                make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}` -fopenmp" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+              else
+                make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+              fi
               cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
-              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors
+              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" TIMEOUT=45 EXTRA_OPTIONS='-malloc_dump' check-test-errors
               if { [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ]; } && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
                 make -f gmakefile test 'search=eps_tests-test43*' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
