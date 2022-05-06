@@ -1495,7 +1495,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     unsigned short** infoSplit;
     unsigned short*  infoWorld = nullptr;
 #ifdef HPDDM_CSR_CO
-    unsigned int nrow;
     int* loc2glob;
 #endif
     if(rankSplit)
@@ -1526,9 +1525,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             std::partial_sum(recvcounts, recvcounts + p - 1, displs + 1);
             for(unsigned int i = 0; i < _sizeSplit; ++i)
                 infoWorld[displs[DMatrix::_rank] + i] = infoSplit[i][1];
-#ifdef HPDDM_CSR_CO
-            nrow = std::accumulate(infoWorld + displs[DMatrix::_rank], infoWorld + displs[DMatrix::_rank] + _sizeSplit, 0);
-#endif
             MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, DMatrix::_communicator);
             if(T == 1) {
                 unsigned int i = (p - 1) * (_sizeWorld / p);
@@ -1560,9 +1556,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         else {
             DMatrix::_n = (_sizeWorld - (excluded == 2 ? p : 0)) * _local;
             v._max = (_rankWorld - (excluded == 2 ? rank : 0)) * _local + (super::_numbering == 'F');
-#ifdef HPDDM_CSR_CO
-            nrow = (_sizeSplit - (excluded == 2)) * _local;
-#endif
             if(S == 'S') {
                 for(unsigned short i = 1; i < _sizeSplit; size += infoSplit[i++][0])
                     offsetIdx[i - 1] = size * _local * _local + (i - 1) * (!blocked ? _local * (_local + 1) / 2 : _local * _local);
@@ -1632,7 +1625,6 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #endif
 #else
 #ifdef HPDDM_CONTIGUOUS
-        ignore(nrow);
         delete [] loc2glob;
 #endif
         Mat P, A;
