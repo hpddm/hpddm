@@ -5,12 +5,45 @@ on:
   pull_request:
     branches: [ main ]
 jobs:
+  variables:
+    runs-on: ubuntu-latest
+    outputs:
+      petsc-branch: ${{ steps.petsc-branch.outputs.var }}
+      hpddm-branch: ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: petsc-branch
+        run: |
+          export PETSC_BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
+          if [ "$PETSC_BRANCH" = "" ]; then export PETSC_BRANCH="main"; fi
+          echo "var=${PETSC_BRANCH}" >> $GITHUB_OUTPUT
+      - id: hpddm-branch-push
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          echo "var=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
+      - id: hpddm-branch-pr
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "var=$(echo ${GITHUB_HEAD_REF})" >> $GITHUB_OUTPUT
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          git fetch origin ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
+          worker=`git show -s -b origin/${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }} --format=%B | grep '\[runs-on: ' | sed 's/\[runs-on: \(.*\)\]/\1/g'`
+          if [ "$worker" = "" ]; then
+            worker=ubuntu-latest
+          fi
+          matrix=$(jq --arg worker "$worker" 'map(. | select(.runs_on == $worker))' <<< '[ { "runs_on":"ubuntu-latest" }, { "runs_on":"self-hosted" } ]')
+          echo matrix={\"include\":$(echo $matrix)}\" >> $GITHUB_OUTPUT
   main:
     strategy:
       matrix:
         compiler: [ gcc, clang ]
     runs-on: ubuntu-22.04
-    if: "!contains(github.event.head_commit.message, '[ci skip]')"
+    needs:
+      - variables
     steps:
     - uses: actions/checkout@v3
       with:
@@ -77,9 +110,7 @@ jobs:
       env:
         CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
       run: |
-        export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
-        if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
-        cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
+        cd .. && git clone --depth 1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         diff --suppress-common-lines -y -W 500 src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo KSPHPDDM source file has diverged; exit 1; fi
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/pchpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/pchpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
@@ -167,7 +198,7 @@ jobs:
               if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "$CC" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-implicit-fallthrough -Wno-unknown-warning-option"
+              export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-unknown-warning-option"
               if [ "$PRECISION" != "__float128" ]; then
                 export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
                 export CXXPPFLAGS="${CXXPPFLAGS} -Werror"
@@ -222,9 +253,100 @@ jobs:
             done
           done
         done
-    - name: Merge and upload coverage reports
+    - uses: actions/upload-artifact@v3
+      with:
+        path: coverage*.info
+      if: matrix.compiler == 'gcc'
+  nvcc:
+    timeout-minutes: 120
+    needs:
+      - variables
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      matrix: ${{ fromJson(needs.variables.outputs.matrix) }}
+    steps:
+    - name: Fetch PETSc and data files
       run: |
-        find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
-        lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info
-        bash <(curl -s https://codecov.io/bash) -f coverage.info;
-      if: ${{ matrix.compiler == 'gcc' && github.event.repository.name == 'hpddm' }}
+        rm -rf petsc ${{ github.event.repository.name }} petsc_datafiles.tar.gz
+        git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} https://gitlab.com/petsc/petsc.git
+        git clone --depth=1 -b ${{ needs.variables.outputs.hpddm-branch }} git@github.com:${{ github.repository }}
+        wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
+      if: matrix.runs_on != 'ubuntu-latest'
+    - name: Build and test with PETSc and SLEPc
+      run: |
+        cd petsc
+        export COVERAGE_FLAGS="-fprofile-arcs -ftest-coverage"
+        export PETSC_DIR=${PWD}
+        export DATAFILESPATH=${PWD}/../datafiles
+        export PETSC_ARCH=arch-ci
+        export CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
+        export REPOSITORY_NAME=${{ github.event.repository.name }}
+        sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
+        sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
+        echo ::add-mask::${{ secrets.HOSTNAME }}
+        echo ::add-mask::${{ secrets.LOGIN }}
+        ./configure --with-mpi-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
+                    --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
+                    --with-c2html=0 --with-fc=0 --download-slepc \
+                    --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
+                    --with-cuda --download-thrust --CUDAFLAGS="--compiler-options -Wno-vla,-Wall,-Wno-sign-compare,-Wno-unused-parameter"
+        [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
+        INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
+        rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
+        rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
+        make all "CXX=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicxx `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicc `echo ${COVERAGE_FLAGS}` -fopenmp"
+        export LD_PRELOAD="`pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
+        make check
+        make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicc `echo ${COVERAGE_FLAGS}`" "CLINKER=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicc `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1;
+        cd ../${REPOSITORY_NAME}
+        ~/lcov-1.16/bin/lcov --directory . --directory ../petsc --capture --output-file ../coverage_nvcc.info
+      if: matrix.runs_on != 'ubuntu-latest'
+    - uses: actions/upload-artifact@v3
+      with:
+        path: coverage_nvcc.info
+      if: matrix.runs_on != 'ubuntu-latest'
+  post-main:
+    runs-on: ubuntu-latest
+    if: ${{ failure() }}
+    needs:
+      - main
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            })
+  post-nvcc:
+    runs-on: ubuntu-latest
+    if: ${{ failure() }}
+    needs:
+      - nvcc
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            })
+  coverage:
+    runs-on: ubuntu-latest
+    if: ${{ success() }}
+    needs: [ main, nvcc ]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v3
+      - name: Merge and upload coverage reports
+        run: |
+          sudo apt-get install -yq lcov
+          find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
+          lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info
+          if [ "${{ github.event.repository.name }}" = "hpddm" ]; then
+            bash <(curl -s https://codecov.io/bash) -f coverage.info;
+          fi
