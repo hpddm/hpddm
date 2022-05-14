@@ -219,7 +219,7 @@ template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 }
 
-#if !defined(PETSC_HAVE_REAL___FLOAT128)
+#if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
 namespace HPDDM {
 template<class T>
 inline underlying_type<T> norm(const T& v) { return std::norm(v); }
@@ -245,7 +245,7 @@ template<class T>
 using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, T>::type>::type;
 }
 #endif
-#if !defined(PETSC_HAVE_REAL___FLOAT128)
+#if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
 namespace HPDDM {
 template<class T>
 using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double, std::complex<double>>::type;
