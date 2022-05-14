@@ -237,7 +237,7 @@ template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_C_DOUBLE_COMPLEX; }
 template<class K>
 inline MPI_Datatype Wrapper<K>::mpi_type() { static_assert(std::is_integral<K>::value, "Wrong type"); return sizeof(K) == sizeof(int) ? MPI_INT : sizeof(K) == sizeof(long long) ? MPI_LONG_LONG : MPI_BYTE; }
-# if defined(PETSC_HAVE_REAL___FLOAT128)
+# if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
 template<>
 inline MPI_Datatype Wrapper<__float128>::mpi_type() { return MPIU___FLOAT128; }
 template<>
@@ -669,7 +669,7 @@ inline void Wrapper<K>::bsrmv(const char* const trans, const int* const m, const
         else if(beta != &d__1)
             Blas<K>::scal(&ldc, beta, y, &i__1);
         if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
-            K* const c = const_cast<K* const>(a);
+            K* const c = const_cast<K*>(a);
             for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
                 c[i] = conj(c[i]);
         }
@@ -689,7 +689,7 @@ inline void Wrapper<K>::bsrmv(const char* const trans, const int* const m, const
                     Blas<K>::gemv(N == 'F' ? trans : "N", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * i, &i__1, &(Wrapper<K>::d__1), y + *bs * (ja[j] - (N == 'F')), &i__1);
         }
         if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
-            K* const c = const_cast<K* const>(a);
+            K* const c = const_cast<K*>(a);
             for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
                 c[i] = conj(c[i]);
         }
@@ -769,7 +769,7 @@ inline void Wrapper<K>::bsrmm(const char* const trans, const int* const m, const
             else if(beta != &d__1)
                 Blas<K>::scal(&j, beta, y, &i__1);
             if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
-                K* const c = const_cast<K* const>(a);
+                K* const c = const_cast<K*>(a);
                 for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
                     c[i] = conj(c[i]);
             }
@@ -789,7 +789,7 @@ inline void Wrapper<K>::bsrmm(const char* const trans, const int* const m, const
                         Blas<K>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d__1), y + *bs * (ja[l] - (N == 'F')), &ldc);
             }
             if(Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
-                K* const c = const_cast<K* const>(a);
+                K* const c = const_cast<K*>(a);
                 for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)
                     c[i] = conj(c[i]);
             }
@@ -964,7 +964,7 @@ inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const
         else if(beta != &d__1)                                                                               \
             Blas<T>::scal(&j, beta, y, &i__1);                                                               \
         if(Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) {                                   \
-            T* const c = const_cast<T* const>(a);                                                            \
+            T* const c = const_cast<T*>(a);                                                                  \
             for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)                                       \
                 c[i] = conj(c[i]);                                                                           \
         }                                                                                                    \
@@ -987,7 +987,7 @@ inline void Wrapper<T>::bsrmm(const char* const trans, const int* const m, const
                                   &ldc);                                                                     \
         }                                                                                                    \
         if(Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) {                                   \
-            T* const c = const_cast<T* const>(a);                                                            \
+            T* const c = const_cast<T*>(a);                                                                  \
             for(int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i)                                       \
                 c[i] = conj(c[i]);                                                                           \
         }                                                                                                    \

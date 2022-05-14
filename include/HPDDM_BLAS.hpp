@@ -136,7 +136,7 @@ struct Blas {
      *  Computes a scalar-vector product and adds the result to a vector. */
     static void axpy(const int* const, const K* const, const K* const, const int* const, K* const, const int* const);
     template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value)
-#if defined(PETSC_HAVE_REAL___FLOAT128)
+#if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
         && !std::is_same<U, __complex128>::value
 #endif
                                                                                                                                              >::type* = nullptr>
@@ -144,7 +144,7 @@ struct Blas {
         const U alpha(*a);
         for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += alpha * x[j];
     }
-#if defined(PETSC_HAVE_REAL___FLOAT128)
+#if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
     template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) && std::is_same<U, __complex128>::value>::type* = nullptr>
     static void axpy(const int* const n, const K* const a, const U* const x, const int* const incx, V* const y, const int* const incy) {
         U alpha;
