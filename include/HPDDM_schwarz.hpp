@@ -1403,6 +1403,7 @@ class Schwarz : public Preconditioner<
                 exchange(out, mu);
             }
 #if HPDDM_PETSC
+            PetscCallVoid(PetscLogFlops(mu * (super::getLocal() * (2 * Subdomain<K>::_dof - 1) + Subdomain<K>::_dof * (2 * super::getLocal() - 1) + Subdomain<K>::_dof)));
             PetscFunctionReturnVoid();
 #endif
         }
