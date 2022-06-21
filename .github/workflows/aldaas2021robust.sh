@@ -38,7 +38,7 @@ cat << EOF >> ../aldaas2021robust/sparse_ls.c
       filter: egrep -v "[0-9]+ KSP " | grep -v "rows=" | grep -v "total: nonzeros=" | grep -v " I-node " | sed -e "s/CONVERGED_RTOL iterations 6/CONVERGED_RTOL iterations 7/g" -e "s/CONVERGED_RTOL_NORMAL iterations 28/CONVERGED_RTOL_NORMAL iterations 20/g" -e "s/CONVERGED_RTOL iterations 21/CONVERGED_RTOL iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL iterations 9/CONVERGED_RTOL_NORMAL iterations 8/g" -e "s/CONVERGED_RTOL_NORMAL iterations 8/CONVERGED_RTOL_NORMAL iterations 9/g"
       test:
         suffix: 1
-        args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat
+        args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat -pc_hidden_setup {{true false}shared output}
         output_file: ../../../../../aldaas2021robust/output/sparse_ls_ksp_type-lsqr_mat_name-mesh_deform_pc_type-hpddm.out
       test:
         suffix: 2
@@ -55,7 +55,7 @@ cat << EOF >> ../aldaas2021robust/sparse_ls.c
       test:
         suffix: 5
         requires: suitesparse
-        args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat -pc_use_qr -pc_hpddm_levels_1_sub_pc_type qr
+        args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat -pc_use_qr -pc_hpddm_levels_1_sub_pc_type qr -pc_hidden_setup {{true false}shared output}
         output_file: ../../../../../aldaas2021robust/output/sparse_ls_ksp_type-lsqr_mat_name-mesh_deform_pc_type-hpddm_pc_use_qr.out
 
 TEST*/
