@@ -188,7 +188,10 @@ jobs:
               config/report_tests.py -t 5 -s
               if { [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ]; } && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
-                make -f gmakefile test 'search=eps_tests-test43*' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
+                mkdir -p arch-ci/tests
+                echo 'echo eps_tests-test43_1 svd_tutorials-ex48_4_hpddm' > arch-ci/tests/echofailures.sh
+                chmod u+x arch-ci/tests/echofailures.sh
+                make -f gmakefile test test-fail='1' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
               fi
               if [ "$PRECISION" = "single" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
               if [ "$TYPE" = "complex" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi

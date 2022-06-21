@@ -1155,14 +1155,14 @@ class Schwarz : public Preconditioner<
 #if defined(PETSC_USE_COMPLEX)
                         if(std::abs(eigr) > levels[0]->threshold)
 #else
-                            if(std::hypot(eigr, eigi) > levels[0]->threshold)
+                        if(std::hypot(eigr, eigi) > levels[0]->threshold)
 #endif
-                            {
-                                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr))));
-                                break;
-                            }
-                            else
-                                PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr))));
+                        {
+                            PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr))));
+                            break;
+                        }
+                        else
+                            PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr))));
                         ++i;
                     }
                     levels[0]->nu = i;
