@@ -50,9 +50,9 @@ jobs:
           rm -rf ~/.cache/lib
           sudo cp --force --recursive ~/.cache/* /
           sudo update-alternatives --install /usr/lib/x86_64-linux-gnu/libpsm_infinipath.so.1 libpsm_infinipath.so.1 /usr/lib/libpsm1/libpsm_infinipath.so.1.16 0
-          sudo mkdir /usr/include/clang/14.0.0
+          sudo mkdir -p /usr/include/clang/14.0.0
           sudo ln -s /usr/include/clang/14.0.0/../../../lib/llvm-14/lib/clang/14.0.0/include /usr/include/clang/14.0.0/include
-          sudo mkdir /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/
+          sudo mkdir -p /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/
           sudo ln -s /usr/lib/x86_64-linux-gnu/openmpi/lib/ /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/gfortran
         else
           sudo apt-get update && sudo apt-get install -yq `echo $PKGS`
@@ -183,6 +183,7 @@ jobs:
               fi
               cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
               make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" TIMEOUT=45 EXTRA_OPTIONS='-malloc_dump' check-test-errors
+              config/report_tests.py -t 5 -s
               if { [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ]; } && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
                 make -f gmakefile test 'search=eps_tests-test43*' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
