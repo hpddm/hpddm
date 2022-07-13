@@ -24,7 +24,7 @@ jobs:
       id: cache-dependencies
       with:
         path: "~/.cache"
-        key: dependencies-v0
+        key: dependencies-v1
     - name: Install dependencies
       env:
         CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
@@ -45,7 +45,8 @@ jobs:
                mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
       run: |
         if [[ "$CACHE_HIT" == "true" ]]; then
-          mv ~/.cache/.local ~/.local
+          mkdir -p ~/.local/lib
+          mv ~/.cache/lib/python3* ~/.local/lib
           sudo cp --force --recursive ~/.cache/lib/* /lib
           rm -rf ~/.cache/lib
           sudo cp --force --recursive ~/.cache/* /
@@ -63,8 +64,9 @@ jobs:
               done
           done
           pip install --user mpi4py numpy scipy
-          cp -R ~/.local ~/.cache
           rm -rf ~/.cache/pip
+          cp -R ~/.local/lib ~/.cache
+          find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" \) -prune -exec rm -rf "{}" \;
         fi
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 0
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 0
@@ -127,7 +129,7 @@ jobs:
         export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
         if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
         cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
-        wget -nv http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
+        wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
     - name: Build and test with PETSc and SLEPc
       env:
         CC: ${{ matrix.compiler }}
