@@ -115,7 +115,7 @@ jobs:
         cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         OUTPUT=$(for SRC in ksp/impls/hpddm/hpddm.cxx ksp/impls/hpddm/cuda/hpddm.cu pc/impls/hpddm/pchpddm.cxx;
         do
-          diff --suppress-common-lines -y -W 600 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
+          diff --suppress-common-lines -y -W 700 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
         done)
         if [ ! -z "${OUTPUT}" ]; then printf '%s\n' "${OUTPUT}"; exit 1; fi
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz

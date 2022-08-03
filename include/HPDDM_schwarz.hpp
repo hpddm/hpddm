@@ -49,6 +49,8 @@ struct _n_Sum {
     char                      status;
 };
 static PetscErrorCode MatMult_Sum(Mat, Vec, Vec);
+static PetscErrorCode MatMult_Harmonic(Mat, Vec, Vec);
+static PetscErrorCode MatDestroy_Harmonic(Mat);
 # endif
 # if defined(PETSC_HAVE_HTOOL) && HPDDM_SLEPC
 #  include <petscmathtool.h>
@@ -1049,7 +1051,7 @@ class Schwarz : public Preconditioner<
             PetscFunctionReturn(PETSC_SUCCESS);
         }
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
-            EPS                    eps;
+            EPS                    eps = nullptr;
             ST                     st;
             KSP                    empty = nullptr, *ksp;
             Mat                    local, *resized;
@@ -1061,6 +1063,7 @@ class Schwarz : public Preconditioner<
             const char             *prefix;
             Aux                    aux = nullptr;
             Sum                    ctx = nullptr;
+            Harmonic               h = nullptr;
 
             PetscFunctionBeginUser;
             if(!levels[0]->parent->deflation) {
@@ -1068,7 +1071,137 @@ class Schwarz : public Preconditioner<
                     if(HPDDM::abs(d_[i]) > underlying_type<K>(HPDDM_EPS))
                         solve = PETSC_TRUE;
                 PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
-                PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+                PetscCall(PetscObjectTypeCompare((PetscObject)N, MATSHELL, &flg));
+                if(flg && N == weighted && !rhs) {
+                    std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
+                    std::vector<Vec>().swap(initial);
+                    if(solve) {
+                        PetscCall(MatShellGetContext(N, &h));
+                        if(h->A[1]) {
+                            Mat  A;
+                            char type[256] = { MATAIJ };
+                            PetscCall(PetscOptionsGetString(nullptr, prefix, "-eps_mat_type", type, sizeof(type), nullptr));
+                            PetscCall(PetscStrcmp(type, MATSHELL, &flg));
+                            if(!flg) {
+                                Mat               B, C;
+                                const PetscScalar *vals;
+                                const PetscInt    *rows;
+                                PetscInt          m, n;
+                                PetscCall(MatGetLocalSize(N, nullptr, &n));
+                                PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, n, n, nullptr, &A));
+                                PetscCall(MatShift(A, 1.0));
+                                PetscCall(MatMatMult(N, A, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &B));
+                                PetscCall(MatDestroy(&A));
+                                PetscCall(MatCreateSubMatrix(h->A[1], h->is[3], h->is[3], MAT_INITIAL_MATRIX, &local));
+                                PetscCall(MatPtAP(local, B, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &C));
+                                PetscCall(MatGetLocalSize(C, nullptr, &n));
+                                PetscCall(MatDestroy(&local));
+                                PetscCall(MatDestroy(&B));
+                                PetscCall(MatCreate(PETSC_COMM_SELF, &A));
+                                PetscCall(MatSetType(A, type));
+                                PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
+                                PetscCall(MatSetSizes(A, m, m, m, m));
+                                PetscCall(ISBlockGetIndices(h->is[4], &rows));
+                                PetscCall(ISGetBlockSize(h->is[4], &m));
+                                if(m > 1) {
+                                    PetscCall(MatSetBlockSize(A, m));
+                                    PetscCall(MatSetOption(A, MAT_ROW_ORIENTED, PETSC_FALSE));
+                                    n /= m;
+                                    m *= m;
+                                }
+                                PetscCall(MatDenseGetArrayRead(C, &vals));
+                                for(PetscInt i = 0; i < n; ++i)
+                                    PetscCall(MatSetValuesBlocked(A, n, rows, 1, rows + i, vals + m * n * i, INSERT_VALUES));
+                                PetscCall(ISBlockRestoreIndices(h->is[4], &rows));
+                                PetscCall(MatDenseRestoreArrayRead(C, &vals));
+                                PetscCall(MatDestroy(&C));
+                                PetscCall(MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY));
+                                PetscCall(MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY));
+                            }
+                            else {
+                                std::tuple<Harmonic, Mat, Vec[4]> *p;
+                                PetscInt                          m;
+                                PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
+                                PetscCall(PetscNew(&p));
+                                std::get<0>(*p) = h;
+                                std::get<1>(*p) = N;
+                                PetscCall(MatCreateVecs(h->A[1], std::get<2>(*p) + 2, std::get<2>(*p) + 3));
+                                PetscCall(MatCreateVecs(N, std::get<2>(*p), std::get<2>(*p) + 1));
+                                PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, p, &A));
+                                PetscCall(MatShellSetOperation(A, MATOP_MULT, (void (*)(void))MatMult_Harmonic));
+                                PetscCall(MatShellSetOperation(A, MATOP_DESTROY, (void (*)(void))MatDestroy_Harmonic));
+                            }
+                            PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+                            PetscCall(EPSSetOptionsPrefix(eps, prefix));
+                            PetscCall(EPSSetOperators(eps, h->A[1], A));
+                            PetscCall(MatDestroy(&A));
+                            PetscCall(MatCreateVecs(h->A[1], nullptr, &vreduced));
+                        }
+                        else {
+                            SVD  svd;
+                            void (*destroy)(void);
+                            PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
+                            PetscCall(SVDSetOptionsPrefix(svd, prefix));
+                            PetscCall(SVDSetType(svd, SVDLANCZOS));
+                            PetscCall(SVDSetOperators(svd, N, nullptr));
+                            PetscCall(SVDSetFromOptions(svd));
+                            PetscCall(SVDGetDimensions(svd, &nev, nullptr, nullptr));
+                            PetscCall(MatShellGetOperation(N, MATOP_DESTROY, &destroy));
+                            PetscCall(MatShellSetOperation(N, MATOP_DESTROY, nullptr));
+                            PetscCall(SVDSetUp(svd));
+                            PetscCall(SVDSolve(svd));
+                            PetscCall(MatShellSetOperation(N, MATOP_DESTROY, destroy));
+                            PetscCall(SVDGetConverged(svd, &nconv));
+                            levels[0]->nu = std::min(nconv, nev);
+                            if(levels[0]->threshold >= PetscReal()) {
+                                PetscInt i = 0;
+                                if(levels[0]->nu) {
+                                    PetscReal theta;
+                                    PetscCall(SVDGetSingularTriplet(svd, 0, &theta, nullptr, nullptr));
+                                    while(i < levels[0]->nu) {
+                                        PetscReal sigma;
+                                        PetscCall(SVDGetSingularTriplet(svd, i, &sigma, nullptr, nullptr));
+                                        if(sigma / theta < levels[0]->threshold) {
+                                            PetscCall(PetscInfo(svd, "HPDDM: Discarding singular value %g, which is higher than the largest singular value %g times %g\n", double(sigma), double(theta), double(levels[0]->threshold)));
+                                            break;
+                                        }
+                                        else
+                                            PetscCall(PetscInfo(svd, "HPDDM: Using singular value %g\n", double(sigma)));
+                                        ++i;
+                                    }
+                                }
+                                if(i == levels[0]->nu)
+                                    PetscCall(PetscInfo(eps, "HPDDM: Not enough computed singular triplets to satisfy the threshold criterion\n"));
+                                else
+                                    levels[0]->nu = i;
+                            }
+                            PetscCall(PetscInfo(svd, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed singular vectors\n", levels[0]->nu, nconv));
+                            if(levels[0]->nu) {
+                                Harmonic h;
+                                Vec      u, full;
+                                super::ev_ = new K*[levels[0]->nu];
+                                *super::ev_ = new K[Subdomain<K>::dof_ * levels[0]->nu]();
+                                PetscCall(MatShellGetContext(N, &h));
+                                PetscCall(MatCreateVecs(N, nullptr, &u));
+                                PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::dof_, nullptr, &full));
+                                for(PetscInt i = 0; i < levels[0]->nu; ++i) {
+                                    super::ev_[i] = *super::ev_ + i * Subdomain<K>::dof_;
+                                    PetscCall(VecPlaceArray(full, super::ev_[i]));
+                                    PetscCall(SVDGetSingularTriplet(svd, i, nullptr, u, nullptr));
+                                    PetscCall(VecISCopy(full, h->is[2], SCATTER_FORWARD, u));
+                                    PetscCall(VecResetArray(full));
+                                }
+                                PetscCall(VecDestroy(&full));
+                                PetscCall(VecDestroy(&u));
+                            }
+                            PetscCall(SVDDestroy(&svd));
+                        }
+                    }
+                    if(!eps)
+                        PetscFunctionReturn(PETSC_SUCCESS);
+                }
+                if(!eps)
+                    PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
                 PetscCall(EPSSetOptionsPrefix(eps, prefix));
                 PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
                 if(!ismatis) {
@@ -1106,7 +1239,7 @@ class Schwarz : public Preconditioner<
                         PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
                         PetscCall(SVDDestroy(&svd));
                     }
-                    if(weighted)
+                    if(weighted && !h)
                         PetscCall(EPSSetOperators(eps, N, weighted));
                 }
                 else {
@@ -1149,8 +1282,10 @@ class Schwarz : public Preconditioner<
                         PetscCall(STGetKSP(st, &empty));
                         PetscCall(PetscObjectReference((PetscObject)empty));
                         PetscCall(STSetKSP(st, ksp[0]));
+                        if(h)
+                            PetscCall(KSPSetReusePreconditioner(ksp[0], PETSC_TRUE));
                     }
-                    if(levels[0]->threshold >= PetscReal()) {
+                    if(levels[0]->threshold >= PetscReal() && !h) {
                         flg = PETSC_FALSE;
                         PetscCall(PetscOptionsGetBool(nullptr, prefix, "-eps_use_inertia", &flg, nullptr));
                         if(flg) {
@@ -1245,6 +1380,7 @@ class Schwarz : public Preconditioner<
                 }
                 levels[0]->nu = std::min(nconv, nev);
                 if(levels[0]->threshold >= PetscReal()) {
+                    PetscReal relative = 1.0;
                     PetscInt i = 0;
                     while(i < levels[0]->nu) {
                         PetscReal   re, im;
@@ -1256,11 +1392,20 @@ class Schwarz : public Preconditioner<
 #else
                         PetscCall(EPSGetEigenvalue(eps, i, &re, &im));
 #endif
-                        if(HPDDM::hypot(re, im) > levels[0]->threshold) {
-                            if(HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon())
-                                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), whose magnitude is higher than %g\n", double(re), double(im), double(levels[0]->threshold)));
-                            else
-                                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, whose magnitude is higher than %g\n", double(re), double(levels[0]->threshold)));
+                        if(i == 0 && h) relative = HPDDM::hypot(re, im);
+                        if(HPDDM::hypot(re, im) / relative > levels[0]->threshold) {
+                            if(HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon()) {
+                                if(!h)
+                                    PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), which magnitude is higher than %g\n", double(re), double(im), double(levels[0]->threshold)));
+                                else
+                                    PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), which magnitude is higher than the one of the smallest eigenvalue %g times %g\n", double(re), double(im), double(relative), double(levels[0]->threshold)));
+                            }
+                            else {
+                                if(!h)
+                                    PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, which magnitude is higher than %g\n", double(re), double(levels[0]->threshold)));
+                                else
+                                    PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, which magnitude is higher than the one of the smallest eigenvalue %g times %g\n", double(re), double(relative), double(levels[0]->threshold)));
+                            }
                             break;
                         }
                         else {
@@ -1300,11 +1445,17 @@ class Schwarz : public Preconditioner<
                 }
                 for(PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
                     PetscCall(VecPlaceArray(vr, super::ev_[i]));
-                    if(!ismatis)
-                        PetscCall(EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr));
+                    if(!h) {
+                        if(!ismatis)
+                            PetscCall(EPSGetEigenvector(eps, i, !flg ? vr : nullptr, !flg ? nullptr : vr));
+                        else {
+                            PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr));
+                            PetscCall(VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced));
+                        }
+                    }
                     else {
-                        PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vr));
-                        PetscCall(VecISCopy(vr, sub[0], SCATTER_FORWARD, vreduced));
+                        PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vreduced));
+                        PetscCall(VecISCopy(vreduced, h->is[2], SCATTER_REVERSE, vr));
                     }
                     PetscCall(VecResetArray(vr));
 #if !defined(PETSC_USE_COMPLEX)
@@ -1335,22 +1486,26 @@ class Schwarz : public Preconditioner<
                     PetscCall(PetscObjectDereference((PetscObject)empty));
                 }
                 PetscCall(EPSDestroy(&eps));
-                if(!ismatis) {
-                    if(!rhs)
-                        PetscCall(MatDestroy(&weighted));
-                    if(aux) {
-                        PetscCall(MatDestroy(&aux->V));
-                        PetscCall(VecDestroy(&aux->sigma));
-                        PetscCall(PetscFree(aux));
-                        PetscCall(MatDestroy(&N));
+                if(!h) {
+                    if(!ismatis) {
+                        if(!rhs)
+                            PetscCall(MatDestroy(&weighted));
+                        if(aux) {
+                            PetscCall(MatDestroy(&aux->V));
+                            PetscCall(VecDestroy(&aux->sigma));
+                            PetscCall(PetscFree(aux));
+                            PetscCall(MatDestroy(&N));
+                        }
+                    }
+                    else {
+                        PetscCall(VecDestroy(&vreduced));
+                        PetscCall(ISDestroy(&sub[0]));
+                        PetscCall(MatDestroySubMatrices(1, &resized));
+                        PetscCall(MatISRestoreLocalMat(N, &local));
                     }
                 }
-                else {
+                else
                     PetscCall(VecDestroy(&vreduced));
-                    PetscCall(ISDestroy(&sub[0]));
-                    PetscCall(MatDestroySubMatrices(1, &resized));
-                    PetscCall(MatISRestoreLocalMat(N, &local));
-                }
             }
             else {
                 PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, Subdomain<K>::dof_, levels[0]->nu, *super::ev_, &local));
@@ -1706,6 +1861,32 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
     else if(!p->work->empty())
         PetscCall(MatDenseRestoreArrayRead(p->A[2], &in));
     PetscCallMPI(MPI_Waitall(map.size(), rq + map.size(), MPI_STATUSES_IGNORE));
+    PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode MatMult_Harmonic(Mat A, Vec x, Vec y) {
+    std::tuple<Harmonic, Mat, Vec[4]> *p;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatShellGetContext(A, &p));
+    PetscCall(VecISCopy(x, std::get<0>(*p)->is[4], SCATTER_REVERSE, std::get<2>(*p)[0]));
+    PetscCall(MatMult(std::get<1>(*p), std::get<2>(*p)[0], std::get<2>(*p)[1]));
+    PetscCall(VecSet(std::get<2>(*p)[2], 0.0));
+    PetscCall(VecISCopy(std::get<2>(*p)[2], std::get<0>(*p)->is[3], SCATTER_FORWARD, std::get<2>(*p)[1]));
+    PetscCall(MatMult(std::get<0>(*p)->A[1], std::get<2>(*p)[2], std::get<2>(*p)[3]));
+    PetscCall(VecISCopy(std::get<2>(*p)[3], std::get<0>(*p)->is[3], SCATTER_REVERSE, std::get<2>(*p)[1]));
+    PetscCall(MatMultTranspose(std::get<1>(*p), std::get<2>(*p)[1], std::get<2>(*p)[0]));
+    PetscCall(VecSet(y, 0.0));
+    PetscCall(VecISCopy(y, std::get<0>(*p)->is[4], SCATTER_FORWARD, std::get<2>(*p)[0]));
+    PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode MatDestroy_Harmonic(Mat A) {
+    std::tuple<Harmonic, Mat, Vec[4]> *p;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatShellGetContext(A, &p));
+    for(PetscInt i = 0; i < 4; ++i)
+        PetscCall(VecDestroy(std::get<2>(*p) + i));
+    PetscCall(PetscFree(p));
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 #endif
