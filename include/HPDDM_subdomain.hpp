@@ -61,9 +61,7 @@ class Subdomain
          *  Number of degrees of freedom in the current subdomain. */
         int                        _dof;
         void dtor() {
-#ifdef PETSCHPDDM_H
             clearBuffer();
-#endif
             delete [] _rq;
             _rq = nullptr;
             vectorNeighbor().swap(_map);
