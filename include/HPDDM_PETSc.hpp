@@ -116,7 +116,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     if(!std::is_same<PetscScalar, K>::value) {
                         const PetscScalar* work;
                         PetscCall(MatDenseGetArrayRead(_X[0], &work));
-                        std::copy_n(work, m, out);
+                        HPDDM::copy_n(work, m, out);
                         PetscCall(MatDenseRestoreArrayRead(_X[0], &work));
                     }
                     PetscFunctionReturn(0);
@@ -152,7 +152,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(VecResetArray(_b));
                 }
                 else {
-                    std::copy_n(read, super::_n, out);
+                    HPDDM::copy_n(read, super::_n, out);
                     PetscCall(VecRestoreArrayRead(_x, &read));
                     PetscCall(VecRestoreArrayWrite(_b, &write));
                 }
@@ -236,7 +236,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 else {
                     const PetscScalar* work;
                     PetscCall(MatDenseGetArrayRead(_X[0], &work));
-                    std::copy_n(work, mu * super::_n, out);
+                    HPDDM::copy_n(work, mu * super::_n, out);
                     PetscCall(MatDenseRestoreArrayRead(_X[0], &work));
                 }
             }
@@ -294,7 +294,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                         PetscCall(VecResetArray(_b));
                     }
                     else
-                        std::copy_n(read, n, out + nu * n);
+                        HPDDM::copy_n(read, n, out + nu * n);
                     if(id) {
                         Wrapper<K>::template imatcopy<'T'>(super::_n, bs, const_cast<K*>(in + nu * n), bs, super::_n);
                         Wrapper<K>::template imatcopy<'T'>(super::_n, bs, out + nu * n, bs, super::_n);
@@ -336,7 +336,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 else if(!std::is_same<PetscScalar, K>::value) {
                     const PetscScalar* work;
                     PetscCall(MatDenseGetArrayRead(_Y, &work));
-                    std::copy_n(work, mu * super::_n, out);
+                    HPDDM::copy_n(work, mu * super::_n, out);
                     PetscCall(MatDenseRestoreArrayRead(_Y, &work));
                 }
             }
@@ -366,7 +366,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(VecResetArray(_b));
                 }
                 else {
-                    std::copy_n(read, super::_n, out);
+                    HPDDM::copy_n(read, super::_n, out);
                     PetscCall(VecRestoreArrayRead(_x, &read));
                     PetscCall(VecRestoreArrayWrite(_b, &write));
                 }

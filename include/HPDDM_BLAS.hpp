@@ -92,7 +92,10 @@ HPDDM_GENERATE_EXTERN_GEMMT(C, T)
 extern "C" {
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(z, std::complex<double>, d, double)
-#  if defined(__APPLE__) || HPDDM_MKL
+#  if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128) && defined(PETSC_HAVE_F2CBLASLAPACK)
+HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(w, __complex128, q, __float128)
+#  endif
+#  if HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 #   if !HPDDM_MKL
 #    define HPDDM_PREFIX_AXPBY(func) catlas_ ## func
 #   else
@@ -129,11 +132,30 @@ struct Blas {
     /* Function: axpy
      *  Computes a scalar-vector product and adds the result to a vector. */
     static void axpy(const int* const, const K* const, const K* const, const int* const, K* const, const int* const);
-    template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value)>::type* = nullptr>
+    template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value)
+#if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128)
+        && !std::is_same<U, __complex128>::value
+#endif
+                                                                                                                                             >::type* = nullptr>
     static void axpy(const int* const n, const K* const a, const U* const x, const int* const incx, V* const y, const int* const incy) {
         const U alpha(*a);
         for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += alpha * x[j];
     }
+#if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128)
+    template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) && std::is_same<U, __complex128>::value>::type* = nullptr>
+    static void axpy(const int* const n, const K* const a, const U* const x, const int* const incx, V* const y, const int* const incy) {
+        U alpha;
+        __real__ alpha = a->real();
+        __imag__ alpha = a->imag();
+        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) {
+            const U beta = alpha * x[j];
+            const underlying_type<V> gamma = __real__ beta;
+            const underlying_type<V> theta = __imag__ beta;
+            const V zeta = { gamma, theta };
+            y[k] += zeta;
+        }
+    }
+#endif
     /* Function: axpby
      *  Computes two scalar-vector products. */
     static void axpby(const int&, const K&, const K* const, const int&, const K&, K* const, const int&);
@@ -163,7 +185,7 @@ struct Blas {
     template<class U, typename std::enable_if<!std::is_same<U, float>::value && !std::is_same<U, double>::value>::type* = nullptr>
     static U dot(const int* const n, const U* const x, const int* const incx, const U* const y, const int* const incy) {
         U sum = U();
-        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) sum += std::conj(x[j]) * y[k];
+        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) sum += HPDDM::conj(x[j]) * y[k];
         return sum;
     }
     /* Function: lacpy
@@ -310,7 +332,7 @@ inline void Blas<T>::trsm(const char* const side, const char* const uplo, const 
                           T* const b, const int* const ldb) {                                                \
     HPDDM_F77(C ## trsm)(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);                             \
 }
-# if HPDDM_MKL || defined(__APPLE__)
+# if HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 #  define HPDDM_GENERATE_AXPBY(C, T, B, U)                                                                   \
 template<>                                                                                                   \
 inline void Blas<U>::axpby(const int& n, const U& alpha, const U* const u, const int& incx,                  \
@@ -384,9 +406,21 @@ inline U Blas<U>::dot(const int* const n, const U* const x, const int* const inc
 HPDDM_GENERATE_BLAS_COMPLEX_VOID(C, T, B, U)
 HPDDM_GENERATE_BLAS_COMPLEX_VOID(c, std::complex<float>, s, float)
 HPDDM_GENERATE_BLAS_COMPLEX(z, std::complex<double>, d, double)
-# if HPDDM_MKL || defined(__APPLE__)
+# if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128) && defined(PETSC_HAVE_F2CBLASLAPACK)
+HPDDM_GENERATE_BLAS_COMPLEX(w, __complex128, q, __float128)
+# endif
+# if HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)
 HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
+template<class K>
+inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const int& incx, const K& beta, K* const v, const int& incy) {
+    if(beta == K())
+        for(int i = 0; i < n; ++i)
+            v[i * incy] = alpha * u[i * incx];
+    else
+        for(int i = 0; i < n; ++i)
+            v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
+}
 # else
 template<class K>
 inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const int& incx, const K& beta, K* const v, const int& incy) {
@@ -397,7 +431,7 @@ inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const
         for(int i = 0; i < n; ++i)
             v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
 }
-# endif // HPDDM_MKL || defined(__APPLE__)
+# endif // HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 } // HPDDM
 #endif // __cplusplus
 #endif // _HPDDM_BLAS_

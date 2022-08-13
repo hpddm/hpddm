@@ -210,12 +210,107 @@ struct underlying_type_spec<std::complex<T>> {
 template<class T>
 using underlying_type = typename underlying_type_spec<T>::type;
 template<class T>
+struct complex_spec {
+    typedef std::complex<T> type;
+};
+template<class T>
+using complex = typename complex_spec<T>::type;
+template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 template<class T>
-using downscaled_type = typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<underlying_type<T>, T>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION, std::complex<float>, T>::type>::type;
+using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, T>::type>::type;
+}
+
+#if !defined(PETSC_HAVE_REAL___FLOAT128)
+namespace HPDDM {
 template<class T>
 using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double, std::complex<double>>::type;
+template<class T>
+inline underlying_type<T> norm(const T& v) { return std::norm(v); }
+template<class T>
+inline underlying_type<T> abs(const T& v) { return std::abs(v); }
+template<class T>
+inline underlying_type<T> real(const T& v) { return std::real(v); }
+template<class T>
+inline underlying_type<T> imag(const T& v) { return std::imag(v); }
+template<class T>
+inline T sqrt(const T& v) { return std::sqrt(v); }
+template<class T>
+inline T conj(const T& v) { return std::conj(v); }
+template<class T>
+inline T hypot(const T& x, const T& y) { return std::hypot(x, y); }
+template<class T>
+inline int lround(const T& v) { return std::lround(v); }
+template<class InputIt, class Size, class OutputIt>
+inline OutputIt copy_n(InputIt in, Size n, OutputIt out) { return std::copy_n(in, n, out); }
+}
+#else
+#include <quadmath.h>
+#include "HPDDM___float128.hpp"
+namespace HPDDM {
+template<>
+struct underlying_type_spec<__complex128> {
+    typedef __float128 type;
+};
+template<>
+struct complex_spec<__float128> {
+    typedef __complex128 type;
+};
+template<class T>
+using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<std::is_same<T, float>::value, double, __float128>::type, typename std::conditional<std::is_same<T, std::complex<float>>::value, std::complex<double>, __complex128>::type>::type;
+template<class T, typename std::enable_if<!std::is_same<T, __float128>::value && !std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> norm(const T& v) { return std::norm(v); }
+template<class T, typename std::enable_if<std::is_same<T, __float128>::value>::type* = nullptr>
+inline underlying_type<T> norm(const T& v) { return v * v; }
+template<class T, typename std::enable_if<std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> norm(const T& v) { return crealq(v * conjq(v)); }
+template<class T, typename std::enable_if<!std::is_same<T, __float128>::value && !std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> abs(const T& v) { return std::abs(v); }
+template<class T, typename std::enable_if<std::is_same<T, __float128>::value>::type* = nullptr>
+inline underlying_type<T> abs(const T& v) { return fabsq(v); }
+template<class T, typename std::enable_if<std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> abs(const T& v) { return cabsq(v); }
+template<class T, typename std::enable_if<!std::is_same<T, __float128>::value && !std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> real(const T& v) { return std::real(v); }
+template<class T, typename std::enable_if<std::is_same<T, __float128>::value>::type* = nullptr>
+inline underlying_type<T> real(const T& v) { return v; }
+template<class T, typename std::enable_if<std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> real(const T& v) { return crealq(v); }
+template<class T, typename std::enable_if<!std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> imag(const T& v) { return std::imag(v); }
+template<class T, typename std::enable_if<std::is_same<T, __complex128>::value>::type* = nullptr>
+inline underlying_type<T> imag(const T& v) { return cimagq(v); }
+template<class T, typename std::enable_if<!std::is_same<T, __float128>::value && !std::is_same<T, __complex128>::value>::type* = nullptr>
+inline T sqrt(const T& v) { return std::sqrt(v); }
+template<class T, typename std::enable_if<std::is_same<T, __float128>::value>::type* = nullptr>
+inline T sqrt(const T& v) { return sqrtq(v); }
+template<class T, typename std::enable_if<std::is_same<T, __complex128>::value>::type* = nullptr>
+inline T sqrt(const T& v) { return csqrtq(v); }
+template<class T, typename std::enable_if<!std::is_same<T, __complex128>::value>::type* = nullptr>
+inline T conj(const T& v) { return std::conj(v); }
+template<class T, typename std::enable_if<std::is_same<T, __complex128>::value>::type* = nullptr>
+inline T conj(const T& v) { return conjq(v); }
+template<class T, typename std::enable_if<!std::is_same<T, __float128>::value>::type* = nullptr>
+inline T hypot(const T& x, const T& y) { return std::hypot(x, y); }
+template<class T, typename std::enable_if<std::is_same<T, __float128>::value>::type* = nullptr>
+inline T hypot(const T& x, const T& y) { return hypotq(x, y); }
+template<class T, typename std::enable_if<!std::is_same<T, __float128>::value>::type* = nullptr>
+inline long lround(const T& v) { return std::lround(v); }
+template<class T, typename std::enable_if<std::is_same<T, __float128>::value>::type* = nullptr>
+inline long lround(const T& v) { return lroundq(v); }
+template<class InputIt, class Size, class OutputIt, typename std::enable_if<!std::is_same<OutputIt, __complex128*>::value || std::is_same<typename std::remove_const<typename std::remove_pointer<InputIt>::type>::type, typename std::remove_const<typename std::remove_pointer<OutputIt>::type>::type>::value>::type* = nullptr>
+inline void copy_n(InputIt in, Size n, OutputIt out) { std::copy_n(in, n, out); }
+template<class InputIt, class Size, class OutputIt, typename std::enable_if<std::is_same<OutputIt, __complex128*>::value && !std::is_same<typename std::remove_const<typename std::remove_pointer<InputIt>::type>::type, typename std::remove_const<typename std::remove_pointer<OutputIt>::type>::type>::value>::type* = nullptr>
+inline void copy_n(InputIt in, Size n, OutputIt out) {
+    for(Size i = 0; i < n; ++i) {
+        __real__ out[i] = in[i].real();
+        __imag__ out[i] = in[i].imag();
+    }
+}
+}
+#endif
 
+namespace HPDDM {
 template<class T>
 inline std::string pts(const T* const s, const unsigned int k, typename std::enable_if<!std::is_same<T, void>::value>::type* = nullptr) {
     std::ostringstream stm;

@@ -1067,8 +1067,8 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         unsigned int onnz = 0;
                         std::vector<int>::const_iterator it = nnz.cbegin();
                         for(unsigned int k = 0; k < recv[0][index].first[2 * j + 1]; ++k) {
-                            it = std::lower_bound(it, nnz.cend(), std::lround(std::abs(recv[0][index].second[accumulate + recv[0][index].first[2 * j] * (1 + bss) + k])));
-                            if(it != nnz.cend() && *it == std::lround(std::abs(recv[0][index].second[accumulate + recv[0][index].first[2 * j] * (1 + bss) + k])))
+                            it = std::lower_bound(it, nnz.cend(), HPDDM::lround(HPDDM::abs(recv[0][index].second[accumulate + recv[0][index].first[2 * j] * (1 + bss) + k])));
+                            if(it != nnz.cend() && *it == HPDDM::lround(HPDDM::abs(recv[0][index].second[accumulate + recv[0][index].first[2 * j] * (1 + bss) + k])))
                                 ++onnz;
                         }
                         for(unsigned int k = in->_recv[index].second[j]; k < in->_off; ++k)
@@ -1177,11 +1177,11 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         std::vector<std::pair<int, K*>> row;
                         row.reserve(di[in->_dof + displs.back() + in->_recv[i].second[j] + 1] - di[in->_dof + displs.back() + in->_recv[i].second[j]] - (S != 'S' ? to[in->_recv[i].second[j]].size() : 0));
                         for(unsigned int k = 0; k < recv[0][i].first[2 * j]; ++k) {
-                            row.emplace_back(in->_recv[i].second[std::lround(std::abs(recv[0][i].second[accumulate * (1 + bss) + k]))], recv[0][i].second + accumulate * (1 + bss) + recv[0][i].first[2 * j] + k * bss);
+                            row.emplace_back(in->_recv[i].second[HPDDM::lround(HPDDM::abs(recv[0][i].second[accumulate * (1 + bss) + k]))], recv[0][i].second + accumulate * (1 + bss) + recv[0][i].first[2 * j] + k * bss);
                         }
                         for(unsigned int k = 0; k < recv[0][i].first[2 * j + 1]; ++k) {
-                            std::vector<int>::const_iterator pt = std::lower_bound(nnz.cbegin(), nnz.cend(), std::lround(std::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k])));
-                            if(pt != nnz.cend() && *pt == std::lround(std::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k]))) {
+                            std::vector<int>::const_iterator pt = std::lower_bound(nnz.cbegin(), nnz.cend(), HPDDM::lround(HPDDM::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k])));
+                            if(pt != nnz.cend() && *pt == HPDDM::lround(HPDDM::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k]))) {
                                 row.emplace_back(std::distance(nnz.cbegin(), pt), recv[0][i].second + (accumulate + recv[0][i].first[2 * j]) * (1 + bss) + recv[0][i].first[2 * j + 1] + k * bss);
                             }
                         }
@@ -1682,7 +1682,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                             while(i < level->nu) {
                                 PetscScalar eigr;
                                 PetscCall(EPSGetEigenvalue(eps, i, &eigr, nullptr));
-                                if(std::abs(eigr) > level->threshold)
+                                if(HPDDM::abs(eigr) > level->threshold)
                                     break;
                                 ++i;
                             }

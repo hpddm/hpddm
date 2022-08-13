@@ -141,7 +141,6 @@ jobs:
         bash ../${REPOSITORY_NAME}/.github/workflows/aldaas2021robust.sh
         export PETSC_DIR=${PWD} && export DATAFILESPATH=${PWD}/datafiles
         export PETSC_ARCH=arch-ci
-        export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Werror -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-implicit-fallthrough -Wno-unknown-warning-option"
         export TYPE=double
         export INT64=0
         export SUBSOLVER=PETSC
@@ -150,22 +149,29 @@ jobs:
         sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
         diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/pc/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
-        for PRECISION in single double
+        if [ "$CC" = "gcc" ]; then ./configure --with-x=0 --download-f2cblaslapack --with-debugging=0 --with-precision=__float128 --with-mpi=0 --with-fc=0 --with-cxx=0 COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-f2cblaslapack; fi
+        for PRECISION in single double __float128
         do
           for TYPE in complex real
           do
             for INT64 in 1 0
             do
               if [ "$INT64" = "1" ] && { { [ "$TYPE" = "complex" ] && [ "$PRECISION" = "double" ]; } || { [ "$TYPE" = "real" ] && [ "$PRECISION" = "single" ]; } }; then continue; fi
+              if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "$CC" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
-              export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"
+              unset EXTERNALPACKAGES
+              export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-implicit-fallthrough -Wno-unknown-warning-option"
+              if [ "$PRECISION" != "__float128" ]; then
+                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"
+                export CXXPPFLAGS="${CXXPPFLAGS} -Werror"
+              fi
               if [ "$PRECISION" = "double" ]; then
                 export EIGENSOLVER=SLEPC
               else
                 unset EIGENSOLVER
               fi
               if [ "$INT64" = "0" ]; then
-                if { [ "$PRECISION" != "double" ] || [ "$TYPE" != "real" ] || [ "$CC" != "gcc" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-include=/usr/include --with-mumps-lib=[/usr/lib/x86_64-linux-gnu/libcmumps.so,/usr/lib/x86_64-linux-gnu/libdmumps.so,/usr/lib/x86_64-linux-gnu/libzmumps.so,/usr/lib/x86_64-linux-gnu/libsmumps.so,/usr/lib/x86_64-linux-gnu/libpord.so,/usr/lib/x86_64-linux-gnu/libmumps_common.so]"; fi
+                if { [ "$PRECISION" == "single" ] || [ "$TYPE" != "real" ] || [ "$CC" != "gcc" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-include=/usr/include --with-mumps-lib=[/usr/lib/x86_64-linux-gnu/libcmumps.so,/usr/lib/x86_64-linux-gnu/libdmumps.so,/usr/lib/x86_64-linux-gnu/libzmumps.so,/usr/lib/x86_64-linux-gnu/libsmumps.so,/usr/lib/x86_64-linux-gnu/libpord.so,/usr/lib/x86_64-linux-gnu/libmumps_common.so]"; fi
                 if [ "$PRECISION" = "double" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool"
                   if [ "$TYPE" = "real" ]; then
@@ -173,8 +179,9 @@ jobs:
                     if [ "$CC" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                   fi
                 fi
+                if { [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; } && { [ "$PRECISION" = "double" ] || [ "$PRECISION" = "__float128" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-f2cblaslapack LDFLAGS=-L`pwd`/arch-f2cblaslapack/lib"; fi
               fi
-              ./configure --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
+              ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
@@ -184,7 +191,7 @@ jobs:
                 make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
               fi
               cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
-              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" TIMEOUT=45 EXTRA_OPTIONS='-malloc_dump' check-test-errors
+              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" TIMEOUT=120 EXTRA_OPTIONS='-malloc_dump' check-test-errors
               config/report_tests.py -t 5 -s
               if { [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ]; } && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
@@ -197,9 +204,9 @@ jobs:
               if [ "$TYPE" = "complex" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
               cd ../${REPOSITORY_NAME}
               export LD_LIBRARY_PATH=${LD_LIBRARY_PATH_0}:${PETSC_DIR}/${PETSC_ARCH}/lib
-              make cpp
+              if [ "$PRECISION" != "__float128" ]; then make cpp; fi
               if [ "$CC" = "gcc" ]; then
-                make test_cpp
+                if [ "$PRECISION" != "__float128" ]; then make test_cpp; fi
                 lcov --directory . --directory ../petsc --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
               fi
               make clean
