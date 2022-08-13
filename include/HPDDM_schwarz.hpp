@@ -150,6 +150,7 @@ class Schwarz : public Preconditioner<
             if(allocate)
                 Subdomain<K>::clearBuffer(free);
         }
+#if !HPDDM_PETSC
         void exchange() const {
             std::vector<K>* send = new std::vector<K>[Subdomain<K>::_map.size()];
             unsigned int* sizes = new unsigned int[Subdomain<K>::_map.size()]();
@@ -237,6 +238,7 @@ class Schwarz : public Preconditioner<
             delete [] send;
             delete [] sizes;
         }
+#endif
         bool restriction(underlying_type<K>* const D) const {
             unsigned int n = 0;
             for(const auto& i : Subdomain<K>::_map)
@@ -264,7 +266,7 @@ class Schwarz : public Preconditioner<
                     std::sort(idx[i], idx[i] + v.size(), [&v] (const unsigned int& lhs, const unsigned int& rhs) { return v[lhs] < v[rhs]; });
                 }
                 underlying_type<K>* const d = new underlying_type<K>[Subdomain<K>::_dof];
-                std::copy_n(D, Subdomain<K>::_dof, d);
+                HPDDM::copy_n(D, Subdomain<K>::_dof, d);
                 for(unsigned short i = 0, size = Subdomain<K>::_map.size(); i < size; ++i) {
                     int index;
                     MPI_Waitany(size, Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
@@ -273,7 +275,7 @@ class Schwarz : public Preconditioner<
                 }
                 p.reserve(Subdomain<K>::_dof);
                 for(int i = 0; i < Subdomain<K>::_dof; ++i)
-                    if((std::abs(D[i] - 1.0) > HPDDM_EPS && std::abs(D[i]) > HPDDM_EPS) || std::abs(d[i] - 1.0) > HPDDM_EPS)
+                    if((HPDDM::abs(D[i] - 1.0) > HPDDM_EPS && HPDDM::abs(D[i]) > HPDDM_EPS) || HPDDM::abs(d[i] - 1.0) > HPDDM_EPS)
                         p.emplace_back(i);
                 delete [] d;
                 int rank;
@@ -285,7 +287,7 @@ class Schwarz : public Preconditioner<
                         unsigned int* const it = std::lower_bound(idx[i], idx[i] + v.size(), p[k], [&v](unsigned int lhs, int rhs) { return v[lhs] < rhs; });
                         if(std::distance(idx[i], it) != v.size() && v[*it] == p[k]) {
                             const underlying_type<K> v = D[p[k]] - buff[i][*it];
-                            largest = (v > HPDDM_EPS || (std::abs(v) < HPDDM_EPS && rank > Subdomain<K>::_map[i].first));
+                            largest = (v > HPDDM_EPS || (HPDDM::abs(v) < HPDDM_EPS && rank > Subdomain<K>::_map[i].first));
                         }
                     }
                     D[p[k]] = (largest ? 1.0 : 0.0);
@@ -799,7 +801,7 @@ class Schwarz : public Preconditioner<
             }
             delete [] tmp;
             if(norm == HPDDM_COMPUTE_RESIDUAL_L2 || norm == HPDDM_COMPUTE_RESIDUAL_L1) {
-                MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
+                MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), Subdomain<K>::_communicator);
                 if(norm == HPDDM_COMPUTE_RESIDUAL_L2)
                     std::for_each(storage, storage + 2 * mu, [](underlying_type<K>& b) { b = std::sqrt(b); });
             }
@@ -1052,7 +1054,7 @@ class Schwarz : public Preconditioner<
             PetscFunctionBeginUser;
             if(!levels[0]->parent->deflation) {
                 for(int i = 0; i < Subdomain<K>::_dof && !solve; ++i)
-                    if(std::abs(_d[i]) > HPDDM_EPS)
+                    if(HPDDM::abs(_d[i]) > HPDDM_EPS)
                         solve = PETSC_TRUE;
                 PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
                 PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
@@ -1153,16 +1155,16 @@ class Schwarz : public Preconditioner<
                         PetscScalar eigr, eigi;
                         PetscCall(EPSGetEigenvalue(eps, i, &eigr, &eigi));
 #if defined(PETSC_USE_COMPLEX)
-                        if(std::abs(eigr) > levels[0]->threshold)
+                        if(HPDDM::abs(eigr) > levels[0]->threshold)
 #else
-                        if(std::hypot(eigr, eigi) > levels[0]->threshold)
+                        if(HPDDM::hypot(eigr, eigi) > levels[0]->threshold)
 #endif
                         {
-                            PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(std::abs(eigr))));
+                            PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(HPDDM::abs(eigr))));
                             break;
                         }
                         else
-                            PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(std::abs(eigr))));
+                            PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(HPDDM::abs(eigr))));
                         ++i;
                     }
                     levels[0]->nu = i;
@@ -1197,7 +1199,7 @@ class Schwarz : public Preconditioner<
                     if(!flg) {
                         PetscScalar eigi;
                         PetscCall(EPSGetEigenvalue(eps, i, nullptr, &eigi));
-                        if(std::abs(eigi) > std::numeric_limits<PetscReal>::epsilon())
+                        if(HPDDM::abs(eigi) > std::numeric_limits<PetscReal>::epsilon())
                             flg = PETSC_TRUE;
                     }
                     else

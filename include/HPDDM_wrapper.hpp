@@ -77,6 +77,10 @@ HPDDM_GENERATE_EXTERN_MKL(z, std::complex<double>)
 # endif
 #endif // HPDDM_MKL
 
+#ifdef I
+#undef I
+#endif
+
 namespace HPDDM {
 /* Class: Wrapper
  *
@@ -95,6 +99,9 @@ struct Wrapper {
     static MPI_Datatype mpi_underlying_type() {
         return Wrapper<underlying_type<K>>::mpi_type();
     }
+    /* Function: mpi_op
+     *  Returns the MPI operation of the template parameter of <Wrapper>. */
+    static MPI_Op mpi_op(const MPI_Op&);
 #endif
     static constexpr bool is_complex = !std::is_same<typename std::remove_const<K>::type, underlying_type<K>>::value;
     /* Variable: transc
@@ -171,7 +178,7 @@ struct Wrapper {
     template<class T, typename std::enable_if<!Wrapper<T>::is_complex>::type* = nullptr>
     static T conj(const T& x) { return x; }
     template<class T, typename std::enable_if<Wrapper<T>::is_complex>::type* = nullptr>
-    static T conj(const T& x) { return std::conj(x); }
+    static T conj(const T& x) { return HPDDM::conj(x); }
     template<char O>
     static void cycle(const int n, const int m, K* const ab, const int k, const int lda = 0, const int ldb = 0) {
         if((O == 'T' || O == 'C') && (n > 1 || ldb > n) && (m > 1 || lda > m)) {
@@ -230,6 +237,18 @@ template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_C_DOUBLE_COMPLEX; }
 template<class K>
 inline MPI_Datatype Wrapper<K>::mpi_type() { static_assert(std::is_integral<K>::value, "Wrong type"); return sizeof(K) == sizeof(int) ? MPI_INT : sizeof(K) == sizeof(long long) ? MPI_LONG_LONG : MPI_BYTE; }
+# if defined(PETSC_HAVE_REAL___FLOAT128)
+template<>
+inline MPI_Datatype Wrapper<__float128>::mpi_type() { return MPIU_REAL; }
+template<>
+inline MPI_Datatype Wrapper<__complex128>::mpi_type() { return MPIU_COMPLEX; }
+template<>
+inline MPI_Op Wrapper<__float128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? MPIU_SUM : (op == MPI_MAX ? MPIU_MAX : op); }
+template<>
+inline MPI_Op Wrapper<__complex128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? MPIU_SUM : (op == MPI_MAX ? MPIU_MAX : op); }
+# endif
+template<class K>
+inline MPI_Op Wrapper<K>::mpi_op(const MPI_Op& op) { return op; }
 #endif
 
 template<class K>

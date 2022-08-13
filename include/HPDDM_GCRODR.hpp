@@ -30,22 +30,42 @@ static PetscErrorCode (*loadedKSPSym)(const char*, const MPI_Comm&, PetscMPIInt,
 #include "HPDDM_GMRES.hpp"
 
 namespace HPDDM {
+#if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128)
+template<class K, typename std::enable_if<!std::is_same<K, __complex128>::value>::type* = nullptr>
+void assign(K& v, const underlying_type<K>& re, const underlying_type<K>& im) {
+    v.real(re);
+    v.imag(im);
+}
+template<class K, typename std::enable_if<std::is_same<K, __complex128>::value>::type* = nullptr>
+void assign(K& v, const underlying_type<K>& re, const underlying_type<K>& im) {
+    __real__ v = re;
+    __imag__ v = im;
+}
+#endif
 template<class K>
-inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>>& q, unsigned short n, const K* const alphar, const K* const alphai, const K* const beta = nullptr) {
+inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>>& q, unsigned short n, const K* const alphar, const K* const alphai, const K* const beta = nullptr) {
     for(unsigned short i = 0; i < n; ++i) {
-        std::complex<underlying_type<K>> tmp(Wrapper<K>::is_complex ? alphar[i] : std::complex<underlying_type<K>>(std::real(alphar[i]), std::real(alphai[i])));
+#if !defined(PETSCHPDDM_H) || !defined(PETSC_HAVE_REAL___FLOAT128)
+        HPDDM::complex<underlying_type<K>> tmp(Wrapper<K>::is_complex ? alphar[i] : HPDDM::complex<underlying_type<K>>(HPDDM::real(alphar[i]), HPDDM::real(alphai[i])));
+#else
+        HPDDM::complex<underlying_type<K>> tmp;
+        if(Wrapper<K>::is_complex)
+            tmp = alphar[i];
+        else
+            assign(tmp, HPDDM::real(alphar[i]), HPDDM::real(alphai[i]));
+#endif
         if(beta)
              tmp /= beta[i];
         q.emplace_back(i, tmp);
     }
-    using type = typename std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>>::const_reference;
+    using type = typename std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>>::const_reference;
     switch(target) {
-        case HPDDM_RECYCLE_TARGET_LM: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_SR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) < std::real(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_LR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::real(lhs.second) > std::real(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_SI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) < std::imag(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_LI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::imag(lhs.second) > std::imag(rhs.second); }); break;
-        default:                      std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return std::norm(lhs.second) < std::norm(rhs.second); });
+        case HPDDM_RECYCLE_TARGET_LM: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::norm(lhs.second) > HPDDM::norm(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_SR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::real(lhs.second) < HPDDM::real(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_LR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::real(lhs.second) > HPDDM::real(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_SI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::imag(lhs.second) < HPDDM::imag(rhs.second); }); break;
+        case HPDDM_RECYCLE_TARGET_LI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::imag(lhs.second) > HPDDM::imag(rhs.second); }); break;
+        default:                      std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::norm(lhs.second) < HPDDM::norm(rhs.second); });
     }
 }
 
@@ -163,15 +183,15 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 sn[nu] = 0.0;
                 for(int j = 0; j < n; ++j)
-                    sn[nu] += d[j] * std::norm(v[i][nu * n + j]);
+                    sn[nu] += d[j] * HPDDM::norm(v[i][nu * n + j]);
             }
         else
             for(unsigned short nu = 0; nu < mu; ++nu)
-                sn[nu] = std::real(Blas<K>::dot(&n, v[i] + nu * n, &i__1, v[i] + nu * n, &i__1));
+                sn[nu] = HPDDM::real(Blas<K>::dot(&n, v[i] + nu * n, &i__1, v[i] + nu * n, &i__1));
         if(HPDDM_IT(j, A) == 1) {
-            MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                norm[nu] = std::sqrt(norm[nu]);
+                norm[nu] = HPDDM::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
                 if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2.0)) {
@@ -190,20 +210,20 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
         }
         else
-            MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] > 0)
                 hasConverged[nu] = 0;
-            s[mu * i + nu] = std::sqrt(sn[nu]);
+            s[mu * i + nu] = HPDDM::sqrt(sn[nu]);
             if(U) {
                 sn[mu * i + nu] = sn[nu];
-                sn[nu] = std::real(s[mu * i + nu]);
+                sn[nu] = HPDDM::real(s[mu * i + nu]);
             }
             std::for_each(v[i] + nu * n, v[i] + (nu + 1) * n, [&](K& y) { y /= s[mu * i + nu]; });
         }
 #if HPDDM_PETSC
         if(HPDDM_IT(j, A) == 1) {
-            A._ksp->rnorm = std::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); }));
+            A._ksp->rnorm = HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); }));
             PetscCall(KSPLogResidualHistory(A._ksp, A._ksp->rnorm));
             PetscCall(KSPMonitor(A._ksp, 0, A._ksp->rnorm));
             PetscCall((*A._ksp->converged)(A._ksp, 0, A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP));
@@ -236,7 +256,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0);
             checkConvergence<4>(id[0], HPDDM_IT(j, A), i, HPDDM_TOL(tol, A), mu, norm, s + i * mu, hasConverged, m[0]);
 #if HPDDM_PETSC
-            A._ksp->rnorm = std::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); }));
+            A._ksp->rnorm = HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); }));
             PetscCall(KSPLogResidualHistory(A._ksp, A._ksp->rnorm));
             PetscCall(KSPMonitor(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm));
             PetscCall((*A._ksp->converged)(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP));
@@ -306,20 +326,20 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         int row = dim + 1;
                         int lwork = -1;
                         Lapack<K>::hseqr("E", "N", &dim, &i__1, &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, &h, &lwork, &info);
-                        lwork = std::max(static_cast<int>(std::real(h)), Wrapper<K>::is_complex ? dim * dim : (dim * (dim + 2)));
+                        lwork = std::max(static_cast<int>(HPDDM::real(h)), Wrapper<K>::is_complex ? dim * dim : (dim * (dim + 2)));
                         *select = -1;
                         Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, &h, select, &info);
-                        lwork = std::max(static_cast<int>(std::real(h)), lwork);
+                        lwork = std::max(static_cast<int>(HPDDM::real(h)), lwork);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, nullptr, &ldh, nullptr, nullptr, &ldv, &h, select, &info);
                         *select = 0;
-                        lwork = std::max(static_cast<int>(std::real(h)), lwork);
+                        lwork = std::max(static_cast<int>(HPDDM::real(h)), lwork);
                         K* work = new K[lwork];
                         K* w = new K[Wrapper<K>::is_complex ? dim : (2 * dim)];
                         K* backup = new K[dim * dim]();
                         Wrapper<K>::template omatcopy<'N'>(dim, dim, *H + nu * (m[0] + 1), ldh, backup, dim);
                         Lapack<K>::hseqr("E", "N", &dim, &i__1, &dim, backup, &dim, w, w + dim, nullptr, &i__1, work, &lwork, &info);
                         delete [] backup;
-                        std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
+                        std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>> q;
                         q.reserve(dim);
                         selectNu(id[3], q, dim, w, w + dim);
                         q.resize(k);
@@ -328,7 +348,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                             if(Wrapper<K>::is_complex)
                                 select[it->first] = 1;
                             else {
-                                if(std::abs(w[dim + it->first]) < HPDDM_EPS) {
+                                if(HPDDM::abs(w[dim + it->first]) < HPDDM_EPS) {
                                     select[it->first] = 1;
                                     ++mm;
                                 }
@@ -372,7 +392,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 if(excluded || !n) {
                     if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         std::fill_n(prod, k * active * (m[0] + 2), K());
-                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
                     }
                 }
                 else {
@@ -395,8 +415,8 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                     prod[k * active * info + k * nu + i] = Blas<K>::dot(&n, U + activeSet[nu] * n + i * ldv, &i__1, U + activeSet[nu] * n + i * ldv, &i__1);
                             }
                         }
-                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), MPI_SUM, comm);
-                        std::for_each(prod + k * active * (m[0] + 1), prod + k * active * (m[0] + 2), [](K& u) { u = 1.0 / std::sqrt(std::real(u)); });
+                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        std::for_each(prod + k * active * (m[0] + 1), prod + k * active * (m[0] + 2), [](K& u) { u = 1.0 / HPDDM::sqrt(HPDDM::real(u)); });
                     }
                     for(unsigned short nu = 0; nu < active; ++nu) {
                         int dim = std::abs(hasConverged[activeSet[nu]]);
@@ -447,11 +467,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         int lwork = -1;
                         K* vr = new K[dim * dim];
                         Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, nullptr, &dim, alpha, &lwork, nullptr, &info);
-                        lwork = std::real(*alpha);
+                        lwork = HPDDM::real(*alpha);
                         K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * dim) : lwork];
                         underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
                         Lapack<K>::ggev("N", "V", &dim, A, &dim, B, &row, alpha, alpha + 2 * dim, alpha + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
-                        std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
+                        std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>> q;
                         q.reserve(dim);
                         selectNu(id[3], q, dim, alpha, alpha + 2 * dim, alpha + dim);
                         delete [] B;
@@ -476,7 +496,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Lapack<K>::geqrf(&row, &k, nullptr, &ldh, nullptr, work, perm, &info);
                         Lapack<K>::mqr("R", "N", &n, &row, &k, nullptr, &ldh, nullptr, nullptr, &ldv, work + 1, perm, &info);
                         delete [] perm;
-                        lwork = std::max(std::real(work[0]), std::real(work[1]));
+                        lwork = std::max(HPDDM::real(work[0]), HPDDM::real(work[1]));
                         delete [] work;
                         work = new K[lwork];
                         Lapack<K>::geqrf(&row, &k, *H + activeSet[nu] * (m[0] + 1), &ldh, Ax, work, &lwork, &info);
@@ -563,9 +583,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(tau + m[0] * N);
     bool allocate;
     HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[1], allocate));
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
     for(unsigned short nu = 0; nu < mu / m[1]; ++nu) {
-        norm[nu] = std::sqrt(norm[nu]);
+        norm[nu] = HPDDM::sqrt(norm[nu]);
         if(norm[nu] < HPDDM_EPS)
             norm[nu] = 1.0;
     }
@@ -639,9 +659,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #endif
 #if HPDDM_PETSC
         if(HPDDM_IT(j, A) == 1) {
-            A._ksp->rnorm = std::abs(s[0]);
+            A._ksp->rnorm = HPDDM::abs(s[0]);
             for(unsigned short nu = 1; nu < mu; ++nu)
-                A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(std::abs(s[nu * (mu + 1)])));
+                A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(HPDDM::abs(s[nu * (mu + 1)])));
             PetscCall(KSPLogResidualHistory(A._ksp, A._ksp->rnorm));
             PetscCall(KSPMonitor(A._ksp, 0, A._ksp->rnorm));
             if(tol[0] <= -0.9 && N != mu)
@@ -804,7 +824,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* vr = new K[std::max(2, dim * dim)];
                     underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * dim] : nullptr;
                     Lapack<K>::geev("N", "V", &dim, nullptr, &ldh, nullptr, nullptr, nullptr, &i__1, nullptr, &dim, vr, &lwork, rwork, &info);
-                    lwork = std::real(*vr);
+                    lwork = HPDDM::real(*vr);
                     K* work = new K[std::max(2, lwork)];
                     Lapack<K>::geev("N", "V", &dim, *H, &ldh, w, w + dim, nullptr, &i__1, vr, &dim, work, &lwork, rwork, &info);
                     delete [] rwork;
@@ -814,10 +834,10 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #endif
                     Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, &lwork, &info);
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, &lwork, &info);
-                    lwork = std::max(std::real(work[0]), std::real(work[1]));
+                    lwork = std::max(HPDDM::real(work[0]), HPDDM::real(work[1]));
                     delete [] work;
 #if !defined(PETSC_HAVE_SLEPC) || !defined(PETSC_USE_SHARED_LIBRARIES)
-                    std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
+                    std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>> q;
                     q.reserve(dim);
                     selectNu(id[3], q, dim, w, w + dim);
                     delete [] w;
@@ -860,11 +880,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 if(excluded || !n) {
                     if(symmetric) {
                         prod = new K[bK * bK]();
-                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * bK, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * bK, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
                     }
                     else if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         std::fill_n(prod, bK * (dim + deflated + 1), K());
-                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
                     }
                 }
                 else {
@@ -888,9 +908,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                             for(unsigned short nu = 0; nu < bK; ++nu)
                                 prod[bK * (dim + deflated) + nu] = Blas<K>::dot(&n, U + nu * n, &i__1, U + nu * n, &i__1);
                         }
-                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
                         for(unsigned short nu = 0; nu < bK; ++nu) {
-                            prod[bK * (dim + deflated) + nu] = 1.0 / std::sqrt(std::real(prod[bK * (dim + deflated) + nu]));
+                            prod[bK * (dim + deflated) + nu] = 1.0 / HPDDM::sqrt(HPDDM::real(prod[bK * (dim + deflated) + nu]));
                             Blas<K>::scal(&n, prod + bK * (dim + deflated) + nu, U + nu * n, &i__1);
                         }
                         for(i = 0; i < bK; ++i)
@@ -934,7 +954,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                             else {
                                 Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &bK, &n, &(Wrapper<K>::d__1), U, &n, U, &n, &(Wrapper<K>::d__0), B, &bK);
                             }
-                            MPI_Allreduce(MPI_IN_PLACE, B, bK * bK, Wrapper<K>::mpi_type(), MPI_SUM, comm);
+                            MPI_Allreduce(MPI_IN_PLACE, B, bK * bK, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
                             Wrapper<K>::template imatcopy<'N'>(bK, bK, B, bK, dim);
                             for(i = 0; i < bK; ++i)
                                 std::fill(B + bK + i * dim, B + (i + 1) * dim, K());
@@ -953,11 +973,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     K* alpha = a + dim * dim;
                     K* vr = new K[dim * dim];
                     Lapack<K>::ggev("N", "V", &bDim, a, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, nullptr, &bDim, alpha, &lwork, nullptr, &info);
-                    lwork = std::real(*alpha);
+                    lwork = HPDDM::real(*alpha);
                     K* work = new K[Wrapper<K>::is_complex ? (lwork + 4 * bDim) : lwork];
                     underlying_type<K>* rwork = reinterpret_cast<underlying_type<K>*>(work + lwork);
                     Lapack<K>::ggev("N", "V", &bDim, a, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, vr, &bDim, work, &lwork, rwork, &info);
-                    std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
+                    std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>> q;
                     q.reserve(bDim);
                     selectNu(id[3], q, bDim, alpha, alpha + 2 * bDim, alpha + bDim);
                     info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
@@ -996,7 +1016,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, perm, &info);
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, perm, &info);
                     delete [] perm;
-                    lwork = std::max(std::real(work[0]), std::real(work[1]));
+                    lwork = std::max(HPDDM::real(work[0]), HPDDM::real(work[1]));
                     delete [] work;
                     work = new K[lwork];
                     Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);

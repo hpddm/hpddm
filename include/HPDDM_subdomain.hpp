@@ -729,7 +729,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
             std::fill_n(local, k, 0U);
             if(!excluded)
                 for(unsigned int i = 0; i < n; ++i) {
-                    if(std::abs(b[i]) > HPDDM_EPS && redundant.count(i) == 0) {
+                    if(HPDDM::abs(b[i]) > HPDDM_EPS && redundant.count(i) == 0) {
                         if(++local[j] > k)
                             break;
                     }
@@ -780,7 +780,7 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
             }
             std::function<K* (K*, unsigned int*, unsigned int*, int)> lambda = [&](K* sb, unsigned int* local, unsigned int* swap, int n) {
                 for(unsigned int i = 0; i < n; ++i)
-                    if(std::abs(sb[std::distance(local, swap) * n + i]) > HPDDM_EPS && redundant.count(i) == 0)
+                    if(HPDDM::abs(sb[std::distance(local, swap) * n + i]) > HPDDM_EPS && redundant.count(i) == 0)
                         return sb + std::distance(local, swap) * n + i;
                 return sb + (std::distance(local, swap) + 1) * n;
             };

@@ -67,15 +67,15 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 sn[nu] = 0.0;
                 for(int j = 0; j < n; ++j)
-                    sn[nu] += d[j] * std::norm(v[0][nu * n + j]);
+                    sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
             }
         else
             for(unsigned short nu = 0; nu < mu; ++nu)
-                sn[nu] = std::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+                sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
         if(HPDDM_IT(j, A) == 1) {
-            MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                norm[nu] = std::sqrt(norm[nu]);
+                norm[nu] = HPDDM::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
                 if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2.0)) {
@@ -85,7 +85,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             }
         }
         else
-            MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+            MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
         if(HPDDM_IT(j, A) == 0) {
 #if HPDDM_PETSC
             PetscCall(KSPLogResidualHistory(A._ksp, underlying_type<K>()));
@@ -98,12 +98,12 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] > 0)
                 hasConverged[nu] = 0;
-            s[nu] = std::sqrt(sn[nu]);
+            s[nu] = HPDDM::sqrt(sn[nu]);
             std::for_each(*v + nu * n, *v + (nu + 1) * n, [&](K& y) { y /= s[nu]; });
         }
 #if HPDDM_PETSC
         if(HPDDM_IT(j, A) == 1) {
-            A._ksp->rnorm = std::abs(*std::max_element(s, s + mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); }));
+            A._ksp->rnorm = HPDDM::abs(*std::max_element(s, s + mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); }));
             PetscCall(KSPLogResidualHistory(A._ksp, A._ksp->rnorm));
             PetscCall(KSPMonitor(A._ksp, 0, A._ksp->rnorm));
             PetscCall((*A._ksp->converged)(A._ksp, 0, A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP));
@@ -131,7 +131,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm);
             checkConvergence<0>(id[0], HPDDM_IT(j, A), i, HPDDM_TOL(tol, A), mu, norm, s + i * mu, hasConverged, m[0]);
 #if HPDDM_PETSC
-            A._ksp->rnorm = std::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return std::abs(lhs) < std::abs(rhs); }));
+            A._ksp->rnorm = HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); }));
             PetscCall(KSPLogResidualHistory(A._ksp, A._ksp->rnorm));
             PetscCall(KSPMonitor(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm));
             PetscCall((*A._ksp->converged)(A._ksp, HPDDM_IT(j, A), A._ksp->rnorm, &A._ksp->reason, A._ksp->cnvP));
@@ -196,9 +196,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
     bool allocate;
     HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[1], allocate));
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
+    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
     for(unsigned short nu = 0; nu < mu / m[1]; ++nu) {
-        norm[nu] = std::sqrt(norm[nu]);
+        norm[nu] = HPDDM::sqrt(norm[nu]);
         if(norm[nu] < HPDDM_EPS)
             norm[nu] = 1.0;
     }
@@ -229,9 +229,9 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         }
 #if HPDDM_PETSC
         else if(HPDDM_IT(j, A) == 1) {
-            A._ksp->rnorm = std::abs(s[0]);
+            A._ksp->rnorm = HPDDM::abs(s[0]);
             for(unsigned short nu = 1; nu < mu; ++nu)
-                A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(std::abs(s[nu * (mu + 1)])));
+                A._ksp->rnorm = std::max(A._ksp->rnorm, PetscReal(HPDDM::abs(s[nu * (mu + 1)])));
             PetscCall(KSPLogResidualHistory(A._ksp, A._ksp->rnorm));
             PetscCall(KSPMonitor(A._ksp, 0, A._ksp->rnorm));
             if(tol[0] <= -0.9 && N != mu)
