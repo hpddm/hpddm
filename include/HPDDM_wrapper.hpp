@@ -239,13 +239,13 @@ template<class K>
 inline MPI_Datatype Wrapper<K>::mpi_type() { static_assert(std::is_integral<K>::value, "Wrong type"); return sizeof(K) == sizeof(int) ? MPI_INT : sizeof(K) == sizeof(long long) ? MPI_LONG_LONG : MPI_BYTE; }
 # if defined(PETSC_HAVE_REAL___FLOAT128)
 template<>
-inline MPI_Datatype Wrapper<__float128>::mpi_type() { return MPIU_REAL; }
+inline MPI_Datatype Wrapper<__float128>::mpi_type() { return MPIU___FLOAT128; }
 template<>
-inline MPI_Datatype Wrapper<__complex128>::mpi_type() { return MPIU_COMPLEX; }
+inline MPI_Datatype Wrapper<__complex128>::mpi_type() { return MPIU___COMPLEX128; }
 template<>
-inline MPI_Op Wrapper<__float128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? MPIU_SUM : (op == MPI_MAX ? MPIU_MAX : op); }
+inline MPI_Op Wrapper<__float128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? (!PetscDefined(USE_REAL___FLOAT128) ? MPIU_SUM___FLOAT128 : MPIU_SUM) : op; }
 template<>
-inline MPI_Op Wrapper<__complex128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? MPIU_SUM : (op == MPI_MAX ? MPIU_MAX : op); }
+inline MPI_Op Wrapper<__complex128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? (!PetscDefined(USE_REAL___FLOAT128) ? MPIU_SUM___FLOAT128 : MPIU_SUM) : op; }
 # endif
 template<class K>
 inline MPI_Op Wrapper<K>::mpi_op(const MPI_Op& op) { return op; }
