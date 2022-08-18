@@ -78,6 +78,14 @@ jobs:
         sudo update-alternatives --set clang++ /usr/lib/llvm-14/bin/clang++
         sudo update-alternatives --set clang /usr/lib/llvm-14/bin/clang
         sudo update-alternatives --set gfortran /usr/bin/gfortran-11
+    - name: Fetch PETSc and data files
+      run: |
+        export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
+        if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
+        cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
+        diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
+        diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
+        wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
     - name: Build and test with MUMPS and single-precision complex scalars
       env:
         CC: ${{ matrix.compiler }}
@@ -124,12 +132,11 @@ jobs:
         fi
         make clean
       if: matrix.compiler == 'gcc'
-    - name: Fetch PETSc and data files
+    - name: Configure vanilla PETSc with external packages
       run: |
-        export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
-        if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
-        cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
-        wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
+        cd ../petsc
+        ./configure --with-x=0 --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --with-fortran-bindings=0 --with-c2html=0 --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages
+      if: matrix.compiler == 'gcc'
     - name: Build and test with PETSc and SLEPc
       env:
         CC: ${{ matrix.compiler }}
@@ -137,7 +144,7 @@ jobs:
         if [ "$CC" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++;
         else export COVERAGE_FLAGS="-fprofile-arcs -ftest-coverage"; fi
         cd ../petsc
-        export REPOSITORY_NAME="$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')"
+        export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/aldaas2021robust.sh
         export PETSC_DIR=${PWD} && export DATAFILESPATH=${PWD}/datafiles
         export PETSC_ARCH=arch-ci
@@ -147,9 +154,6 @@ jobs:
         export LD_LIBRARY_PATH_0=${LD_LIBRARY_PATH}
         sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %/hpddm/hpddm.o,$^) $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$(filter %/hpddm/hpddm.o,$^))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
         sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
-        diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
-        diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/hpddm.cxx ../${REPOSITORY_NAME}/interface/petsc/pc/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
-        if [ "$CC" = "gcc" ]; then ./configure --with-x=0 --download-f2cblaslapack --with-debugging=0 --with-precision=__float128 --with-mpi=0 --with-fc=0 --with-cxx=0 COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-f2cblaslapack; fi
         for PRECISION in single double __float128
         do
           for TYPE in complex real
@@ -176,10 +180,10 @@ jobs:
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool"
                   if [ "$TYPE" = "real" ]; then
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"
-                    if [ "$CC" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
+                    if [ "$CC" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-dir=arch-packages --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                   fi
                 fi
-                if { [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; } && { [ "$PRECISION" = "double" ] || [ "$PRECISION" = "__float128" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-f2cblaslapack LDFLAGS=-L`pwd`/arch-f2cblaslapack/lib"; fi
+                if { [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; } && { [ "$PRECISION" = "double" ] || [ "$PRECISION" = "__float128" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"; fi
               fi
               ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
@@ -219,4 +223,4 @@ jobs:
         find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
         lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info
         bash <(curl -s https://codecov.io/bash) -f coverage.info;
-      if: matrix.compiler == 'gcc'
+      if: ${{ matrix.compiler == 'gcc' && github.event.repository.name == 'hpddm' }}
