@@ -24,7 +24,7 @@ jobs:
       id: cache-dependencies
       with:
         path: "~/.cache"
-        key: dependencies-v1
+        key: dependencies-v4
     - name: Install dependencies
       env:
         CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
@@ -33,10 +33,9 @@ jobs:
                libcoarrays-dev libcoarrays-openmpi-dev libcombblas1.16.0 libevent-2.1-7       \
                libevent-dev libevent-extra-2.1-7 libevent-openssl-2.1-7 libfabric1            \
                libgd-perl libhwloc-dev libhwloc-plugins libhwloc15 libhypre-2.22.1            \
-               libhypre-dev libibverbs-dev libibverbs1 libjs-jquery-ui libllvm14              \
-               libmetis-dev libmetis5 libmumps-5.4 libmumps-dev libmumps-headers-dev          \
+               libhypre-dev libibverbs-dev libibverbs1 libjs-jquery-ui libllvm14 libmetis5    \
                libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev libomp-14-dev      \
-               libomp-dev libomp5-14 libopenmpi-dev libopenmpi3 libparmetis-dev               \
+               libomp-dev libomp5-14 libopenmpi-dev libopenmpi3 libparmetis-dev libmetis-dev  \
                libparmetis4.0 libpciaccess0 libperlio-gzip-perl libpmix-dev libpmix2          \
                libpsm-infinipath1 libpsm2-2 libptscotch-6.1 librdmacm1 libscalapack-mpi-dev   \
                libscalapack-openmpi-dev libscalapack-openmpi2.1 libsuperlu-dev                \
@@ -44,7 +43,7 @@ jobs:
                llvm-14-linker-tools llvm-14-runtime llvm-14-tools mpi-default-bin             \
                mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
       run: |
-        if [[ "$CACHE_HIT" == "true" ]]; then
+        if [ "$CACHE_HIT" = "true" ]; then
           mkdir -p ~/.local/lib
           mv ~/.cache/lib/python3* ~/.local/lib
           sudo cp --force --recursive ~/.cache/lib/* /lib
@@ -79,6 +78,8 @@ jobs:
         sudo update-alternatives --set clang /usr/lib/llvm-14/bin/clang
         sudo update-alternatives --set gfortran /usr/bin/gfortran-11
     - name: Fetch PETSc and data files
+      env:
+        CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
       run: |
         export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
         if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
@@ -86,6 +87,17 @@ jobs:
         diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
+        if [ "$CACHE_HIT" = "true" ]; then
+          cp -r ~/.cache/arch-packages .
+        else
+          mkdir -p ~/.cache/arch-packages
+        fi
+    - name: Configure vanilla PETSc with external packages
+      run: |
+        cd ../petsc
+        ./configure --with-x=0 --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --with-fortran-bindings=0 --with-c2html=0 --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages || (cat arch-packages/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
+        cp -r arch-packages/lib arch-packages/include ~/.cache/arch-packages
+      if: steps.cache-dependencies.outputs.cache-hit != 'true'
     - name: Build and test with MUMPS and single-precision complex scalars
       env:
         CC: ${{ matrix.compiler }}
@@ -132,11 +144,6 @@ jobs:
         fi
         make clean
       if: matrix.compiler == 'gcc'
-    - name: Configure vanilla PETSc with external packages
-      run: |
-        cd ../petsc
-        ./configure --with-x=0 --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --with-fortran-bindings=0 --with-c2html=0 --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages
-      if: matrix.compiler == 'gcc'
     - name: Build and test with PETSc and SLEPc
       env:
         CC: ${{ matrix.compiler }}
@@ -166,7 +173,7 @@ jobs:
               unset EXTERNALPACKAGES
               export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-implicit-fallthrough -Wno-unknown-warning-option"
               if [ "$PRECISION" != "__float128" ]; then
-                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so"
+                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
                 export CXXPPFLAGS="${CXXPPFLAGS} -Werror"
               fi
               if [ "$PRECISION" = "double" ]; then
@@ -175,15 +182,13 @@ jobs:
                 unset EIGENSOLVER
               fi
               if [ "$INT64" = "0" ]; then
-                if { [ "$PRECISION" == "single" ] || [ "$TYPE" != "real" ] || [ "$CC" != "gcc" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-include=/usr/include --with-mumps-lib=[/usr/lib/x86_64-linux-gnu/libcmumps.so,/usr/lib/x86_64-linux-gnu/libdmumps.so,/usr/lib/x86_64-linux-gnu/libzmumps.so,/usr/lib/x86_64-linux-gnu/libsmumps.so,/usr/lib/x86_64-linux-gnu/libpord.so,/usr/lib/x86_64-linux-gnu/libmumps_common.so]"; fi
                 if [ "$PRECISION" = "double" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool"
                   if [ "$TYPE" = "real" ]; then
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"
-                    if [ "$CC" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-mumps-dir=arch-packages --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                   fi
                 fi
-                if { [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; } && { [ "$PRECISION" = "double" ] || [ "$PRECISION" = "__float128" ]; }; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"; fi
+                if [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"; fi
               fi
               ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
