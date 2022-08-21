@@ -28,47 +28,9 @@ static PetscErrorCode (*loadedKSPSym)(const char*, const MPI_Comm&, PetscMPIInt,
 #endif
 
 #include "HPDDM_GMRES.hpp"
+#include "HPDDM_specifications.hpp"
 
 namespace HPDDM {
-#if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128)
-template<class K, typename std::enable_if<!std::is_same<K, __complex128>::value>::type* = nullptr>
-void assign(K& v, const underlying_type<K>& re, const underlying_type<K>& im) {
-    v.real(re);
-    v.imag(im);
-}
-template<class K, typename std::enable_if<std::is_same<K, __complex128>::value>::type* = nullptr>
-void assign(K& v, const underlying_type<K>& re, const underlying_type<K>& im) {
-    __real__ v = re;
-    __imag__ v = im;
-}
-#endif
-template<class K>
-inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>>& q, unsigned short n, const K* const alphar, const K* const alphai, const K* const beta = nullptr) {
-    for(unsigned short i = 0; i < n; ++i) {
-#if !defined(PETSCHPDDM_H) || !defined(PETSC_HAVE_REAL___FLOAT128)
-        HPDDM::complex<underlying_type<K>> tmp(Wrapper<K>::is_complex ? alphar[i] : HPDDM::complex<underlying_type<K>>(HPDDM::real(alphar[i]), HPDDM::real(alphai[i])));
-#else
-        HPDDM::complex<underlying_type<K>> tmp;
-        if(Wrapper<K>::is_complex)
-            tmp = alphar[i];
-        else
-            assign(tmp, HPDDM::real(alphar[i]), HPDDM::real(alphai[i]));
-#endif
-        if(beta)
-             tmp /= beta[i];
-        q.emplace_back(i, tmp);
-    }
-    using type = typename std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>>::const_reference;
-    switch(target) {
-        case HPDDM_RECYCLE_TARGET_LM: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::norm(lhs.second) > HPDDM::norm(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_SR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::real(lhs.second) < HPDDM::real(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_LR: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::real(lhs.second) > HPDDM::real(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_SI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::imag(lhs.second) < HPDDM::imag(rhs.second); }); break;
-        case HPDDM_RECYCLE_TARGET_LI: std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::imag(lhs.second) > HPDDM::imag(rhs.second); }); break;
-        default:                      std::sort(q.begin(), q.end(), [](type lhs, type rhs) { return HPDDM::norm(lhs.second) < HPDDM::norm(rhs.second); });
-    }
-}
-
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
 #if !defined(_KSPIMPL_H)
@@ -194,7 +156,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 norm[nu] = HPDDM::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
-                if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2.0)) {
+                if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2)) {
                     HPDDM_IT(j, A) = 0;
                     break;
                 }

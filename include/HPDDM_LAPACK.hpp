@@ -106,8 +106,13 @@ void HPDDM_F77(C ## gesdd)(const char*, const int*, const int*, T*, const int*, 
 extern "C" {
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(z, std::complex<double>, d, double)
-#  if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128) && defined(PETSC_HAVE_F2CBLASLAPACK)
+#  if defined(PETSCHPDDM_H)
+#   if defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_HAVE_F2CBLASLAPACK___FLOAT128_BINDINGS)
 HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(w, __complex128, q, __float128)
+#   endif
+#   if defined(PETSC_USE_REAL___FP16) || defined(PETSC_HAVE_F2CBLASLAPACK___FP16_BINDINGS)
+HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(k, std::complex<__fp16>, h, __fp16)
+#   endif
 #  endif
 }
 # else
@@ -718,8 +723,13 @@ inline void Lapack<T>::gesdd(const char* jobz, const int* m, const int* n, T* a,
 }
 HPDDM_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)
 HPDDM_GENERATE_LAPACK_COMPLEX(z, std::complex<double>, d, double)
-# if defined(PETSCHPDDM_H) && defined(PETSC_HAVE_REAL___FLOAT128) && defined(PETSC_HAVE_F2CBLASLAPACK)
+# if defined(PETSCHPDDM_H)
+#  if defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_HAVE_F2CBLASLAPACK___FLOAT128_BINDINGS)
 HPDDM_GENERATE_LAPACK_COMPLEX(w, __complex128, q, __float128)
+#  endif
+#  if defined(PETSC_USE_REAL___FP16) || defined(PETSC_HAVE_F2CBLASLAPACK___FP16_BINDINGS)
+HPDDM_GENERATE_LAPACK_COMPLEX(k, std::complex<__fp16>, h, __fp16)
+#  endif
 # endif
 } // HPDDM
 #endif // __cplusplus

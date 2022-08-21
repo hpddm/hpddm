@@ -99,7 +99,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         dir[0] = 1.0;
 #endif
     int i = 0;
-    if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return v < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2.0); }) == dir + mu) {
+    if(std::find_if(dir, dir + mu, [](const underlying_type<K>& v) { return v < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2); }) == dir + mu) {
         while(i < HPDDM_MAX_IT(it, A)) {
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i__1, trash + n * nu, &i__1));
