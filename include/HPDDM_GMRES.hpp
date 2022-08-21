@@ -78,7 +78,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
                 norm[nu] = HPDDM::sqrt(norm[nu]);
                 if(norm[nu] < HPDDM_EPS)
                     norm[nu] = 1.0;
-                if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2.0)) {
+                if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2)) {
                     HPDDM_IT(j, A) = 0;
                     break;
                 }

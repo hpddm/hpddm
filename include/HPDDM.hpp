@@ -217,10 +217,22 @@ template<class T>
 using complex = typename complex_spec<T>::type;
 template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
+}
+
+#if defined(PETSC_HAVE_REAL___FP16)
+namespace HPDDM {
+template<class T>
+using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, float>::value, __fp16, T>::type>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<float>>::value, std::complex<__fp16>, T>::type>::type>::type;
+}
+# if !defined(PETSC_HAVE_REAL___FLOAT128)
+#  include "HPDDM_specifications.hpp"
+# endif
+#else
+namespace HPDDM {
 template<class T>
 using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, T>::type>::type;
 }
-
+#endif
 #if !defined(PETSC_HAVE_REAL___FLOAT128)
 namespace HPDDM {
 template<class T>
@@ -245,8 +257,7 @@ template<class InputIt, class Size, class OutputIt>
 inline OutputIt copy_n(InputIt in, Size n, OutputIt out) { return std::copy_n(in, n, out); }
 }
 #else
-#include <quadmath.h>
-#include "HPDDM___float128.hpp"
+# include <quadmath.h>
 namespace HPDDM {
 template<>
 struct underlying_type_spec<__complex128> {
@@ -308,6 +319,7 @@ inline void copy_n(InputIt in, Size n, OutputIt out) {
     }
 }
 }
+# include "HPDDM_specifications.hpp"
 #endif
 
 namespace HPDDM {

@@ -292,7 +292,11 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         S = (flg ? 'S' : 'G');
     }
     PetscOptionsEnd();
-    if(!std::is_same<PetscScalar, PetscComplex>::value && S == 'S')
+    if(
+#if !defined(PETSC_USE_REAL___FP16)
+       !std::is_same<PetscScalar, PetscComplex>::value &&
+#endif
+                                                          S == 'S')
         ierr = constructionMatrix<'S', U, excluded, Operator>(v);
     else
         ierr = constructionMatrix<'G', U, excluded, Operator>(v);
