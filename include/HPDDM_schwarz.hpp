@@ -1152,19 +1152,28 @@ class Schwarz : public Preconditioner<
                 if(levels[0]->threshold >= 0.0) {
                     PetscInt i = 0;
                     while(i < levels[0]->nu) {
-                        PetscScalar eigr, eigi;
-                        PetscCall(EPSGetEigenvalue(eps, i, &eigr, &eigi));
+                        PetscReal   re, im;
 #if defined(PETSC_USE_COMPLEX)
-                        if(HPDDM::abs(eigr) > levels[0]->threshold)
+                        PetscScalar eig;
+                        PetscCall(EPSGetEigenvalue(eps, i, &eig, NULL));
+                        re = PetscRealPart(eig);
+                        im = PetscImaginaryPart(eig);
 #else
-                        if(HPDDM::hypot(eigr, eigi) > levels[0]->threshold)
+                        PetscCall(EPSGetEigenvalue(eps, i, &re, &im));
 #endif
-                        {
-                            PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g\n", double(HPDDM::abs(eigr))));
+                        if(HPDDM::hypot(re, im) > levels[0]->threshold) {
+                            if(HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon())
+                                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), whose magnitude is higher than %g\n", double(re), double(im), double(levels[0]->threshold)));
+                            else
+                                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, whose magnitude is higher than %g\n", double(re), double(levels[0]->threshold)));
                             break;
                         }
-                        else
-                            PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(HPDDM::abs(eigr))));
+                        else {
+                            if(HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon())
+                                PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue (%g,%g)\n", double(re), double(im)));
+                            else
+                                PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(re)));
+                        }
                         ++i;
                     }
                     levels[0]->nu = i;
