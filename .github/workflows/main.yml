@@ -86,7 +86,7 @@ jobs:
         cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
-        wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
+        wget -nv http://jolivet.perso.enseeiht.fr/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
         if [ "$CACHE_HIT" = "true" ]; then
           cp -r ~/.cache/arch-packages .
         else

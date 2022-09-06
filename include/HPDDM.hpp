@@ -219,6 +219,18 @@ template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 }
 
+#if !defined(PETSC_HAVE_REAL___FLOAT128)
+namespace HPDDM {
+template<class T>
+inline underlying_type<T> norm(const T& v) { return std::norm(v); }
+template<class T>
+inline underlying_type<T> abs(const T& v) { return std::abs(v); }
+template<class T>
+inline underlying_type<T> real(const T& v) { return std::real(v); }
+template<class T>
+inline underlying_type<T> imag(const T& v) { return std::imag(v); }
+}
+#endif
 #if defined(PETSC_HAVE_REAL___FP16)
 namespace HPDDM {
 template<class T>
@@ -237,14 +249,6 @@ using downscaled_type = typename std::conditional<std::is_same<underlying_type<T
 namespace HPDDM {
 template<class T>
 using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double, std::complex<double>>::type;
-template<class T>
-inline underlying_type<T> norm(const T& v) { return std::norm(v); }
-template<class T>
-inline underlying_type<T> abs(const T& v) { return std::abs(v); }
-template<class T>
-inline underlying_type<T> real(const T& v) { return std::real(v); }
-template<class T>
-inline underlying_type<T> imag(const T& v) { return std::imag(v); }
 template<class T>
 inline T sqrt(const T& v) { return std::sqrt(v); }
 template<class T>

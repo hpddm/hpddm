@@ -28,14 +28,6 @@
 #endif
 
 #if defined(PETSC_HAVE_REAL___FP16)
-namespace HPDDM {
-inline __fp16 norm(const __fp16& v) { return std::pow(v, 2); }
-inline __fp16 real(const __fp16& v) { return v; }
-inline __fp16 norm(const std::complex<__fp16>& v) { return std::norm(v); }
-inline __fp16 real(const std::complex<__fp16>& v) { return std::real(v); }
-inline __fp16 imag(const std::complex<__fp16>& v) { return std::imag(v); }
-} // HPDDM
-
 namespace std {
 template<>
 class numeric_limits<__fp16> {
