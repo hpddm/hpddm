@@ -568,7 +568,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_HPDDM(KSP ksp) {
   PetscBool   flg      = PETSC_FALSE;
 
   PetscFunctionBegin;
-  PetscCall(PetscNewLog(ksp, &data));
+  PetscCall(PetscNew(&data));
   ksp->data = (void *)data;
   PetscCall(KSPSetSupportedNorm(ksp, KSP_NORM_PRECONDITIONED, PC_LEFT, 2));
   PetscCall(KSPSetSupportedNorm(ksp, KSP_NORM_UNPRECONDITIONED, PC_RIGHT, 1));
@@ -592,7 +592,7 @@ PETSC_EXTERN PetscErrorCode KSPCreate_HPDDM(KSP ksp) {
   PetscCall(PetscObjectComposeFunction((PetscObject)ksp, "KSPHPDDMGetDeflationMat_C", KSPHPDDMGetDeflationMat_HPDDM));
   PetscCall(PetscObjectComposeFunction((PetscObject)ksp, "KSPHPDDMSetType_C", KSPHPDDMSetType_HPDDM));
   PetscCall(PetscObjectComposeFunction((PetscObject)ksp, "KSPHPDDMGetType_C", KSPHPDDMGetType_HPDDM));
-#if defined(PETSC_HAVE_SLEPC) && defined(PETSC_USE_SHARED_LIBRARIES)
+#if defined(PETSC_HAVE_SLEPC) && PetscDefined(HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
   if (!loadedDL) PetscCall(HPDDMLoadDL_Private(&loadedDL));
 #endif
   data->precision = PETSC_KSPHPDDM_DEFAULT_PRECISION;

@@ -250,8 +250,10 @@ inline MPI_Op Wrapper<__complex128>::mpi_op(const MPI_Op& op) { return op == MPI
 # if defined(PETSC_HAVE_REAL___FP16)
 template<>
 inline MPI_Datatype Wrapper<__fp16>::mpi_type() { return MPIU___FP16; }
+#  if defined(PETSC_HAVE_CXX_DIALECT_CXX14)
 template<>
 inline MPI_Datatype Wrapper<std::complex<__fp16>>::mpi_type() { return MPI_FLOAT; }
+#  endif
 template<>
 inline MPI_Op Wrapper<__fp16>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? (!PetscDefined(USE_REAL___FP16) ? MPIU_SUM___FP16___FLOAT128 : MPIU_SUM) : op; }
 # endif
