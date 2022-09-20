@@ -86,6 +86,7 @@ jobs:
         cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/pchpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/pchpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
+        sudo sed -i '1s/^/nameserver 217.70.187.21\n/' /etc/resolv.conf
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
         if [ "$CACHE_HIT" = "true" ]; then
           cp -r ~/.cache/arch-packages .
@@ -95,7 +96,7 @@ jobs:
     - name: Configure vanilla PETSc with external packages
       run: |
         cd ../petsc
-        ./configure --with-x=0 --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --with-fortran-bindings=0 --with-c2html=0 --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages || (cat arch-packages/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
+        ./configure --with-x=0 --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --with-fortran-bindings=0 --with-c2html=0 --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-mumps=http://ftp.mcs.anl.gov/pub/petsc/externalpackages/MUMPS_5.5.1.tar.gz --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages || (cat arch-packages/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
         cp -r arch-packages/lib arch-packages/include ~/.cache/arch-packages
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
     - name: Build and test with MUMPS and single-precision complex scalars
