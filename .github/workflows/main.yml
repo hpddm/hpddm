@@ -12,36 +12,32 @@ jobs:
     runs-on: ubuntu-22.04
     if: "!contains(github.event.head_commit.message, '[ci skip]')"
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    - name: Setup Python
-      uses: actions/setup-python@v2
+    - uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    - name: Cache dependencies
-      uses: actions/cache@v3
+    - uses: actions/cache@v3
       id: cache-dependencies
       with:
         path: "~/.cache"
-        key: dependencies-v4
+        key: dependencies-v0
     - name: Install dependencies
       env:
         CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
-        PKGS: "clang clang-14 ibverbs-providers lcov libarpack2 libarpack2-dev                \
-               libcaf-openmpi-3 libclang-common-14-dev libclang-cpp14 libclang1-14            \
+        PKGS: "clang ibverbs-providers lcov libarpack2 libarpack2-dev libcaf-openmpi-3        \
                libcoarrays-dev libcoarrays-openmpi-dev libcombblas1.16.0 libevent-2.1-7       \
                libevent-dev libevent-extra-2.1-7 libevent-openssl-2.1-7 libfabric1            \
                libgd-perl libhwloc-dev libhwloc-plugins libhwloc15 libhypre-2.22.1            \
-               libhypre-dev libibverbs-dev libibverbs1 libjs-jquery-ui libllvm14 libmetis5    \
-               libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev libomp-14-dev      \
-               libomp-dev libomp5-14 libopenmpi-dev libopenmpi3 libparmetis-dev libmetis-dev  \
-               libparmetis4.0 libpciaccess0 libperlio-gzip-perl libpmix-dev libpmix2          \
-               libpsm-infinipath1 libpsm2-2 libptscotch-6.1 librdmacm1 libscalapack-mpi-dev   \
-               libscalapack-openmpi-dev libscalapack-openmpi2.1 libsuperlu-dev                \
-               libsuperlu-dist7 libsuperlu5 libucx0 libxnvctrl0 llvm-14 llvm-14-dev           \
-               llvm-14-linker-tools llvm-14-runtime llvm-14-tools mpi-default-bin             \
-               mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
+               libhypre-dev libibverbs-dev libibverbs1 libjs-jquery-ui libmetis-dev           \
+               libmetis5 libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev          \
+               libomp-14-dev libomp-dev libomp5-14 libopenmpi-dev libopenmpi3                 \
+               libparmetis-dev libparmetis4.0 libpciaccess0 libperlio-gzip-perl libpmix-dev   \
+               libpmix2 libpsm-infinipath1 libpsm2-2 libptscotch-6.1 librdmacm1               \
+               libscalapack-mpi-dev libscalapack-openmpi-dev libscalapack-openmpi2.1          \
+               libsuperlu-dev libsuperlu-dist7 libsuperlu5 libucx0 libxnvctrl0                \
+               mpi-default-bin mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
       run: |
         if [ "$CACHE_HIT" = "true" ]; then
           mkdir -p ~/.local/lib
