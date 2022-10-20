@@ -80,7 +80,7 @@ jobs:
         export BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
         if [ "$BRANCH" = "" ]; then export BRANCH="main"; fi
         cd .. && git clone --depth 1 -b ${BRANCH} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
-        diff src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx || (echo KSPHPDDM source file has diverged; exit 1)
+        diff --suppress-common-lines -y -W 500 src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo KSPHPDDM source file has diverged; exit 1; fi
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/pchpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/pchpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
         if [ "$CACHE_HIT" = "true" ]; then
@@ -184,7 +184,10 @@ jobs:
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"
                   fi
                 fi
-                if [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"; fi
+                if [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; then
+                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"
+                  if [ "$PRECISION" != "__float128" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
+                fi
               fi
               ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
