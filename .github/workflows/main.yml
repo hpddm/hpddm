@@ -198,7 +198,7 @@ jobs:
               if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "$CC" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-c99-extensions -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-unknown-warning-option"
+              export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-unknown-warning-option"
               if [ "$PRECISION" != "__float128" ]; then
                 export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
                 export CXXPPFLAGS="${CXXPPFLAGS} -Werror"
