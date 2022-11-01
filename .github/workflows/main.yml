@@ -180,6 +180,7 @@ jobs:
         cd ../petsc
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/aldaas2021robust.sh
+        bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
         export PETSC_DIR=${PWD} && export DATAFILESPATH=${PWD}/datafiles
         export PETSC_ARCH=arch-ci
         export TYPE=double
@@ -281,6 +282,7 @@ jobs:
         export PETSC_ARCH=arch-ci
         export CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
         export REPOSITORY_NAME=${{ github.event.repository.name }}
+        bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
         sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
         sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
         echo ::add-mask::${{ secrets.HOSTNAME }}
