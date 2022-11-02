@@ -58,7 +58,6 @@ jobs:
         key: dependencies-v0
     - name: Install dependencies
       env:
-        CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
         PKGS: "clang ibverbs-providers lcov libarpack2 libarpack2-dev libcaf-openmpi-3        \
                libcoarrays-dev libcoarrays-openmpi-dev libcombblas1.16.0 libevent-2.1-7       \
                libevent-dev libevent-extra-2.1-7 libevent-openssl-2.1-7 libfabric1            \
@@ -72,7 +71,7 @@ jobs:
                libsuperlu-dev libsuperlu-dist7 libsuperlu5 libucx0 libxnvctrl0                \
                mpi-default-bin mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
       run: |
-        if [ "$CACHE_HIT" = "true" ]; then
+        if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
           mkdir -p ~/.local/lib
           mv ~/.cache/lib/python3* ~/.local/lib
           sudo cp --force --recursive ~/.cache/lib/* /lib
@@ -106,15 +105,18 @@ jobs:
         sudo update-alternatives --set clang++ /usr/lib/llvm-14/bin/clang++
         sudo update-alternatives --set clang /usr/lib/llvm-14/bin/clang
         sudo update-alternatives --set gfortran /usr/bin/gfortran-11
+        if [ "${{ matrix.compiler }}" = "clang" ]; then
+          echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
+        else
+          echo -e "MPICXX ?= mpicxx.openmpi -fprofile-arcs -ftest-coverage\nMPICC ?= mpicc.openmpi -fprofile-arcs -ftest-coverage\nMPIF90 ?= mpif90.openmpi -fprofile-arcs -ftest-coverage" | cat - Make.inc/Makefile.Actions > Makefile.inc
+        fi
     - name: Fetch PETSc and data files
-      env:
-        CACHE_HIT: ${{ steps.cache-dependencies.outputs.cache-hit }}
       run: |
         cd .. && git clone --depth 1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         diff --suppress-common-lines -y -W 500 src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo KSPHPDDM source file has diverged; exit 1; fi
         diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/pchpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/pchpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
-        if [ "$CACHE_HIT" = "true" ]; then
+        if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
           cp -r ~/.cache/arch-packages .
         else
           mkdir -p ~/.cache/arch-packages
@@ -126,56 +128,40 @@ jobs:
         cp -r arch-packages/lib arch-packages/include ~/.cache/arch-packages
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
     - name: Build and test with MUMPS and single-precision complex scalars
-      env:
-        CC: ${{ matrix.compiler }}
       run: |
-        if [ "$CC" = "clang" ]; then
-          export OMPI_CC=clang && export OMPI_CXX=clang++;
-          echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
-        else
-          echo -e "MPICXX ?= mpicxx.openmpi -fprofile-arcs -ftest-coverage\nMPICC ?= mpicc.openmpi -fprofile-arcs -ftest-coverage\nMPIF90 ?= mpif90.openmpi -fprofile-arcs -ftest-coverage" | cat - Make.inc/Makefile.Actions > Makefile.inc
-        fi
+        if [ "${{ matrix.compiler }}" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++; fi
         export HPDDMFLAGS="-DFORCE_SINGLE -DFORCE_COMPLEX"
         make python
         make test_c test_cpp test_python
-        if [ "$CC" = "gcc" ]; then
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
           lcov --directory . --capture --output-file coverage1.info
         fi
         make clean
     - name: Build and test with BoomerAMG
-      env:
-        CC: ${{ matrix.compiler }}
       run: |
-        if [ "$CC" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++; fi
+        if [ "${{ matrix.compiler }}" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++; fi
         export HPDDMFLAGS="-DGENERAL_CO -DHPDDM_NUMBERING=\'F\'"
         export SOLVER=HYPRE
         make python
         make test_c test_cpp test_python test_bin/driver test_bin/custom_operator_c test_bin/schwarzFromFile_cpp
-        if [ "$CC" = "gcc" ]; then
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
           export OMPI_FC=gfortran
           make test_fortran
         fi
-        if [ "$CC" = "gcc" ]; then
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
           lcov --directory . --capture --output-file coverage2.info
         fi
         make clean
     - name: Build and test with mixed-precision arithmetic
-      env:
-        CC: ${{ matrix.compiler }}
       run: |
-        if [ "$CC" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++; fi
         export HPDDMFLAGS="-DHPDDM_NUMBERING=\'F\' -DHPDDM_MIXED_PRECISION=1"
         make test_cpp
-        if [ "$CC" = "gcc" ]; then
-          lcov --directory . --capture --output-file coverage3.info
-        fi
+        lcov --directory . --capture --output-file coverage3.info
         make clean
       if: matrix.compiler == 'gcc'
     - name: Build and test with PETSc and SLEPc
-      env:
-        CC: ${{ matrix.compiler }}
       run: |
-        if [ "$CC" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++;
+        if [ "${{ matrix.compiler }}" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++;
         else export COVERAGE_FLAGS="-fprofile-arcs -ftest-coverage"; fi
         cd ../petsc
         export REPOSITORY_NAME=${{ github.event.repository.name }}
@@ -196,13 +182,13 @@ jobs:
             for INT64 in 1 0
             do
               if [ "$INT64" = "1" ] && { { [ "$TYPE" = "complex" ] && [ "$PRECISION" = "double" ]; } || { [ "$TYPE" = "real" ] && [ "$PRECISION" = "single" ]; } }; then continue; fi
-              if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "$CC" != "gcc" ]; }; then continue; fi
+              if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "${{ matrix.compiler }}" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-unknown-warning-option"
+              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-unknown-warning-option"
               if [ "$PRECISION" != "__float128" ]; then
                 export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
-                export CXXPPFLAGS="${CXXPPFLAGS} -Werror"
+                export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Werror"
               fi
               if [ "$PRECISION" = "double" ]; then
                 export EIGENSOLVER=SLEPC
@@ -216,24 +202,23 @@ jobs:
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"
                   fi
                 fi
-                if [ "$CC" = "gcc" ] && [ "$TYPE" = "real" ]; then
+                if [ "${{ matrix.compiler }}" = "gcc" ] && [ "$TYPE" = "real" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"
                   if [ "$PRECISION" != "__float128" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                 fi
               fi
-              ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
+              ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
-              if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ] && [ "$CC" = "gcc" ]; then
+              if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ] && [ "${{ matrix.compiler }}" = "gcc" ]; then
                 make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}` -fopenmp" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
               else
                 make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
               fi
-              cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
               make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" TIMEOUT=120 EXTRA_OPTIONS='-malloc_dump' check-test-errors
               config/report_tests.py -t 5 -s
-              if { [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ]; } && [ "$INT64" = "0" ]; then
+              if [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ] && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
                 mkdir -p arch-ci/tests
                 echo 'echo eps_tests-test43_1 svd_tutorials-ex48_4_hpddm' > arch-ci/tests/echofailures.sh
@@ -245,7 +230,7 @@ jobs:
               cd ../${REPOSITORY_NAME}
               export LD_LIBRARY_PATH=${LD_LIBRARY_PATH_0}:${PETSC_DIR}/${PETSC_ARCH}/lib
               if [ "$PRECISION" != "__float128" ]; then make cpp; fi
-              if [ "$CC" = "gcc" ]; then
+              if [ "${{ matrix.compiler }}" = "gcc" ]; then
                 if [ "$PRECISION" != "__float128" ]; then make test_cpp; fi
                 lcov --directory . --directory ../petsc --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
               fi
@@ -280,7 +265,7 @@ jobs:
         export PETSC_DIR=${PWD}
         export DATAFILESPATH=${PWD}/../datafiles
         export PETSC_ARCH=arch-ci
-        export CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
+        export PETSC_CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
         sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
@@ -291,7 +276,7 @@ jobs:
                     --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
                     --with-c2html=0 --with-fc=0 --download-slepc \
                     --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust --CUDAFLAGS="--compiler-options -Wno-vla,-Wall,-Wno-sign-compare,-Wno-unused-parameter"
+                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --CUDAFLAGS="--compiler-options -Wno-vla,-Wall,-Wno-sign-compare,-Wno-unused-parameter"
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
         INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
