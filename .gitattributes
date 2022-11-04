@@ -3,6 +3,5 @@ Makefile.* linguist-language=Makefile
 .gitattributes export-ignore
 .gitignore export-ignore
 .github export-ignore
-examples/data/40X.tar.gz export-ignore
-examples/data/mini.tar.gz export-ignore
+examples/data export-ignore
 examples/petsc export-ignore
