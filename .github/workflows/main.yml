@@ -161,14 +161,16 @@ jobs:
       if: matrix.compiler == 'gcc'
     - name: Build and test with PETSc and SLEPc
       run: |
-        if [ "${{ matrix.compiler }}" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++;
+        if [ "${{ matrix.compiler }}" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++
         else export COVERAGE_FLAGS="-fprofile-arcs -ftest-coverage"; fi
         cd ../petsc
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/aldaas2021robust.sh
         bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
-        export PETSC_DIR=${PWD} && export DATAFILESPATH=${PWD}/datafiles
+        export PETSC_DIR=`pwd`
         export PETSC_ARCH=arch-ci
+        export DATAFILESPATH=`pwd`/datafiles
+        export INCS="-I`pwd`/../${REPOSITORY_NAME}/include"
         export TYPE=double
         export INT64=0
         export SUBSOLVER=PETSC
@@ -209,21 +211,21 @@ jobs:
               fi
               ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
-              INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
               if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ] && [ "${{ matrix.compiler }}" = "gcc" ]; then
-                make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}` -fopenmp" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+                make all "CXX=mpicxx.openmpi ${COVERAGE_FLAGS} ${INCS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS} -fopenmp" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
               else
-                make all "CXX=mpicxx.openmpi `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+                make all "CXX=mpicxx.openmpi ${COVERAGE_FLAGS} ${INCS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
               fi
-              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" TIMEOUT=120 EXTRA_OPTIONS='-malloc_dump' check-test-errors
+              cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
+              make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi ${COVERAGE_FLAGS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" TIMEOUT=120 EXTRA_OPTIONS='-malloc_dump' check-test-errors
               config/report_tests.py -t 5 -s
               if [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ] && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
                 mkdir -p arch-ci/tests
                 echo 'echo eps_tests-test43_1 svd_tutorials-ex48_4_hpddm' > arch-ci/tests/echofailures.sh
                 chmod u+x arch-ci/tests/echofailures.sh
-                make -f gmakefile test test-fail='1' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" "CLINKER=mpicc.openmpi `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
+                make -f gmakefile test test-fail='1' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi ${COVERAGE_FLAGS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
               fi
               if [ "$PRECISION" = "single" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
               if [ "$TYPE" = "complex" ]; then export HPDDMFLAGS="${HPDDMFLAGS} -DFORCE_COMPLEX"; fi
@@ -262,9 +264,9 @@ jobs:
       run: |
         cd petsc
         export COVERAGE_FLAGS="-fprofile-arcs -ftest-coverage"
-        export PETSC_DIR=${PWD}
-        export DATAFILESPATH=${PWD}/../datafiles
+        export PETSC_DIR=`pwd`
         export PETSC_ARCH=arch-ci
+        export DATAFILESPATH=`pwd`/../datafiles
         export PETSC_CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
@@ -272,19 +274,20 @@ jobs:
         sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
         echo ::add-mask::${{ secrets.HOSTNAME }}
         echo ::add-mask::${{ secrets.LOGIN }}
+        export INCS="-I`pwd`/../${REPOSITORY_NAME}/include"
         ./configure --with-mpi-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
                     --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
                     --with-c2html=0 --with-fc=0 --download-slepc \
                     --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --CUDAFLAGS="--compiler-options -Wno-vla,-Wall,-Wno-sign-compare,-Wno-unused-parameter"
+                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-sign-compare,-Wno-unused-parameter ${INCS}'
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
-        INCS="-I`pwd`/../`echo ${REPOSITORY_NAME}`/include"
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
-        make all "CXX=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicxx `echo ${COVERAGE_FLAGS}` `echo ${INCS}`" "CLINKER=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicc `echo ${COVERAGE_FLAGS}` -fopenmp"
+        make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp"
+        cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
         export LD_PRELOAD="`pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
         make check
-        make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicc `echo ${COVERAGE_FLAGS}`" "CLINKER=/local/`echo ${{ secrets.LOGIN }}`/petsc/arch-linux-c-opt/bin/mpicc `echo ${COVERAGE_FLAGS}`" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1;
+        make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
         cd ../${REPOSITORY_NAME}
         ~/lcov-1.16/bin/lcov --directory . --directory ../petsc --capture --output-file ../coverage_nvcc.info
       if: matrix.runs_on != 'ubuntu-latest'
@@ -331,9 +334,13 @@ jobs:
       - uses: actions/download-artifact@v3
       - name: Merge and upload coverage reports
         run: |
-          sudo apt-get install -yq lcov
-          find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
-          lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info
-          if [ "${{ github.event.repository.name }}" = "hpddm" ]; then
-            bash <(curl -s https://codecov.io/bash) -f coverage.info;
+          if [ -d $PWD/artifact ]; then
+            sudo apt-get install -yq lcov
+            find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
+            lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info
+            if [ "${{ github.event.repository.name }}" = "hpddm" ]; then
+              bash <(curl -s https://codecov.io/bash) -f coverage.info
+            fi
+          elif [ "${{ github.event.repository.name }}" = "hpddm" ]; then
+            exit 1
           fi
