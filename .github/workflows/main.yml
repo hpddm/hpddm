@@ -255,7 +255,7 @@ jobs:
     steps:
     - name: Fetch PETSc and data files
       run: |
-        rm -rf petsc ${{ github.event.repository.name }} petsc_datafiles.tar.gz
+        rm -rf petsc ${{ github.event.repository.name }} petsc_datafiles.tar.gz coverage_nvcc.info
         git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} https://gitlab.com/petsc/petsc.git
         git clone --depth=1 -b ${{ needs.variables.outputs.hpddm-branch }} git@github.com:${{ github.repository }}
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz

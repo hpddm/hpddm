@@ -164,6 +164,8 @@ class Subdomain
                 _a = a;
             if(_a)
                 _dof = _a->_n;
+#else
+            ignore(restriction);
 #endif
             std::vector<unsigned short> sortable;
             std::copy(o.begin(), o.end(), std::back_inserter(sortable));
