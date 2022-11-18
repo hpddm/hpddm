@@ -845,6 +845,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             }
             PetscCall(KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A));
             PetscCall(MatPropagateSymmetryOptions(A, E));
+            PetscReal chop = -1.0;
+            PetscCall(PetscOptionsGetReal(nullptr, v._prefix.c_str(), "-mat_chop", &chop, nullptr));
+            if(chop >= 0.0) {
+                PetscCall(MatConvert(E, MATAIJ, MAT_INPLACE_MATRIX, &E));
+                PetscCall(MatChop(E, chop));
+                PetscCall(MatEliminateZeros(E));
+            }
             PetscCall(KSPSetOperators(v._level->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str()));
             PetscCall(KSPSetType(v._level->ksp, KSPPREONLY));
@@ -1308,6 +1315,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             }
             PetscCall(KSPGetOperators(v._level->parent->levels[0]->ksp, nullptr, &A));
             PetscCall(MatPropagateSymmetryOptions(A, E));
+            PetscReal chop = -1.0;
+            PetscCall(PetscOptionsGetReal(nullptr, v._prefix.c_str(), "-mat_chop", &chop, nullptr));
+            if(chop >= 0.0) {
+                PetscCall(MatConvert(E, MATAIJ, MAT_INPLACE_MATRIX, &E));
+                PetscCall(MatChop(E, chop));
+                PetscCall(MatEliminateZeros(E));
+            }
             PetscCall(KSPSetOperators(v._level->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v._level->ksp, v._prefix.c_str()));
             if(coarse) {
