@@ -98,9 +98,11 @@ HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(w, __complex128, q, __float128)
 #  if defined(PETSC_USE_REAL___FP16) || defined(PETSC_HAVE_F2CBLASLAPACK___FP16_BINDINGS)
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(k, std::complex<__fp16>, h, __fp16)
 #  endif
-#  if HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
-#   if !HPDDM_MKL
+#  if HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
+#   if !HPDDM_MKL && !HPDDM_OPENBLAS
 #    define HPDDM_PREFIX_AXPBY(func) catlas_ ## func
+#   elif !HPDDM_MKL && HPDDM_OPENBLAS
+#    define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #   else
 HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(z, std::complex<double>, d, double)
@@ -335,7 +337,7 @@ inline void Blas<T>::trsm(const char* const side, const char* const uplo, const 
                           T* const b, const int* const ldb) {                                                \
     HPDDM_F77(C ## trsm)(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);                             \
 }
-# if HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
+# if HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 #  define HPDDM_GENERATE_AXPBY(C, T, B, U)                                                                   \
 template<>                                                                                                   \
 inline void Blas<U>::axpby(const int& n, const U& alpha, const U* const u, const int& incx,                  \
@@ -415,7 +417,7 @@ HPDDM_GENERATE_BLAS_COMPLEX(w, __complex128, q, __float128)
 # if defined(PETSC_USE_REAL___FP16) || defined(PETSC_HAVE_F2CBLASLAPACK___FP16_BINDINGS)
 HPDDM_GENERATE_BLAS_COMPLEX(k, std::complex<__fp16>, h, __fp16)
 # endif
-# if HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
+# if HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)
 HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
 template<class K>
@@ -437,7 +439,7 @@ inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const
         for(int i = 0; i < n; ++i)
             v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
 }
-# endif // HPDDM_MKL || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
+# endif // HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 } // HPDDM
 #endif // __cplusplus
 #endif // _HPDDM_BLAS_

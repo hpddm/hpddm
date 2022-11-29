@@ -31,6 +31,7 @@
  *    HPDDM_GRANULARITY   - Granularity for OpenMP scheduling.
  *    HPDDM_MPI           - If not set to zero, MPI is supposed to be activated during compilation and for running the library.
  *    HPDDM_MKL           - If not set to zero, Intel MKL is chosen as the linear algebra backend.
+ *    HPDDM_OPENBLAS      - If not set to zero, OpenBLAS is chosen as the linear algebra backend.
  *    HPDDM_NUMBERING     - 0- or 1-based indexing of user-supplied matrices.
  *    HPDDM_SCHWARZ       - Overlapping Schwarz methods enabled.
  *    HPDDM_FETI          - FETI methods enabled.
@@ -52,6 +53,9 @@
 #endif
 #if defined(PETSC_HAVE_MKL_LIBS) && !defined(HPDDM_MKL)
 # define HPDDM_MKL                                      1
+#endif
+#if defined(PETSC_HAVE_OPENBLAS) && !defined(HPDDM_OPENBLAS)
+# define HPDDM_OPENBLAS                                 1
 #endif
 #if defined(HPDDM_PETSC) && HPDDM_PETSC
 # ifndef HPDDM_NUMBERING
