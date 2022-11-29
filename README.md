@@ -1,4 +1,4 @@
-## HPDDM — high-performance unified framework for domain decomposition methods [![build](https://github.com/hpddm/hpddm/workflows/build/badge.svg)](https://github.com/hpddm/hpddm/actions) [![codecov](https://codecov.io/gh/hpddm/hpddm/branch/main/graph/badge.svg)](https://codecov.io/gh/hpddm/hpddm)
+## HPDDM — high-performance unified framework for domain decomposition methods [![build](https://github.com/hpddm/hpddm/workflows/CI/badge.svg)](https://github.com/hpddm/hpddm/actions) [![codecov](https://codecov.io/gh/hpddm/hpddm/branch/main/graph/badge.svg)](https://codecov.io/gh/hpddm/hpddm)
 
 
 #### What is HPDDM?
