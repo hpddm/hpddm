@@ -120,7 +120,12 @@ ifdef MKL_INCS
     LIBS += ${MKL_LIBS}
     override HPDDMFLAGS += -DHPDDM_MKL=1
 else
-    LIBS += ${BLAS_LIBS}
+    ifdef OPENBLAS_LIBS
+        LIBS += ${OPENBLAS_LIBS}
+        override HPDDMFLAGS += -DHPDDM_OPENBLAS=1
+    else
+        LIBS += ${BLAS_LIBS}
+    endif
 endif
 
 ifeq (${OS}, Windows_NT)
