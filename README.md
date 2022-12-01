@@ -43,22 +43,22 @@ If you use this software, please cite the appropriate references from the list b
 
 #### Acknowledgments
 [Centre National de la Recherche Scientifique](http://www.cnrs.fr/index.php), France  
+[Sorbonne Université](https://www.sorbonne-universite.fr), Paris, France  
 [Institut de Recherche en Informatique de Toulouse](http://www.irit.fr/?lang=en), France  
 [Eidgenössische Technische Hochschule Zürich](https://www.ethz.ch/), Switzerland  
-[Université Joseph Fourier](https://www.ujf-grenoble.fr/?language=en), Grenoble, France  
-[Université Pierre et Marie Curie](http://www.upmc.fr/), Paris, France  
+[Université Grenoble Alpes](https://www.univ-grenoble-alpes.fr), Grenoble, France  
 [Inria](http://www.inria.fr/en/) Paris, France  
-[Agence Nationale de la Recherche](http://www.agence-nationale-recherche.fr/), France  
-[Partnership for Advanced Computing in Europe](http://www.prace-ri.eu/)  
+[Agence Nationale de la Recherche](https://anr.fr), France  
 [Grand Equipement National de Calcul Intensif](http://www.genci.fr/en), France  
 [Fondation Sciences Mathématiques de Paris](http://www.sciencesmaths-paris.fr/en/), France
 
-###### Collaborators/contributors
+###### Collaborators/contributors (by alphabetical order)
+[Hussam Al Daas](https://www.numerical.rl.ac.uk/people/h_aldaas/)  
 [Lea Conen](https://de.linkedin.com/in/lea-conen)  
 [Victorita Dolean](http://www.victoritadolean.com/)  
 Ryadh Haferssas  
 [Frédéric Hecht](https://www.ljll.math.upmc.fr/hecht/)  
-[Pierre Marchand](https://www.ljll.math.upmc.fr/marchandp/)  
-[Christophe Prud'homme](https://github.com/prudhomm)  
+[Pierre Marchand](https://pierremarchand.netlify.app)  
+[Christophe Prud'homme](https://prudhomm.github.io)  
 [Nicole Spillane](http://www.cmap.polytechnique.fr/~spillane/)  
 [Pierre-Henri Tournier](https://www.researchgate.net/profile/Pierre-Henri_Tournier)
