@@ -1,7 +1,7 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+   Author(s): Pierre Jolivet <pierre@joliv.et>
               Frédéric Nataf <nataf@ann.jussieu.fr>
         Date: 2013-03-10
 

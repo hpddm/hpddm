@@ -1,7 +1,7 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+   Author(s): Pierre Jolivet <pierre@joliv.et>
               Ralf Deiterding <r.deiterding@soton.ac.uk>
         Date: 2013-05-22
 

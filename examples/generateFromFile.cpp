@@ -2,7 +2,7 @@
    This file is part of HPDDM.
 
    Author(s): Frédéric Nataf <nataf@ann.jussieu.fr>
-              Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+              Pierre Jolivet <pierre@joliv.et>
         Date: 2016-05-18
 
    Copyright (C) 2016-     Centre National de la Recherche Scientifique

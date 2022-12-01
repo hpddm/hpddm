@@ -1,7 +1,7 @@
  /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+   Author(s): Pierre Jolivet <pierre@joliv.et>
         Date: 2014-11-05
 
    Copyright (C) 2011-2014 Université de Grenoble
