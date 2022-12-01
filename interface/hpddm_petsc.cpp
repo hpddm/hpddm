@@ -1,7 +1,7 @@
  /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+   Author(s): Pierre Jolivet <pierre@joliv.et>
               Stefano Zampini <stefano.zampini@kaust.edu.sa>
         Date: 2019-07-23
 

@@ -1,7 +1,7 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+   Author(s): Pierre Jolivet <pierre@joliv.et>
         Date: 2022-08-13
 
    Copyright (C) 2022-     Centre National de la Recherche Scientifique

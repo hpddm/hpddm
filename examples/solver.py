@@ -4,7 +4,7 @@
 """
    This file is part of HPDDM.
 
-   Author(s): Pierre Jolivet <pierre.jolivet@enseeiht.fr>
+   Author(s): Pierre Jolivet <pierre@joliv.et>
         Date: 2015-11-17
 
    Copyright (C) 2015      Eidgenössische Technische Hochschule Zürich
