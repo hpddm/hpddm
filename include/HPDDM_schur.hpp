@@ -238,8 +238,7 @@ class Schur : public Preconditioner<
                     Lapack<K>::stebz(&range, "B", &(Subdomain<K>::_dof), &vl, &vu, &i__1, &iu, &tol, d, e, &evp._nu, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K>*>(work), iwork, &info);
                     if(evp._nu) {
                         if(super::_ev) {
-                            if(*super::_ev)
-                                delete [] *super::_ev;
+                            delete [] *super::_ev;
                             delete [] super::_ev;
                         }
                         super::_ev = new K*[evp._nu];
@@ -385,10 +384,8 @@ class Schur : public Preconditioner<
         void computeSchurComplement() {
 #if defined(MUMPSSUB) || defined(PASTIXSUB) || defined(MKL_PARDISOSUB)
             if(Subdomain<K>::_a) {
-                if(_ii) {
-                    delete _ii;
-                    _ii = nullptr;
-                }
+                delete _ii;
+                _ii = nullptr;
                 if(!_schur) {
                     _schur = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
                     _schur[0] = Subdomain<K>::_dof;

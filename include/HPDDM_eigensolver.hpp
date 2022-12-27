@@ -136,8 +136,7 @@ class Eigensolver {
                         }
                         else
                             uniform = std::uniform_real_distribution<underlying_type<K>>(0.0, 1.0);
-                        if(eigenvectors)
-                            delete [] eigenvectors;
+                        delete [] eigenvectors;
                         std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { v = uniform(generator); });
                         if(Wrapper<K>::is_complex)
                             std::for_each(basis[_nu], basis[nev - 1] + _n, [&](K& v) { imag(v, uniform(generator)); });
@@ -155,7 +154,7 @@ class Eigensolver {
                     break;
             }
             _nu = std::min(_nu, static_cast<int>(nev));
-            if(!_nu && *eigenvectors) {
+            if(!_nu && eigenvectors) {
                 delete [] *eigenvectors;
                 delete [] eigenvectors;
                 eigenvectors = new K*[1];

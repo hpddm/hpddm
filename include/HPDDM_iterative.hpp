@@ -68,8 +68,7 @@ class CustomOperator<MatrixCSR<K>, K> : public EmptyOperator<K> {
         const MatrixCSR<K>* getMatrix() const { return _A; }
         void setMatrix(MatrixCSR<K>* const A) {
             if(A && A->_n == EmptyOperator<K>::_n) {
-                if(_A)
-                    delete _A;
+                delete _A;
                 _A = A;
             }
         }

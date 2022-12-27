@@ -625,8 +625,7 @@ class Schwarz : public Preconditioner<
                 iPrev += tmp[k].size();
             }
             int nnz = iPrev;
-            if(B)
-                delete B;
+            delete B;
             B = new MatrixCSR<K>(Subdomain<K>::_dof, Subdomain<K>::_dof, nnz, A->_sym);
             nnz = iPrev = k = 0;
             for(unsigned int i : intoOverlap) {
@@ -667,8 +666,7 @@ class Schwarz : public Preconditioner<
             else
                 scaleIntoOverlap(A, rhs);
             if(super::_ev) {
-                if(*super::_ev)
-                    delete [] *super::_ev;
+                delete [] *super::_ev;
                 delete [] super::_ev;
             }
 #if defined(MUMPSSUB) || defined(MKL_PARDISOSUB)

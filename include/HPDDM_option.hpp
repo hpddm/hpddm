@@ -460,8 +460,7 @@ class OptionsPrefix {
         typedef K scalar_type;
 #if !HPDDM_PETSC
         void setPrefix(const char* prefix) {
-            if(_prefix)
-                delete [] _prefix;
+            delete [] _prefix;
             _prefix = new char[std::strlen(prefix) + 1];
             std::strcpy(_prefix, prefix);
         }
@@ -497,8 +496,7 @@ class OptionsPrefix {
             return _storage != nullptr;
         }
         K* allocate(int n, unsigned short mu, unsigned short k) {
-            if(_storage)
-                delete [] _storage;
+            delete [] _storage;
             _storage = new K[2 * mu * k * n + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K))];
             unsigned short* pt = reinterpret_cast<unsigned short*>(_storage);
             pt[0] = mu;

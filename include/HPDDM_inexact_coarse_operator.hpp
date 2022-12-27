@@ -737,8 +737,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
             delete [] _rq;
 #else
-            if(_idx)
-                PetscFree(_idx);
+            PetscFree(_idx);
             delete [] _di;
             delete [] _da;
 #endif
