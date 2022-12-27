@@ -195,10 +195,8 @@ static PetscErrorCode KSPReset_HPDDM(KSP ksp)
   KSP_HPDDM *data = (KSP_HPDDM *)ksp->data;
 
   PetscFunctionBegin;
-  if (data->op) {
-    delete data->op;
-    data->op = NULL;
-  }
+  delete data->op;
+  data->op = NULL;
   PetscCall(KSPHPDDMReset_Private(ksp));
   PetscFunctionReturn(0);
 }

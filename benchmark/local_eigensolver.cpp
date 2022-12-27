@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
     K** ev;
     for(unsigned int begin = 0, end = opt.app()["warm_up"]; begin < end; ++begin) {
         S->template solve<SUBDOMAIN>(A, B, ev, MPI_COMM_SELF);
-        if(*ev)
+        if(ev)
             delete [] *ev;
         delete [] ev;
         delete S;
@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
         S->template solve<SUBDOMAIN>(A, B, ev, MPI_COMM_SELF);
         auto tEnd = std::chrono::steady_clock::now();
         std::cout << std::setw(10) << std::setprecision(5) << std::chrono::duration<double, std::milli>(tEnd - tBegin).count() << "\n";
-        if(*ev)
+        if(ev)
             delete [] *ev;
         delete [] ev;
         delete S;

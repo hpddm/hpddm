@@ -178,8 +178,7 @@ class Preconditioner : public Subdomain<K> {
                 }
 #endif
                 if(sizeof...(Types) == 0) {
-                    if(co)
-                        delete co;
+                    delete co;
                     co = new CoarseOperator;
                 }
                 co->setLocal(uniformity ? allUniform[1] : nu);
@@ -274,8 +273,7 @@ class Preconditioner : public Subdomain<K> {
          * Parameter:
          *    mu             - Number of right-hand sides. */
         void start(const unsigned short& mu = 1) const {
-            if(_uc)
-                delete [] _uc;
+            delete [] _uc;
             K** ptr = const_cast<K**>(&_uc);
             *ptr = new K[mu * _co->getSizeRHS()];
         }
@@ -363,7 +361,7 @@ class Preconditioner : public Subdomain<K> {
 #endif
             delete _co;
             _co = nullptr;
-            if(_ev && *_ev)
+            if(_ev)
                 delete [] *_ev;
             delete [] _ev;
             _ev = nullptr;

@@ -72,8 +72,7 @@ class Dense : public Schwarz<
             Option& opt = *Option::get();
             const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", -1.0);
             if(super::_ev) {
-                if(*super::_ev)
-                    delete [] *super::_ev;
+                delete [] *super::_ev;
                 delete [] super::_ev;
             }
 #ifdef MU_ARPACK
