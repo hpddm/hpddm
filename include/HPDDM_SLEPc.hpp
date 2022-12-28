@@ -66,7 +66,7 @@ class Slepc : public Eigensolver<K> {
             K* evr = nullptr;
             const Option& opt = *Option::get();
             PetscFunctionBeginUser;
-            if(Eigensolver<K>::_nu) {
+            if(Eigensolver<K>::nu_) {
                 PetscCall(convert(A, P));
                 PetscCall(convert(B, Q));
                 PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
@@ -76,26 +76,26 @@ class Slepc : public Eigensolver<K> {
                 PetscCall(EPSGetST(eps, &st));
                 PetscCall(STSetType(st, STSINVERT));
                 PetscCall(EPSSetOptionsPrefix(eps, std::string("slepc_" + std::string(HPDDM_PREFIX) + opt.getPrefix()).c_str()));
-                PetscCall(EPSSetDimensions(eps, Eigensolver<K>::_nu, PETSC_DEFAULT, PETSC_DEFAULT));
+                PetscCall(EPSSetDimensions(eps, Eigensolver<K>::nu_, PETSC_DEFAULT, PETSC_DEFAULT));
                 PetscCall(EPSSetFromOptions(eps));
                 PetscCall(EPSSolve(eps));
                 PetscCall(EPSGetConverged(eps, &nconv));
-                Eigensolver<K>::_nu = std::min(static_cast<int>(nconv), Eigensolver<K>::_nu);
-                if(Eigensolver<K>::_nu) {
-                    evr = new K[Eigensolver<K>::_nu];
-                    ev = new K*[Eigensolver<K>::_nu];
-                    *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
-                    for(unsigned short i = 1; i < Eigensolver<K>::_nu; ++i)
-                        ev[i] = *ev + i * Eigensolver<K>::_n;
-                    PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::_n, nullptr, &vr));
+                Eigensolver<K>::nu_ = std::min(static_cast<int>(nconv), Eigensolver<K>::nu_);
+                if(Eigensolver<K>::nu_) {
+                    evr = new K[Eigensolver<K>::nu_];
+                    ev = new K*[Eigensolver<K>::nu_];
+                    *ev = new K[Eigensolver<K>::n_ * Eigensolver<K>::nu_];
+                    for(unsigned short i = 1; i < Eigensolver<K>::nu_; ++i)
+                        ev[i] = *ev + i * Eigensolver<K>::n_;
+                    PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::n_, nullptr, &vr));
                     if(std::is_same<PetscScalar, PetscReal>::value)
-                        PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::_n, nullptr, &vi));
-                    for(unsigned short i = 0; i < Eigensolver<K>::_nu; ++i) {
+                        PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Eigensolver<K>::n_, nullptr, &vi));
+                    for(unsigned short i = 0; i < Eigensolver<K>::nu_; ++i) {
                         bool conjugate = false;
                         PetscScalar evi;
                         PetscCall(EPSGetEigenvalue(eps, i, evr + i, &evi));
                         PetscCall(VecPlaceArray(vr, ev[i]));
-                        if(std::is_same<PetscScalar, PetscReal>::value && std::abs(evi) > HPDDM_EPS && i < Eigensolver<K>::_nu - 1) {
+                        if(std::is_same<PetscScalar, PetscReal>::value && std::abs(evi) > HPDDM_EPS && i < Eigensolver<K>::nu_ - 1) {
                             evr[i + 1] = evi;
                             PetscCall(VecPlaceArray(vi, ev[i + 1]));
                             conjugate = true;
@@ -120,7 +120,7 @@ class Slepc : public Eigensolver<K> {
                 ev = new K*[1];
                 *ev = nullptr;
             }
-            if(Eigensolver<K>::_threshold > 0.0)
+            if(Eigensolver<K>::threshold_ > 0.0)
                 Eigensolver<K>::selectNu(evr, ev, communicator);
             delete [] evr;
             PetscFunctionReturn(0);

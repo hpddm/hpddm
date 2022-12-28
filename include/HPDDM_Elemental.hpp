@@ -45,33 +45,33 @@ class Elemental : public DMatrix {
     private:
         template<class T>
         using ElT = typename std::conditional<Wrapper<T>::is_complex, typename El::Complex<underlying_type<T>>, T>::type;
-        El::Grid*               _grid;
-        El::DistMatrix<ElT<K>>*    _A;
-        El::DistMatrix<ElT<K>>*    _B;
-        El::DistMatrix<ElT<K>>*    _d;
-        El::DistPermutation*       _P;
-        El::DistPermutation*       _Q;
-        const int*          _loc2glob;
-        unsigned short            _bs;
-        unsigned short          _type;
+        El::Grid*               grid_;
+        El::DistMatrix<ElT<K>>*    A_;
+        El::DistMatrix<ElT<K>>*    B_;
+        El::DistMatrix<ElT<K>>*    d_;
+        El::DistPermutation*       P_;
+        El::DistPermutation*       Q_;
+        const int*          loc2glob_;
+        unsigned short            bs_;
+        unsigned short          type_;
     protected:
         /* Variable: numbering
          *  0-based indexing. */
-        static constexpr char _numbering = 'C';
+        static constexpr char numbering_ = 'C';
     public:
-        Elemental() : _grid(), _A(), _B(), _d(), _P(), _Q(), _loc2glob(), _bs(), _type() {
+        Elemental() : grid_(), A_(), B_(), d_(), P_(), Q_(), loc2glob_(), bs_(), type_() {
             El::Initialize();
         }
         ~Elemental() {
-            if(_loc2glob) {
-                delete [] _loc2glob;
-                _loc2glob = nullptr;
-                delete _Q;
-                delete _P;
-                delete _d;
-                delete _B;
-                delete _A;
-                delete _grid;
+            if(loc2glob_) {
+                delete [] loc2glob_;
+                loc2glob_ = nullptr;
+                delete Q_;
+                delete P_;
+                delete d_;
+                delete B_;
+                delete A_;
+                delete grid_;
             }
             El::Finalize();
         }
@@ -89,67 +89,67 @@ class Elemental : public DMatrix {
          *    C              - Array of data. */
         template<char S>
         void numfact(unsigned short bs, int* I, int* loc2glob, int* J, K*& C) {
-            El::mpi::Comm comm = DMatrix::_communicator;
-            _grid = new El::Grid(comm, El::mpi::Size(comm), El::ROW_MAJOR);
-            _A = new El::DistMatrix<ElT<K>>(*_grid);
-            El::Zeros(*_A, DMatrix::_n, DMatrix::_n);
+            El::mpi::Comm comm = DMatrix::communicator_;
+            grid_ = new El::Grid(comm, El::mpi::Size(comm), El::ROW_MAJOR);
+            A_ = new El::DistMatrix<ElT<K>>(*grid_);
+            El::Zeros(*A_, DMatrix::n_, DMatrix::n_);
             if(I && J) {
-                _A->Reserve(I[loc2glob[1] - loc2glob[0] + 1] * bs * bs);
+                A_->Reserve(I[loc2glob[1] - loc2glob[0] + 1] * bs * bs);
                 for(int i = 0; i < loc2glob[1] - loc2glob[0] + 1; ++i)
                     for(int j = I[i]; j < I[i + 1]; ++j)
                         for(int n = 0; n < bs; ++n)
                             for(int m = 0; m < bs; ++m) {
                                 if(S == 'S') {
                                     if((loc2glob[0] + i) * bs + n < J[j] * bs + m)
-                                        _A->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs]);
+                                        A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs]);
                                     else if((loc2glob[0] + i) * bs + n == J[j] * bs + m)
-                                        _A->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs] / 2.0);
+                                        A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs] / 2.0);
                                 }
                                 else
-                                    _A->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs]);
+                                    A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs]);
                             }
             }
             else {
-                _A->Reserve((loc2glob[1] - loc2glob[0] + 1) * bs * bs * DMatrix::_n);
+                A_->Reserve((loc2glob[1] - loc2glob[0] + 1) * bs * bs * DMatrix::n_);
                 for(int i = 0; i < loc2glob[1] - loc2glob[0] + 1; ++i)
-                    for(int j = 0; j < DMatrix::_n; ++j)
+                    for(int j = 0; j < DMatrix::n_; ++j)
                         for(int n = 0; n < bs; ++n)
                             for(int m = 0; m < bs; ++m) {
                                 if(S == 'S') {
                                     if((loc2glob[0] + i) * bs + n < j * bs + m)
-                                        _A->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::_n]);
+                                        A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_]);
                                     else if((loc2glob[0] + i) * bs + n == j * bs + m)
-                                        _A->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::_n] / 2.0);
+                                        A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_] / 2.0);
                                 }
                                 else
-                                    _A->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::_n]);
+                                    A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_]);
                             }
             }
-            _A->ProcessQueues();
+            A_->ProcessQueues();
             if(S == 'S') {
-                El::DistMatrix<ElT<K>> C(*_grid);
-                El::Transpose(*_A, C);
-                El::Axpy(Wrapper<K>::d__1, C, *_A);
+                El::DistMatrix<ElT<K>> C(*grid_);
+                El::Transpose(*A_, C);
+                El::Axpy(Wrapper<K>::d__1, C, *A_);
             }
-            _B = new El::DistMatrix<ElT<K>>(*_grid);
-            El::Zeros(*_B, DMatrix::_n, 1);
-            _loc2glob = loc2glob;
-            _bs = bs;
+            B_ = new El::DistMatrix<ElT<K>>(*grid_);
+            El::Zeros(*B_, DMatrix::n_, 1);
+            loc2glob_ = loc2glob;
+            bs_ = bs;
             if(S == 'S')
-                _type = Option::get()->val<char>("operator_spd", 0) ? 1 : 2;
-            if(_type == 1) {
-                _P = new El::DistPermutation(*_grid);
-                El::Cholesky(El::LOWER, *_A, *_P);
+                type_ = Option::get()->val<char>("operator_spd", 0) ? 1 : 2;
+            if(type_ == 1) {
+                P_ = new El::DistPermutation(*grid_);
+                El::Cholesky(El::LOWER, *A_, *P_);
             }
-            else if(_type == 2) {
-                _d = new El::DistMatrix<ElT<K>>(*_grid);
-                _P = new El::DistPermutation(*_grid);
-                El::LDL(*_A, *_d, *_P, false);
+            else if(type_ == 2) {
+                d_ = new El::DistMatrix<ElT<K>>(*grid_);
+                P_ = new El::DistPermutation(*grid_);
+                El::LDL(*A_, *d_, *P_, false);
             }
             else {
-                _P = new El::DistPermutation(*_grid);
-                _Q = new El::DistPermutation(*_grid);
-                El::LU(*_A, *_P, *_Q);
+                P_ = new El::DistPermutation(*grid_);
+                Q_ = new El::DistPermutation(*grid_);
+                El::LU(*A_, *P_, *Q_);
             }
         }
         /* Function: solve
@@ -164,29 +164,29 @@ class Elemental : public DMatrix {
 #else
         void solve(const K* const rhs, K* const x, const unsigned short& n) const {
 #endif
-            _B->Resize(DMatrix::_n * _bs, n);
-            El::Fill(*_B, ElT<K>());
-            _B->Reserve((_loc2glob[1] - _loc2glob[0] + 1) * n * _bs);
+            B_->Resize(DMatrix::n_ * bs_, n);
+            El::Fill(*B_, ElT<K>());
+            B_->Reserve((loc2glob_[1] - loc2glob_[0] + 1) * n * bs_);
             for(int j = 0; j < n; ++j) {
-                for(int i = 0; i < (_loc2glob[1] - _loc2glob[0] + 1) * _bs; ++i)
-                    _B->QueueUpdate(_loc2glob[0] * _bs + i, j, rhs[i + (_loc2glob[1] - _loc2glob[0] + 1) * _bs * j]);
+                for(int i = 0; i < (loc2glob_[1] - loc2glob_[0] + 1) * bs_; ++i)
+                    B_->QueueUpdate(loc2glob_[0] * bs_ + i, j, rhs[i + (loc2glob_[1] - loc2glob_[0] + 1) * bs_ * j]);
             }
-            _B->ProcessQueues();
-            if(_type == 1)
-                El::cholesky::SolveAfter(El::LOWER, El::NORMAL, *_A, *_P, *_B);
-            else if(_type == 2)
-                El::ldl::SolveAfter(*_A, *_d, *_P, *_B, false);
+            B_->ProcessQueues();
+            if(type_ == 1)
+                El::cholesky::SolveAfter(El::LOWER, El::NORMAL, *A_, *P_, *B_);
+            else if(type_ == 2)
+                El::ldl::SolveAfter(*A_, *d_, *P_, *B_, false);
             else
-                El::lu::SolveAfter(El::NORMAL, *_A, *_P, *_Q, *_B);
-            _B->ReservePulls((_loc2glob[1] - _loc2glob[0] + 1) * n * _bs);
+                El::lu::SolveAfter(El::NORMAL, *A_, *P_, *Q_, *B_);
+            B_->ReservePulls((loc2glob_[1] - loc2glob_[0] + 1) * n * bs_);
             for(int j = 0; j < n; ++j) {
-                for(int i = 0; i < (_loc2glob[1] - _loc2glob[0] + 1) * _bs; ++i)
-                    _B->QueuePull(_loc2glob[0] * _bs + i, j);
+                for(int i = 0; i < (loc2glob_[1] - loc2glob_[0] + 1) * bs_; ++i)
+                    B_->QueuePull(loc2glob_[0] * bs_ + i, j);
             }
 #if !HPDDM_INEXACT_COARSE_OPERATOR
-            _B->ProcessPullQueue(reinterpret_cast<ElT<K>*>(rhs));
+            B_->ProcessPullQueue(reinterpret_cast<ElT<K>*>(rhs));
 #else
-            _B->ProcessPullQueue(reinterpret_cast<ElT<K>*>(x));
+            B_->ProcessPullQueue(reinterpret_cast<ElT<K>*>(x));
 #endif
         }
 };

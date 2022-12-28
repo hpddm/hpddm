@@ -95,7 +95,7 @@ class DMatrix {
         }
     protected:
 #ifdef HPDDM_PETSC
-        static constexpr char _numbering = 'C';
+        static constexpr char numbering_ = 'C';
 #endif
 #ifndef HPDDM_CONTIGUOUS
         /* Typedef: pair_type
@@ -111,40 +111,40 @@ class DMatrix {
         using map_type = std::map<unsigned short, std::vector<T>>;
         /* Variable: mapRecv
          *  Values that have to be received to match the distribution of the direct solver and of the user. */
-        map_type<pair_type>*        _mapRecv;
+        map_type<pair_type>*        mapRecv_;
         /* Variable: mapSend
          *  Values that have to be sent to match the distribution of the direct solver and of the user. */
-        map_type<pair_type>*        _mapSend;
+        map_type<pair_type>*        mapSend_;
         /* Variable: mapOwn
          *  Values that have to remain on this process to match the distribution of the direct solver and of the user. */
-        std::vector<pair_type>*      _mapOwn;
+        std::vector<pair_type>*      mapOwn_;
         /* Variable: idistribution */
-        int*                  _idistribution;
+        int*                  idistribution_;
 #endif
         /* Variable: ldistribution
          *  User distribution. */
-        int*                  _ldistribution;
+        int*                  ldistribution_;
         /* Variable: gatherCounts */
-        int*                   _gatherCounts;
+        int*                   gatherCounts_;
         /* Variable: gatherSplitCounts */
-        int*              _gatherSplitCounts;
+        int*              gatherSplitCounts_;
         /* Variable: displs */
-        int*                         _displs;
+        int*                         displs_;
         /* Variable: displsSplit */
-        int*                    _displsSplit;
+        int*                    displsSplit_;
         /* Variable: communicator
          *  MPI communicator on which the matrix is distributed. */
-        MPI_Comm               _communicator;
+        MPI_Comm               communicator_;
         /* Variable: n
          *  Size of the coarse operator. */
-        int                               _n;
+        int                               n_;
         /* Variable: rank
          *  Rank of the current main process in <Coarse operator::communicator>. */
-        int                            _rank;
+        int                            rank_;
 #ifdef DMUMPS
         /* Variable: distribution
          *  <Distribution> used for right-hand sides and solution vectors. */
-        Distribution           _distribution;
+        Distribution           distribution_;
 #endif
 #ifndef HPDDM_CONTIGUOUS
         /* Function: initializeMap
@@ -162,64 +162,64 @@ class DMatrix {
         template<bool isRHS, class K>
         void initializeMap(const int& info, const int* const isol_loc, K* const sol_loc, K* const sol) {
             int size;
-            MPI_Comm_size(_communicator, &size);
+            MPI_Comm_size(communicator_, &size);
             int* lsol_loc_glob = new int[size];
-            lsol_loc_glob[_rank] = info;
-            MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, lsol_loc_glob, 1, MPI_INT, _communicator);
-            int* isol_loc_glob = new int[_n];
+            lsol_loc_glob[rank_] = info;
+            MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, lsol_loc_glob, 1, MPI_INT, communicator_);
+            int* isol_loc_glob = new int[n_];
             int* disp_lsol_loc_glob = new int[size];
             disp_lsol_loc_glob[0] = 0;
             std::partial_sum(lsol_loc_glob, lsol_loc_glob + size - 1, disp_lsol_loc_glob + 1);
-            MPI_Allgatherv(const_cast<int*>(isol_loc), info, MPI_INT, isol_loc_glob, lsol_loc_glob, disp_lsol_loc_glob, MPI_INT, _communicator);
+            MPI_Allgatherv(const_cast<int*>(isol_loc), info, MPI_INT, isol_loc_glob, lsol_loc_glob, disp_lsol_loc_glob, MPI_INT, communicator_);
             delete [] disp_lsol_loc_glob;
-            std::vector<std::pair<unsigned short, unsigned int>> mapping(_n);
-            std::vector<std::pair<unsigned short, unsigned int>> mapping_user(_n);
-            _mapRecv = new map_type<pair_type>;
-            _mapSend = new map_type<pair_type>;
-            _mapOwn = new std::vector<pair_type>;
+            std::vector<std::pair<unsigned short, unsigned int>> mapping(n_);
+            std::vector<std::pair<unsigned short, unsigned int>> mapping_user(n_);
+            mapRecv_ = new map_type<pair_type>;
+            mapSend_ = new map_type<pair_type>;
+            mapOwn_ = new std::vector<pair_type>;
             unsigned int offset = 0;
             for(unsigned short i = 0; i < size; ++i)
                 for(unsigned int j = 0; j < lsol_loc_glob[i]; ++j)
                     mapping[isol_loc_glob[offset++] - 1] = { i, j };
             offset = 0;
-            if(_idistribution) {
+            if(idistribution_) {
                 for(unsigned short i = 0; i < size; ++i)
-                    for(unsigned int j = 0; j < _ldistribution[i]; ++j)
-                        mapping_user[_idistribution[offset++]] = { i, j };
+                    for(unsigned int j = 0; j < ldistribution_[i]; ++j)
+                        mapping_user[idistribution_[offset++]] = { i, j };
             }
             else {
                 for(unsigned short i = 0; i < size; ++i)
-                    for(unsigned int j = 0; j < _ldistribution[i]; ++j)
+                    for(unsigned int j = 0; j < ldistribution_[i]; ++j)
                         mapping_user[offset++] = { i, j };
             }
             map_type<K> map_recv;
             map_type<K> map_send;
-            offset = std::accumulate(_ldistribution, _ldistribution + _rank, 0);
+            offset = std::accumulate(ldistribution_, ldistribution_ + rank_, 0);
             if(!isRHS) {
                 for(unsigned int i = 0; i < info; ++i) {
                     std::pair<unsigned short, unsigned int> tmp = mapping_user[isol_loc[i] - 1];
-                    if(tmp.first != _rank) {
+                    if(tmp.first != rank_) {
                         map_send[tmp.first].emplace_back(sol_loc[i]);
-                        (*_mapSend)[tmp.first].emplace_back(i, tmp.second);
+                        (*mapSend_)[tmp.first].emplace_back(i, tmp.second);
                     }
                 }
-                if(_idistribution)
-                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
-                        std::pair<unsigned short, unsigned int> tmp = mapping[_idistribution[i]];
-                        if(tmp.first != _rank)
+                if(idistribution_)
+                    for(unsigned int i = offset; i < offset + ldistribution_[rank_]; ++i) {
+                        std::pair<unsigned short, unsigned int> tmp = mapping[idistribution_[i]];
+                        if(tmp.first != rank_)
                             map_recv[tmp.first].resize(map_recv[tmp.first].size() + 1);
                         else {
-                            _mapOwn->emplace_back(mapping_user[_idistribution[i]].second, tmp.second);
-                            sol[mapping_user[_idistribution[i]].second] = sol_loc[tmp.second];
+                            mapOwn_->emplace_back(mapping_user[idistribution_[i]].second, tmp.second);
+                            sol[mapping_user[idistribution_[i]].second] = sol_loc[tmp.second];
                         }
                     }
                 else
-                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
+                    for(unsigned int i = offset; i < offset + ldistribution_[rank_]; ++i) {
                         std::pair<unsigned short, unsigned int> tmp = mapping[i];
-                        if(tmp.first != _rank)
+                        if(tmp.first != rank_)
                             map_recv[tmp.first].resize(map_recv[tmp.first].size() + 1);
                         else {
-                            _mapOwn->emplace_back(mapping_user[i].second, tmp.second);
+                            mapOwn_->emplace_back(mapping_user[i].second, tmp.second);
                             sol[mapping_user[i].second] = sol_loc[tmp.second];
                         }
                     }
@@ -227,30 +227,30 @@ class DMatrix {
             else {
                 for(unsigned int i = 0; i < info; ++i) {
                     unsigned short tmp = mapping_user[isol_loc[i] - 1].first;
-                    if(tmp != _rank)
+                    if(tmp != rank_)
                         map_recv[tmp].resize(map_recv[tmp].size() + 1);
                 }
-                if(_idistribution)
-                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
-                        std::pair<unsigned short, unsigned int> tmp = mapping[_idistribution[i]];
-                        if(tmp.first != _rank) {
+                if(idistribution_)
+                    for(unsigned int i = offset; i < offset + ldistribution_[rank_]; ++i) {
+                        std::pair<unsigned short, unsigned int> tmp = mapping[idistribution_[i]];
+                        if(tmp.first != rank_) {
                             map_send[tmp.first].emplace_back(sol[i - offset]);
-                            (*_mapSend)[tmp.first].emplace_back(i - offset, tmp.second);
+                            (*mapSend_)[tmp.first].emplace_back(i - offset, tmp.second);
                         }
                         else {
-                            _mapOwn->emplace_back(mapping[_idistribution[i]].second, mapping_user[_idistribution[i]].second);
-                            sol_loc[mapping[_idistribution[i]].second] = sol[mapping_user[_idistribution[i]].second];
+                            mapOwn_->emplace_back(mapping[idistribution_[i]].second, mapping_user[idistribution_[i]].second);
+                            sol_loc[mapping[idistribution_[i]].second] = sol[mapping_user[idistribution_[i]].second];
                         }
                     }
                 else
-                    for(unsigned int i = offset; i < offset + _ldistribution[_rank]; ++i) {
+                    for(unsigned int i = offset; i < offset + ldistribution_[rank_]; ++i) {
                         std::pair<unsigned short, unsigned int> tmp = mapping[i];
-                        if(tmp.first != _rank) {
+                        if(tmp.first != rank_) {
                             map_send[tmp.first].emplace_back(sol[i - offset]);
-                            (*_mapSend)[tmp.first].emplace_back(i - offset, tmp.second);
+                            (*mapSend_)[tmp.first].emplace_back(i - offset, tmp.second);
                         }
                         else {
-                            _mapOwn->emplace_back(mapping[i].second, mapping_user[i].second);
+                            mapOwn_->emplace_back(mapping[i].second, mapping_user[i].second);
                             sol_loc[mapping[i].second] = sol[mapping_user[i].second];
                         }
                     }
@@ -259,9 +259,9 @@ class DMatrix {
             MPI_Request* rqRecv = rqSend + map_send.size();
             unsigned int i = 0;
             for(typename map_type<K>::iterator it = map_send.begin(); it != map_send.end(); ++it)
-                MPI_Isend(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, _communicator, rqSend + i++);
+                MPI_Isend(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, communicator_, rqSend + i++);
             for(typename map_type<K>::iterator it = map_recv.begin(); it != map_recv.end(); ++it)
-                MPI_Irecv(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, _communicator, rqSend + i++);
+                MPI_Irecv(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, communicator_, rqSend + i++);
             for(unsigned int i = 0; i < map_recv.size(); ++i) {
                 int index;
                 MPI_Waitany(map_recv.size(), rqRecv, &index, MPI_STATUS_IGNORE);
@@ -269,24 +269,24 @@ class DMatrix {
                 if(!isRHS) {
                     unsigned int offset = std::accumulate(lsol_loc_glob, lsol_loc_glob + it_index->first, 0);
                     for(unsigned int j = offset, accumulate = 0; j < offset + lsol_loc_glob[it_index->first]; ++j)
-                        if(mapping_user[isol_loc_glob[j] - 1].first == _rank) {
-                            (*_mapRecv)[it_index->first].emplace_back(mapping_user[isol_loc_glob[j] - 1].second, accumulate);
+                        if(mapping_user[isol_loc_glob[j] - 1].first == rank_) {
+                            (*mapRecv_)[it_index->first].emplace_back(mapping_user[isol_loc_glob[j] - 1].second, accumulate);
                             sol[mapping_user[isol_loc_glob[j] - 1].second] = (it_index->second)[accumulate++];
                         }
                 }
                 else {
-                    unsigned int offset = std::accumulate(_ldistribution, _ldistribution + it_index->first, 0);
-                    if(_idistribution) {
-                        for(unsigned int j = offset, accumulate = 0; j < offset + _ldistribution[it_index->first]; ++j)
-                            if(mapping[_idistribution[j]].first == _rank) {
-                                (*_mapRecv)[it_index->first].emplace_back(mapping[_idistribution[j]].second, accumulate);
-                                sol_loc[mapping[_idistribution[j]].second] = (it_index->second)[accumulate++];
+                    unsigned int offset = std::accumulate(ldistribution_, ldistribution_ + it_index->first, 0);
+                    if(idistribution_) {
+                        for(unsigned int j = offset, accumulate = 0; j < offset + ldistribution_[it_index->first]; ++j)
+                            if(mapping[idistribution_[j]].first == rank_) {
+                                (*mapRecv_)[it_index->first].emplace_back(mapping[idistribution_[j]].second, accumulate);
+                                sol_loc[mapping[idistribution_[j]].second] = (it_index->second)[accumulate++];
                             }
                     }
                     else {
-                        for(unsigned int j = offset, accumulate = 0; j < offset + _ldistribution[it_index->first]; ++j)
-                            if(mapping[j].first == _rank) {
-                                (*_mapRecv)[it_index->first].emplace_back(mapping[j].second, accumulate);
+                        for(unsigned int j = offset, accumulate = 0; j < offset + ldistribution_[it_index->first]; ++j)
+                            if(mapping[j].first == rank_) {
+                                (*mapRecv_)[it_index->first].emplace_back(mapping[j].second, accumulate);
                                 sol_loc[mapping[j].second] = (it_index->second)[accumulate++];
                             }
                     }
@@ -296,9 +296,9 @@ class DMatrix {
             delete [] rqSend;
             delete [] isol_loc_glob;
             delete [] lsol_loc_glob;
-            delete [] _ldistribution;
-            _ldistribution = nullptr;
-            delete [] _idistribution;
+            delete [] ldistribution_;
+            ldistribution_ = nullptr;
+            delete [] idistribution_;
         }
         /* Function: redistribute
          *
@@ -315,12 +315,12 @@ class DMatrix {
             map_type<pair_type>* map_recv_index;
             map_type<pair_type>* map_send_index;
             if(P == 0 || P == 1) {
-                map_recv_index = _mapRecv;
-                map_send_index = _mapSend;
+                map_recv_index = mapRecv_;
+                map_send_index = mapSend_;
             }
             else {
-                map_recv_index = _mapSend;
-                map_send_index = _mapRecv;
+                map_recv_index = mapSend_;
+                map_send_index = mapRecv_;
             }
             map_type<K> map_recv;
             map_type<K> map_send;
@@ -337,13 +337,13 @@ class DMatrix {
                     else if(P == 2)
                         map_send[q.first].emplace_back(res[p.first]);
                 }
-                MPI_Isend(map_send[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, _communicator, rqSend + i++);
+                MPI_Isend(map_send[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, communicator_, rqSend + i++);
             }
             for(map_type<pair_type>::const_reference q : *map_recv_index) {
                 map_recv[q.first].resize(q.second.size());
-                MPI_Irecv(map_recv[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, _communicator, rqSend + i++);
+                MPI_Irecv(map_recv[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, communicator_, rqSend + i++);
             }
-            for(std::vector<pair_type>::const_reference p : *_mapOwn) {
+            for(std::vector<pair_type>::const_reference p : *mapOwn_) {
                 if(P == 0)
                     res[p.first] = vec[p.second];
                 else if(P == 1)
@@ -372,27 +372,27 @@ class DMatrix {
     public:
         DMatrix() :
 #ifndef HPDDM_CONTIGUOUS
-            _mapRecv(), _mapSend(), _mapOwn(), _idistribution(),
+            mapRecv_(), mapSend_(), mapOwn_(), idistribution_(),
 #endif
-            _ldistribution(), _gatherCounts(), _gatherSplitCounts(), _displs(), _displsSplit(), _communicator(MPI_COMM_NULL), _n(), _rank()
+            ldistribution_(), gatherCounts_(), gatherSplitCounts_(), displs_(), displsSplit_(), communicator_(MPI_COMM_NULL), n_(), rank_()
 #ifdef DMUMPS
-                                                                                                                                           , _distribution()
+                                                                                                                                           , distribution_()
 #endif
                                                                                                                                                              { }
         DMatrix(const DMatrix&) = delete;
         ~DMatrix() {
 #ifndef HPDDM_CONTIGUOUS
-            if(!_mapRecv)
-                delete [] _idistribution;
-            delete _mapRecv;
-            delete _mapSend;
-            delete _mapOwn;
+            if(!mapRecv_)
+                delete [] idistribution_;
+            delete mapRecv_;
+            delete mapSend_;
+            delete mapOwn_;
 #endif
-            delete [] _ldistribution;
-            delete [] _gatherCounts;
-            delete [] _gatherSplitCounts;
-            if(_communicator != MPI_COMM_NULL && _communicator != MPI_COMM_SELF)
-                MPI_Comm_free(&_communicator);
+            delete [] ldistribution_;
+            delete [] gatherCounts_;
+            delete [] gatherSplitCounts_;
+            if(communicator_ != MPI_COMM_NULL && communicator_ != MPI_COMM_SELF)
+                MPI_Comm_free(&communicator_);
         }
 };
 } // HPDDM

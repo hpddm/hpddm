@@ -252,14 +252,14 @@ struct Lapack {
 template<class K>
 class QR {
     private:
-        int                               _n;
-        int                           _lwork;
-        K* const                          _a;
-        K* const                        _tau;
-        K* const                       _work;
+        int                               n_;
+        int                           lwork_;
+        K* const                          a_;
+        K* const                        tau_;
+        K* const                       work_;
 # if HPDDM_QR == 1
-        std::vector<int>               _jpvt;
-        int                            _rank;
+        std::vector<int>               jpvt_;
+        int                            rank_;
 # endif
         /* Function: workspace
          *  Returns the optimal size of the workspace array. */
@@ -268,71 +268,71 @@ class QR {
             int lwork[2] { -1, -1 };
             K wkopt;
 # if HPDDM_QR == 1
-            Lapack<K>::geqp3(&_n, &_n, nullptr, &_n, nullptr, nullptr, &wkopt, lwork, nullptr, &info);
+            Lapack<K>::geqp3(&n_, &n_, nullptr, &n_, nullptr, nullptr, &wkopt, lwork, nullptr, &info);
 # else
-            Lapack<K>::geqrf(&_n, &_n, nullptr, &_n, nullptr, &wkopt, lwork, &info);
+            Lapack<K>::geqrf(&n_, &n_, nullptr, &n_, nullptr, &wkopt, lwork, &info);
 # endif
             lwork[0] = static_cast<int>(std::real(wkopt));
-            Lapack<K>::mqr("L", "T", &_n, &i__1, &_n, nullptr, &_n, nullptr, nullptr, &_n, &wkopt, lwork + 1, &info);
+            Lapack<K>::mqr("L", "T", &n_, &i__1, &n_, nullptr, &n_, nullptr, nullptr, &n_, &wkopt, lwork + 1, &info);
             lwork[1] = static_cast<int>(std::real(wkopt));
             return *std::max_element(lwork, lwork + 1);
         }
     public:
-        QR(int n, const K* const cpy = nullptr) : _n(n), _lwork(workspace()), _a(new K[_n * (_n + 1) + _lwork]), _tau(_a + _n * _n), _work(_tau + _n) {
+        QR(int n, const K* const cpy = nullptr) : n_(n), lwork_(workspace()), a_(new K[n_ * (n_ + 1) + lwork_]), tau_(a_ + n_ * n_), work_(tau_ + n_) {
 # if HPDDM_QR == 1
-            _jpvt.resize(_n);
-            _rank = n;
+            jpvt_.resize(n_);
+            rank_ = n;
 # endif
             if(cpy)
-                for(unsigned int i = 0; i < _n; ++i) {
-                    _a[i * (_n + 1)] = cpy[i * (_n + 1)];
-                    for(unsigned int j = i + 1; j < _n; ++j)
-                        _a[j * _n + i] = _a[i * _n + j] = cpy[i * _n + j];
+                for(unsigned int i = 0; i < n_; ++i) {
+                    a_[i * (n_ + 1)] = cpy[i * (n_ + 1)];
+                    for(unsigned int j = i + 1; j < n_; ++j)
+                        a_[j * n_ + i] = a_[i * n_ + j] = cpy[i * n_ + j];
                 }
         }
         QR(const QR&) = delete;
         ~QR() {
-            delete [] _a;
+            delete [] a_;
         }
         /* Function: getPointer
          *  Returns the pointer <QR::a>. */
-        K* getPointer() const { return _a; }
+        K* getPointer() const { return a_; }
         void decompose() {
             int info;
 # if HPDDM_QR == 1
-            underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * _n] : nullptr;
-            Lapack<K>::geqp3(&_n, &_n, _a, &_n, _jpvt.data(), _tau, _work, &_lwork, rwork, &info);
+            underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * n_] : nullptr;
+            Lapack<K>::geqp3(&n_, &n_, a_, &n_, jpvt_.data(), tau_, work_, &lwork_, rwork, &info);
             delete [] rwork;
-            while(std::abs(_a[(_rank - 1) * (_n + 1)]) < HPDDM_EPS * std::abs(_a[0]) && _rank-- > 0);
+            while(std::abs(a_[(rank_ - 1) * (n_ + 1)]) < HPDDM_EPS * std::abs(a_[0]) && rank_-- > 0);
 # else
-            Lapack<K>::geqrf(&_n, &_n, _a, &_n, _tau, _work, &_lwork, &info);
+            Lapack<K>::geqrf(&n_, &n_, a_, &n_, tau_, work_, &lwork_, &info);
             std::vector<int> jpvt;
             jpvt.reserve(6);
-            underlying_type<K> max = std::abs(_a[0]);
-            for(unsigned int i = 1; i < _n; ++i) {
-                if(std::abs(_a[(_n + 1) * i]) < max * 1.0e-6)
+            underlying_type<K> max = std::abs(a_[0]);
+            for(unsigned int i = 1; i < n_; ++i) {
+                if(std::abs(a_[(n_ + 1) * i]) < max * 1.0e-6)
                     jpvt.emplace_back(i);
-                else if(std::abs(_a[(_n + 1) * i]) > max / 1.0e-6) {
+                else if(std::abs(a_[(n_ + 1) * i]) > max / 1.0e-6) {
                     jpvt.clear();
-                    max = std::abs(_a[(_n + 1) * i]);
+                    max = std::abs(a_[(n_ + 1) * i]);
                     i = 0;
                 }
                 else
-                    max = std::max(std::abs(_a[(i + 1) * _n]), max);
+                    max = std::max(std::abs(a_[(i + 1) * n_]), max);
             }
-            std::for_each(jpvt.cbegin(), jpvt.cend(), [&](const int i) { std::fill_n(_a + _n * i, i, K()); _a[(_n + 1) * i] = Wrapper<K>::d__1; });
+            std::for_each(jpvt.cbegin(), jpvt.cend(), [&](const int i) { std::fill_n(a_ + n_ * i, i, K()); a_[(n_ + 1) * i] = Wrapper<K>::d__1; });
 # endif
         }
         /* Function: solve
          *  Computes the solution of a least squares problem. */
         void solve(K* const x) const {
             int info;
-            Lapack<K>::mqr("L", "T", &_n, &i__1, &_n, _a, &_n, _tau, x, &_n, _work, &_lwork, &info);
+            Lapack<K>::mqr("L", "T", &n_, &i__1, &n_, a_, &n_, tau_, x, &n_, work_, &lwork_, &info);
 # if HPDDM_QR == 1
-            Lapack<K>::trtrs("U", "N", "N", &_rank, &i__1, _a, &_n, x, &_n, &info);
-            Lapack<K>::lapmt(&i__0, &i__1, &_n, x, &i__1, const_cast<int*>(_jpvt.data()));
+            Lapack<K>::trtrs("U", "N", "N", &rank_, &i__1, a_, &n_, x, &n_, &info);
+            Lapack<K>::lapmt(&i__0, &i__1, &n_, x, &i__1, const_cast<int*>(jpvt_.data()));
 # else
-            Lapack<K>::trtrs("U", "N", "N", &_n, &i__1, _a, &_n, x, &_n, &info);
+            Lapack<K>::trtrs("U", "N", "N", &n_, &i__1, a_, &n_, x, &n_, &info);
 # endif
         }
 };
@@ -347,62 +347,62 @@ class QR {
 template<class K>
 class LapackTRSub {
     private:
-        K*                _a;
-        int*           _ipiv;
-        int               _n;
-        unsigned short _type;
+        K*                a_;
+        int*           ipiv_;
+        int               n_;
+        unsigned short type_;
     public:
-        LapackTRSub() : _a(), _ipiv(), _n(), _type() { }
+        LapackTRSub() : a_(), ipiv_(), n_(), type_() { }
         LapackTRSub(const LapackTRSub&) = delete;
         ~LapackTRSub() { dtor(); }
-        static constexpr char _numbering = 'F';
+        static constexpr char numbering_ = 'F';
         void dtor() {
-            delete [] _a;
-            _a = nullptr;
-            delete [] _ipiv;
-            _ipiv = nullptr;
+            delete [] a_;
+            a_ = nullptr;
+            delete [] ipiv_;
+            ipiv_ = nullptr;
         }
         template<char N = HPDDM_NUMBERING, bool transpose = false>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
-            _n = A->_n;
-            _a = new K[_n * _n]();
-            if(A->_nnz == _n * _n) {
+            n_ = A->n_;
+            a_ = new K[n_ * n_]();
+            if(A->nnz_ == n_ * n_) {
                 if(N == 'C')
-                    Wrapper<K>::template omatcopy<'T'>(_n, _n, A->_a, _n, _a, _n);
+                    Wrapper<K>::template omatcopy<'T'>(n_, n_, A->a_, n_, a_, n_);
                 else
-                    std::copy_n(A->_a, A->_nnz, _a);
+                    std::copy_n(A->a_, A->nnz_, a_);
             }
             else {
-                for(unsigned int i = 0; i < A->_n; ++i) {
-                    for(unsigned int j = A->_ia[i] - (N == 'F'); j < A->_ia[i + 1] - (N == 'F'); ++j) {
+                for(unsigned int i = 0; i < A->n_; ++i) {
+                    for(unsigned int j = A->ia_[i] - (N == 'F'); j < A->ia_[i + 1] - (N == 'F'); ++j) {
                         if(!transpose)
-                            _a[i + (A->_ja[j] - (N == 'F')) * _n] = A->_a[j];
+                            a_[i + (A->ja_[j] - (N == 'F')) * n_] = A->a_[j];
                         else
-                            _a[i * _n + (A->_ja[j] - (N == 'F'))] = A->_a[j];
+                            a_[i * n_ + (A->ja_[j] - (N == 'F'))] = A->a_[j];
                     }
                 }
             }
             int info;
-            if(!A->_sym) {
-                _ipiv = new int[_n];
-                Lapack<K>::getrf(&_n, &_n, _a, &_n, _ipiv, &info);
+            if(!A->sym_) {
+                ipiv_ = new int[n_];
+                Lapack<K>::getrf(&n_, &n_, a_, &n_, ipiv_, &info);
             }
             else {
-                _type = 1 + (Option::get()->val<char>("operator_spd", 0) && !detection);
-                if(_type == 1) {
+                type_ = 1 + (Option::get()->val<char>("operator_spd", 0) && !detection);
+                if(type_ == 1) {
                     int lwork = -1;
-                    _ipiv = new int[_n];
+                    ipiv_ = new int[n_];
                     K wkopt;
-                    Lapack<K>::sytrf("L", &_n, _a, &_n, _ipiv, &wkopt, &lwork, &info);
+                    Lapack<K>::sytrf("L", &n_, a_, &n_, ipiv_, &wkopt, &lwork, &info);
                     if(info == 0) {
                         lwork = static_cast<int>(std::real(wkopt));
                         K* work = new K[lwork];
-                        Lapack<K>::sytrf("L", &_n, _a, &_n, _ipiv, work, &lwork, &info);
+                        Lapack<K>::sytrf("L", &n_, a_, &n_, ipiv_, work, &lwork, &info);
                         delete [] work;
                     }
                 }
                 else
-                    Lapack<K>::potrf("L", &_n, _a, &_n, &info);
+                    Lapack<K>::potrf("L", &n_, a_, &n_, &info);
             }
         }
         template<char N = HPDDM_NUMBERING>
@@ -412,15 +412,15 @@ class LapackTRSub {
         unsigned short deficiency() const { return 0; }
         void solve(K* const x, const unsigned short& n = 1) const {
             int nrhs = n, info;
-            if(_type == 1)
-                Lapack<K>::sytrs("L", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
-            else if(_type == 2)
-                Lapack<K>::potrs("L", &_n, &nrhs, _a, &_n, x, &_n, &info);
+            if(type_ == 1)
+                Lapack<K>::sytrs("L", &n_, &nrhs, a_, &n_, ipiv_, x, &n_, &info);
+            else if(type_ == 2)
+                Lapack<K>::potrs("L", &n_, &nrhs, a_, &n_, x, &n_, &info);
             else
-                Lapack<K>::getrs("N", &_n, &nrhs, _a, &_n, _ipiv, x, &_n, &info);
+                Lapack<K>::getrs("N", &n_, &nrhs, a_, &n_, ipiv_, x, &n_, &info);
         }
         void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            std::copy_n(b, n * _n, x);
+            std::copy_n(b, n * n_, x);
             solve(x, n);
         }
 };
@@ -437,7 +437,7 @@ class LapackTR : public DMatrix, public LapackTRSub<K> {
     protected:
         /* Variable: numbering
          *  0-based indexing. */
-        static constexpr char _numbering = 'C';
+        static constexpr char numbering_ = 'C';
     public:
         template<char S>
         void numfact(unsigned int n, int* I, int* J, K* C) {
@@ -445,8 +445,8 @@ class LapackTR : public DMatrix, public LapackTRSub<K> {
             if(I == nullptr && J == nullptr)
                 E = new MatrixCSR<K>(n, n, n * n, C, nullptr, nullptr, S == 'S');
             else
-                E = new MatrixCSR<K>(n, n, I[n] - (_numbering == 'F'), C, I, J, S == 'S');
-            this->super::template numfact<_numbering, true>(E);
+                E = new MatrixCSR<K>(n, n, I[n] - (numbering_ == 'F'), C, I, J, S == 'S');
+            this->super::template numfact<numbering_, true>(E);
             delete E;
             delete [] I;
         }

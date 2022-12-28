@@ -101,68 +101,68 @@ class SuiteSparse : public DMatrix {
     private:
         /* Variable: L
          *  Factors returned by CHOLMOD. */
-        cholmod_factor*         _L;
+        cholmod_factor*         L_;
         /* Variable: c
          *  Parameters, statistics, and workspace of CHOLMOD. */
-        cholmod_common*         _c;
+        cholmod_common*         c_;
         /* Variable: b
          *  Right-hand side matrix of CHOLMOD. */
-        cholmod_dense*          _b;
+        cholmod_dense*          b_;
         /* Variable: x
          *  Solution matrix of CHOLMOD. */
-        cholmod_dense*          _x;
+        cholmod_dense*          x_;
         /* Variable: Y
          *  Dense workspace matrix of CHOLMOD. */
-        cholmod_dense*          _Y;
+        cholmod_dense*          Y_;
         /* Variable: E
          *  Dense workspace matrix of CHOLMOD. */
-        cholmod_dense*          _E;
+        cholmod_dense*          E_;
         /* Variable: numeric
          *  Opaque object for the numerical factorization of UMFPACK. */
-        void*             _numeric;
+        void*             numeric_;
         /* Variable: control
          *  Array of double parameters. */
-        double*           _control;
+        double*           control_;
         /* Variable: pattern
          *  Workspace integer array of UMFPACK. */
-        int*              _pattern;
+        int*              pattern_;
         /* Variable: W
          *  Workspace double array of UMFPACK. */
-        K*                      _W;
+        K*                      W_;
         /* Variable: tmp
          *  Workspace array. */
-        K*                    _tmp;
+        K*                    tmp_;
     protected:
         /* Variable: numbering
          *  0-based indexing. */
-        static constexpr char _numbering = 'C';
+        static constexpr char numbering_ = 'C';
     public:
-        SuiteSparse() : _L(), _c(), _b(), _x(), _Y(), _E(), _numeric(), _control(), _pattern(), _W(), _tmp() { }
+        SuiteSparse() : L_(), c_(), b_(), x_(), Y_(), E_(), numeric_(), control_(), pattern_(), W_(), tmp_() { }
         ~SuiteSparse() {
-            delete [] _tmp;
-            _W = nullptr;
-            if(_c) {
-                cholmod_free_factor(&_L, _c);
-                cholmod_free(1, sizeof(cholmod_dense), _b, _c);
-                cholmod_free(1, sizeof(cholmod_dense), _x, _c);
-                cholmod_free_dense(&_Y, _c);
-                cholmod_free_dense(&_E, _c);
-                cholmod_finish(_c);
-                delete _c;
+            delete [] tmp_;
+            W_ = nullptr;
+            if(c_) {
+                cholmod_free_factor(&L_, c_);
+                cholmod_free(1, sizeof(cholmod_dense), b_, c_);
+                cholmod_free(1, sizeof(cholmod_dense), x_, c_);
+                cholmod_free_dense(&Y_, c_);
+                cholmod_free_dense(&E_, c_);
+                cholmod_finish(c_);
+                delete c_;
             }
             else {
-                delete [] _pattern;
-                delete [] _control;
-                stsprs<K>::umfpack_free_numeric(&_numeric);
+                delete [] pattern_;
+                delete [] control_;
+                stsprs<K>::umfpack_free_numeric(&numeric_);
             }
         }
         template<char S>
         void numfact(unsigned int ncol, int* I, int* J, K* C) {
             if(S == 'S') {
-                _c = new cholmod_common;
-                cholmod_start(_c);
-                _c->print = 3;
-                cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), _c));
+                c_ = new cholmod_common;
+                cholmod_start(c_);
+                c_->print = 3;
+                cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), c_));
                 M->nrow = ncol;
                 M->ncol = ncol;
                 M->nzmax = I[ncol];
@@ -175,40 +175,40 @@ class SuiteSparse : public DMatrix {
                 M->x = C;
                 M->dtype = std::is_same<double, underlying_type<K>>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
                 M->itype = CHOLMOD_INT;
-                _L = cholmod_analyze(M, _c);
+                L_ = cholmod_analyze(M, c_);
                 if(Option::get()->val<char>("verbosity", 0) > 2)
-                    cholmod_print_common(NULL, _c);
-                cholmod_factorize(M, _L, _c);
-                _b = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
-                _b->nrow = M->nrow;
-                _b->xtype = M->xtype;
-                _b->dtype = M->dtype;
-                _b->d = _b->nrow;
-                _tmp = new K[_b->nrow];
-                _x = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
-                _x->nrow = M->nrow;
-                _x->x = NULL;
-                _x->xtype = M->xtype;
-                _x->dtype = M->dtype;
-                _x->d = _x->nrow;
-                cholmod_free(1, sizeof(cholmod_sparse), M, _c);
+                    cholmod_print_common(NULL, c_);
+                cholmod_factorize(M, L_, c_);
+                b_ = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), c_));
+                b_->nrow = M->nrow;
+                b_->xtype = M->xtype;
+                b_->dtype = M->dtype;
+                b_->d = b_->nrow;
+                tmp_ = new K[b_->nrow];
+                x_ = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), c_));
+                x_->nrow = M->nrow;
+                x_->x = NULL;
+                x_->xtype = M->xtype;
+                x_->dtype = M->dtype;
+                x_->d = x_->nrow;
+                cholmod_free(1, sizeof(cholmod_sparse), M, c_);
             }
             else {
-                _control = new double[UMFPACK_CONTROL];
-                stsprs<K>::umfpack_defaults(_control);
-                _control[UMFPACK_PRL] = 2;
-                _control[UMFPACK_IRSTEP] = 0;
+                control_ = new double[UMFPACK_CONTROL];
+                stsprs<K>::umfpack_defaults(control_);
+                control_[UMFPACK_PRL] = 2;
+                control_[UMFPACK_IRSTEP] = 0;
                 double* info = new double[UMFPACK_INFO];
-                _pattern = new int[ncol];
-                _tmp = new K[6 * ncol];
-                _W = _tmp + ncol;
-                _numeric = NULL;
+                pattern_ = new int[ncol];
+                tmp_ = new K[6 * ncol];
+                W_ = tmp_ + ncol;
+                numeric_ = NULL;
 
                 void* symbolic;
-                stsprs<K>::umfpack_symbolic(ncol, ncol, I, J, C, &symbolic, _control, info);
-                stsprs<K>::umfpack_numeric(I, J, C, symbolic, &_numeric, _control, info);
+                stsprs<K>::umfpack_symbolic(ncol, ncol, I, J, C, &symbolic, control_, info);
+                stsprs<K>::umfpack_numeric(I, J, C, symbolic, &numeric_, control_, info);
                 if(Option::get()->val<char>("verbosity", 0) > 2)
-                    stsprs<K>::umfpack_report_info(_control, info);
+                    stsprs<K>::umfpack_report_info(control_, info);
                 stsprs<K>::umfpack_free_symbolic(&symbolic);
                 delete [] info;
             }
@@ -216,18 +216,18 @@ class SuiteSparse : public DMatrix {
         }
         void solve(K* rhs, const unsigned short& n = 1) {
             for(unsigned short nu = 0; nu < n; ++nu) {
-                if(_c) {
-                    _b->ncol = 1;
-                    _b->nzmax = _x->nrow;
-                    _b->x = rhs + nu * DMatrix::_n;
-                    _x->ncol = 1;
-                    _x->nzmax = _x->nrow;
-                    _x->x = _tmp;
-                    cholmod_solve2(CHOLMOD_A, _L, _b, NULL, &_x, NULL, &_Y, &_E, _c);
+                if(c_) {
+                    b_->ncol = 1;
+                    b_->nzmax = x_->nrow;
+                    b_->x = rhs + nu * DMatrix::n_;
+                    x_->ncol = 1;
+                    x_->nzmax = x_->nrow;
+                    x_->x = tmp_;
+                    cholmod_solve2(CHOLMOD_A, L_, b_, NULL, &x_, NULL, &Y_, &E_, c_);
                 }
                 else
-                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, _tmp, rhs + nu * DMatrix::_n, _numeric, _control, NULL, _pattern, _W);
-                std::copy_n(_tmp, DMatrix::_n, rhs + nu * DMatrix::_n);
+                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, tmp_, rhs + nu * DMatrix::n_, numeric_, control_, NULL, pattern_, W_);
+                std::copy_n(tmp_, DMatrix::n_, rhs + nu * DMatrix::n_);
             }
         }
 };
@@ -241,121 +241,121 @@ class SuiteSparse : public DMatrix {
 template<class K>
 class SuiteSparseSub {
     private:
-        cholmod_factor* _L;
-        cholmod_common* _c;
-        cholmod_dense*  _b;
-        cholmod_dense*  _x;
-        cholmod_dense*  _Y;
-        cholmod_dense*  _E;
-        void*     _numeric;
-        double*   _control;
-        int*      _pattern;
-        K*              _W;
-        K*            _tmp;
+        cholmod_factor* L_;
+        cholmod_common* c_;
+        cholmod_dense*  b_;
+        cholmod_dense*  x_;
+        cholmod_dense*  Y_;
+        cholmod_dense*  E_;
+        void*     numeric_;
+        double*   control_;
+        int*      pattern_;
+        K*              W_;
+        K*            tmp_;
     public:
-        SuiteSparseSub() : _L(), _c(), _b(), _x(), _Y(), _E(), _numeric(), _control(), _pattern(), _W(), _tmp() { }
+        SuiteSparseSub() : L_(), c_(), b_(), x_(), Y_(), E_(), numeric_(), control_(), pattern_(), W_(), tmp_() { }
         SuiteSparseSub(const SuiteSparseSub&) = delete;
         ~SuiteSparseSub() { dtor(); }
-        static constexpr char _numbering = 'C';
+        static constexpr char numbering_ = 'C';
         void dtor() {
-            delete [] _tmp;
-            _tmp = nullptr;
-            if(_c) {
-                cholmod_free_factor(&_L, _c);
-                cholmod_free(1, sizeof(cholmod_dense), _b, _c);
-                cholmod_free(1, sizeof(cholmod_dense), _x, _c);
-                cholmod_free_dense(&_Y, _c);
-                cholmod_free_dense(&_E, _c);
-                cholmod_finish(_c);
-                delete _c;
-                _c = nullptr;
+            delete [] tmp_;
+            tmp_ = nullptr;
+            if(c_) {
+                cholmod_free_factor(&L_, c_);
+                cholmod_free(1, sizeof(cholmod_dense), b_, c_);
+                cholmod_free(1, sizeof(cholmod_dense), x_, c_);
+                cholmod_free_dense(&Y_, c_);
+                cholmod_free_dense(&E_, c_);
+                cholmod_finish(c_);
+                delete c_;
+                c_ = nullptr;
             }
-            else if(_control) {
-                delete [] _pattern;
-                delete [] _control;
-                _control = nullptr;
-                stsprs<K>::umfpack_free_numeric(&_numeric);
+            else if(control_) {
+                delete [] pattern_;
+                delete [] control_;
+                control_ = nullptr;
+                stsprs<K>::umfpack_free_numeric(&numeric_);
             }
         }
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false) {
             static_assert(N == 'C', "Unsupported numbering");
-            if(Option::get()->val<char>("operator_spd", 0) && A->_sym) {
-                if(!_c) {
-                    _c = new cholmod_common;
-                    cholmod_start(_c);
+            if(Option::get()->val<char>("operator_spd", 0) && A->sym_) {
+                if(!c_) {
+                    c_ = new cholmod_common;
+                    cholmod_start(c_);
                 }
-                cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), _c));
-                M->nrow = A->_m;
-                M->ncol = A->_n;
-                M->nzmax = A->_nnz;
+                cholmod_sparse* M = static_cast<cholmod_sparse*>(cholmod_malloc(1, sizeof(cholmod_sparse), c_));
+                M->nrow = A->m_;
+                M->ncol = A->n_;
+                M->nzmax = A->nnz_;
                 M->sorted = 1;
                 M->packed = 1;
                 M->stype = 1;
                 M->xtype = Wrapper<K>::is_complex ? CHOLMOD_COMPLEX : CHOLMOD_REAL;
-                M->p = A->_ia;
-                M->i = A->_ja;
-                M->x = A->_a;
+                M->p = A->ia_;
+                M->i = A->ja_;
+                M->x = A->a_;
                 M->dtype = std::is_same<double, underlying_type<K>>::value ? CHOLMOD_DOUBLE : CHOLMOD_SINGLE;
                 M->itype = CHOLMOD_INT;
-                if(_L)
-                    cholmod_free_factor(&_L, _c);
-                _L = cholmod_analyze(M, _c);
-                cholmod_factorize(M, _L, _c);
-                if(!_b) {
-                    _b = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
-                    _b->nrow = M->nrow;
-                    _b->xtype = M->xtype;
-                    _b->dtype = M->dtype;
-                    _b->d = _b->nrow;
-                    _tmp = new K[_b->nrow];
-                    _x = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), _c));
-                    _x->nrow = M->nrow;
-                    _x->x = NULL;
-                    _x->xtype = M->xtype;
-                    _x->dtype = M->dtype;
-                    _x->d = _x->nrow;
+                if(L_)
+                    cholmod_free_factor(&L_, c_);
+                L_ = cholmod_analyze(M, c_);
+                cholmod_factorize(M, L_, c_);
+                if(!b_) {
+                    b_ = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), c_));
+                    b_->nrow = M->nrow;
+                    b_->xtype = M->xtype;
+                    b_->dtype = M->dtype;
+                    b_->d = b_->nrow;
+                    tmp_ = new K[b_->nrow];
+                    x_ = static_cast<cholmod_dense*>(cholmod_malloc(1, sizeof(cholmod_dense), c_));
+                    x_->nrow = M->nrow;
+                    x_->x = NULL;
+                    x_->xtype = M->xtype;
+                    x_->dtype = M->dtype;
+                    x_->d = x_->nrow;
                 }
-                cholmod_free(1, sizeof(cholmod_sparse), M, _c);
+                cholmod_free(1, sizeof(cholmod_sparse), M, c_);
             }
             else {
-                if(!_control) {
-                    _control = new double[UMFPACK_CONTROL];
-                    stsprs<K>::umfpack_defaults(_control);
-                    _control[UMFPACK_PRL] = 0;
-                    _control[UMFPACK_IRSTEP] = 0;
-                    _pattern = new int[A->_m];
-                    _tmp = new K[6 * A->_m];
-                    _W = _tmp + A->_m;
+                if(!control_) {
+                    control_ = new double[UMFPACK_CONTROL];
+                    stsprs<K>::umfpack_defaults(control_);
+                    control_[UMFPACK_PRL] = 0;
+                    control_[UMFPACK_IRSTEP] = 0;
+                    pattern_ = new int[A->m_];
+                    tmp_ = new K[6 * A->m_];
+                    W_ = tmp_ + A->m_;
                 }
                 double* info = new double[UMFPACK_INFO];
                 void* symbolic = NULL;
                 K* a;
                 int* ia;
                 int* ja;
-                if(!A->_sym) {
-                    a  = A->_a;
-                    ia = A->_ia;
-                    ja = A->_ja;
+                if(!A->sym_) {
+                    a  = A->a_;
+                    ia = A->ia_;
+                    ja = A->ja_;
                 }
                 else {
-                    std::vector<std::vector<std::pair<unsigned int, K>>> v(A->_n);
-                    unsigned int nnz = ((A->_nnz + A->_n - 1) / A->_n) * 2;
-                    for(unsigned int i = 0; i < A->_n; ++i)
+                    std::vector<std::vector<std::pair<unsigned int, K>>> v(A->n_);
+                    unsigned int nnz = ((A->nnz_ + A->n_ - 1) / A->n_) * 2;
+                    for(unsigned int i = 0; i < A->n_; ++i)
                         v[i].reserve(nnz);
                     nnz = 0;
-                    for(unsigned int i = 0; i < A->_n; ++i) {
-                        for(unsigned int j = A->_ia[i]; j < A->_ia[i + 1] - 1; ++j) {
-                            if(std::abs(A->_a[j]) > HPDDM_EPS) {
-                                v[i].emplace_back(A->_ja[j], A->_a[j]);
-                                v[A->_ja[j]].emplace_back(i, A->_a[j]);
+                    for(unsigned int i = 0; i < A->n_; ++i) {
+                        for(unsigned int j = A->ia_[i]; j < A->ia_[i + 1] - 1; ++j) {
+                            if(std::abs(A->a_[j]) > HPDDM_EPS) {
+                                v[i].emplace_back(A->ja_[j], A->a_[j]);
+                                v[A->ja_[j]].emplace_back(i, A->a_[j]);
                                 nnz += 2;
                             }
                         }
-                        v[i].emplace_back(i, A->_a[A->_ia[i + 1] - 1]);
+                        v[i].emplace_back(i, A->a_[A->ia_[i + 1] - 1]);
                         ++nnz;
                     }
-                    ja = new int[A->_n + 1 + nnz];
+                    ja = new int[A->n_ + 1 + nnz];
                     ia = ja + nnz;
                     a  = new K[nnz];
                     nnz = 0;
@@ -363,10 +363,10 @@ class SuiteSparseSub {
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
 #endif
-                    for(i = 0; i < A->_n; ++i)
+                    for(i = 0; i < A->n_; ++i)
                         std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
                     ia[0] = 0;
-                    for(i = 0; i < A->_n; ++i) {
+                    for(i = 0; i < A->n_; ++i) {
                         for(const std::pair<unsigned int, K>& p : v[i]) {
                             ja[nnz]  = p.first;
                             a[nnz++] = p.second;
@@ -374,15 +374,15 @@ class SuiteSparseSub {
                         ia[i + 1] = nnz;
                     }
                 }
-                stsprs<K>::umfpack_symbolic(A->_m, A->_n, ia, ja, a, &symbolic, _control, info);
-                if(_numeric) {
-                    stsprs<K>::umfpack_free_numeric(&_numeric);
-                    _numeric = NULL;
+                stsprs<K>::umfpack_symbolic(A->m_, A->n_, ia, ja, a, &symbolic, control_, info);
+                if(numeric_) {
+                    stsprs<K>::umfpack_free_numeric(&numeric_);
+                    numeric_ = NULL;
                 }
-                stsprs<K>::umfpack_numeric(ia, ja, a, symbolic, &_numeric, _control, info);
-                stsprs<K>::umfpack_report_info(_control, info);
+                stsprs<K>::umfpack_numeric(ia, ja, a, symbolic, &numeric_, control_, info);
+                stsprs<K>::umfpack_report_info(control_, info);
                 stsprs<K>::umfpack_free_symbolic(&symbolic);
-                if(A->_sym) {
+                if(A->sym_) {
                     delete [] ja;
                     delete [] a;
                 }
@@ -390,56 +390,56 @@ class SuiteSparseSub {
             }
         }
         void solve(K* const x) const {
-            if(_c) {
-                _b->ncol = 1;
-                _b->nzmax = _x->nrow;
-                _b->x = x;
-                _x->ncol = 1;
-                _x->nzmax = _x->nrow;
-                _x->x = _tmp;
-                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, const_cast<cholmod_dense**>(&_x), NULL, const_cast<cholmod_dense**>(&_Y), const_cast<cholmod_dense**>(&_E), _c);
-                std::copy_n(_tmp, _x->nrow, x);
+            if(c_) {
+                b_->ncol = 1;
+                b_->nzmax = x_->nrow;
+                b_->x = x;
+                x_->ncol = 1;
+                x_->nzmax = x_->nrow;
+                x_->x = tmp_;
+                cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense**>(&x_), NULL, const_cast<cholmod_dense**>(&Y_), const_cast<cholmod_dense**>(&E_), c_);
+                std::copy_n(tmp_, x_->nrow, x);
             }
             else {
-                stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, _tmp, x, _numeric, _control, NULL, _pattern, _W);
-                std::copy(_tmp, _W, x);
+                stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, tmp_, x, numeric_, control_, NULL, pattern_, W_);
+                std::copy(tmp_, W_, x);
             }
         }
         void solve(K* const x, const unsigned short& n) const {
-            if(_c) {
-                _b->ncol = n;
-                _b->nzmax = _x->nrow;
-                _b->x = x;
-                _x->ncol = n;
-                _x->nzmax = _x->nrow;
-                _x->x = new K[n * _x->nrow];
-                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, const_cast<cholmod_dense**>(&_x), NULL, const_cast<cholmod_dense**>(&_Y), const_cast<cholmod_dense**>(&_E), _c);
-                std::copy_n(static_cast<K*>(_x->x), n * _x->nrow, x);
-                delete [] static_cast<K*>(_x->x);
-                _x->x = NULL;
+            if(c_) {
+                b_->ncol = n;
+                b_->nzmax = x_->nrow;
+                b_->x = x;
+                x_->ncol = n;
+                x_->nzmax = x_->nrow;
+                x_->x = new K[n * x_->nrow];
+                cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense**>(&x_), NULL, const_cast<cholmod_dense**>(&Y_), const_cast<cholmod_dense**>(&E_), c_);
+                std::copy_n(static_cast<K*>(x_->x), n * x_->nrow, x);
+                delete [] static_cast<K*>(x_->x);
+                x_->x = NULL;
             }
             else {
-                int ld = std::distance(_tmp, _W);
+                int ld = std::distance(tmp_, W_);
                 for(unsigned short i = 0; i < n; ++i) {
-                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, _tmp, x + i * ld, _numeric, _control, NULL, _pattern, _W);
-                    std::copy(_tmp, _W, x + i * ld);
+                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, tmp_, x + i * ld, numeric_, control_, NULL, pattern_, W_);
+                    std::copy(tmp_, W_, x + i * ld);
                 }
             }
         }
         void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            if(_c) {
-                _b->ncol = n;
-                _b->nzmax = _x->nrow;
-                _b->x = const_cast<K*>(b);
-                _x->ncol = n;
-                _x->nzmax = _x->nrow;
-                _x->x = x;
-                cholmod_solve2(CHOLMOD_A, _L, _b, NULL, const_cast<cholmod_dense**>(&_x), NULL, const_cast<cholmod_dense**>(&_Y), const_cast<cholmod_dense**>(&_E), _c);
+            if(c_) {
+                b_->ncol = n;
+                b_->nzmax = x_->nrow;
+                b_->x = const_cast<K*>(b);
+                x_->ncol = n;
+                x_->nzmax = x_->nrow;
+                x_->x = x;
+                cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense**>(&x_), NULL, const_cast<cholmod_dense**>(&Y_), const_cast<cholmod_dense**>(&E_), c_);
             }
             else {
-                int ld = std::distance(_tmp, _W);
+                int ld = std::distance(tmp_, W_);
                 for(unsigned short i = 0; i < n; ++i)
-                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, x + i * ld, b + i * ld, _numeric, _control, NULL, _pattern, _W);
+                    stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, x + i * ld, b + i * ld, numeric_, control_, NULL, pattern_, W_);
             }
         }
 };

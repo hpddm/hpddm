@@ -41,47 +41,47 @@ namespace HPDDM {
 template<class K>
 class DissectionSub {
     private:
-        DissectionSolver<K, underlying_type<K>>* _dslv;
+        DissectionSolver<K, underlying_type<K>>* dslv_;
     public:
-        DissectionSub() : _dslv() { }
+        DissectionSub() : dslv_() { }
         DissectionSub(const DissectionSub&) = delete;
         ~DissectionSub() { dtor(); }
-        static constexpr char _numbering = 'C';
+        static constexpr char numbering_ = 'C';
         void dtor() {
-            delete _dslv;
-            _dslv = nullptr;
+            delete dslv_;
+            dslv_ = nullptr;
         }
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool = false, K* const& = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
             static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
             const MatrixCSR<K>* B = A->template symmetrizedStructure<N, 'C'>();
-            if(!_dslv) {
+            if(!dslv_) {
 #ifdef _OPENMP
                 int num_threads = omp_get_max_threads();
 #else
                 int num_threads = 1;
 #endif
-                _dslv = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
-                _dslv->SymbolicFact(B->_n, B->_ia, B->_ja, B->_sym, false);
+                dslv_ = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
+                dslv_->SymbolicFact(B->n_, B->ia_, B->ja_, B->sym_, false);
                 if(N == 'F' && B == A) {
-                    std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
-                    std::for_each(A->_ia, A->_ia + A->_n + 1, [](int& i) { ++i; });
+                    std::for_each(A->ja_, A->ja_ + A->nnz_, [](int& i) { ++i; });
+                    std::for_each(A->ia_, A->ia_ + A->n_ + 1, [](int& i) { ++i; });
                 }
             }
-            _dslv->NumericFact(0, B->_a, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
+            dslv_->NumericFact(0, B->a_, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
             if(B != A)
                 delete B;
         }
-        unsigned short deficiency() const { return _dslv->kern_dimension(); }
+        unsigned short deficiency() const { return dslv_->kern_dimension(); }
         void solve(K* const x, const unsigned short& n = 1) const {
             if(n == 1)
-                _dslv->SolveSingle(x, false, false, true);
+                dslv_->SolveSingle(x, false, false, true);
             else
-                _dslv->SolveMulti(x, n, false, false, true);
+                dslv_->SolveMulti(x, n, false, false, true);
         }
         void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            std::copy_n(b, n * _dslv->dimension(), x);
+            std::copy_n(b, n * dslv_->dimension(), x);
             solve(x, n);
         }
 };

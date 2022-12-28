@@ -53,11 +53,11 @@ const char symCoarse = 'S';
 #endif
 
 struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
-    void (* _precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int);
-    CustomOperator(HPDDM::MatrixCSR<K>* A, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int)) : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A), _precond(precond) { }
+    void (* precond_)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int);
+    CustomOperator(HPDDM::MatrixCSR<K>* A, void (*precond)(const HPDDM::pod_type<K>*, HPDDM::pod_type<K>*, int, int)) : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A), precond_(precond) { }
     template<bool>
     int apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
-        _precond(reinterpret_cast<const HPDDM::pod_type<K>*>(in), reinterpret_cast<HPDDM::pod_type<K>*>(out), _n, mu);
+        precond_(reinterpret_cast<const HPDDM::pod_type<K>*>(in), reinterpret_cast<HPDDM::pod_type<K>*>(out), n_, mu);
         return 0;
     }
 };
@@ -147,7 +147,7 @@ void* matrixCSRParseFile(char* file) {
     return new HPDDM::MatrixCSR<K>(stream);
 }
 int matrixCSRnRows(void* Mat) {
-    return reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat)->_n;
+    return reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat)->n_;
 }
 void matrixCSRDestroy(void** Mat) {
     if(*Mat) {
@@ -157,7 +157,7 @@ void matrixCSRDestroy(void** Mat) {
 }
 void csrmm(void* Mat, HPDDM::pod_type<K>* x, HPDDM::pod_type<K>* prod, int m) {
     HPDDM::MatrixCSR<K>* A = reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat);
-    HPDDM::Wrapper<K>::csrmm(A->_sym, &(A->_n), &m, A->_a, A->_ia, A->_ja, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
+    HPDDM::Wrapper<K>::csrmm(A->sym_, &(A->n_), &m, A->a_, A->ia_, A->ja_, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
 }
 
 #if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
