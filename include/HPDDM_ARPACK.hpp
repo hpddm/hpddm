@@ -62,10 +62,10 @@ class Arpack : public Eigensolver<K> {
     private:
         /* Variable: it
          *  Maximum number of iterations of the IRAM. */
-        unsigned short                        _it;
+        unsigned short                        it_;
         /* Variable: which
          *  Eigenpairs to retrieve. */
-        static constexpr const char* const _which = Wrapper<K>::is_complex ? "LM" : "LM";
+        static constexpr const char* const which_ = Wrapper<K>::is_complex ? "LM" : "LM";
         /* Function: aupd
          *  Iterates the implicitly restarted Arnoldi method. */
         static void aupd(int*, const char*, const int*, const char*, const int*, const underlying_type<K>*, K*, int*, K*, int*, int*, K*, K*, int*, underlying_type<K>*, int*);
@@ -73,9 +73,9 @@ class Arpack : public Eigensolver<K> {
          *  Post-processes the eigenpairs computed with <Arpack::aupd>. */
         static void eupd(const int*, const char*, int*, K*, K*, const int*, const K*, K*, const char*, const char*, const int*, const underlying_type<K>*, K*, int*, K*, int*, int*, K*, K*, int*, underlying_type<K>*, int*);
     public:
-        Arpack(int n, int nu)                                                                          : Eigensolver<K>(n, nu), _it(100) { }
-        Arpack(underlying_type<K> threshold, int n, int nu)                                            : Eigensolver<K>(threshold, n, nu), _it(100) { }
-        Arpack(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu, unsigned short it) : Eigensolver<K>(tol, threshold, n, nu), _it(it) { }
+        Arpack(int n, int nu)                                                                          : Eigensolver<K>(n, nu), it_(100) { }
+        Arpack(underlying_type<K> threshold, int n, int nu)                                            : Eigensolver<K>(threshold, n, nu), it_(100) { }
+        Arpack(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu, unsigned short it) : Eigensolver<K>(tol, threshold, n, nu), it_(it) { }
         /* Function: solve
          *
          *  Computes eigenvectors of the generalized eigenvalue problem Ax = l Bx.
@@ -87,30 +87,30 @@ class Arpack : public Eigensolver<K> {
          *    communicator   - MPI communicator for selecting the threshold criterion. */
         template<template<class> class Solver>
         void solve(MatrixCSR<K>* const& A, MatrixCSR<K>* const& B, K**& ev, const MPI_Comm& communicator, Solver<K>* const& s = nullptr, std::ios_base::openmode mode = std::ios_base::out) {
-            int iparam[11] { 1, 0, _it, 1, 0, 0, 3, 0, 0, 0, 0 };
+            int iparam[11] { 1, 0, it_, 1, 0, 0, 3, 0, 0, 0, 0 };
             int ipntr[!Wrapper<K>::is_complex ? 11 : 14] { };
-            if(4 * Eigensolver<K>::_nu > Eigensolver<K>::_n)
-                Eigensolver<K>::_nu = std::max(1, Eigensolver<K>::_n / 4);
-            int ncv = std::min(Eigensolver<K>::_n, std::max(Option::get()->val<int>("arpack_ncv"), 2 * Eigensolver<K>::_nu + 1));
+            if(4 * Eigensolver<K>::nu_ > Eigensolver<K>::n_)
+                Eigensolver<K>::nu_ = std::max(1, Eigensolver<K>::n_ / 4);
+            int ncv = std::min(Eigensolver<K>::n_, std::max(Option::get()->val<int>("arpack_ncv"), 2 * Eigensolver<K>::nu_ + 1));
             int lworkl = ncv * (ncv + 8);
             K* workd, *workev, *evr = nullptr;
             if(!Wrapper<K>::is_complex) {
-                workd = new K[lworkl + (ncv + 4) * Eigensolver<K>::_n]();
+                workd = new K[lworkl + (ncv + 4) * Eigensolver<K>::n_]();
                 workev = nullptr;
             }
             else {
                 lworkl += ncv * (2 * ncv - 3);
-                workd = new K[lworkl + (ncv + 4) * Eigensolver<K>::_n + 2 * ncv]();
-                workev = workd + lworkl + (ncv + 4) * Eigensolver<K>::_n;
+                workd = new K[lworkl + (ncv + 4) * Eigensolver<K>::n_ + 2 * ncv]();
+                workev = workd + lworkl + (ncv + 4) * Eigensolver<K>::n_;
             }
-            K* workl = workd + 3 * Eigensolver<K>::_n;
+            K* workl = workd + 3 * Eigensolver<K>::n_;
             K* vp = workl + lworkl;
             underlying_type<K>* rwork = nullptr;
             if(Wrapper<K>::is_complex)
-                rwork = new underlying_type<K>[Eigensolver<K>::_n];
-            K* vresid = vp + ncv * Eigensolver<K>::_n;
+                rwork = new underlying_type<K>[Eigensolver<K>::n_];
+            K* vresid = vp + ncv * Eigensolver<K>::n_;
             int info;
-            if(Eigensolver<K>::_nu) {
+            if(Eigensolver<K>::nu_) {
                 Solver<K>* const prec = s ? s : new Solver<K>;
 #ifdef MUMPSSUB
                 prec->numfact(A, false);
@@ -118,22 +118,22 @@ class Arpack : public Eigensolver<K> {
                 prec->numfact(A, true);
 #endif
                 do {
-                    const int* const n = &(Eigensolver<K>::_n), *const nu = &(Eigensolver<K>::_nu);
-                    const underlying_type<K>* const tol = &(Eigensolver<K>::_tol);
+                    const int* const n = &(Eigensolver<K>::n_), *const nu = &(Eigensolver<K>::nu_);
+                    const underlying_type<K>* const tol = &(Eigensolver<K>::tol_);
                     auto loop = [&]() {
                         int ido = info = 0;
                         while(ido != 99) {
-                            aupd(&ido, "G", n, _which, nu, tol, vresid, &ncv,
+                            aupd(&ido, "G", n, which_, nu, tol, vresid, &ncv,
                                  vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
                             if(ido == -1) {
                                 if(B) {
-                                    if(B->_ia && B->_ja)
-                                        Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
+                                    if(B->ia_ && B->ja_)
+                                        Wrapper<K>::csrmv(B->sym_, n, B->a_, B->ia_, B->ja_, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                                     else {
-                                        if(B->_sym)
-                                            Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                        if(B->sym_)
+                                            Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                         else
-                                            Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                            Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                     }
                                 }
                                 else
@@ -144,13 +144,13 @@ class Arpack : public Eigensolver<K> {
                                 prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
                             else {
                                 if(B) {
-                                    if(B->_ia && B->_ja)
-                                        Wrapper<K>::csrmv(B->_sym, n, B->_a, B->_ia, B->_ja, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
+                                    if(B->ia_ && B->ja_)
+                                        Wrapper<K>::csrmv(B->sym_, n, B->a_, B->ia_, B->ja_, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                                     else {
-                                        if(B->_sym)
-                                            Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                        if(B->sym_)
+                                            Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                         else
-                                            Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->_a, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                                            Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
                                     }
                                 }
                                 else
@@ -160,25 +160,25 @@ class Arpack : public Eigensolver<K> {
                     };
                     loop();
                     if(info == -9999) {
-                        Eigensolver<K>::_nu = std::ceil(Eigensolver<K>::_nu / 3);
+                        Eigensolver<K>::nu_ = std::ceil(Eigensolver<K>::nu_ / 3);
                         std::fill_n(iparam + 4, 7, 0);
-                        iparam[2] = _it, iparam[6] = 3;
-                        ncv = 2 * Eigensolver<K>::_nu + 1;
+                        iparam[2] = it_, iparam[6] = 3;
+                        ncv = 2 * Eigensolver<K>::nu_ + 1;
                     }
-                } while(info == -9999 && Eigensolver<K>::_nu > 1);
+                } while(info == -9999 && Eigensolver<K>::nu_ > 1);
                 if(!s)
                     delete prec;
-                Eigensolver<K>::_nu = iparam[4];
+                Eigensolver<K>::nu_ = iparam[4];
             }
-            if(Eigensolver<K>::_nu) {
-                evr = new K[Eigensolver<K>::_nu];
-                ev = new K*[Eigensolver<K>::_nu];
-                *ev = new K[Eigensolver<K>::_n * Eigensolver<K>::_nu];
-                for(unsigned short i = 1; i < Eigensolver<K>::_nu; ++i)
-                    ev[i] = *ev + i * Eigensolver<K>::_n;
+            if(Eigensolver<K>::nu_) {
+                evr = new K[Eigensolver<K>::nu_];
+                ev = new K*[Eigensolver<K>::nu_];
+                *ev = new K[Eigensolver<K>::n_ * Eigensolver<K>::nu_];
+                for(unsigned short i = 1; i < Eigensolver<K>::nu_; ++i)
+                    ev[i] = *ev + i * Eigensolver<K>::n_;
                 int* select = new int[ncv];
-                eupd(&i__1, "A", select, evr, *ev, &(Eigensolver<K>::_n), &(Wrapper<K>::d__0), workev, "G",
-                     _which, &(Eigensolver<K>::_nu), &(Eigensolver<K>::_tol), vresid, &ncv, vp, iparam,
+                eupd(&i__1, "A", select, evr, *ev, &(Eigensolver<K>::n_), &(Wrapper<K>::d__0), workev, "G",
+                     which_, &(Eigensolver<K>::nu_), &(Eigensolver<K>::tol_), vresid, &ncv, vp, iparam,
                      ipntr, workd, workl, &lworkl, rwork, &info);
                 delete [] select;
                 std::string name = Eigensolver<K>::dump(evr, ev, communicator, mode);
@@ -196,7 +196,7 @@ class Arpack : public Eigensolver<K> {
                 ev = new K*[1];
                 *ev = nullptr;
             }
-            if(Eigensolver<K>::_threshold > 0.0)
+            if(Eigensolver<K>::threshold_ > 0.0)
                 Eigensolver<K>::selectNu(evr, ev, communicator);
             delete [] evr;
             delete [] workd;

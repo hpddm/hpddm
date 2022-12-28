@@ -35,9 +35,9 @@
 #define HPDDM_RET(i)         i
 #else
 #define HPDDM_CALL(arg)      PetscCall(arg)
-#define HPDDM_TOL(tol, A)    ((A._ksp)->rtol)
-#define HPDDM_MAX_IT(max, A) ((A._ksp)->max_it)
-#define HPDDM_IT(i, A)       ((A._ksp)->its)
+#define HPDDM_TOL(tol, A)    ((A.ksp_)->rtol)
+#define HPDDM_MAX_IT(max, A) ((A.ksp_)->max_it)
+#define HPDDM_IT(i, A)       ((A.ksp_)->its)
 #define HPDDM_RET(i)         0
 #endif
 
@@ -45,9 +45,9 @@ namespace HPDDM {
 template<class K, class T = int>
 struct EmptyOperator : OptionsPrefix<K> {
     typedef T integer_type;
-    const T _n;
-    explicit EmptyOperator(T n) : OptionsPrefix<K>(), _n(n) { }
-    constexpr T getDof() const { return _n; }
+    const T n_;
+    explicit EmptyOperator(T n) : OptionsPrefix<K>(), n_(n) { }
+    constexpr T getDof() const { return n_; }
     static constexpr underlying_type<K>* getScaling() { return nullptr; }
     template<bool, class U> static constexpr bool start(const U* const, U* const, const unsigned short& = 1) { return false; }
     static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
@@ -55,25 +55,25 @@ struct EmptyOperator : OptionsPrefix<K> {
 };
 template<class Operator, class K, class T = int>
 struct CustomOperator : EmptyOperator<K> {
-    const Operator* const _A;
-    CustomOperator(const Operator* const A, T n) : EmptyOperator<K, T>(n), _A(A) { }
+    const Operator* const A_;
+    CustomOperator(const Operator* const A, T n) : EmptyOperator<K, T>(n), A_(A) { }
     int GMV(const K* const in, K* const out, const int& mu = 1) const;
 };
 template<class K>
 class CustomOperator<MatrixCSR<K>, K> : public EmptyOperator<K> {
     private:
-        const MatrixCSR<K>* _A;
+        const MatrixCSR<K>* A_;
     public:
-        explicit CustomOperator(const MatrixCSR<K>* const A) : EmptyOperator<K>(A ? A->_n : 0), _A(A) { }
-        const MatrixCSR<K>* getMatrix() const { return _A; }
+        explicit CustomOperator(const MatrixCSR<K>* const A) : EmptyOperator<K>(A ? A->n_ : 0), A_(A) { }
+        const MatrixCSR<K>* getMatrix() const { return A_; }
         void setMatrix(MatrixCSR<K>* const A) {
-            if(A && A->_n == EmptyOperator<K>::_n) {
-                delete _A;
-                _A = A;
+            if(A && A->n_ == EmptyOperator<K>::n_) {
+                delete A_;
+                A_ = A;
             }
         }
         int GMV(const K* const in, K* const out, const int& mu = 1) const {
-            Wrapper<K>::csrmm(_A->_sym, &(EmptyOperator<K>::_n), &mu, _A->_a, _A->_ia, _A->_ja, in, out);
+            Wrapper<K>::csrmm(A_->sym_, &(EmptyOperator<K>::n_), &mu, A_->a_, A_->ia_, A_->ja_, in, out);
             return 0;
         }
 };
@@ -1105,8 +1105,8 @@ class IterativeMethod {
             unsigned short k = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 0);
             const char method = opt.val<char>(prefix + "krylov_method");
 #else
-            unsigned short k = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->scntl[reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[0] != HPDDM_KRYLOV_METHOD_BFBCG];
-            char method = reinterpret_cast<KSP_HPDDM*>(A._ksp->data)->cntl[0];
+            unsigned short k = reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->scntl[reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->cntl[0] != HPDDM_KRYLOV_METHOD_BFBCG];
+            char method = reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->cntl[0];
 #endif
             K* sx = nullptr;
             K* sb = nullptr;
@@ -1127,10 +1127,10 @@ class IterativeMethod {
                                                      HPDDM_IT(it, A) = 1;
 #if defined(_KSPIMPL_H)
                                                      if(it) {
-                                                         A._ksp->its = 0;
-                                                         A._ksp->reason = KSP_DIVERGED_PC_FAILED;
+                                                         A.ksp_->its = 0;
+                                                         A.ksp_->reason = KSP_DIVERGED_PC_FAILED;
                                                      }
-                                                     else A._ksp->reason = KSP_CONVERGED_ITS;
+                                                     else A.ksp_->reason = KSP_CONVERGED_ITS;
 #endif
                                                      break; }
 #if !defined(_KSPIMPL_H)

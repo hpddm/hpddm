@@ -45,28 +45,28 @@ class Subdomain
     protected:
         /* Variable: a
          *  Local matrix. */
-        MatrixCSR<K>*                _a;
+        MatrixCSR<K>*                a_;
         /* Variable : buff
          *  Array used as the receiving and receiving buffer for point-to-point communications with neighboring subdomains. */
-        K**                       _buff;
+        K**                       buff_;
         /* Variable: map */
-        vectorNeighbor             _map;
+        vectorNeighbor             map_;
         /* Variable: rq
          *  Array of MPI requests to check completion of the MPI transfers with neighboring subdomains. */
-        MPI_Request*                _rq;
+        MPI_Request*                rq_;
         /* Variable: communicator
          *  MPI communicator of the subdomain. */
-        MPI_Comm          _communicator;
+        MPI_Comm          communicator_;
         /* Variable: dof
          *  Number of degrees of freedom in the current subdomain. */
-        int                        _dof;
+        int                        dof_;
         void dtor() {
             clearBuffer();
-            delete [] _rq;
-            _rq = nullptr;
-            vectorNeighbor().swap(_map);
-            delete [] _buff;
-            _buff = nullptr;
+            delete [] rq_;
+            rq_ = nullptr;
+            vectorNeighbor().swap(map_);
+            delete [] buff_;
+            buff_ = nullptr;
 #ifndef PETSCHPDDM_H
             destroyMatrix(nullptr);
 #endif
@@ -76,22 +76,22 @@ class Subdomain
 #if !HPDDM_PETSC
                       OptionsPrefix<K>(),
 #endif
-                                          _a(), _buff(), _map(), _rq(), _dof() { }
+                                          a_(), buff_(), map_(), rq_(), dof_() { }
         Subdomain(const Subdomain<K>& s) :
 #if !HPDDM_PETSC
                                            OptionsPrefix<K>(),
 #endif
-                                                               _a(), _buff(new K*[2 * s._map.size()]), _map(s._map), _rq(new MPI_Request[2 * s._map.size()]), _communicator(s._communicator), _dof(s._dof) { }
+                                                               a_(), buff_(new K*[2 * s.map_.size()]), map_(s.map_), rq_(new MPI_Request[2 * s.map_.size()]), communicator_(s.communicator_), dof_(s.dof_) { }
         ~Subdomain() {
             dtor();
         }
         typedef int integer_type;
         /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
-        const MPI_Comm& getCommunicator() const { return _communicator; }
+        const MPI_Comm& getCommunicator() const { return communicator_; }
         /* Function: getMap
          *  Returns a reference to <Subdomain::map>. */
-        const vectorNeighbor& getMap() const { return _map; }
+        const vectorNeighbor& getMap() const { return map_; }
         /* Function: exchange
          *
          *  Exchanges and reduces values of duplicated unknowns.
@@ -100,27 +100,27 @@ class Subdomain
          *    in             - Input vector. */
         void exchange(K* const in, const unsigned short& mu = 1) const {
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                for(unsigned short i = 0, size = _map.size(); i < size; ++i) {
-                    MPI_Irecv(_buff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                    Wrapper<K>::gthr(_map[i].second.size(), in + nu * _dof, _buff[size + i], _map[i].second.data());
-                    MPI_Isend(_buff[size + i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
+                for(unsigned short i = 0, size = map_.size(); i < size; ++i) {
+                    MPI_Irecv(buff_[i], map_[i].second.size(), Wrapper<K>::mpi_type(), map_[i].first, 0, communicator_, rq_ + i);
+                    Wrapper<K>::gthr(map_[i].second.size(), in + nu * dof_, buff_[size + i], map_[i].second.data());
+                    MPI_Isend(buff_[size + i], map_[i].second.size(), Wrapper<K>::mpi_type(), map_[i].first, 0, communicator_, rq_ + size + i);
                 }
-                for(unsigned short i = 0; i < _map.size(); ++i) {
+                for(unsigned short i = 0; i < map_.size(); ++i) {
                     int index;
-                    ignore(MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE));
-                    for(unsigned int j = 0; j < _map[index].second.size(); ++j)
-                        in[_map[index].second[j] + nu * _dof] += _buff[index][j];
+                    ignore(MPI_Waitany(map_.size(), rq_, &index, MPI_STATUS_IGNORE));
+                    for(unsigned int j = 0; j < map_[index].second.size(); ++j)
+                        in[map_[index].second[j] + nu * dof_] += buff_[index][j];
                 }
-                ignore(MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE));
+                ignore(MPI_Waitall(map_.size(), rq_ + map_.size(), MPI_STATUSES_IGNORE));
             }
         }
         template<class T, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex && std::is_same<K, underlying_type<T>>::value>::type* = nullptr>
         void exchange(T* const in, const unsigned short& mu = 1) const {
             for(unsigned short nu = 0; nu < mu; ++nu) {
-                K* transpose = reinterpret_cast<K*>(in + nu * _dof);
-                Wrapper<K>::template cycle<'T'>(_dof, 2, transpose, 1);
+                K* transpose = reinterpret_cast<K*>(in + nu * dof_);
+                Wrapper<K>::template cycle<'T'>(dof_, 2, transpose, 1);
                 exchange(transpose, 2);
-                Wrapper<K>::template cycle<'T'>(2, _dof, transpose, 1);
+                Wrapper<K>::template cycle<'T'>(2, dof_, transpose, 1);
             }
         }
         /* Function: recvBuffer
@@ -130,12 +130,12 @@ class Subdomain
          * Parameter:
          *    in             - Input vector. */
         void recvBuffer(const K* const in) const {
-            for(unsigned short i = 0, size = _map.size(); i < size; ++i) {
-                MPI_Irecv(_buff[i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + i);
-                Wrapper<K>::gthr(_map[i].second.size(), in, _buff[size + i], _map[i].second.data());
-                MPI_Isend(_buff[size + i], _map[i].second.size(), Wrapper<K>::mpi_type(), _map[i].first, 0, _communicator, _rq + size + i);
+            for(unsigned short i = 0, size = map_.size(); i < size; ++i) {
+                MPI_Irecv(buff_[i], map_[i].second.size(), Wrapper<K>::mpi_type(), map_[i].first, 0, communicator_, rq_ + i);
+                Wrapper<K>::gthr(map_[i].second.size(), in, buff_[size + i], map_[i].second.data());
+                MPI_Isend(buff_[size + i], map_[i].second.size(), Wrapper<K>::mpi_type(), map_[i].first, 0, communicator_, rq_ + size + i);
             }
-            MPI_Waitall(2 * _map.size(), _rq, MPI_STATUSES_IGNORE);
+            MPI_Waitall(2 * map_.size(), rq_, MPI_STATUSES_IGNORE);
         }
         /* Function: initialize
          *
@@ -149,60 +149,60 @@ class Subdomain
         template<class Neighbor, class Mapping>
         void initialize(MatrixCSR<K>* const& a, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr, const MatrixCSR<void>* const& restriction = nullptr) {
             if(comm)
-                _communicator = *comm;
+                communicator_ = *comm;
             else
-                _communicator = MPI_COMM_WORLD;
+                communicator_ = MPI_COMM_WORLD;
             unsigned int* perm = nullptr;
 #ifndef PETSCHPDDM_H
             if(a && restriction) {
-                perm = new unsigned int[a->_n]();
-                for(unsigned int i = 0; i < restriction->_n; ++i)
-                    perm[restriction->_ja[i]] = i + 1;
-                _a = new MatrixCSR<K>(a, restriction, perm);
+                perm = new unsigned int[a->n_]();
+                for(unsigned int i = 0; i < restriction->n_; ++i)
+                    perm[restriction->ja_[i]] = i + 1;
+                a_ = new MatrixCSR<K>(a, restriction, perm);
             }
             else
-                _a = a;
-            if(_a)
-                _dof = _a->_n;
+                a_ = a;
+            if(a_)
+                dof_ = a_->n_;
 #else
             ignore(restriction);
 #endif
             std::vector<unsigned short> sortable;
             std::copy(o.begin(), o.end(), std::back_inserter(sortable));
-            _map.reserve(sortable.size());
+            map_.reserve(sortable.size());
             std::vector<unsigned short> idx(sortable.size());
             std::iota(idx.begin(), idx.end(), 0);
             std::sort(idx.begin(), idx.end(), [&](const unsigned short& lhs, const unsigned short& rhs) { return sortable[lhs] < sortable[rhs]; });
             unsigned short j = 0;
             for(const unsigned short& i : idx) {
                 if(r[idx[j]].size() > 0) {
-                    _map.emplace_back(sortable[i], typename decltype(_map)::value_type::second_type());
-                    _map.back().second.reserve(r[idx[j]].size());
+                    map_.emplace_back(sortable[i], typename decltype(map_)::value_type::second_type());
+                    map_.back().second.reserve(r[idx[j]].size());
                     for(int k = 0; k < r[idx[j]].size(); ++k)
-                        _map.back().second.emplace_back(r[idx[j]][k]);
+                        map_.back().second.emplace_back(r[idx[j]][k]);
                 }
                 ++j;
             }
             if(perm) {
-                const int size = _map.size();
+                const int size = map_.size();
                 MPI_Request* rq = new MPI_Request[2 * size];
                 unsigned int space = 0;
                 for(unsigned short i = 0; i < size; ++i)
-                    space += _map[i].second.size();
+                    space += map_[i].second.size();
                 unsigned char* send = new unsigned char[2 * space];
                 unsigned char* recv = send + space;
                 space = 0;
                 for(unsigned short i = 0; i < size; ++i) {
-                    MPI_Irecv(recv, _map[i].second.size(), MPI_UNSIGNED_CHAR, _map[i].first, 100, _communicator, rq + i);
-                    if(a->_n)
-                        for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                            send[j] = (perm[_map[i].second[j]] > 0 ? 'a' : 'b');
+                    MPI_Irecv(recv, map_[i].second.size(), MPI_UNSIGNED_CHAR, map_[i].first, 100, communicator_, rq + i);
+                    if(a->n_)
+                        for(unsigned int j = 0; j < map_[i].second.size(); ++j)
+                            send[j] = (perm[map_[i].second[j]] > 0 ? 'a' : 'b');
                     else
-                        std::fill_n(send, _map[i].second.size(), 'b');
-                    MPI_Isend(send, _map[i].second.size(), MPI_UNSIGNED_CHAR, _map[i].first, 100, _communicator, rq + size + i);
-                    send += _map[i].second.size();
-                    recv += _map[i].second.size();
-                    space += _map[i].second.size();
+                        std::fill_n(send, map_[i].second.size(), 'b');
+                    MPI_Isend(send, map_[i].second.size(), MPI_UNSIGNED_CHAR, map_[i].first, 100, communicator_, rq + size + i);
+                    send += map_[i].second.size();
+                    recv += map_[i].second.size();
+                    space += map_[i].second.size();
                 }
                 MPI_Waitall(2 * size, rq, MPI_STATUSES_IGNORE);
                 vectorNeighbor map;
@@ -210,78 +210,78 @@ class Subdomain
                 send -= space;
                 recv -= space;
                 for(unsigned short i = 0; i < size; ++i) {
-                    std::pair<unsigned short, typename decltype(_map)::value_type::second_type> c(_map[i].first, typename decltype(_map)::value_type::second_type());
-                    for(unsigned int j = 0; j < _map[i].second.size(); ++j) {
+                    std::pair<unsigned short, typename decltype(map_)::value_type::second_type> c(map_[i].first, typename decltype(map_)::value_type::second_type());
+                    for(unsigned int j = 0; j < map_[i].second.size(); ++j) {
                         if(recv[j] == 'a' && send[j] == 'a')
-                            c.second.emplace_back(perm[_map[i].second[j]] - 1);
+                            c.second.emplace_back(perm[map_[i].second[j]] - 1);
                     }
                     if(!c.second.empty())
                         map.emplace_back(c);
-                    send += _map[i].second.size();
-                    recv += _map[i].second.size();
+                    send += map_[i].second.size();
+                    recv += map_[i].second.size();
                 }
                 send -= space;
                 delete [] send;
                 delete [] rq;
-                _map = map;
+                map_ = map;
             }
             delete [] perm;
-            _rq = new MPI_Request[2 * _map.size()];
-            _buff = new K*[2 * _map.size()]();
+            rq_ = new MPI_Request[2 * map_.size()];
+            buff_ = new K*[2 * map_.size()]();
         }
 #ifndef PETSCHPDDM_H
         void initialize(MatrixCSR<K>* const& a, const int neighbors, const int* const list, const int* const sizes, const int* const* const connectivity, MPI_Comm* const& comm = nullptr) {
             if(comm)
-                _communicator = *comm;
+                communicator_ = *comm;
             else
-                _communicator = MPI_COMM_WORLD;
-            _a = a;
-            if(_a)
-                _dof = _a->_n;
-            _map.reserve(neighbors);
+                communicator_ = MPI_COMM_WORLD;
+            a_ = a;
+            if(a_)
+                dof_ = a_->n_;
+            map_.reserve(neighbors);
             std::vector<unsigned short> idx(neighbors);
             std::iota(idx.begin(), idx.end(), 0);
             std::sort(idx.begin(), idx.end(), [&](const unsigned short& lhs, const unsigned short& rhs) { return list[lhs] < list[rhs]; });
             unsigned short j = 0;
             while(j < neighbors) {
                 if(sizes[idx[j]] > 0) {
-                    _map.emplace_back(list[idx[j]], typename decltype(_map)::value_type::second_type());
-                    _map.back().second.reserve(sizes[idx[j]]);
+                    map_.emplace_back(list[idx[j]], typename decltype(map_)::value_type::second_type());
+                    map_.back().second.reserve(sizes[idx[j]]);
                     for(int k = 0; k < sizes[idx[j]]; ++k)
-                        _map.back().second.emplace_back(connectivity[idx[j]][k]);
+                        map_.back().second.emplace_back(connectivity[idx[j]][k]);
                 }
                 ++j;
             }
-            _rq = new MPI_Request[2 * _map.size()];
-            _buff = new K*[2 * _map.size()]();
+            rq_ = new MPI_Request[2 * map_.size()];
+            buff_ = new K*[2 * map_.size()]();
         }
 #endif
         bool setBuffer(K* wk = nullptr, const int& space = 0) const {
-            int n = std::accumulate(_map.cbegin(), _map.cend(), 0, [](unsigned int init, const pairNeighbor& i) { return init + i.second.size(); });
+            int n = std::accumulate(map_.cbegin(), map_.cend(), 0, [](unsigned int init, const pairNeighbor& i) { return init + i.second.size(); });
             if(n == 0)
                 return false;
             bool allocate;
             if(2 * n <= space && wk) {
-                *_buff = wk;
+                *buff_ = wk;
                 allocate = false;
             }
             else {
-                *_buff = new K[2 * n];
+                *buff_ = new K[2 * n];
                 allocate = true;
             }
-            _buff[_map.size()] = *_buff + n;
+            buff_[map_.size()] = *buff_ + n;
             n = 0;
-            for(unsigned short i = 1, size = _map.size(); i < size; ++i) {
-                n += _map[i - 1].second.size();
-                _buff[i] = *_buff + n;
-                _buff[size + i] = _buff[size] + n;
+            for(unsigned short i = 1, size = map_.size(); i < size; ++i) {
+                n += map_[i - 1].second.size();
+                buff_[i] = *buff_ + n;
+                buff_[size + i] = buff_[size] + n;
             }
             return allocate;
         }
         void clearBuffer(const bool free = true) const {
-            if(free && !_map.empty() && _buff) {
-                delete [] *_buff;
-                *_buff = nullptr;
+            if(free && !map_.empty() && buff_) {
+                delete [] *buff_;
+                *buff_ = nullptr;
             }
         }
         void end(const bool free = true) const { clearBuffer(free); }
@@ -289,9 +289,9 @@ class Subdomain
          *  Dummy function for main processes excluded from the domain decomposition. */
         void initialize(MPI_Comm* const& comm = nullptr) {
             if(comm)
-                _communicator = *comm;
+                communicator_ = *comm;
             else
-                _communicator = MPI_COMM_WORLD;
+                communicator_ = MPI_COMM_WORLD;
         }
         /* Function: exclusion
          *
@@ -301,38 +301,38 @@ class Subdomain
          *    comm          - Reference MPI communicator. */
         bool exclusion(const MPI_Comm& comm) const {
             int result;
-            MPI_Comm_compare(_communicator, comm, &result);
+            MPI_Comm_compare(communicator_, comm, &result);
             return result != MPI_CONGRUENT && result != MPI_IDENT;
         }
 #ifndef PETSCHPDDM_H
         K boundaryCond(const unsigned int i) const {
-            if(_a->_ia) {
-                const int shift = _a->_ia[0];
+            if(a_->ia_) {
+                const int shift = a_->ia_[0];
                 unsigned int stop;
-                if(_a->_ia[i] != _a->_ia[i + 1]) {
-                    if(!_a->_sym)
-                        stop = std::distance(_a->_ja, std::upper_bound(_a->_ja + _a->_ia[i] - shift, _a->_ja + _a->_ia[i + 1] - shift, i + shift));
+                if(a_->ia_[i] != a_->ia_[i + 1]) {
+                    if(!a_->sym_)
+                        stop = std::distance(a_->ja_, std::upper_bound(a_->ja_ + a_->ia_[i] - shift, a_->ja_ + a_->ia_[i + 1] - shift, i + shift));
                     else
-                        stop = _a->_ia[i + 1] - shift;
-                    if((_a->_sym || stop < _a->_ia[i + 1] - shift || _a->_ja[_a->_ia[i + 1] - shift - 1] == i + shift) && _a->_ja[std::max(1U, stop) - 1] == i + shift && std::abs(_a->_a[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
-                        for(unsigned int j = _a->_ia[i] - shift; j < stop; ++j) {
-                            if(i != _a->_ja[j] - shift && std::abs(_a->_a[j]) > HPDDM_EPS)
+                        stop = a_->ia_[i + 1] - shift;
+                    if((a_->sym_ || stop < a_->ia_[i + 1] - shift || a_->ja_[a_->ia_[i + 1] - shift - 1] == i + shift) && a_->ja_[std::max(1U, stop) - 1] == i + shift && std::abs(a_->a_[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
+                        for(unsigned int j = a_->ia_[i] - shift; j < stop; ++j) {
+                            if(i != a_->ja_[j] - shift && std::abs(a_->a_[j]) > HPDDM_EPS)
                                 return K();
-                            else if(i == _a->_ja[j] - shift && std::abs(_a->_a[j] - K(1.0)) > HPDDM_EPS)
+                            else if(i == a_->ja_[j] - shift && std::abs(a_->a_[j] - K(1.0)) > HPDDM_EPS)
                                 return K();
                         }
                 }
                 else
                     return K();
-                return _a->_a[stop - 1];
+                return a_->a_[stop - 1];
             }
             else
                 return K();
         }
         std::unordered_map<unsigned int, K> boundaryConditions() const {
             std::unordered_map<unsigned int, K> map;
-            map.reserve(_dof / 1000);
-            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+            map.reserve(dof_ / 1000);
+            for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
                 const K boundary = boundaryCond(i);
                 if(std::abs(boundary) > HPDDM_EPS)
                     map[i] = boundary;
@@ -342,40 +342,40 @@ class Subdomain
 #endif
         /* Function: getDof
          *  Returns the value of <Subdomain::dof>. */
-        constexpr int getDof() const { return _dof; }
+        constexpr int getDof() const { return dof_; }
         /* Function: setDof
          *  Sets the value of <Subdomain::dof>. */
         void setDof(int dof) {
-            if(!_dof
+            if(!dof_
 #ifndef PETSCHPDDM_H
-                    && !_a
+                    && !a_
 #endif
                           )
-                _dof = dof;
+                dof_ = dof;
         }
 #ifndef PETSCHPDDM_H
         /* Function: getMatrix
          *  Returns a pointer to <Subdomain::a>. */
-        const MatrixCSR<K>* getMatrix() const { return _a; }
+        const MatrixCSR<K>* getMatrix() const { return a_; }
         /* Function: setMatrix
          *  Sets the pointer <Subdomain::a>. */
         bool setMatrix(MatrixCSR<K>* const& a) {
-            bool ret = !(_a && a && _a->_n == a->_n && _a->_m == a->_m && _a->_nnz == a->_nnz);
-            if(!_dof && a)
-                _dof = a->_n;
-            delete _a;
-            _a = a;
+            bool ret = !(a_ && a && a_->n_ == a->n_ && a_->m_ == a->m_ && a_->nnz_ == a->nnz_);
+            if(!dof_ && a)
+                dof_ = a->n_;
+            delete a_;
+            a_ = a;
             return ret;
         }
         /* Function: destroyMatrix
          *  Destroys the pointer <Subdomain::a> using a custom deallocator. */
         void destroyMatrix(void (*dtor)(void*)) {
-            if(_a) {
+            if(a_) {
                 int isFinalized;
                 MPI_Finalized(&isFinalized);
                 if(!isFinalized) {
                     int rankWorld;
-                    MPI_Comm_rank(_communicator, &rankWorld);
+                    MPI_Comm_rank(communicator_, &rankWorld);
 #if !HPDDM_PETSC
                     const std::string prefix = OptionsPrefix<K>::prefix();
                     const Option& opt = *Option::get();
@@ -384,56 +384,56 @@ class Subdomain
                         filename = opt.prefix(prefix + "dump_matrix_" + to_string(rankWorld), true);
                     if(filename.size() != 0) {
                         int sizeWorld;
-                        MPI_Comm_size(_communicator, &sizeWorld);
+                        MPI_Comm_size(communicator_, &sizeWorld);
                         std::ofstream output { filename + "_" + to_string(rankWorld) + "_" + to_string(sizeWorld) + ".txt" };
-                        output << *_a;
+                        output << *a_;
                     }
 #endif
                 }
                 if(dtor)
-                    _a->destroy(dtor);
-                delete _a;
-                _a = nullptr;
+                    a_->destroy(dtor);
+                delete a_;
+                a_ = nullptr;
             }
         }
 #endif
         /* Function: getRq
          *  Returns a pointer to <Subdomain::rq>. */
-        MPI_Request* getRq() const { return _rq; }
+        MPI_Request* getRq() const { return rq_; }
         /* Function: getBuffer
          *  Returns a pointer to <Subdomain::buff>. */
-        K** getBuffer() const { return _buff; }
+        K** getBuffer() const { return buff_; }
         template<bool excluded>
         void scatter(const K* const, K*&, const unsigned short, unsigned short&, const MPI_Comm&) const { }
         void statistics() const {
 #if !HPDDM_PETSC
             unsigned long long local[4], global[4];
-            unsigned short* const table = new unsigned short[_dof];
+            unsigned short* const table = new unsigned short[dof_];
             int n;
-            MPI_Comm_rank(_communicator, &n);
-            std::fill_n(table, _dof, n);
-            for(const auto& i : _map)
+            MPI_Comm_rank(communicator_, &n);
+            std::fill_n(table, dof_, n);
+            for(const auto& i : map_)
                 for(const int& j : i.second)
                     table[j] = i.first;
             local[0] = local[2] = 0;
-            for(unsigned int i = 0; i < _dof; ++i)
+            for(unsigned int i = 0; i < dof_; ++i)
                 if(table[i] <= n) {
                     ++local[0];
-                    local[2] += _a->_ia[i + 1] - _a->_ia[i];
+                    local[2] += a_->ia_[i + 1] - a_->ia_[i];
                 }
-            if(_a->_sym) {
+            if(a_->sym_) {
                 local[2] *= 2;
                 local[2] -= local[0];
             }
-            if(_dof == _a->_n)
-                local[1] = _dof - local[0];
+            if(dof_ == a_->n_)
+                local[1] = dof_ - local[0];
             else {
                 local[1] = local[0];
-                local[0] = _a->_n - local[1];
+                local[0] = a_->n_ - local[1];
             }
             delete [] table;
-            local[3] = _map.size();
-            MPI_Allreduce(local, global, 4, MPI_UNSIGNED_LONG_LONG, MPI_SUM, _communicator);
+            local[3] = map_.size();
+            MPI_Allreduce(local, global, 4, MPI_UNSIGNED_LONG_LONG, MPI_SUM, communicator_);
             if(n == 0) {
                 std::vector<std::string> v;
                 v.reserve(7);
@@ -447,7 +447,7 @@ class Subdomain
                 v.emplace_back(" │  " + ss.str());
                 ss.clear();
                 ss.str(std::string());
-                MPI_Comm_size(_communicator, &n);
+                MPI_Comm_size(communicator_, &n);
                 ss << std::fixed << std::setprecision(1) << global[3] / static_cast<float>(n) << " neighboring process" << (global[3] / static_cast<float>(n) > 1.0 ? "es" : "") << " (average)";
                 v.emplace_back(" │  " + ss.str());
                 v.emplace_back(" └");
@@ -476,31 +476,31 @@ class Subdomain
         void globalMapping(It first, It last, T& start, T& end, long long& global, const underlying_type<K>* const d = nullptr, const T* const list = nullptr) const {
             static_assert(sizeof(T) == 4 || sizeof(T) == 8, "Unsupported input type");
             int rankWorld, sizeWorld;
-            MPI_Comm_rank(_communicator, &rankWorld);
-            MPI_Comm_size(_communicator, &sizeWorld);
+            MPI_Comm_rank(communicator_, &rankWorld);
+            MPI_Comm_size(communicator_, &sizeWorld);
             std::map<unsigned int, unsigned int> r;
             if(list) {
-                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
+                for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i)
                     if(list[i] > 0)
                         r[list[i]] = i;
             }
             if(sizeWorld > 1) {
                 setBuffer();
                 T between = 0;
-                for(unsigned short i = 0; i < _map.size() && _map[i].first < rankWorld; ++i)
+                for(unsigned short i = 0; i < map_.size() && map_[i].first < rankWorld; ++i)
                     ++between;
                 T* local = new T[sizeWorld];
                 local[rankWorld] = (list ? r.size() : std::distance(first, last));
                 std::unordered_set<unsigned int> removed;
                 removed.reserve(local[rankWorld]);
-                for(unsigned short i = 0; i < _map.size(); ++i)
-                    for(const int& j : _map[i].second) {
+                for(unsigned short i = 0; i < map_.size(); ++i)
+                    for(const int& j : map_[i].second) {
                         if(d && d[j] < HPDDM_EPS && removed.find(j) == removed.cend() && (!list || list[j] > 0)) {
                             --local[rankWorld];
                             removed.insert(j);
                         }
                     }
-                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, local, 1, Wrapper<T>::mpi_type(), _communicator);
+                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, local, 1, Wrapper<T>::mpi_type(), communicator_);
                 start = std::accumulate(local, local + rankWorld, static_cast<long long>(N == 'F'));
                 end = start + local[rankWorld];
                 if(start > end)
@@ -519,27 +519,27 @@ class Subdomain
                         if(removed.find(p.second) == removed.cend())
                             *(first + p.second) = beginning++;
                 }
-                if(!_map.empty()) {
-                    for(unsigned short i = 0; i < _map.size(); ++i)
-                        MPI_Irecv(static_cast<void*>(_buff[i]), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + i);
-                    for(unsigned short i = 0; i < _map.size(); ++i) {
-                        T* sbuff = reinterpret_cast<T*>(_buff[_map.size() + i]);
-                        for(unsigned int j = 0; j < _map[i].second.size(); ++j)
-                            sbuff[j] = *(first + _map[i].second[j]);
-                        MPI_Isend(static_cast<void*>(sbuff), _map[i].second.size(), Wrapper<T>::mpi_type(), _map[i].first, 10, _communicator, _rq + _map.size() + i);
+                if(!map_.empty()) {
+                    for(unsigned short i = 0; i < map_.size(); ++i)
+                        MPI_Irecv(static_cast<void*>(buff_[i]), map_[i].second.size(), Wrapper<T>::mpi_type(), map_[i].first, 10, communicator_, rq_ + i);
+                    for(unsigned short i = 0; i < map_.size(); ++i) {
+                        T* sbuff = reinterpret_cast<T*>(buff_[map_.size() + i]);
+                        for(unsigned int j = 0; j < map_[i].second.size(); ++j)
+                            sbuff[j] = *(first + map_[i].second[j]);
+                        MPI_Isend(static_cast<void*>(sbuff), map_[i].second.size(), Wrapper<T>::mpi_type(), map_[i].first, 10, communicator_, rq_ + map_.size() + i);
                     }
-                    for(unsigned short i = 0; i < _map.size(); ++i) {
+                    for(unsigned short i = 0; i < map_.size(); ++i) {
                         int index;
-                        MPI_Waitany(_map.size(), _rq, &index, MPI_STATUS_IGNORE);
-                        T* rbuff = reinterpret_cast<T*>(_buff[index]);
-                        for(const int& j : _map[index].second) {
+                        MPI_Waitany(map_.size(), rq_, &index, MPI_STATUS_IGNORE);
+                        T* rbuff = reinterpret_cast<T*>(buff_[index]);
+                        for(const int& j : map_[index].second) {
                             if(first[j] == std::numeric_limits<T>::max())
                                 first[j] = *rbuff;
                             ++rbuff;
                         }
                     }
                 }
-                MPI_Waitall(_map.size(), _rq + _map.size(), MPI_STATUSES_IGNORE);
+                MPI_Waitall(map_.size(), rq_ + map_.size(), MPI_STATUSES_IGNORE);
                 clearBuffer();
             }
             else {
@@ -565,43 +565,43 @@ class Subdomain
         template<class I, class T = K>
         static bool distributedCSR(const I* const row, I first, I last, I*& ia, I*& ja, T*& c, const MatrixCSR<K>* const& A, const I* col = nullptr) {
             std::vector<std::pair<int, int>>* transpose = nullptr;
-            if(A->_sym) {
+            if(A->sym_) {
                 if(col || !std::is_same<K, T>::value)
                     std::cerr << "Not implemented" << std::endl;
-                transpose = new std::vector<std::pair<int, int>>[A->_n]();
-                for(int i = 0; i < A->_n; ++i)
-                    for(int j = A->_ia[i] - (HPDDM_NUMBERING == 'F'); j < A->_ia[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
-                        transpose[A->_ja[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
-                for(int i = 0; i < A->_n; ++i)
+                transpose = new std::vector<std::pair<int, int>>[A->n_]();
+                for(int i = 0; i < A->n_; ++i)
+                    for(int j = A->ia_[i] - (HPDDM_NUMBERING == 'F'); j < A->ia_[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+                        transpose[A->ja_[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
+                for(int i = 0; i < A->n_; ++i)
                     std::sort(transpose[i].begin(), transpose[i].end());
             }
-            if(first != 0 || last != A->_n || col) {
+            if(first != 0 || last != A->n_ || col) {
                 if(!col)
                     col = row;
                 std::vector<std::pair<I, I>> s;
-                s.reserve(A->_n);
-                for(unsigned int i = 0; i < A->_n; ++i)
+                s.reserve(A->n_);
+                for(unsigned int i = 0; i < A->n_; ++i)
                     s.emplace_back(row[i], i);
                 std::sort(s.begin(), s.end());
                 typename std::vector<std::pair<I, I>>::iterator begin = std::lower_bound(s.begin(), s.end(), std::make_pair(first, static_cast<I>(0)));
                 typename std::vector<std::pair<I, I>>::iterator end = std::upper_bound(begin, s.end(), std::make_pair(last, static_cast<I>(0)));
                 unsigned int dof = std::distance(begin, end);
                 std::vector<std::pair<I, T>> tmp;
-                tmp.reserve(A->_nnz);
+                tmp.reserve(A->nnz_);
                 if(!ia)
                     ia = new I[dof + 1];
                 ia[0] = 0;
                 for(typename std::vector<std::pair<I, I>>::iterator it = begin; it != end; ++it) {
-                    for(unsigned int j = A->_ia[it->second]; j < A->_ia[it->second + 1]; ++j)
-                        tmp.emplace_back(col[A->_ja[j]], std::is_same<K, T>::value ? A->_a[j] : j);
-                    if(A->_sym) {
+                    for(unsigned int j = A->ia_[it->second]; j < A->ia_[it->second + 1]; ++j)
+                        tmp.emplace_back(col[A->ja_[j]], std::is_same<K, T>::value ? A->a_[j] : j);
+                    if(A->sym_) {
                         for(unsigned int j = 0; j < transpose[it->second].size(); ++j) {
                             if(transpose[it->second][j].first != it->second)
-                                tmp.emplace_back(col[transpose[it->second][j].first], A->_a[transpose[it->second][j].second]);
+                                tmp.emplace_back(col[transpose[it->second][j].first], A->a_[transpose[it->second][j].second]);
                         }
                     }
                     std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<I, T>& lhs, const std::pair<I, T>& rhs) { return lhs.first < rhs.first; });
-                    if(A->_sym) {
+                    if(A->sym_) {
                         const unsigned int row = std::distance(begin, it);
                         tmp.erase(std::remove_if(tmp.begin() + ia[row], tmp.end(), [&row](const std::pair<I, T>& x) { return x.first < row; }), tmp.end());
                     }
@@ -618,12 +618,12 @@ class Subdomain
                 }
             }
             else {
-                if(!A->_sym) {
-                    if(std::is_same<decltype(A->_ia), I>::value) {
-                        ia = reinterpret_cast<I*>(A->_ia);
-                        ja = reinterpret_cast<I*>(A->_ja);
+                if(!A->sym_) {
+                    if(std::is_same<decltype(A->ia_), I>::value) {
+                        ia = reinterpret_cast<I*>(A->ia_);
+                        ja = reinterpret_cast<I*>(A->ja_);
                         if(std::is_same<K, T>::value)
-                            c = reinterpret_cast<T*>(A->_a);
+                            c = reinterpret_cast<T*>(A->a_);
                         else
                             c = nullptr;
                         return false;
@@ -632,28 +632,28 @@ class Subdomain
                         if(!std::is_same<K, T>::value)
                             std::cerr << "Not implemented" << std::endl;
                         if(!ia)
-                            ia = new I[A->_n + 1];
-                        std::copy_n(A->_ia, A->_n + 1, ia);
+                            ia = new I[A->n_ + 1];
+                        std::copy_n(A->ia_, A->n_ + 1, ia);
                         if(!ja)
-                            ja = new I[A->_nnz];
-                        std::copy_n(A->_ja, A->_nnz, ja);
+                            ja = new I[A->nnz_];
+                        std::copy_n(A->ja_, A->nnz_, ja);
                         if(!c)
-                            c = new T[A->_nnz];
-                        std::copy_n(A->_a, A->_nnz, c);
+                            c = new T[A->nnz_];
+                        std::copy_n(A->a_, A->nnz_, c);
                         return true;
                     }
                 }
                 else {
                     if(!ia)
-                        ia = new I[A->_n + 1];
+                        ia = new I[A->n_ + 1];
                     if(!ja)
-                        ja = new I[A->_nnz];
+                        ja = new I[A->nnz_];
                     if(!c)
-                        c = new T[A->_nnz];
+                        c = new T[A->nnz_];
                     ia[0] = 0;
-                    for(int i = 0; i < A->_n; ++i) {
+                    for(int i = 0; i < A->n_; ++i) {
                         for(int j = 0; j < transpose[i].size(); ++j) {
-                            c[ia[i] + j] = A->_a[transpose[i][j].second];
+                            c[ia[i] + j] = A->a_[transpose[i][j].second];
                             ja[ia[i] + j] = transpose[i][j].first;
                         }
                         ia[i + 1] = ia[i] + transpose[i].size();

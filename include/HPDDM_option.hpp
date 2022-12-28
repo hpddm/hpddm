@@ -44,11 +44,11 @@ class Option : private Singleton {
     private:
         /* Variable: opt
          *  Unordered map that stores the internal options of HPDDM. */
-        std::unordered_map<std::string, double>  _opt;
+        std::unordered_map<std::string, double>  opt_;
         /* Variable: app
          *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
-        std::unordered_map<std::string, double>* _app;
-        std::string                           _prefix;
+        std::unordered_map<std::string, double>* app_;
+        std::string                           prefix_;
         static bool hasEnding(const std::string& str, const std::string& ending) {
             return str.length() >= ending.length() ? str.compare(str.length() - ending.length(), ending.length(), ending) == 0 : false;
         }
@@ -56,8 +56,8 @@ class Option : private Singleton {
         template<int N>
         explicit Option(Singleton::construct_key<N>);
         ~Option() {
-            std::unordered_map<std::string, double>::const_iterator show = _opt.find("verbosity");
-            if(show != _opt.cend()) {
+            std::unordered_map<std::string, double>::const_iterator show = opt_.find("verbosity");
+            if(show != opt_.cend()) {
                 std::function<void(const std::unordered_map<std::string, double>&, const std::string&)> generate = [&](const std::unordered_map<std::string, double>& map, const std::string& header) {
                     std::vector<std::string> v;
                     v.reserve(map.size() + 3);
@@ -93,14 +93,14 @@ class Option : private Singleton {
                     output(v, max);
                 };
                 if(show->second > 1) {
-                    if(_app)
-                        generate(*_app, "Application-specific");
-                    generate(_opt, "HPDDM");
+                    if(app_)
+                        generate(*app_, "Application-specific");
+                    generate(opt_, "HPDDM");
                 }
-                if(show->second > 0 && _opt.find("version") != _opt.cend())
+                if(show->second > 0 && opt_.find("version") != opt_.cend())
                     version();
             }
-            delete _app;
+            delete app_;
         }
         static void output(const std::vector<std::string>& list, const size_t width) {
             std::cout << list.front() << std::setfill('-') << std::setw(width + 1) << std::right << "┐" << std::endl;
@@ -118,8 +118,8 @@ class Option : private Singleton {
         }
         /* Function: app
          *  Returns a constant reference of <Option::app>. */
-        std::unordered_map<std::string, double>& app() const { return *_app; }
-        bool set(const std::string& key) const { return _opt.find(_prefix + key) != _opt.cend(); }
+        std::unordered_map<std::string, double>& app() const { return *app_; }
+        bool set(const std::string& key) const { return opt_.find(prefix_ + key) != opt_.cend(); }
         /* Function: remove
          *
          *  Removes a key from the unordered map <Option::opt>.
@@ -127,30 +127,30 @@ class Option : private Singleton {
          * Parameter:
          *    key            - Key to remove from <Option::opt>. */
         void remove(const std::string& key) {
-            std::unordered_map<std::string, double>::const_iterator it = _opt.find(_prefix + key);
-            if(it != _opt.cend())
-                _opt.erase(it);
+            std::unordered_map<std::string, double>::const_iterator it = opt_.find(prefix_ + key);
+            if(it != opt_.cend())
+                opt_.erase(it);
         }
         /* Function: val
          *  Returns the value of the key given as an argument, or use a default value if the key is not in <Option::opt>. */
         template<class T = double>
         T val(const std::string& key, T d = std::numeric_limits<T>::lowest()) const {
-            std::unordered_map<std::string, double>::const_iterator it = _opt.find(_prefix + key);
-            if(it == _opt.cend())
+            std::unordered_map<std::string, double>::const_iterator it = opt_.find(prefix_ + key);
+            if(it == opt_.cend())
                 return d;
             else
                 return static_cast<T>(it->second);
         }
         const double& operator[](const std::string& key) const {
             try {
-                return _opt.at(_prefix + key);
+                return opt_.at(prefix_ + key);
             }
             catch(const std::out_of_range& oor) {
-                std::cerr << "out_of_range error: " << oor.what() << " (key: " << _prefix + key << ")" << std::endl;
-                return _opt.cbegin()->second;
+                std::cerr << "out_of_range error: " << oor.what() << " (key: " << prefix_ + key << ")" << std::endl;
+                return opt_.cbegin()->second;
             }
         }
-        double& operator[](const std::string& key) { return _opt[_prefix + key]; }
+        double& operator[](const std::string& key) { return opt_[prefix_ + key]; }
         struct Arg {
             static bool positive(const std::string& opt, const std::string& s, bool verbose) {
                 if(!s.empty()) {
@@ -201,18 +201,18 @@ class Option : private Singleton {
          * Parameter:
          *    pre            - Prefix to look for. */
         std::string prefix(const std::string& pre, const bool internal = false) const {
-            if(!internal && !_app)
+            if(!internal && !app_)
                 return std::string();
             std::unordered_map<std::string, double>::const_iterator pIt[2];
             if(internal) {
-                pIt[0] = _opt.cbegin();
-                pIt[1] = _opt.cend();
+                pIt[0] = opt_.cbegin();
+                pIt[1] = opt_.cend();
             }
             else {
-                pIt[0] = _app->cbegin();
-                pIt[1] = _app->cend();
+                pIt[0] = app_->cbegin();
+                pIt[1] = app_->cend();
             }
-            const std::string prefix = _prefix + pre;
+            const std::string prefix = prefix_ + pre;
             std::unordered_map<std::string, double>::const_iterator it = std::find_if(pIt[0], pIt[1], [&](const std::pair<std::string, double>& p) { bool match = std::mismatch(prefix.cbegin(), prefix.cend(), p.first.cbegin()).first == prefix.cend(); if(match && p.first.size() > prefix.size() + 1) { match = (p.first[prefix.size()] == '#'); } return match; });
             if(it != pIt[1])
                 return it->first.substr(prefix.size() + 1);
@@ -228,8 +228,8 @@ class Option : private Singleton {
          *    list           - List of values to search for. */
         template<class T>
         bool any_of(const std::string& key, std::initializer_list<T> list) const {
-            std::unordered_map<std::string, double>::const_iterator it = _opt.find(key);
-            return (it != _opt.cend() && std::any_of(list.begin(), list.end(), [&](const T& t) { return t == static_cast<T>(it->second); }));
+            std::unordered_map<std::string, double>::const_iterator it = opt_.find(key);
+            return (it != opt_.cend() && std::any_of(list.begin(), list.end(), [&](const T& t) { return t == static_cast<T>(it->second); }));
         }
         template<class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type* = nullptr, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string&, const std::string&, bool)>>>>
         int parse(int argc, T** argv, bool display = true, const Container& reg = { }) {
@@ -309,7 +309,7 @@ class Option : private Singleton {
                 }
             });
             if(it != option.end()) {
-                std::unordered_map<std::string, double>& map = (internal ? _opt : *_app);
+                std::unordered_map<std::string, double>& map = (internal ? opt_ : *app_);
                 const bool boolean = (std::get<0>(*it).size() > 6 && std::get<0>(*it).substr(std::get<0>(*it).size() - 6) == "=(0|1)");
                 const bool optional = std::get<0>(*it).find("(=") != std::string::npos;
                 const std::string key = (exact ? prefix : "") + str;
@@ -428,51 +428,51 @@ class Option : private Singleton {
             return false;
         }
         void setPrefix(const std::string& pre) {
-            _prefix = pre;
+            prefix_ = pre;
         }
         std::string getPrefix() const {
-            return _prefix;
+            return prefix_;
         }
 };
 #endif
 template<class K>
 class OptionsPrefix {
     private:
-        K* _storage;
+        K* storage_;
 #if !HPDDM_PETSC
     protected:
-        char* _prefix;
+        char* prefix_;
 #endif
     public:
-        OptionsPrefix() : _storage()
+        OptionsPrefix() : storage_()
 #if !HPDDM_PETSC
-                                    , _prefix()
+                                    , prefix_()
 #endif
                                                 { };
         ~OptionsPrefix() {
-            delete [] _storage;
-            _storage = nullptr;
+            delete [] storage_;
+            storage_ = nullptr;
 #if !HPDDM_PETSC
-            delete [] _prefix;
-            _prefix = nullptr;
+            delete [] prefix_;
+            prefix_ = nullptr;
 #endif
         }
         typedef K scalar_type;
 #if !HPDDM_PETSC
         void setPrefix(const char* prefix) {
-            delete [] _prefix;
-            _prefix = new char[std::strlen(prefix) + 1];
-            std::strcpy(_prefix, prefix);
+            delete [] prefix_;
+            prefix_ = new char[std::strlen(prefix) + 1];
+            std::strcpy(prefix_, prefix);
         }
         void setPrefix(const std::string& prefix) {
             if(prefix.size())
                 setPrefix(prefix.c_str());
         }
         std::string prefix() const {
-            return std::string(!_prefix ? "" : _prefix);
+            return std::string(!prefix_ ? "" : prefix_);
         }
         std::string prefix(const std::string& opt) const {
-            return !_prefix ? opt : std::string(_prefix) + opt;
+            return !prefix_ ? opt : std::string(prefix_) + opt;
         }
 #else
         std::string prefix() const {
@@ -481,8 +481,8 @@ class OptionsPrefix {
 #endif
         template<bool reset = true>
         void destroy() {
-            delete [] _storage;
-            _storage = nullptr;
+            delete [] storage_;
+            storage_ = nullptr;
 #if !HPDDM_PETSC
             if(reset) {
                 Option& opt = *Option::get();
@@ -493,22 +493,22 @@ class OptionsPrefix {
 #endif
         }
         bool recycling() const {
-            return _storage != nullptr;
+            return storage_ != nullptr;
         }
         K* allocate(int n, unsigned short mu, unsigned short k) {
-            delete [] _storage;
-            _storage = new K[2 * mu * k * n + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K))];
-            unsigned short* pt = reinterpret_cast<unsigned short*>(_storage);
+            delete [] storage_;
+            storage_ = new K[2 * mu * k * n + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K))];
+            unsigned short* pt = reinterpret_cast<unsigned short*>(storage_);
             pt[0] = mu;
             pt[1] = k;
-            return _storage + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K));
+            return storage_ + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K));
         }
         K* storage() const {
-            return _storage ? _storage + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K)) : nullptr;
+            return storage_ ? storage_ + 1 + ((2 * sizeof(unsigned short) - 1) / sizeof(K)) : nullptr;
         }
         std::pair<unsigned short, unsigned short> k() const {
-            if(_storage) {
-                unsigned short* pt = reinterpret_cast<unsigned short*>(_storage);
+            if(storage_) {
+                unsigned short* pt = reinterpret_cast<unsigned short*>(storage_);
                 return { pt[0], pt[1] };
             }
             else

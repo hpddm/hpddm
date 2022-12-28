@@ -81,24 +81,24 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
     private:
         /* Variable: gatherComm
          *  Communicator used for assembling right-hand sides. */
-        MPI_Comm               _gatherComm;
+        MPI_Comm               gatherComm_;
         /* Variable: scatterComm
          *  Communicator used for distributing solution vectors. */
-        MPI_Comm              _scatterComm;
+        MPI_Comm              scatterComm_;
         /* Variable: rankWorld
          *  Rank of the current subdomain in the global communicator supplied as an argument of <Coarse operator::constructionCommunicator>. */
-        int                     _rankWorld;
+        int                     rankWorld_;
         /* Variable: sizeWorld
          *  Size of <Subdomain::communicator>. */
-        int                     _sizeWorld;
-        int                     _sizeSplit;
+        int                     sizeWorld_;
+        int                     sizeSplit_;
         /* Variable: local
          *  Local number of coarse degrees of freedom (usually set to <Eigensolver::nu> after a call to <Eigensolver::selectNu>). */
-        int                         _local;
+        int                         local_;
         /* Variable: sizeRHS
          *  Local size of right-hand sides and solution vectors. */
-        unsigned int              _sizeRHS;
-        bool                       _offset;
+        unsigned int              sizeRHS_;
+        bool                       offset_;
         /* Function: constructionCommunicator
          *  Builds both <Coarse operator::scatterComm> and <DMatrix::communicator>. */
         template<bool, class Operator>
@@ -133,9 +133,9 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
          *    excluded       - True if the main processes are excluded from the domain decomposition, false otherwise.
          *    Operator       - Operator used in the definition of the Galerkin matrix. */
         template<char T, unsigned short U, unsigned short excluded, class Operator>
-        return_type constructionMatrix(typename std::enable_if<Operator::_pattern != 'u', Operator>::type&);
+        return_type constructionMatrix(typename std::enable_if<Operator::pattern_ != 'u', Operator>::type&);
         template<char T, unsigned short U, unsigned short excluded, class Operator>
-        return_type constructionMatrix(typename std::enable_if<Operator::_pattern == 'u', Operator>::type&);
+        return_type constructionMatrix(typename std::enable_if<Operator::pattern_ == 'u', Operator>::type&);
         template<char T, unsigned short U, unsigned short excluded, bool blocked>
         void finishSetup(unsigned short*&, const int, const unsigned short, unsigned short**&, const int);
         /* Function: constructionCommunicatorCollective
@@ -157,7 +157,7 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
                 for(unsigned short i = 1, j = 1, k = 0; j < sizeComm; ++i) {
                     if(pt[i] != 0)
                         array[j++] = i - k;
-                    else if(count && super::_ldistribution[k + 1] == i)
+                    else if(count && super::ldistribution_[k + 1] == i)
                         ++k;
                 }
                 MPI_Group_incl(oldComm, sizeComm, array, &newComm);
@@ -197,11 +197,11 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
         void transfer(int* const counts, const int n, const int m, downscaled_type<K>* const ab) const {
             if(!T) {
                 std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
-                MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm);
+                MPI_Gatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
             }
             permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Scatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm);
+                MPI_Scatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
@@ -228,17 +228,17 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
         void Itransfer(int* const counts, const int n, const int m, downscaled_type<K>* const ab, MPI_Request* rq) const {
             if(!T) {
                 std::for_each(counts, counts + 2 * n, [&](int& i) { i *= m; });
-                MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, _gatherComm, rq);
+                MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
                 MPI_Wait(rq, MPI_STATUS_IGNORE);
             }
             permute<T>(counts, n, m, ab);
             if(T) {
-                MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, _scatterComm, rq);
+                MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq);
                 std::for_each(counts, counts + 2 * m, [&](int& i) { i /= n; });
             }
         }
     public:
-        CoarseOperator() : _gatherComm(MPI_COMM_NULL), _scatterComm(MPI_COMM_NULL), _rankWorld(), _sizeWorld(), _sizeSplit(), _local(), _sizeRHS(), _offset(false) {
+        CoarseOperator() : gatherComm_(MPI_COMM_NULL), scatterComm_(MPI_COMM_NULL), rankWorld_(), sizeWorld_(), sizeSplit_(), local_(), sizeRHS_(), offset_(false) {
 #if !HPDDM_PETSC
             static_assert(S == 'S' || S == 'G', "Unknown symmetry");
             static_assert(!Wrapper<K>::is_complex || S != 'S', "Symmetric complex coarse operators are not supported");
@@ -250,11 +250,11 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
             if(isFinalized)
                 std::cerr << "Function " << __func__ << " in " << __FILE__ << ":" << __LINE__ << " should be called before MPI_Finalize()" << std::endl;
             else {
-                if(_gatherComm != _scatterComm && _gatherComm != MPI_COMM_NULL)
-                    MPI_Comm_free(&_gatherComm);
-                if(_scatterComm != MPI_COMM_NULL)
-                    MPI_Comm_free(&_scatterComm);
-                _gatherComm = _scatterComm = MPI_COMM_NULL;
+                if(gatherComm_ != scatterComm_ && gatherComm_ != MPI_COMM_NULL)
+                    MPI_Comm_free(&gatherComm_);
+                if(scatterComm_ != MPI_COMM_NULL)
+                    MPI_Comm_free(&scatterComm_);
+                gatherComm_ = scatterComm_ = MPI_COMM_NULL;
             }
         }
         /* Typedef: super
@@ -278,20 +278,20 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
 #endif
         /* Function: getRank
          *  Simple accessor that returns <Coarse operator::rankWorld>. */
-        constexpr int getRank() const { return _rankWorld; }
+        constexpr int getRank() const { return rankWorld_; }
         /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
-        constexpr int getLocal() const { return _local; }
+        constexpr int getLocal() const { return local_; }
         /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local>. */
-        const int* getAddrLocal() const { return &_local; }
+        const int* getAddrLocal() const { return &local_; }
         /* Function: setLocal
          *  Sets the value of <Coarse operator::local>. */
-        void setLocal(int l) { _local = l; }
+        void setLocal(int l) { local_ = l; }
         /* Function: getSizeRHS
          *  Returns the value of <Coarse operator::sizeRHS>. */
-        constexpr unsigned int getSizeRHS() const { return _sizeRHS; }
-        const MPI_Comm& getCommunicator() const { return _scatterComm; }
+        constexpr unsigned int getSizeRHS() const { return sizeRHS_; }
+        const MPI_Comm& getCommunicator() const { return scatterComm_; }
 };
 } // HPDDM
 #endif // HPDDM_COARSE_OPERATOR_HPP_

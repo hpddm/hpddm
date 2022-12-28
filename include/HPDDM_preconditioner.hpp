@@ -81,7 +81,7 @@ class Preconditioner : public Subdomain<K> {
 #endif
         template<typename... Types>
         CoarseOperator*& front(Types&&...) {
-            return _co;
+            return co_;
         }
         template<typename Type, typename... Types>
         CoarseOperator*& front(Type&& arg, Types&&...) {
@@ -92,17 +92,17 @@ class Preconditioner : public Subdomain<K> {
 #if !HPDDM_PETSC
         /* Variable: s
          *  Solver used in <Schwarz::callNumfact> and <Schur::callNumfactPreconditioner> or <Schur::computeSchurComplement>. */
-        Solver<K>           _s;
+        Solver<K>           s_;
 #endif
         /* Variable: co
          *  Pointer to a <Coarse operator>. */
-        CoarseOperator*    _co;
+        CoarseOperator*    co_;
         /* Variable: ev
          *  Array of deflation vectors as needed by <Preconditioner::co>. */
-        K**                _ev;
+        K**                ev_;
         /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
-        K*                 _uc;
+        K*                 uc_;
         /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.
@@ -125,7 +125,7 @@ class Preconditioner : public Subdomain<K> {
             CoarseOperator*& co = front(args...);
             constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value ? 3 : 4;
             unsigned short allUniform[N + 1];
-            allUniform[0] = Subdomain<K>::_map.size();
+            allUniform[0] = Subdomain<K>::map_.size();
 #if !HPDDM_PETSC
             Option& opt = *Option::get();
             const std::string prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
@@ -239,7 +239,7 @@ class Preconditioner : public Subdomain<K> {
                     construction = MPI_Wtime() - construction;
                     ss << std::setprecision(3) << construction;
                     const unsigned short p = opt.val<unsigned short>("p", 1);
-                    const std::string line = " --- coarse operator transferred " + std::string(Operator::_factorize ? "and factorized " : "") + std::string("by ") + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
+                    const std::string line = " --- coarse operator transferred " + std::string(Operator::factorize_ ? "and factorized " : "") + std::string("by ") + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
                     std::cout << line << std::endl;
                     std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -co->getLocal() : (uniformity ? allUniform[1] : 0))) + ")" << std::endl;
                     std::cout.unsetf(std::ios_base::adjustfield);
@@ -259,7 +259,7 @@ class Preconditioner : public Subdomain<K> {
 #endif
 #if !HPDDM_PETSC
         void destroySolver() {
-            _s.dtor();
+            s_.dtor();
             Option& opt = *Option::get();
             if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
                 opt["reuse_preconditioner"] = 1;
@@ -273,9 +273,9 @@ class Preconditioner : public Subdomain<K> {
          * Parameter:
          *    mu             - Number of right-hand sides. */
         void start(const unsigned short& mu = 1) const {
-            delete [] _uc;
-            K** ptr = const_cast<K**>(&_uc);
-            *ptr = new K[mu * _co->getSizeRHS()];
+            delete [] uc_;
+            K** ptr = const_cast<K**>(&uc_);
+            *ptr = new K[mu * co_->getSizeRHS()];
         }
 #if HPDDM_SCHWARZ
         struct CoarseCorrection {
@@ -286,11 +286,11 @@ class Preconditioner : public Subdomain<K> {
             }
             virtual ~CoarseCorrection() { };
         };
-        CoarseCorrection*  _cc;
+        CoarseCorrection*  cc_;
 #endif
-        Preconditioner() : _co(), _ev(), _uc()
+        Preconditioner() : co_(), ev_(), uc_()
 #if HPDDM_SCHWARZ
-                                              , _cc()
+                                              , cc_()
 #endif
                                                       { }
         Preconditioner(const Preconditioner&) = delete;
@@ -306,9 +306,9 @@ class Preconditioner : public Subdomain<K> {
          * Parameter:
          *    deflation      - Number of local deflation vectors. */
         void initialize(const unsigned short& deflation) {
-            if(!_co) {
-                _co = new CoarseOperator;
-                _co->setLocal(deflation);
+            if(!co_) {
+                co_ = new CoarseOperator;
+                co_->setLocal(deflation);
             }
         }
 #if !HPDDM_PETSC
@@ -319,28 +319,28 @@ class Preconditioner : public Subdomain<K> {
          * Parameters:
          *    x              - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of input right-hand sides. */
-        void callSolve(K* const x, const unsigned short& n = 1) const { _s.solve(x, n); }
+        void callSolve(K* const x, const unsigned short& n = 1) const { s_.solve(x, n); }
 #endif
         /* Function: getVectors
          *  Returns a constant pointer to <Preconditioner::ev>. */
-        const K* const* getVectors() const { return _ev; }
+        const K* const* getVectors() const { return ev_; }
         /* Function: setVectors
          *  Sets the pointer <Preconditioner::ev>. */
-        void setVectors(K** const& ev) { _ev = ev; }
+        void setVectors(K** const& ev) { ev_ = ev; }
         /* Function: destroyVectors
          *  Destroys the pointer <Preconditioner::ev> using a custom deallocator. */
         void destroyVectors(void (*dtor)(void*)) {
-            if(_ev)
-                dtor(*_ev);
-            dtor(_ev);
-            _ev = nullptr;
+            if(ev_)
+                dtor(*ev_);
+            dtor(ev_);
+            ev_ = nullptr;
         }
         /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
-        constexpr unsigned short getLocal() const { return _co ? _co->getLocal() : 0; }
+        constexpr unsigned short getLocal() const { return co_ ? co_->getLocal() : 0; }
         /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local> or <i__0> if <Preconditioner::co> is not allocated. */
-        const int* getAddrLocal() const { return _co ? _co->getAddrLocal() : &i__0; }
+        const int* getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i__0; }
 #else
     protected:
         Preconditioner() { };
@@ -348,28 +348,28 @@ class Preconditioner : public Subdomain<K> {
     protected:
         explicit Preconditioner(const Subdomain<K>& s) : super(s)
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
-                                                                 , _co(), _ev(), _uc()
+                                                                 , co_(), ev_(), uc_()
 #if HPDDM_SCHWARZ
-                                                                                      , _cc()
+                                                                                      , cc_()
 #endif
 #endif
                                                                                               { };
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
         void dtor() {
 #if !HPDDM_PETSC
-            _s.dtor();
+            s_.dtor();
 #endif
-            delete _co;
-            _co = nullptr;
-            if(_ev)
-                delete [] *_ev;
-            delete [] _ev;
-            _ev = nullptr;
-            delete [] _uc;
-            _uc = nullptr;
+            delete co_;
+            co_ = nullptr;
+            if(ev_)
+                delete [] *ev_;
+            delete [] ev_;
+            ev_ = nullptr;
+            delete [] uc_;
+            uc_ = nullptr;
 #if HPDDM_SCHWARZ
-            delete _cc;
-            _cc = nullptr;
+            delete cc_;
+            cc_ = nullptr;
 #endif
         }
 #endif

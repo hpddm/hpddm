@@ -99,48 +99,48 @@ class Pastix : public DMatrix {
     private:
         /* Variable: data
          *  Internal data pointer. */
-        pastix_data_t*      _data;
+        pastix_data_t*      data_;
         /* Variable: values2
          *  Array of data. */
-        K*               _values2;
+        K*               values2_;
         /* Variable: dparm
          *  Array of double-precision floating-point parameters. */
-        double*            _dparm;
+        double*            dparm_;
         /* Variable: ncol2
          *  Number of local rows. */
-        pastix_int_t       _ncol2;
+        pastix_int_t       ncol2_;
         /* Variable: colptr2
          *  Array of row pointers. */
-        pastix_int_t*    _colptr2;
+        pastix_int_t*    colptr2_;
         /* Variable: rows2
          *  Array of column indices. */
-        pastix_int_t*      _rows2;
+        pastix_int_t*      rows2_;
         /* Variable: loc2glob2
          *  Local to global numbering. */
-        pastix_int_t*  _loc2glob2;
+        pastix_int_t*  loc2glob2_;
         /* Variable: iparm
          *  Array of integer parameters. */
-        pastix_int_t*      _iparm;
+        pastix_int_t*      iparm_;
     protected:
         /* Variable: numbering
          *  1-based indexing. */
-        static constexpr char _numbering = 'F';
+        static constexpr char numbering_ = 'F';
     public:
-        Pastix() : _data(), _values2(), _dparm(), _colptr2(), _rows2(), _loc2glob2(), _iparm() { }
+        Pastix() : data_(), values2_(), dparm_(), colptr2_(), rows2_(), loc2glob2_(), iparm_() { }
         ~Pastix() {
-            free(_rows2);
-            free(_values2);
-            delete [] _loc2glob2;
-            free(_colptr2);
-            if(_iparm) {
-                _iparm[IPARM_START_TASK]          = API_TASK_CLEAN;
-                _iparm[IPARM_END_TASK]            = API_TASK_CLEAN;
+            free(rows2_);
+            free(values2_);
+            delete [] loc2glob2_;
+            free(colptr2_);
+            if(iparm_) {
+                iparm_[IPARM_START_TASK]          = API_TASK_CLEAN;
+                iparm_[IPARM_END_TASK]            = API_TASK_CLEAN;
 
-                pstx<K>::dist(&_data, DMatrix::_communicator,
+                pstx<K>::dist(&data_, DMatrix::communicator_,
                               0, NULL, NULL, NULL, NULL,
-                              NULL, NULL, NULL, 1, _iparm, _dparm);
-                delete [] _iparm;
-                delete [] _dparm;
+                              NULL, NULL, NULL, 1, iparm_, dparm_);
+                delete [] iparm_;
+                delete [] dparm_;
             }
         }
         /* Function: numfact
@@ -158,62 +158,62 @@ class Pastix : public DMatrix {
          *    C              - Array of data. */
         template<char S>
         void numfact(unsigned int ncol, int* I, int* loc2glob, int* J, K* C) {
-            _iparm = new pastix_int_t[IPARM_SIZE];
-            _dparm = new double[DPARM_SIZE];
+            iparm_ = new pastix_int_t[IPARM_SIZE];
+            dparm_ = new double[DPARM_SIZE];
 
-            pstx<K>::initParam(_iparm, _dparm);
+            pstx<K>::initParam(iparm_, dparm_);
             const Option& opt = *Option::get();
             const char val = opt.val<char>("verbosity", 0);
             if(val < 3)
-                _iparm[IPARM_VERBOSE]         = API_VERBOSE_NOT;
+                iparm_[IPARM_VERBOSE]         = API_VERBOSE_NOT;
             else
-                _iparm[IPARM_VERBOSE]         = val - 2;
-            _iparm[IPARM_MATRIX_VERIFICATION] = API_NO;
-            _iparm[IPARM_START_TASK]          = API_TASK_INIT;
-            _iparm[IPARM_END_TASK]            = API_TASK_INIT;
+                iparm_[IPARM_VERBOSE]         = val - 2;
+            iparm_[IPARM_MATRIX_VERIFICATION] = API_NO;
+            iparm_[IPARM_START_TASK]          = API_TASK_INIT;
+            iparm_[IPARM_END_TASK]            = API_TASK_INIT;
             if(S == 'S') {
-                _iparm[IPARM_SYM]             = API_SYM_YES;
-                _iparm[IPARM_FACTORIZATION]   = opt.val<char>("operator_spd", 0) ? API_FACT_LLT : API_FACT_LDLT;
+                iparm_[IPARM_SYM]             = API_SYM_YES;
+                iparm_[IPARM_FACTORIZATION]   = opt.val<char>("operator_spd", 0) ? API_FACT_LLT : API_FACT_LDLT;
             }
             else {
-                _iparm[IPARM_SYM]             = API_SYM_NO;
-                _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
+                iparm_[IPARM_SYM]             = API_SYM_NO;
+                iparm_[IPARM_FACTORIZATION]   = API_FACT_LU;
                 if(Wrapper<K>::is_complex)
-                    _iparm[IPARM_TRANSPOSE_SOLVE] = API_YES;
+                    iparm_[IPARM_TRANSPOSE_SOLVE] = API_YES;
             }
-            _iparm[IPARM_RHSD_CHECK]          = API_NO;
+            iparm_[IPARM_RHSD_CHECK]          = API_NO;
             pastix_int_t* perm = new pastix_int_t[ncol];
-            pstx<K>::dist(&_data, DMatrix::_communicator,
+            pstx<K>::dist(&data_, DMatrix::communicator_,
                           ncol, I, J, NULL, loc2glob,
-                          perm, NULL, NULL, 1, _iparm, _dparm);
+                          perm, NULL, NULL, 1, iparm_, dparm_);
 
-            _iparm[IPARM_START_TASK]          = API_TASK_ORDERING;
-            _iparm[IPARM_END_TASK]            = API_TASK_ANALYSE;
+            iparm_[IPARM_START_TASK]          = API_TASK_ORDERING;
+            iparm_[IPARM_END_TASK]            = API_TASK_ANALYSE;
 
-            pstx<K>::dist(&_data, DMatrix::_communicator,
+            pstx<K>::dist(&data_, DMatrix::communicator_,
                           ncol, I, J, NULL, loc2glob,
-                          perm, NULL, NULL, 1, _iparm, _dparm);
+                          perm, NULL, NULL, 1, iparm_, dparm_);
             delete [] perm;
 
-            _iparm[IPARM_VERBOSE]             = API_VERBOSE_NOT;
+            iparm_[IPARM_VERBOSE]             = API_VERBOSE_NOT;
 
-            _ncol2 = pstx<K>::getLocalNodeNbr(&_data);
+            ncol2_ = pstx<K>::getLocalNodeNbr(&data_);
 
-            _loc2glob2 = new pastix_int_t[_ncol2];
-            pstx<K>::getLocalNodeLst(&_data, _loc2glob2);
+            loc2glob2_ = new pastix_int_t[ncol2_];
+            pstx<K>::getLocalNodeLst(&data_, loc2glob2_);
 
             pstx<K>::cscd_redispatch(ncol, I, J, C, NULL, 0, loc2glob,
-                                     _ncol2, &_colptr2, &_rows2, &_values2, NULL, _loc2glob2,
-                                     DMatrix::_communicator, 1);
+                                     ncol2_, &colptr2_, &rows2_, &values2_, NULL, loc2glob2_,
+                                     DMatrix::communicator_, 1);
 
-            _iparm[IPARM_START_TASK]          = API_TASK_NUMFACT;
-            _iparm[IPARM_END_TASK]            = API_TASK_NUMFACT;
+            iparm_[IPARM_START_TASK]          = API_TASK_NUMFACT;
+            iparm_[IPARM_END_TASK]            = API_TASK_NUMFACT;
 
-            pstx<K>::dist(&_data, DMatrix::_communicator,
-                          _ncol2, _colptr2, _rows2, _values2, _loc2glob2,
-                          NULL, NULL, NULL, 1, _iparm, _dparm);
+            pstx<K>::dist(&data_, DMatrix::communicator_,
+                          ncol2_, colptr2_, rows2_, values2_, loc2glob2_,
+                          NULL, NULL, NULL, 1, iparm_, dparm_);
 
-            _iparm[IPARM_CSCD_CORRECT]        = API_YES;
+            iparm_[IPARM_CSCD_CORRECT]        = API_YES;
             delete [] I;
             delete [] loc2glob;
         }
@@ -225,26 +225,26 @@ class Pastix : public DMatrix {
          *    rhs            - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of right-hand sides. */
         void solve(K* rhs, const unsigned short& n) {
-            K* rhs2 = new K[n * _ncol2];
-            if(!DMatrix::_mapOwn && !DMatrix::_mapRecv) {
-                int nloc = DMatrix::_ldistribution[DMatrix::_rank];
-                DMatrix::initializeMap<1>(_ncol2, _loc2glob2, rhs2, rhs);
-                DMatrix::_ldistribution = new int[1];
-                *DMatrix::_ldistribution = nloc;
+            K* rhs2 = new K[n * ncol2_];
+            if(!DMatrix::mapOwn_ && !DMatrix::mapRecv_) {
+                int nloc = DMatrix::ldistribution_[DMatrix::rank_];
+                DMatrix::initializeMap<1>(ncol2_, loc2glob2_, rhs2, rhs);
+                DMatrix::ldistribution_ = new int[1];
+                *DMatrix::ldistribution_ = nloc;
             }
             else
                 DMatrix::redistribute<1>(rhs2, rhs);
             for(unsigned short nu = 1; nu < n; ++nu)
-                DMatrix::redistribute<1>(rhs2 + nu * _ncol2, rhs + nu * *DMatrix::_ldistribution);
+                DMatrix::redistribute<1>(rhs2 + nu * ncol2_, rhs + nu * *DMatrix::ldistribution_);
 
-            _iparm[IPARM_START_TASK] = API_TASK_SOLVE;
-            _iparm[IPARM_END_TASK]   = API_TASK_SOLVE;
-            pstx<K>::dist(&_data, DMatrix::_communicator,
-                          _ncol2, _colptr2, _rows2, _values2, _loc2glob2,
-                          NULL, NULL, rhs2, n, _iparm, _dparm);
+            iparm_[IPARM_START_TASK] = API_TASK_SOLVE;
+            iparm_[IPARM_END_TASK]   = API_TASK_SOLVE;
+            pstx<K>::dist(&data_, DMatrix::communicator_,
+                          ncol2_, colptr2_, rows2_, values2_, loc2glob2_,
+                          NULL, NULL, rhs2, n, iparm_, dparm_);
 
             for(unsigned short nu = 0; nu < n; ++nu)
-                DMatrix::redistribute<2>(rhs + nu * *DMatrix::_ldistribution, rhs2 + nu * _ncol2);
+                DMatrix::redistribute<2>(rhs + nu * *DMatrix::ldistribution_, rhs2 + nu * ncol2_);
             delete [] rhs2;
         }
 };
@@ -258,103 +258,103 @@ class Pastix : public DMatrix {
 template<class K>
 class PastixSub {
     private:
-        pastix_data_t*    _data;
-        K*              _values;
-        double*          _dparm;
-        pastix_int_t      _ncol;
-        pastix_int_t*   _colptr;
-        pastix_int_t*     _rows;
-        pastix_int_t*    _iparm;
+        pastix_data_t*    data_;
+        K*              values_;
+        double*          dparm_;
+        pastix_int_t      ncol_;
+        pastix_int_t*   colptr_;
+        pastix_int_t*     rows_;
+        pastix_int_t*    iparm_;
     public:
-        PastixSub() : _data(), _values(), _dparm(), _colptr(), _rows(), _iparm() { }
+        PastixSub() : data_(), values_(), dparm_(), colptr_(), rows_(), iparm_() { }
         PastixSub(const PastixSub&) = delete;
         ~PastixSub() { dtor(); }
-        static constexpr char _numbering = 'F';
+        static constexpr char numbering_ = 'F';
         void dtor() {
-            if(_iparm) {
-                if(_iparm[IPARM_SYM] == API_SYM_YES || _iparm[IPARM_SYM] == API_SYM_HER) {
-                    delete [] _rows;
-                    delete [] _colptr;
-                    delete [] _values;
+            if(iparm_) {
+                if(iparm_[IPARM_SYM] == API_SYM_YES || iparm_[IPARM_SYM] == API_SYM_HER) {
+                    delete [] rows_;
+                    delete [] colptr_;
+                    delete [] values_;
                 }
-                _iparm[IPARM_START_TASK]          = API_TASK_CLEAN;
-                _iparm[IPARM_END_TASK]            = API_TASK_CLEAN;
-                pstx<K>::seq(&_data, MPI_COMM_SELF,
+                iparm_[IPARM_START_TASK]          = API_TASK_CLEAN;
+                iparm_[IPARM_END_TASK]            = API_TASK_CLEAN;
+                pstx<K>::seq(&data_, MPI_COMM_SELF,
                              0, NULL, NULL, NULL,
-                             NULL, NULL, NULL, 1, _iparm, _dparm);
-                delete [] _iparm;
-                _iparm = nullptr;
-                delete [] _dparm;
+                             NULL, NULL, NULL, 1, iparm_, dparm_);
+                delete [] iparm_;
+                iparm_ = nullptr;
+                delete [] dparm_;
             }
         }
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
-            if(!_iparm) {
-                _iparm = new pastix_int_t[IPARM_SIZE];
-                _dparm = new double[DPARM_SIZE];
-                _ncol = A->_n;
-                pstx<K>::initParam(_iparm, _dparm);
-                _iparm[IPARM_VERBOSE]             = API_VERBOSE_NOT;
-                _iparm[IPARM_MATRIX_VERIFICATION] = API_NO;
-                _iparm[IPARM_START_TASK]          = API_TASK_INIT;
-                _iparm[IPARM_END_TASK]            = API_TASK_INIT;
-                _iparm[IPARM_SCHUR]               = schur ? API_YES : API_NO;
-                _iparm[IPARM_RHSD_CHECK]          = API_NO;
-                _dparm[DPARM_EPSILON_MAGN_CTRL]   = -1.0 / HPDDM_PEN;
-                if(A->_sym) {
-                    _values = new K[A->_nnz];
-                    _colptr = new int[_ncol + 1];
-                    _rows = new int[A->_nnz];
-                    _iparm[IPARM_SYM]             = API_SYM_YES;
+            if(!iparm_) {
+                iparm_ = new pastix_int_t[IPARM_SIZE];
+                dparm_ = new double[DPARM_SIZE];
+                ncol_ = A->n_;
+                pstx<K>::initParam(iparm_, dparm_);
+                iparm_[IPARM_VERBOSE]             = API_VERBOSE_NOT;
+                iparm_[IPARM_MATRIX_VERIFICATION] = API_NO;
+                iparm_[IPARM_START_TASK]          = API_TASK_INIT;
+                iparm_[IPARM_END_TASK]            = API_TASK_INIT;
+                iparm_[IPARM_SCHUR]               = schur ? API_YES : API_NO;
+                iparm_[IPARM_RHSD_CHECK]          = API_NO;
+                dparm_[DPARM_EPSILON_MAGN_CTRL]   = -1.0 / HPDDM_PEN;
+                if(A->sym_) {
+                    values_ = new K[A->nnz_];
+                    colptr_ = new int[ncol_ + 1];
+                    rows_ = new int[A->nnz_];
+                    iparm_[IPARM_SYM]             = API_SYM_YES;
                 }
                 else  {
-                    _iparm[IPARM_SYM]             = API_SYM_NO;
-                    _iparm[IPARM_FACTORIZATION]   = API_FACT_LU;
+                    iparm_[IPARM_SYM]             = API_SYM_NO;
+                    iparm_[IPARM_FACTORIZATION]   = API_FACT_LU;
                 }
             }
-            const MatrixCSR<K>* B = A->_sym ? nullptr : A->template symmetrizedStructure<N, 'F'>();
-            if(A->_sym) {
-                _iparm[IPARM_FACTORIZATION]       = (Option::get()->val<char>("operator_spd", 0) && !detection) ? API_FACT_LLT : API_FACT_LDLT;
-                Wrapper<K>::template csrcsc<N, 'F'>(&_ncol, A->_a, A->_ja, A->_ia, _values, _rows, _colptr);
+            const MatrixCSR<K>* B = A->sym_ ? nullptr : A->template symmetrizedStructure<N, 'F'>();
+            if(A->sym_) {
+                iparm_[IPARM_FACTORIZATION]       = (Option::get()->val<char>("operator_spd", 0) && !detection) ? API_FACT_LLT : API_FACT_LDLT;
+                Wrapper<K>::template csrcsc<N, 'F'>(&ncol_, A->a_, A->ja_, A->ia_, values_, rows_, colptr_);
             }
             else {
-                _values = B->_a;
-                _colptr = B->_ia;
-                _rows = B->_ja;
+                values_ = B->a_;
+                colptr_ = B->ia_;
+                rows_ = B->ja_;
                 if(B != A)
-                    _iparm[IPARM_TRANSPOSE_SOLVE] = API_YES;
+                    iparm_[IPARM_TRANSPOSE_SOLVE] = API_YES;
             }
-            pastix_int_t* perm = new pastix_int_t[2 * _ncol];
-            pastix_int_t* iperm = perm + _ncol;
+            pastix_int_t* perm = new pastix_int_t[2 * ncol_];
+            pastix_int_t* iperm = perm + ncol_;
             int* listvar = nullptr;
-            if(_iparm[IPARM_START_TASK] == API_TASK_INIT) {
-                pstx<K>::seq(&_data, MPI_COMM_SELF,
-                             _ncol, _colptr, _rows, NULL,
-                             NULL, NULL, NULL, 1, _iparm, _dparm);
+            if(iparm_[IPARM_START_TASK] == API_TASK_INIT) {
+                pstx<K>::seq(&data_, MPI_COMM_SELF,
+                             ncol_, colptr_, rows_, NULL,
+                             NULL, NULL, NULL, 1, iparm_, dparm_);
                 if(schur) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
                     std::iota(listvar, listvar + static_cast<int>(std::real(schur[0])), static_cast<int>(std::real(schur[1])));
-                    pstx<K>::setSchurUnknownList(_data, static_cast<int>(std::real(schur[0])), listvar);
-                    pstx<K>::setSchurArray(_data, schur);
+                    pstx<K>::setSchurUnknownList(data_, static_cast<int>(std::real(schur[0])), listvar);
+                    pstx<K>::setSchurArray(data_, schur);
                 }
-                _iparm[IPARM_START_TASK]          = API_TASK_ORDERING;
-                _iparm[IPARM_END_TASK]            = API_TASK_NUMFACT;
+                iparm_[IPARM_START_TASK]          = API_TASK_ORDERING;
+                iparm_[IPARM_END_TASK]            = API_TASK_NUMFACT;
             }
             else {
-                _iparm[IPARM_START_TASK]          = API_TASK_NUMFACT;
-                _iparm[IPARM_END_TASK]            = API_TASK_NUMFACT;
+                iparm_[IPARM_START_TASK]          = API_TASK_NUMFACT;
+                iparm_[IPARM_END_TASK]            = API_TASK_NUMFACT;
             }
-            pstx<K>::seq(&_data, MPI_COMM_SELF,
-                         _ncol, _colptr, _rows, _values,
-                         perm, iperm, NULL, 1, _iparm, _dparm);
+            pstx<K>::seq(&data_, MPI_COMM_SELF,
+                         ncol_, colptr_, rows_, values_,
+                         perm, iperm, NULL, 1, iparm_, dparm_);
             delete [] listvar;
             delete [] perm;
-            if(_iparm[IPARM_SYM] == API_SYM_NO) {
+            if(iparm_[IPARM_SYM] == API_SYM_NO) {
                 if(B == A) {
                     if(N == 'C') {
-                        std::for_each(_colptr, _colptr + _ncol + 1, [](int& i) { --i; });
-                        std::for_each(_rows, _rows + A->_nnz, [](int& i) { --i; });
+                        std::for_each(colptr_, colptr_ + ncol_ + 1, [](int& i) { --i; });
+                        std::for_each(rows_, rows_ + A->nnz_, [](int& i) { --i; });
                     }
                 }
                 else
@@ -362,14 +362,14 @@ class PastixSub {
             }
         }
         void solve(K* const x, const unsigned short& n = 1) const {
-            _iparm[IPARM_START_TASK] = API_TASK_SOLVE;
-            _iparm[IPARM_END_TASK]   = API_TASK_SOLVE;
-            pstx<K>::seq(const_cast<pastix_data_t**>(&_data), MPI_COMM_SELF,
-                         _ncol, NULL, NULL, NULL,
-                         NULL, NULL, x, n, _iparm, _dparm);
+            iparm_[IPARM_START_TASK] = API_TASK_SOLVE;
+            iparm_[IPARM_END_TASK]   = API_TASK_SOLVE;
+            pstx<K>::seq(const_cast<pastix_data_t**>(&data_), MPI_COMM_SELF,
+                         ncol_, NULL, NULL, NULL,
+                         NULL, NULL, x, n, iparm_, dparm_);
         }
         void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            std::copy_n(b, n * _ncol, x);
+            std::copy_n(b, n * ncol_, x);
             solve(x, n);
         }
 };

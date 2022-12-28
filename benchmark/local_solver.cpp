@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
         auto tBegin = std::chrono::steady_clock::now();
         std::ifstream t(argv[1]);
         A = new HPDDM::MatrixCSR<K>(t);
-        if(A->_n <= 0) {
+        if(A->n_ <= 0) {
             delete A;
             return 1;
         }
@@ -95,8 +95,8 @@ int main(int argc, char** argv) {
     });
     int mu = opt.app()["rhs"];
     bool solve = opt.app()["solve_phase_only"];
-    K* rhs = new K[mu * A->_n];
-    std::fill_n(rhs, mu * A->_n, K(1.0));
+    K* rhs = new K[mu * A->n_];
+    std::fill_n(rhs, mu * A->n_, K(1.0));
     std::streamsize old = std::cout.precision();
     SUBDOMAIN<K>* S = new SUBDOMAIN<K>;
     if(solve)

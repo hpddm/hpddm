@@ -66,51 +66,51 @@ class Schur : public Preconditioner<
         void exchangeSchurComplement(K* const* const& send, K* const* const& recv, K* const& res) const {
             if(send && recv && res) {
                 if(L == 'S')
-                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
-                        MPI_Irecv(recv[i], (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
-                        for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                            for(unsigned int k = j; k < Subdomain<K>::_map[i].second.size(); ++k) {
-                                if(Subdomain<K>::_map[i].second[j] < Subdomain<K>::_map[i].second[k])
-                                    send[i][Subdomain<K>::_map[i].second.size() * j - (j * (j + 1)) / 2 + k] = _schur[Subdomain<K>::_map[i].second[j] * Subdomain<K>::_dof + Subdomain<K>::_map[i].second[k]];
+                    for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i) {
+                        MPI_Irecv(recv[i], (Subdomain<K>::map_[i].second.size() * (Subdomain<K>::map_[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 1, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+                        for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                            for(unsigned int k = j; k < Subdomain<K>::map_[i].second.size(); ++k) {
+                                if(Subdomain<K>::map_[i].second[j] < Subdomain<K>::map_[i].second[k])
+                                    send[i][Subdomain<K>::map_[i].second.size() * j - (j * (j + 1)) / 2 + k] = schur_[Subdomain<K>::map_[i].second[j] * Subdomain<K>::dof_ + Subdomain<K>::map_[i].second[k]];
                                 else
-                                    send[i][Subdomain<K>::_map[i].second.size() * j - (j * (j + 1)) / 2 + k] = _schur[Subdomain<K>::_map[i].second[k] * Subdomain<K>::_dof + Subdomain<K>::_map[i].second[j]];
+                                    send[i][Subdomain<K>::map_[i].second.size() * j - (j * (j + 1)) / 2 + k] = schur_[Subdomain<K>::map_[i].second[k] * Subdomain<K>::dof_ + Subdomain<K>::map_[i].second[j]];
                             }
-                        MPI_Isend(send[i], (Subdomain<K>::_map[i].second.size() * (Subdomain<K>::_map[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
+                        MPI_Isend(send[i], (Subdomain<K>::map_[i].second.size() * (Subdomain<K>::map_[i].second.size() + 1)) / 2, Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 1, Subdomain<K>::communicator_, Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
                     }
                 else
-                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
-                        MPI_Irecv(recv[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
-                        for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                            for(unsigned int k = 0; k < Subdomain<K>::_map[i].second.size(); ++k) {
-                                if(Subdomain<K>::_map[i].second[j] < Subdomain<K>::_map[i].second[k])
-                                    send[i][j * Subdomain<K>::_map[i].second.size() + k] = _schur[Subdomain<K>::_map[i].second[j] * Subdomain<K>::_dof + Subdomain<K>::_map[i].second[k]];
+                    for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i) {
+                        MPI_Irecv(recv[i], Subdomain<K>::map_[i].second.size() * Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 1, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+                        for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                            for(unsigned int k = 0; k < Subdomain<K>::map_[i].second.size(); ++k) {
+                                if(Subdomain<K>::map_[i].second[j] < Subdomain<K>::map_[i].second[k])
+                                    send[i][j * Subdomain<K>::map_[i].second.size() + k] = schur_[Subdomain<K>::map_[i].second[j] * Subdomain<K>::dof_ + Subdomain<K>::map_[i].second[k]];
                                 else
-                                    send[i][j * Subdomain<K>::_map[i].second.size() + k] = _schur[Subdomain<K>::_map[i].second[k] * Subdomain<K>::_dof + Subdomain<K>::_map[i].second[j]];
+                                    send[i][j * Subdomain<K>::map_[i].second.size() + k] = schur_[Subdomain<K>::map_[i].second[k] * Subdomain<K>::dof_ + Subdomain<K>::map_[i].second[j]];
                             }
-                        MPI_Isend(send[i], Subdomain<K>::_map[i].second.size() * Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 1, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
+                        MPI_Isend(send[i], Subdomain<K>::map_[i].second.size() * Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 1, Subdomain<K>::communicator_, Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
                     }
-                Blas<K>::lacpy("L", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof));
+                Blas<K>::lacpy("L", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), schur_, &(Subdomain<K>::dof_), res, &(Subdomain<K>::dof_));
                 if(L == 'S')
-                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
+                    for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i) {
                         int index;
-                        MPI_Waitany(Subdomain<K>::_map.size(), Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
-                        for(unsigned int j = 0; j < Subdomain<K>::_map[index].second.size(); ++j) {
+                        MPI_Waitany(Subdomain<K>::map_.size(), Subdomain<K>::rq_, &index, MPI_STATUS_IGNORE);
+                        for(unsigned int j = 0; j < Subdomain<K>::map_[index].second.size(); ++j) {
                             for(unsigned int k = 0; k < j; ++k)
-                                if(Subdomain<K>::_map[index].second[j] <= Subdomain<K>::_map[index].second[k])
-                                    res[Subdomain<K>::_map[index].second[j] * Subdomain<K>::_dof + Subdomain<K>::_map[index].second[k]] += recv[index][Subdomain<K>::_map[index].second.size() * k - (k * (k + 1)) / 2 + j];
-                            for(unsigned int k = j; k < Subdomain<K>::_map[index].second.size(); ++k)
-                                if(Subdomain<K>::_map[index].second[j] <= Subdomain<K>::_map[index].second[k])
-                                    res[Subdomain<K>::_map[index].second[j] * Subdomain<K>::_dof + Subdomain<K>::_map[index].second[k]] += recv[index][Subdomain<K>::_map[index].second.size() * j - (j * (j + 1)) / 2 + k];
+                                if(Subdomain<K>::map_[index].second[j] <= Subdomain<K>::map_[index].second[k])
+                                    res[Subdomain<K>::map_[index].second[j] * Subdomain<K>::dof_ + Subdomain<K>::map_[index].second[k]] += recv[index][Subdomain<K>::map_[index].second.size() * k - (k * (k + 1)) / 2 + j];
+                            for(unsigned int k = j; k < Subdomain<K>::map_[index].second.size(); ++k)
+                                if(Subdomain<K>::map_[index].second[j] <= Subdomain<K>::map_[index].second[k])
+                                    res[Subdomain<K>::map_[index].second[j] * Subdomain<K>::dof_ + Subdomain<K>::map_[index].second[k]] += recv[index][Subdomain<K>::map_[index].second.size() * j - (j * (j + 1)) / 2 + k];
                         }
                     }
                 else
-                    for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i) {
+                    for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i) {
                         int index;
-                        MPI_Waitany(Subdomain<K>::_map.size(), Subdomain<K>::_rq, &index, MPI_STATUS_IGNORE);
-                        for(unsigned int j = 0; j < Subdomain<K>::_map[index].second.size(); ++j)
-                            for(unsigned int k = 0; k < Subdomain<K>::_map[index].second.size(); ++k)
-                                if(Subdomain<K>::_map[index].second[j] <= Subdomain<K>::_map[index].second[k])
-                                    res[Subdomain<K>::_map[index].second[j] * Subdomain<K>::_dof + Subdomain<K>::_map[index].second[k]] += recv[index][j * Subdomain<K>::_map[index].second.size() + k];
+                        MPI_Waitany(Subdomain<K>::map_.size(), Subdomain<K>::rq_, &index, MPI_STATUS_IGNORE);
+                        for(unsigned int j = 0; j < Subdomain<K>::map_[index].second.size(); ++j)
+                            for(unsigned int k = 0; k < Subdomain<K>::map_[index].second.size(); ++k)
+                                if(Subdomain<K>::map_[index].second[j] <= Subdomain<K>::map_[index].second[k])
+                                    res[Subdomain<K>::map_[index].second[j] * Subdomain<K>::dof_ + Subdomain<K>::map_[index].second[k]] += recv[index][j * Subdomain<K>::map_[index].second.size() + k];
                     }
             }
         }
@@ -118,37 +118,37 @@ class Schur : public Preconditioner<
     protected:
         /* Variable: bb
          *  Local matrix assembled on boundary degrees of freedom. */
-        MatrixCSR<K>*          _bb;
+        MatrixCSR<K>*          bb_;
         /* Variable: ii
          *  Local matrix assembled on interior degrees of freedom. */
-        MatrixCSR<K>*          _ii;
+        MatrixCSR<K>*          ii_;
         /* Variable: bi
          *  Local matrix assembled on boundary and interior degrees of freedom. */
-        MatrixCSR<K>*          _bi;
+        MatrixCSR<K>*          bi_;
         /* Variable: schur
          *  Explicit local Schur complement. */
-        K*                  _schur;
+        K*                  schur_;
         /* Variable: work
          *  Workspace array. */
-        K*                   _work;
+        K*                   work_;
         /* Variable: structure
          *  Workspace array of size lower than or equal to <Subdomain::dof>. */
-        K*              _structure;
+        K*              structure_;
         /* Variable: pinv
          *  Solver used in <Schur::callNumfact> and <Bdd::callNumfact> for factorizing <Subdomain::a> or <Schur::schur>. */
-        void*                _pinv;
+        void*                pinv_;
         /* Variable: rankWorld
          *  Rank of the current subdomain in <Subdomain::communicator>. */
-        int             _rankWorld;
+        int             rankWorld_;
         /* Variable: mult
          *  Number of local Lagrange multipliers. */
-        int                  _mult;
+        int                  mult_;
         /* Variable: signed
          *  Number of neighboring subdomains in <Subdomain::communicator> with ranks lower than <rankWorld>. */
-        unsigned short     _signed;
+        unsigned short     signed_;
         /* Variable: deficiency
          *  Dimension of the kernel of <Subdomain::a>. */
-        unsigned short _deficiency;
+        unsigned short deficiency_;
 #if HPDDM_FETI || HPDDM_BDD
         /* Function: solveGEVP
          *
@@ -165,49 +165,49 @@ class Schur : public Preconditioner<
             const bool resetPrefix = (opt.getPrefix().size() == 0 && super::prefix().size() != 0);
             if(resetPrefix)
                 opt.setPrefix(super::prefix());
-            if(_schur) {
-                K** send = Subdomain<K>::_buff;
-                unsigned int size = std::accumulate(Subdomain<K>::_map.cbegin(), Subdomain<K>::_map.cend(), 0, [](unsigned int sum, const pairNeighbor& n) { return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size()); });
+            if(schur_) {
+                K** send = Subdomain<K>::buff_;
+                unsigned int size = std::accumulate(Subdomain<K>::map_.cbegin(), Subdomain<K>::map_.cend(), 0, [](unsigned int sum, const pairNeighbor& n) { return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size()); });
                 *send = new K[2 * size];
-                K** recv = send + Subdomain<K>::_map.size();
+                K** recv = send + Subdomain<K>::map_.size();
                 *recv = *send + size;
                 if(L == 'S')
-                    for(unsigned short i = 1; i < Subdomain<K>::_map.size(); ++i) {
-                        send[i] = send[i - 1] + (Subdomain<K>::_map[i - 1].second.size() * (Subdomain<K>::_map[i - 1].second.size() + 1)) / 2;
-                        recv[i] = recv[i - 1] + (Subdomain<K>::_map[i - 1].second.size() * (Subdomain<K>::_map[i - 1].second.size() + 1)) / 2;
+                    for(unsigned short i = 1; i < Subdomain<K>::map_.size(); ++i) {
+                        send[i] = send[i - 1] + (Subdomain<K>::map_[i - 1].second.size() * (Subdomain<K>::map_[i - 1].second.size() + 1)) / 2;
+                        recv[i] = recv[i - 1] + (Subdomain<K>::map_[i - 1].second.size() * (Subdomain<K>::map_[i - 1].second.size() + 1)) / 2;
                     }
                 else
-                    for(unsigned short i = 1; i < Subdomain<K>::_map.size(); ++i) {
-                        send[i] = send[i - 1] + Subdomain<K>::_map[i - 1].second.size() * Subdomain<K>::_map[i - 1].second.size();
-                        recv[i] = recv[i - 1] + Subdomain<K>::_map[i - 1].second.size() * Subdomain<K>::_map[i - 1].second.size();
+                    for(unsigned short i = 1; i < Subdomain<K>::map_.size(); ++i) {
+                        send[i] = send[i - 1] + Subdomain<K>::map_[i - 1].second.size() * Subdomain<K>::map_[i - 1].second.size();
+                        recv[i] = recv[i - 1] + Subdomain<K>::map_[i - 1].second.size() * Subdomain<K>::map_[i - 1].second.size();
                     }
-                K* res = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
+                K* res = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_];
                 exchangeSchurComplement<L>(send, recv, res);
                 unsigned short nu = opt.val<unsigned short>("geneo_nu", 20);
                 const underlying_type<K> threshold = opt.val("geneo_threshold", 0.0);
-                Eigensolver<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::_dof, nu);
+                Eigensolver<K> evp(nu >= 10 ? (nu >= 40 ? 1.0e-14 : 1.0e-12) : 1.0e-8, threshold, Subdomain<K>::dof_, nu);
                 K* A;
-                if(size < Subdomain<K>::_dof * Subdomain<K>::_dof)
-                    A = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
+                if(size < Subdomain<K>::dof_ * Subdomain<K>::dof_)
+                    A = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_];
                 else
                     A = *recv;
-                Blas<K>::lacpy("L", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), _schur, &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof));
+                Blas<K>::lacpy("L", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), schur_, &(Subdomain<K>::dof_), A, &(Subdomain<K>::dof_));
                 if(d)
-                    for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
-                        for(unsigned int j = i; j < Subdomain<K>::_dof; ++j)
-                            res[j + i * Subdomain<K>::_dof] *= d[i] * d[j];
+                    for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i)
+                        for(unsigned int j = i; j < Subdomain<K>::dof_; ++j)
+                            res[j + i * Subdomain<K>::dof_] *= d[i] * d[j];
                 int flag, info;
-                Lapack<K>::potrf("L", &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof), &flag);
-                Lapack<K>::gst(&i__1, "L", &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof), res, &(Subdomain<K>::_dof), &flag);
+                Lapack<K>::potrf("L", &(Subdomain<K>::dof_), res, &(Subdomain<K>::dof_), &flag);
+                Lapack<K>::gst(&i__1, "L", &(Subdomain<K>::dof_), A, &(Subdomain<K>::dof_), res, &(Subdomain<K>::dof_), &flag);
                 int lwork = -1;
                 {
                     K wkopt;
-                    Lapack<K>::trd("L", &(Subdomain<K>::_dof), nullptr, &(Subdomain<K>::_dof), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
+                    Lapack<K>::trd("L", &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, nullptr, nullptr, &wkopt, &lwork, &info);
                     lwork = std::real(wkopt);
                 }
-                MPI_Testall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), &flag, MPI_STATUSES_IGNORE);
+                MPI_Testall(Subdomain<K>::map_.size(), Subdomain<K>::rq_ + Subdomain<K>::map_.size(), &flag, MPI_STATUSES_IGNORE);
                 K* work;
-                const int storage = !Wrapper<K>::is_complex ? 4 * Subdomain<K>::_dof - 1 : 2 * Subdomain<K>::_dof;
+                const int storage = !Wrapper<K>::is_complex ? 4 * Subdomain<K>::dof_ - 1 : 2 * Subdomain<K>::dof_;
                 if(flag) {
                     if((lwork + storage) <= size || (A != *recv && (lwork + storage) <= 2 * size))
                         work = *send;
@@ -222,66 +222,66 @@ class Schur : public Preconditioner<
                 }
                 {
                     K* tau = work + lwork;
-                    underlying_type<K>* d = reinterpret_cast<underlying_type<K>*>(tau + Subdomain<K>::_dof);
-                    underlying_type<K>* e = d + Subdomain<K>::_dof;
-                    Lapack<K>::trd("L", &(Subdomain<K>::_dof), A, &(Subdomain<K>::_dof), d, e, tau, work, &lwork, &info);
+                    underlying_type<K>* d = reinterpret_cast<underlying_type<K>*>(tau + Subdomain<K>::dof_);
+                    underlying_type<K>* e = d + Subdomain<K>::dof_;
+                    Lapack<K>::trd("L", &(Subdomain<K>::dof_), A, &(Subdomain<K>::dof_), d, e, tau, work, &lwork, &info);
                     underlying_type<K> vl = -1.0 / HPDDM_EPS;
                     underlying_type<K> vu = threshold;
-                    int iu = evp._nu;
+                    int iu = evp.nu_;
                     int nsplit;
-                    underlying_type<K>* evr = e + Subdomain<K>::_dof - 1;
-                    int* iblock = new int[5 * Subdomain<K>::_dof];
-                    int* isplit = iblock + Subdomain<K>::_dof;
-                    int* iwork = isplit + Subdomain<K>::_dof;
+                    underlying_type<K>* evr = e + Subdomain<K>::dof_ - 1;
+                    int* iblock = new int[5 * Subdomain<K>::dof_];
+                    int* isplit = iblock + Subdomain<K>::dof_;
+                    int* iwork = isplit + Subdomain<K>::dof_;
                     char range = threshold > 0.0 ? 'V' : 'I';
                     underlying_type<K> tol = evp.getTol();
-                    Lapack<K>::stebz(&range, "B", &(Subdomain<K>::_dof), &vl, &vu, &i__1, &iu, &tol, d, e, &evp._nu, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K>*>(work), iwork, &info);
-                    if(evp._nu) {
-                        if(super::_ev) {
-                            delete [] *super::_ev;
-                            delete [] super::_ev;
+                    Lapack<K>::stebz(&range, "B", &(Subdomain<K>::dof_), &vl, &vu, &i__1, &iu, &tol, d, e, &evp.nu_, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K>*>(work), iwork, &info);
+                    if(evp.nu_) {
+                        if(super::ev_) {
+                            delete [] *super::ev_;
+                            delete [] super::ev_;
                         }
-                        super::_ev = new K*[evp._nu];
-                        *super::_ev = new K[Subdomain<K>::_dof * evp._nu];
-                        for(unsigned short i = 1; i < evp._nu; ++i)
-                            super::_ev[i] = *super::_ev + i * Subdomain<K>::_dof;
-                        int* ifailv = new int[evp._nu];
-                        Lapack<K>::stein(&(Subdomain<K>::_dof), d, e, &(evp._nu), evr, iblock, isplit, *super::_ev, &(Subdomain<K>::_dof), reinterpret_cast<underlying_type<K>*>(work), iwork, ifailv, &info);
+                        super::ev_ = new K*[evp.nu_];
+                        *super::ev_ = new K[Subdomain<K>::dof_ * evp.nu_];
+                        for(unsigned short i = 1; i < evp.nu_; ++i)
+                            super::ev_[i] = *super::ev_ + i * Subdomain<K>::dof_;
+                        int* ifailv = new int[evp.nu_];
+                        Lapack<K>::stein(&(Subdomain<K>::dof_), d, e, &(evp.nu_), evr, iblock, isplit, *super::ev_, &(Subdomain<K>::dof_), reinterpret_cast<underlying_type<K>*>(work), iwork, ifailv, &info);
                         delete [] ifailv;
-                        Lapack<K>::mtr("L", "L", "N", &(Subdomain<K>::_dof), &(evp._nu), A, &(Subdomain<K>::_dof), tau, *super::_ev, &(Subdomain<K>::_dof), work, &lwork, &info);
+                        Lapack<K>::mtr("L", "L", "N", &(Subdomain<K>::dof_), &(evp.nu_), A, &(Subdomain<K>::dof_), tau, *super::ev_, &(Subdomain<K>::dof_), work, &lwork, &info);
                         if(!Wrapper<K>::is_complex)
-                            lwork += 3 * Subdomain<K>::_dof - 1;
+                            lwork += 3 * Subdomain<K>::dof_ - 1;
                         else
-                            lwork += 4 * Subdomain<K>::_dof - 1;
+                            lwork += 4 * Subdomain<K>::dof_ - 1;
                     }
                     delete [] iblock;
                 }
-                if(evp._nu) {
+                if(evp.nu_) {
                     if(*(reinterpret_cast<underlying_type<K>*>(work) + lwork) < 2 * evp.getTol()) {
-                        _deficiency = 1;
+                        deficiency_ = 1;
                         underlying_type<K> relative = *(reinterpret_cast<underlying_type<K>*>(work) + lwork);
-                        while(_deficiency < evp._nu && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + _deficiency) / relative) * std::cbrt(evp.getTol()) < 1)
-                            ++_deficiency;
+                        while(deficiency_ < evp.nu_ && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + deficiency_) / relative) * std::cbrt(evp.getTol()) < 1)
+                            ++deficiency_;
                     }
-                    Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::_dof), &(evp._nu), res, &(Subdomain<K>::_dof), *super::_ev, &(Subdomain<K>::_dof), &info);
+                    Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::dof_), &(evp.nu_), res, &(Subdomain<K>::dof_), *super::ev_, &(Subdomain<K>::dof_), &info);
                 }
-                else if(super::_ev) {
-                    delete [] *super::_ev;
-                    delete []  super::_ev;
-                    super::_ev = nullptr;
+                else if(super::ev_) {
+                    delete [] *super::ev_;
+                    delete []  super::ev_;
+                    super::ev_ = nullptr;
                 }
-                evp.dump(work + lwork, super::_ev, Subdomain<K>::_communicator);
+                evp.dump(work + lwork, super::ev_, Subdomain<K>::communicator_);
                 if(threshold > 0.0)
-                    evp.template selectNu<K, true>(work + lwork, super::_ev, Subdomain<K>::_communicator, _deficiency);
-                opt["geneo_nu"] = evp._nu;
-                if(super::_co)
-                    super::_co->setLocal(evp._nu);
+                    evp.template selectNu<K, true>(work + lwork, super::ev_, Subdomain<K>::communicator_, deficiency_);
+                opt["geneo_nu"] = evp.nu_;
+                if(super::co_)
+                    super::co_->setLocal(evp.nu_);
                 if(A != *recv)
                     delete [] A;
                 if(work != *recv && work != *send)
                     delete [] work;
                 if(!flag)
-                    MPI_Waitall(Subdomain<K>::_map.size(), Subdomain<K>::_rq + Subdomain<K>::_map.size(), MPI_STATUSES_IGNORE);
+                    MPI_Waitall(Subdomain<K>::map_.size(), Subdomain<K>::rq_ + Subdomain<K>::map_.size(), MPI_STATUSES_IGNORE);
                 delete [] res;
                 delete [] *send;
             }
@@ -293,39 +293,39 @@ class Schur : public Preconditioner<
         template<unsigned short excluded, class Operator, class Prcndtnr>
         std::pair<MPI_Request, const K*>* buildTwo(Prcndtnr* B, const MPI_Comm& comm) {
             if(!Option::get()->set(super::prefix("geneo_nu"))) {
-                if(!super::_co)
-                    super::_co = new typename std::remove_reference<decltype(*super::_co)>::type;
-                super::_co->setLocal(_deficiency);
+                if(!super::co_)
+                    super::co_ = new typename std::remove_reference<decltype(*super::co_)>::type;
+                super::co_->setLocal(deficiency_);
             }
             return super::template buildTwo<excluded, Operator>(B, comm);
         }
 #endif
     public:
-        Schur() : _bb(), _ii(), _bi(), _schur(), _work(), _structure(), _pinv(), _mult(), _signed(), _deficiency() { }
+        Schur() : bb_(), ii_(), bi_(), schur_(), work_(), structure_(), pinv_(), mult_(), signed_(), deficiency_() { }
         Schur(const Schur&) = delete;
         ~Schur() { dtor(); }
         void dtor() {
             super::super::dtor();
             super::dtor();
-            delete _bb;
-            _bb = nullptr;
-            delete _bi;
-            _bi = nullptr;
-            delete _ii;
-            _ii = nullptr;
+            delete bb_;
+            bb_ = nullptr;
+            delete bi_;
+            bi_ = nullptr;
+            delete ii_;
+            ii_ = nullptr;
 #if HPDDM_FETI || HPDDM_BDD
-            if(!HPDDM_QR || !_schur)
-                delete static_cast<Solver<K>*>(_pinv);
-            else if(_deficiency)
-                delete static_cast<QR<K>*>(_pinv);
+            if(!HPDDM_QR || !schur_)
+                delete static_cast<Solver<K>*>(pinv_);
+            else if(deficiency_)
+                delete static_cast<QR<K>*>(pinv_);
             else
-                delete [] static_cast<K*>(_pinv);
-            _pinv = nullptr;
+                delete [] static_cast<K*>(pinv_);
+            pinv_ = nullptr;
 #endif
-            delete [] _schur;
-            _schur = nullptr;
-            delete [] _work;
-            _work = nullptr;
+            delete [] schur_;
+            schur_ = nullptr;
+            delete [] work_;
+            work_ = nullptr;
         }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
@@ -340,66 +340,66 @@ class Schur : public Preconditioner<
          *  Sets <Schur::rankWorld> and <Schur::signed>, and allocates <Schur::mult>, <Schur::work>, and <Schur::structure>. */
         template<bool m>
         void initialize() {
-            MPI_Comm_rank(Subdomain<K>::_communicator, &_rankWorld);
-            for(const pairNeighbor& neighbor : Subdomain<K>::_map) {
-                _mult += neighbor.second.size();
-                if(neighbor.first < _rankWorld)
-                    ++_signed;
+            MPI_Comm_rank(Subdomain<K>::communicator_, &rankWorld_);
+            for(const pairNeighbor& neighbor : Subdomain<K>::map_) {
+                mult_ += neighbor.second.size();
+                if(neighbor.first < rankWorld_)
+                    ++signed_;
             }
             if(m) {
-                _work = new K[_mult + Subdomain<K>::_a->_n];
-                _structure = _work + _mult;
+                work_ = new K[mult_ + Subdomain<K>::a_->n_];
+                structure_ = work_ + mult_;
             }
             else {
-                _work = new K[Subdomain<K>::_dof + Subdomain<K>::_a->_n];
-                _structure = _work + Subdomain<K>::_dof;
+                work_ = new K[Subdomain<K>::dof_ + Subdomain<K>::a_->n_];
+                structure_ = work_ + Subdomain<K>::dof_;
             }
         }
 #if HPDDM_FETI || HPDDM_BDD
         /* Function: callNumfact
          *  Factorizes <Subdomain::a>. */
         void callNumfact() {
-            if(Subdomain<K>::_a) {
-                _pinv = new Solver<K>();
-                Solver<K>* p = static_cast<Solver<K>*>(_pinv);
-                if(_deficiency) {
+            if(Subdomain<K>::a_) {
+                pinv_ = new Solver<K>();
+                Solver<K>* p = static_cast<Solver<K>*>(pinv_);
+                if(deficiency_) {
 #if defined(MUMPSSUB) || defined(PASTIXSUB)
-                    p->numfact(Subdomain<K>::_a, true);
+                    p->numfact(Subdomain<K>::a_, true);
 #else
-                    for(unsigned short i = 0; i < _deficiency; ++i)
-                        _ii->_a[_ii->_ia[((i + 1) * _ii->_n) / (_deficiency + 1)] - 1] += HPDDM_PEN;
-                    p->numfact(Subdomain<K>::_a);
-                    for(unsigned short i = 0; i < _deficiency; ++i)
-                        _ii->_a[_ii->_ia[((i + 1) * _ii->_n) / (_deficiency + 1)] - 1] -= HPDDM_PEN;
+                    for(unsigned short i = 0; i < deficiency_; ++i)
+                        ii_->a_[ii_->ia_[((i + 1) * ii_->n_) / (deficiency_ + 1)] - 1] += HPDDM_PEN;
+                    p->numfact(Subdomain<K>::a_);
+                    for(unsigned short i = 0; i < deficiency_; ++i)
+                        ii_->a_[ii_->ia_[((i + 1) * ii_->n_) / (deficiency_ + 1)] - 1] -= HPDDM_PEN;
 #endif
                 }
                 else
-                    p->numfact(Subdomain<K>::_a);
+                    p->numfact(Subdomain<K>::a_);
             }
             else
-                std::cerr << "The matrix '_a' has not been allocated => impossible to build the Neumann preconditioner" << std::endl;
+                std::cerr << "The matrix 'a_' has not been allocated => impossible to build the Neumann preconditioner" << std::endl;
         }
         /* Function: computeSchurComplement
          *  Computes the explicit Schur complement <Schur::schur>. */
         void computeSchurComplement() {
 #if defined(MUMPSSUB) || defined(PASTIXSUB) || defined(MKL_PARDISOSUB)
-            if(Subdomain<K>::_a) {
-                delete _ii;
-                _ii = nullptr;
-                if(!_schur) {
-                    _schur = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
-                    _schur[0] = Subdomain<K>::_dof;
+            if(Subdomain<K>::a_) {
+                delete ii_;
+                ii_ = nullptr;
+                if(!schur_) {
+                    schur_ = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_];
+                    schur_[0] = Subdomain<K>::dof_;
 #if defined(MKL_PARDISOSUB)
 #pragma message("Consider changing your linear solver if you need to compute solutions of singular systems")
-                    _schur[1] = _bi->_m;
+                    schur_[1] = bi_->m_;
 #else
-                    _schur[1] = _bi->_m + 1;
+                    schur_[1] = bi_->m_ + 1;
 #endif
-                    super::_s.numfact(Subdomain<K>::_a, true, _schur);
+                    super::s_.numfact(Subdomain<K>::a_, true, schur_);
                 }
             }
             else
-                std::cerr << "The matrix '_a' has not been allocated => impossible to build the Schur complement" << std::endl;
+                std::cerr << "The matrix 'a_' has not been allocated => impossible to build the Schur complement" << std::endl;
 #else
 #pragma message("Consider changing your linear solver if you need to compute solutions of singular systems or Schur complements")
 #endif
@@ -407,13 +407,13 @@ class Schur : public Preconditioner<
         /* Function: callNumfactPreconditioner
          *  Factorizes <Schur::ii> if <Schur::schur> is not available. */
         void callNumfactPreconditioner() {
-            if(!_schur) {
-                if(_ii) {
-                    if(_ii->_n)
-                        super::_s.numfact(_ii);
+            if(!schur_) {
+                if(ii_) {
+                    if(ii_->n_)
+                        super::s_.numfact(ii_);
                 }
                 else
-                    std::cerr << "The matrix '_ii' has not been allocated => impossible to build the Dirichlet preconditioner" << std::endl;
+                    std::cerr << "The matrix 'ii_' has not been allocated => impossible to build the Dirichlet preconditioner" << std::endl;
             }
         }
 #endif
@@ -426,16 +426,16 @@ class Schur : public Preconditioner<
          *    in             - Input vector. */
         template<class Container>
         void originalNumbering(const Container& interface, K* const in) const {
-            if(interface[0] != _bi->_m) {
-                unsigned int end = Subdomain<K>::_a->_n;
-                std::vector<K> backup(in + _bi->_m, in + end);
-                unsigned int j = Subdomain<K>::_dof;
+            if(interface[0] != bi_->m_) {
+                unsigned int end = Subdomain<K>::a_->n_;
+                std::vector<K> backup(in + bi_->m_, in + end);
+                unsigned int j = Subdomain<K>::dof_;
                 while(j-- > 0 && j != interface[j]) {
                     std::copy_backward(in + interface[j] - j - 1, in + end - j - 1, in + end);
                     in[interface[j]] = backup[j];
                     end = interface[j];
                 }
-                if(j < Subdomain<K>::_dof) {
+                if(j < Subdomain<K>::dof_) {
                     std::copy_backward(in, in + end - j - 1, in + end);
                     std::copy_n(backup.begin(), j + 1, in);
                 }
@@ -451,10 +451,10 @@ class Schur : public Preconditioner<
         template<bool trim = true, class Container = std::vector<int>>
         void renumber(const Container& interface, K* const& f = nullptr) {
             if(!interface.empty()) {
-                if(!_ii) {
-                    Subdomain<K>::_dof = Subdomain<K>::_a->_n;
+                if(!ii_) {
+                    Subdomain<K>::dof_ = Subdomain<K>::a_->n_;
                     std::vector<signed int> vec;
-                    vec.reserve(Subdomain<K>::_dof);
+                    vec.reserve(Subdomain<K>::dof_);
                     std::vector<std::vector<K>> deflationBoundary(
 #if HPDDM_FETI || HPDDM_BDD
                             super::getLocal()
@@ -470,57 +470,57 @@ class Schur : public Preconditioner<
                             vec.emplace_back(++i);
 #if HPDDM_FETI || HPDDM_BDD
                             for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
-                                deflationBoundary[l].emplace_back(super::_ev[l][k]);
+                                deflationBoundary[l].emplace_back(super::ev_[l][k]);
 #endif
                         }
                         else {
 #if HPDDM_FETI || HPDDM_BDD
                             for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
-                                super::_ev[l][j] = super::_ev[l][k];
+                                super::ev_[l][j] = super::ev_[l][k];
 #endif
                             vec.emplace_back(-(++j));
                         }
                     }
-                    for(unsigned int k = interface.back() + 1; k < Subdomain<K>::_dof; ++k) {
+                    for(unsigned int k = interface.back() + 1; k < Subdomain<K>::dof_; ++k) {
 #if HPDDM_FETI || HPDDM_BDD
                         for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
-                            super::_ev[l][j] = super::_ev[l][k];
+                            super::ev_[l][j] = super::ev_[l][k];
 #endif
                         vec.emplace_back(-(++j));
                     }
 #if HPDDM_FETI || HPDDM_BDD
                     for(unsigned short l = 0; l < deflationBoundary.size(); ++l)
-                        std::copy(deflationBoundary[l].cbegin(), deflationBoundary[l].cend(), super::_ev[l] + Subdomain<K>::_dof - interface.size());
+                        std::copy(deflationBoundary[l].cbegin(), deflationBoundary[l].cend(), super::ev_[l] + Subdomain<K>::dof_ - interface.size());
 #endif
                     std::vector<std::pair<unsigned int, K>> tmpInterior;
                     std::vector<std::pair<unsigned int, K>> tmpBoundary;
                     std::vector<std::vector<std::pair<unsigned int, K>>> tmpInteraction(interface.size());
-                    tmpInterior.reserve(Subdomain<K>::_a->_nnz * (Subdomain<K>::_dof - interface.size()) / Subdomain<K>::_dof);
-                    tmpBoundary.reserve(Subdomain<K>::_a->_nnz * interface.size() / Subdomain<K>::_dof);
+                    tmpInterior.reserve(Subdomain<K>::a_->nnz_ * (Subdomain<K>::dof_ - interface.size()) / Subdomain<K>::dof_);
+                    tmpBoundary.reserve(Subdomain<K>::a_->nnz_ * interface.size() / Subdomain<K>::dof_);
                     for(j = 0; j < interface.size(); ++j)
-                        tmpInteraction[j].reserve(std::max(Subdomain<K>::_a->_ia[interface[j] + 1] - Subdomain<K>::_a->_ia[interface[j]] - 1, 0));
-                    _bb = new MatrixCSR<K>(interface.size(), interface.size(), true);
-                    int* ii = new int[Subdomain<K>::_dof + 1];
+                        tmpInteraction[j].reserve(std::max(Subdomain<K>::a_->ia_[interface[j] + 1] - Subdomain<K>::a_->ia_[interface[j]] - 1, 0));
+                    bb_ = new MatrixCSR<K>(interface.size(), interface.size(), true);
+                    int* ii = new int[Subdomain<K>::dof_ + 1];
                     ii[0] = 0;
-                    _bb->_ia[0] = (Wrapper<K>::I == 'F');
+                    bb_->ia_[0] = (Wrapper<K>::I == 'F');
                     std::pair<std::vector<int>, std::vector<int>> boundaryCond;
-                    if(!Subdomain<K>::_a->_sym) {
-                        boundaryCond.first.reserve(Subdomain<K>::_dof - interface.size());
+                    if(!Subdomain<K>::a_->sym_) {
+                        boundaryCond.first.reserve(Subdomain<K>::dof_ - interface.size());
                         boundaryCond.second.reserve(interface.size());
                     }
-                    for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
+                    for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
                         signed int row = vec[i];
                         unsigned int stop;
-                        if(!Subdomain<K>::_a->_sym)
-                            stop = std::distance(Subdomain<K>::_a->_ja, std::upper_bound(Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i], Subdomain<K>::_a->_ja + Subdomain<K>::_a->_ia[i + 1], i));
+                        if(!Subdomain<K>::a_->sym_)
+                            stop = std::distance(Subdomain<K>::a_->ja_, std::upper_bound(Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[i], Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[i + 1], i));
                         else
-                            stop = Subdomain<K>::_a->_ia[i + 1];
-                        if(!Subdomain<K>::_a->_sym) {
+                            stop = Subdomain<K>::a_->ia_[i + 1];
+                        if(!Subdomain<K>::a_->sym_) {
                             bool isBoundaryCond = true;
-                            for(j = Subdomain<K>::_a->_ia[i]; j < Subdomain<K>::_a->_ia[i + 1] && isBoundaryCond; ++j) {
-                                if(i != Subdomain<K>::_a->_ja[j] && (!trim || std::abs(Subdomain<K>::_a->_a[j]) > HPDDM_EPS))
+                            for(j = Subdomain<K>::a_->ia_[i]; j < Subdomain<K>::a_->ia_[i + 1] && isBoundaryCond; ++j) {
+                                if(i != Subdomain<K>::a_->ja_[j] && (!trim || std::abs(Subdomain<K>::a_->a_[j]) > HPDDM_EPS))
                                     isBoundaryCond = false;
-                                else if(i == Subdomain<K>::_a->_ja[j] && (!trim || std::abs(Subdomain<K>::_a->_a[j] - K(1.0)) > HPDDM_EPS))
+                                else if(i == Subdomain<K>::a_->ja_[j] && (!trim || std::abs(Subdomain<K>::a_->a_[j] - K(1.0)) > HPDDM_EPS))
                                     isBoundaryCond = false;
                             }
                             if(isBoundaryCond) {
@@ -530,10 +530,10 @@ class Schur : public Preconditioner<
                                     boundaryCond.first.push_back(-row);
                             }
                         }
-                        for(j = Subdomain<K>::_a->_ia[i]; j < stop; ++j) {
-                            const K val = Subdomain<K>::_a->_a[j];
+                        for(j = Subdomain<K>::a_->ia_[i]; j < stop; ++j) {
+                            const K val = Subdomain<K>::a_->a_[j];
                             if(!trim || std::abs(val) > HPDDM_EPS) {
-                                const int col = vec[Subdomain<K>::_a->_ja[j]];
+                                const int col = vec[Subdomain<K>::a_->ja_[j]];
                                 if(col > 0) {
                                     const bool cond = !std::binary_search(boundaryCond.second.cbegin(), boundaryCond.second.cend(), col);
                                     if(row < 0 && cond)
@@ -552,50 +552,50 @@ class Schur : public Preconditioner<
                         if(row < 0)
                             ii[-row] = tmpInterior.size();
                         else
-                            _bb->_ia[row] = tmpBoundary.size() + (Wrapper<K>::I == 'F');
+                            bb_->ia_[row] = tmpBoundary.size() + (Wrapper<K>::I == 'F');
                     }
                     for(j = 0; j < tmpInterior.size(); ++j) {
-                        Subdomain<K>::_a->_ja[j] = tmpInterior[j].first;
-                        Subdomain<K>::_a->_a[j] = tmpInterior[j].second;
+                        Subdomain<K>::a_->ja_[j] = tmpInterior[j].first;
+                        Subdomain<K>::a_->a_[j] = tmpInterior[j].second;
                     }
-                    _bi = new MatrixCSR<K>(interface.size(), Subdomain<K>::_dof - interface.size(), std::accumulate(tmpInteraction.cbegin(), tmpInteraction.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); }), false);
-                    _bi->_ia[0] = (Wrapper<K>::I == 'F');
+                    bi_ = new MatrixCSR<K>(interface.size(), Subdomain<K>::dof_ - interface.size(), std::accumulate(tmpInteraction.cbegin(), tmpInteraction.cend(), 0, [](unsigned int sum, const std::vector<std::pair<unsigned int, K>>& v) { return sum + v.size(); }), false);
+                    bi_->ia_[0] = (Wrapper<K>::I == 'F');
                     for(unsigned int i = 0, j = 0; i < tmpInteraction.size(); ++i) {
                         std::sort(tmpInteraction[i].begin(), tmpInteraction[i].end(), [](const std::pair<unsigned int, K>& lhs, const std::pair<unsigned int, K>& rhs) { return lhs.first < rhs.first; });
                         for(const std::pair<unsigned int, K>& p : tmpInteraction[i]) {
-                            _bi->_ja[j] = p.first;
-                            _bi->_a[j++] = p.second;
+                            bi_->ja_[j] = p.first;
+                            bi_->a_[j++] = p.second;
                         }
-                        _bi->_ia[i + 1] = j + (Wrapper<K>::I == 'F');
+                        bi_->ia_[i + 1] = j + (Wrapper<K>::I == 'F');
                     }
-                    _bb->_nnz = tmpBoundary.size();
-                    _bb->_a = new K[_bb->_nnz];
-                    _bb->_ja = new int[_bb->_nnz];
+                    bb_->nnz_ = tmpBoundary.size();
+                    bb_->a_ = new K[bb_->nnz_];
+                    bb_->ja_ = new int[bb_->nnz_];
                     for(j = 0; j < tmpBoundary.size(); ++j) {
-                        _bb->_ja[j] = tmpBoundary[j].first;
-                        _bb->_a[j] = tmpBoundary[j].second;
+                        bb_->ja_[j] = tmpBoundary[j].first;
+                        bb_->a_[j] = tmpBoundary[j].second;
                     }
-                    for(unsigned int i = 0; i < _bb->_n; ++i) {
+                    for(unsigned int i = 0; i < bb_->n_; ++i) {
                         if(Wrapper<K>::I == 'F')
-                            for(j = 0; j < _bi->_ia[i + 1] - _bi->_ia[i]; ++j)
-                                Subdomain<K>::_a->_ja[ii[_bi->_m + i] + j] = _bi->_ja[_bi->_ia[i] - 1 + j] - 1;
+                            for(j = 0; j < bi_->ia_[i + 1] - bi_->ia_[i]; ++j)
+                                Subdomain<K>::a_->ja_[ii[bi_->m_ + i] + j] = bi_->ja_[bi_->ia_[i] - 1 + j] - 1;
                         else
-                            std::copy(_bi->_ja + _bi->_ia[i], _bi->_ja + _bi->_ia[i + 1], Subdomain<K>::_a->_ja + ii[_bi->_m + i]);
-                        std::copy(_bi->_a + _bi->_ia[i] - (Wrapper<K>::I == 'F'), _bi->_a + _bi->_ia[i + 1] - (Wrapper<K>::I == 'F'), Subdomain<K>::_a->_a + ii[_bi->_m + i]);
-                        ii[_bi->_m + i + 1] = ii[_bi->_m + i] + _bi->_ia[i + 1] - _bi->_ia[i] - (_bb->_ia[i] - (Wrapper<K>::I == 'F'));
-                        for(j = _bb->_ia[i] - (Wrapper<K>::I == 'F'); j < _bb->_ia[i + 1] - (Wrapper<K>::I == 'F'); ++j)
-                            Subdomain<K>::_a->_ja[ii[_bi->_m + i + 1] + j] = _bb->_ja[j] - (Wrapper<K>::I == 'F') + _bi->_m;
-                        std::copy(_bb->_a + _bb->_ia[i] - (Wrapper<K>::I == 'F'), _bb->_a + _bb->_ia[i + 1] - (Wrapper<K>::I == 'F'), Subdomain<K>::_a->_a + ii[_bi->_m + i + 1] + _bb->_ia[i] - (Wrapper<K>::I == 'F'));
-                        ii[_bi->_m + i + 1] += _bb->_ia[i + 1] - (Wrapper<K>::I == 'F');
+                            std::copy(bi_->ja_ + bi_->ia_[i], bi_->ja_ + bi_->ia_[i + 1], Subdomain<K>::a_->ja_ + ii[bi_->m_ + i]);
+                        std::copy(bi_->a_ + bi_->ia_[i] - (Wrapper<K>::I == 'F'), bi_->a_ + bi_->ia_[i + 1] - (Wrapper<K>::I == 'F'), Subdomain<K>::a_->a_ + ii[bi_->m_ + i]);
+                        ii[bi_->m_ + i + 1] = ii[bi_->m_ + i] + bi_->ia_[i + 1] - bi_->ia_[i] - (bb_->ia_[i] - (Wrapper<K>::I == 'F'));
+                        for(j = bb_->ia_[i] - (Wrapper<K>::I == 'F'); j < bb_->ia_[i + 1] - (Wrapper<K>::I == 'F'); ++j)
+                            Subdomain<K>::a_->ja_[ii[bi_->m_ + i + 1] + j] = bb_->ja_[j] - (Wrapper<K>::I == 'F') + bi_->m_;
+                        std::copy(bb_->a_ + bb_->ia_[i] - (Wrapper<K>::I == 'F'), bb_->a_ + bb_->ia_[i + 1] - (Wrapper<K>::I == 'F'), Subdomain<K>::a_->a_ + ii[bi_->m_ + i + 1] + bb_->ia_[i] - (Wrapper<K>::I == 'F'));
+                        ii[bi_->m_ + i + 1] += bb_->ia_[i + 1] - (Wrapper<K>::I == 'F');
                     }
-                    delete [] Subdomain<K>::_a->_ia;
-                    Subdomain<K>::_a->_ia = ii;
-                    Subdomain<K>::_a->_nnz = ii[Subdomain<K>::_dof];
-                    Subdomain<K>::_a->_sym = true;
-                    _ii = new MatrixCSR<K>(_bi->_m, _bi->_m, Subdomain<K>::_a->_ia[_bi->_m], Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, true);
-                    Subdomain<K>::_dof = _bb->_n;
+                    delete [] Subdomain<K>::a_->ia_;
+                    Subdomain<K>::a_->ia_ = ii;
+                    Subdomain<K>::a_->nnz_ = ii[Subdomain<K>::dof_];
+                    Subdomain<K>::a_->sym_ = true;
+                    ii_ = new MatrixCSR<K>(bi_->m_, bi_->m_, Subdomain<K>::a_->ia_[bi_->m_], Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, true);
+                    Subdomain<K>::dof_ = bb_->n_;
                 }
-                if(f && interface[0] != _bi->_m) {
+                if(f && interface[0] != bi_->m_) {
                     std::vector<K> backup;
                     backup.reserve(interface.size());
                     backup.emplace_back(f[interface[0]]);
@@ -606,13 +606,13 @@ class Schur : public Preconditioner<
                         start = interface[j] - j;
                         backup.emplace_back(f[interface[j]]);
                     }
-                    std::copy(f + interface.back() + 1, f + Subdomain<K>::_a->_n, f + start);
-                    std::copy(backup.cbegin(), backup.cend(), f + _bi->_m);
+                    std::copy(f + interface.back() + 1, f + Subdomain<K>::a_->n_, f + start);
+                    std::copy(backup.cbegin(), backup.cend(), f + bi_->m_);
                 }
             }
             else {
                 std::cerr << "The container of the interface is empty => no static condensation" << std::endl;
-                Subdomain<K>::_dof = 0;
+                Subdomain<K>::dof_ = 0;
             }
         }
         /* Function: stiffnessScaling
@@ -622,26 +622,26 @@ class Schur : public Preconditioner<
          * Parameter:
          *    pt             - Reference to the array in which to store the values. */
         void stiffnessScaling(K* const& pt) {
-            if(_bb) {
-                for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
-                    unsigned int idx = _bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1);
-                    if(_bb->_ja[idx] != i + (Wrapper<K>::I == 'F')) {
-                        std::cerr << "The matrix '_bb' seems to be ill-formed" << std::endl;
+            if(bb_) {
+                for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
+                    unsigned int idx = bb_->ia_[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1);
+                    if(bb_->ja_[idx] != i + (Wrapper<K>::I == 'F')) {
+                        std::cerr << "The matrix 'bb_' seems to be ill-formed" << std::endl;
                         pt[i] = 0;
                     }
                     else
-                        pt[i] = _bb->_a[idx];
+                        pt[i] = bb_->a_[idx];
                 }
             }
             else
-                std::cerr << "The matrix '_bb' has not been allocated => impossible to build the stiffness scaling" << std::endl;
+                std::cerr << "The matrix 'bb_' has not been allocated => impossible to build the stiffness scaling" << std::endl;
         }
         /* Function: getMult
          *  Returns the value of <Schur::mult>. */
-        int getMult() const { return _mult; }
+        int getMult() const { return mult_; }
         /* Function: getSigned
          *  Returns the value of <Schur::signed>. */
-        unsigned short getSigned() const { return _signed; }
+        unsigned short getSigned() const { return signed_; }
 #if HPDDM_FETI || HPDDM_BDD
         /* Function: applyLocalSchurComplement(n)
          *
@@ -653,19 +653,19 @@ class Schur : public Preconditioner<
          *
          * See also: <Feti::applyLocalPreconditioner(n)>. */
         void applyLocalSchurComplement(K*& in, const int& n) const {
-            K* out = new K[n * Subdomain<K>::_dof]();
-            if(!_schur) {
-                if(_bi->_m) {
-                    K* tmp = new K[n * _bi->_m];
-                    Wrapper<K>::template csrmm<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), tmp);
-                    super::_s.solve(tmp, n);
-                    Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, tmp, &(Wrapper<K>::d__0), out);
+            K* out = new K[n * Subdomain<K>::dof_]();
+            if(!schur_) {
+                if(bi_->m_) {
+                    K* tmp = new K[n * bi_->m_];
+                    Wrapper<K>::template csrmm<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &n, &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, in, &(Wrapper<K>::d__0), tmp);
+                    super::s_.solve(tmp, n);
+                    Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, tmp, &(Wrapper<K>::d__0), out);
                     delete [] tmp;
                 }
-                Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), out);
+                Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__2), out);
             }
             else
-                Blas<K>::symm("L", "L", &(Subdomain<K>::_dof), &n, &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &(Subdomain<K>::_dof), &(Wrapper<K>::d__0), out, &(Subdomain<K>::_dof));
+                Blas<K>::symm("L", "L", &(Subdomain<K>::dof_), &n, &(Wrapper<K>::d__1), schur_, &(Subdomain<K>::dof_), in, &(Subdomain<K>::dof_), &(Wrapper<K>::d__0), out, &(Subdomain<K>::dof_));
             delete [] in;
             in = out;
         }
@@ -679,25 +679,25 @@ class Schur : public Preconditioner<
          *
          * See also: <Feti::applyLocalPreconditioner> and <Bdd::apply>. */
         void applyLocalSchurComplement(K* const in, K* const& out = nullptr) const {
-            if(!_schur) {
-                Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, in, &(Wrapper<K>::d__0), _work);
-                if(_bi->_m)
-                    super::_s.solve(_work);
+            if(!schur_) {
+                Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, in, &(Wrapper<K>::d__0), work_);
+                if(bi_->m_)
+                    super::s_.solve(work_);
                 if(out) {
-                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), out);
-                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), out);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, work_, &(Wrapper<K>::d__0), out);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__2), out);
                 }
                 else {
-                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__1), false, _bi->_a, _bi->_ia, _bi->_ja, _work, &(Wrapper<K>::d__0), _work + _bi->_m);
-                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__2), _work + _bi->_m);
-                    std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, work_, &(Wrapper<K>::d__0), work_ + bi_->m_);
+                    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__2), work_ + bi_->m_);
+                    std::copy_n(work_ + bi_->m_, Subdomain<K>::dof_, in);
                 }
             }
             else if(out)
-                Blas<K>::symv("L", &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &i__1, &(Wrapper<K>::d__0), out, &i__1);
+                Blas<K>::symv("L", &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), schur_, &(Subdomain<K>::dof_), in, &i__1, &(Wrapper<K>::d__0), out, &i__1);
             else {
-                Blas<K>::symv("L", &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), _schur, &(Subdomain<K>::_dof), in, &i__1, &(Wrapper<K>::d__0), _work + _bi->_m, &i__1);
-                std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
+                Blas<K>::symv("L", &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), schur_, &(Subdomain<K>::dof_), in, &i__1, &(Wrapper<K>::d__0), work_ + bi_->m_, &i__1);
+                std::copy_n(work_ + bi_->m_, Subdomain<K>::dof_, in);
             }
         }
         /* Function: applyLocalLumpedMatrix(n)
@@ -710,8 +710,8 @@ class Schur : public Preconditioner<
          *
          * See also: <Feti::applyLocalPreconditioner(n)>. */
         void applyLocalLumpedMatrix(K*& in, const int& n) const {
-            K* out = new K[n * Subdomain<K>::_dof];
-            Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &n, &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__0), out);
+            K* out = new K[n * Subdomain<K>::dof_];
+            Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__0), out);
             delete [] in;
             in = out;
         }
@@ -725,8 +725,8 @@ class Schur : public Preconditioner<
          *
          * See also: <Feti::applyLocalPreconditioner>. */
         void applyLocalLumpedMatrix(K* const in) const {
-            Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &(Subdomain<K>::_dof), &(Wrapper<K>::d__1), true, _bb->_a, _bb->_ia, _bb->_ja, in, &(Wrapper<K>::d__0), _work + _bi->_m);
-            std::copy_n(_work + _bi->_m, Subdomain<K>::_dof, in);
+            Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__0), work_ + bi_->m_);
+            std::copy_n(work_ + bi_->m_, Subdomain<K>::dof_, in);
         }
         /* Function: applyLocalSuperlumpedMatrix(n)
          *
@@ -738,10 +738,10 @@ class Schur : public Preconditioner<
          *
          * See also: <Feti::applyLocalPreconditioner(n)>. */
         void applyLocalSuperlumpedMatrix(K*& in, const int& n) const {
-            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i) {
-                K d = _bb->_a[_bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
+            for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
+                K d = bb_->a_[bb_->ia_[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
                 for(int j = 0; j < n; ++j)
-                    in[i + j * Subdomain<K>::_dof] *= d;
+                    in[i + j * Subdomain<K>::dof_] *= d;
             }
         }
         /* Function: applyLocalSuperlumpedMatrix
@@ -754,22 +754,22 @@ class Schur : public Preconditioner<
          *
          * See also: <Feti::applyLocalPreconditioner>. */
         void applyLocalSuperlumpedMatrix(K* const in) const {
-            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
-                in[i] *= _bb->_a[_bb->_ia[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
+            for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i)
+                in[i] *= bb_->a_[bb_->ia_[i + 1] - (Wrapper<K>::I == 'F' ? 2 : 1)];
         }
 #endif
         /* Function: getRank
          *  Returns the value of <Schur::rankWorld>. */
-        int getRank() const { return _rankWorld; }
+        int getRank() const { return rankWorld_; }
         /* Function: getLDR
          *  Returns the address of the leading dimension of <Preconditioner::ev>. */
-        const int* getLDR() const { return _schur ? &_bi->_n : &(super::_a->_n); }
+        const int* getLDR() const { return schur_ ? &bi_->n_ : &(super::a_->n_); }
         /* Function: getEliminated
          *  Returns the number of eliminated unknowns of <Subdomain<K>::a>, i.e. the number of columns of <Schur::bi>. */
-        unsigned int getEliminated() const { return _bi ? _bi->_m : 0; }
+        unsigned int getEliminated() const { return bi_ ? bi_->m_ : 0; }
         /* Function: setDeficiency
          *  Sets <Schur::deficiency>. */
-        void setDeficiency(unsigned short deficiency) { _deficiency = deficiency; }
+        void setDeficiency(unsigned short deficiency) { deficiency_ = deficiency; }
 #if HPDDM_FETI || HPDDM_BDD
         /* Function: condensateEffort
          *
@@ -779,10 +779,10 @@ class Schur : public Preconditioner<
          *    f              - Input right-hand side.
          *    b              - Condensed right-hand side. */
         void condensateEffort(const K* const f, K* const b) const {
-            if(_bi->_m)
-                super::_s.solve(f, _structure);
-            std::copy_n(f + _bi->_m, Subdomain<K>::_dof, b ? b : _structure + _bi->_m);
-            Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::_dof), &_bi->_m, &(Wrapper<K>::d__2), false, _bi->_a, _bi->_ia, _bi->_ja, _structure, &(Wrapper<K>::d__1), b ? b : _structure + _bi->_m);
+            if(bi_->m_)
+                super::s_.solve(f, structure_);
+            std::copy_n(f + bi_->m_, Subdomain<K>::dof_, b ? b : structure_ + bi_->m_);
+            Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__2), false, bi_->a_, bi_->ia_, bi_->ja_, structure_, &(Wrapper<K>::d__1), b ? b : structure_ + bi_->m_);
         }
         /* Function: computeResidual
          *
@@ -795,39 +795,39 @@ class Schur : public Preconditioner<
          *
          * See also: <Schwarz::computeResidual>. */
         void computeResidual(const K* const x, const K* const f, underlying_type<K>* const storage, const unsigned short, const unsigned short) const {
-            K* tmp = new K[Subdomain<K>::_a->_n];
-            std::copy_n(f, Subdomain<K>::_a->_n, tmp);
+            K* tmp = new K[Subdomain<K>::a_->n_];
+            std::copy_n(f, Subdomain<K>::a_->n_, tmp);
             bool allocate = Subdomain<K>::setBuffer();
-            Subdomain<K>::exchange(tmp + _bi->_m);
+            Subdomain<K>::exchange(tmp + bi_->m_);
             storage[0] = 0.0;
-            for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j) {
-                    bool boundary = (std::abs(Subdomain<K>::boundaryCond(_bi->_m + i)) > HPDDM_EPS);
-                    if(boundary && std::abs(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) > HPDDM_EPS * HPDDM_PEN)
-                        storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]) / (underlying_type<K>(HPDDM_PEN * HPDDM_PEN));
+            for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i)
+                for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j) {
+                    bool boundary = (std::abs(Subdomain<K>::boundaryCond(bi_->m_ + i)) > HPDDM_EPS);
+                    if(boundary && std::abs(f[bi_->m_ + Subdomain<K>::map_[i].second[j]]) > HPDDM_EPS * HPDDM_PEN)
+                        storage[0] += std::real(std::conj(f[bi_->m_ + Subdomain<K>::map_[i].second[j]]) * Subdomain<K>::buff_[i][j]) / (underlying_type<K>(HPDDM_PEN * HPDDM_PEN));
                     else
-                        storage[0] += std::real(std::conj(f[_bi->_m + Subdomain<K>::_map[i].second[j]]) * Subdomain<K>::_buff[i][j]);
+                        storage[0] += std::real(std::conj(f[bi_->m_ + Subdomain<K>::map_[i].second[j]]) * Subdomain<K>::buff_[i][j]);
                 }
-            Wrapper<K>::csrmv(Subdomain<K>::_a->_sym, &(Subdomain<K>::_a->_n), Subdomain<K>::_a->_a, Subdomain<K>::_a->_ia, Subdomain<K>::_a->_ja, x, _work);
-            Subdomain<K>::exchange(_work + _bi->_m);
+            Wrapper<K>::csrmv(Subdomain<K>::a_->sym_, &(Subdomain<K>::a_->n_), Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, x, work_);
+            Subdomain<K>::exchange(work_ + bi_->m_);
             Subdomain<K>::clearBuffer(allocate);
-            Blas<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), tmp, &i__1, _work, &i__1);
-            storage[1] = std::real(Blas<K>::dot(&_bi->_m, _work, &i__1, _work, &i__1));
-            std::fill_n(tmp, Subdomain<K>::_dof, K(1.0));
-            for(const pairNeighbor& neighbor : Subdomain<K>::_map)
+            Blas<K>::axpy(&(Subdomain<K>::a_->n_), &(Wrapper<K>::d__2), tmp, &i__1, work_, &i__1);
+            storage[1] = std::real(Blas<K>::dot(&bi_->m_, work_, &i__1, work_, &i__1));
+            std::fill_n(tmp, Subdomain<K>::dof_, K(1.0));
+            for(const pairNeighbor& neighbor : Subdomain<K>::map_)
                 for(const pairNeighbor::second_type::value_type& val : neighbor.second)
                         tmp[val] /= K(1.0) + tmp[val];
-            for(unsigned short i = 0; i < Subdomain<K>::_dof; ++i) {
+            for(unsigned short i = 0; i < Subdomain<K>::dof_; ++i) {
                 bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
                 if(!boundary) {
                     storage[0] += std::norm(f[i]);
-                    storage[1] += std::real(tmp[i]) * std::norm(_work[_bi->_m + i]);
+                    storage[1] += std::real(tmp[i]) * std::norm(work_[bi_->m_ + i]);
                 }
                 else
                     storage[0] += std::norm(f[i] / underlying_type<K>(HPDDM_PEN));
             }
             delete [] tmp;
-            MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::_communicator);
+            MPI_Allreduce(MPI_IN_PLACE, storage, 2, Wrapper<K>::mpi_underlying_type(), MPI_SUM, Subdomain<K>::communicator_);
             storage[0] = std::sqrt(storage[0]);
             storage[1] = std::sqrt(storage[1]);
         }
@@ -835,12 +835,12 @@ class Schur : public Preconditioner<
         /* Function: getAllDof
          *  Returns the number of local interior and boundary degrees of freedom (with the right multiplicity). */
         unsigned int getAllDof() const {
-            unsigned int dof = Subdomain<K>::_a->_n;
-            for(unsigned int k = 0; k < Subdomain<K>::_dof; ++k) {
+            unsigned int dof = Subdomain<K>::a_->n_;
+            for(unsigned int k = 0; k < Subdomain<K>::dof_; ++k) {
                 bool exit = false;
-                for(unsigned short i = 0; i < Subdomain<K>::_map.size() && Subdomain<K>::_map[i].first < _rankWorld && !exit; ++i)
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size() && !exit; ++j)
-                        if(Subdomain<K>::_map[i].second[j] == k) {
+                for(unsigned short i = 0; i < Subdomain<K>::map_.size() && Subdomain<K>::map_[i].first < rankWorld_ && !exit; ++i)
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size() && !exit; ++j)
+                        if(Subdomain<K>::map_[i].second[j] == k) {
                             --dof;
                             exit = true;
                         }
@@ -849,22 +849,22 @@ class Schur : public Preconditioner<
         }
         template<class T, char N = HPDDM_NUMBERING>
         void distributedNumbering(T* const in, T& first, T& last, long long& global) const {
-            Subdomain<K>::template globalMapping<N>(in + _bi->_m, in + Subdomain<K>::_a->_n, first, last, global);
-            long long independent = _bi->_m;
-            MPI_Allreduce(MPI_IN_PLACE, &independent, 1, MPI_LONG_LONG, MPI_SUM, Subdomain<K>::_communicator);
+            Subdomain<K>::template globalMapping<N>(in + bi_->m_, in + Subdomain<K>::a_->n_, first, last, global);
+            long long independent = bi_->m_;
+            MPI_Allreduce(MPI_IN_PLACE, &independent, 1, MPI_LONG_LONG, MPI_SUM, Subdomain<K>::communicator_);
             global += independent;
-            std::for_each(in + _bi->_m, in + Subdomain<K>::_a->_n, [&](T& i) { i += independent; });
-            independent = _bi->_m;
-            MPI_Exscan(MPI_IN_PLACE, &independent, 1, MPI_LONG_LONG, MPI_SUM, Subdomain<K>::_communicator);
+            std::for_each(in + bi_->m_, in + Subdomain<K>::a_->n_, [&](T& i) { i += independent; });
+            independent = bi_->m_;
+            MPI_Exscan(MPI_IN_PLACE, &independent, 1, MPI_LONG_LONG, MPI_SUM, Subdomain<K>::communicator_);
             int rank;
-            MPI_Comm_rank(Subdomain<K>::_communicator, &rank);
+            MPI_Comm_rank(Subdomain<K>::communicator_, &rank);
             if(!rank)
                 independent = 0;
-            std::iota(in, in + _bi->_m, independent + (N == 'F'));
+            std::iota(in, in + bi_->m_, independent + (N == 'F'));
         }
         template<class T>
         bool distributedCSR(T* const num, T first, T last, T*& ia, T*& ja, K*& c) const {
-            return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, _bb);
+            return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, bb_);
         }
 };
 } // HPDDM

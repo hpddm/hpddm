@@ -42,13 +42,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
     private:
         /* Variable: primal
          *  Storage for local primal unknowns. */
-        K*              _primal;
+        K*              primal_;
         /* Variable: dual
          *  Storage for local dual unknowns. */
-        K**               _dual;
+        K**               dual_;
         /* Variable: m
          *  Local partition of unity. */
-        underlying_type<K>** _m;
+        underlying_type<K>** m_;
         /* Function: A
          *
          *  Jump operator.
@@ -64,53 +64,53 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         void A(K* const primal, K* const* const dual) const {
             static_assert(trans == 'T' || trans == 'N', "Unsupported value for argument 'trans'");
             if(trans == 'T') {
-                std::fill_n(primal, Subdomain<K>::_dof, K());
-                for(unsigned short i = 0; i < super::_signed; ++i)
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        primal[Subdomain<K>::_map[i].second[j]] -= scale ? _m[i][j] * dual[i][j] : dual[i][j];
-                for(unsigned short i = super::_signed; i < Subdomain<K>::_map.size(); ++i)
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        primal[Subdomain<K>::_map[i].second[j]] += scale ? _m[i][j] * dual[i][j] : dual[i][j];
+                std::fill_n(primal, Subdomain<K>::dof_, K());
+                for(unsigned short i = 0; i < super::signed_; ++i)
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                        primal[Subdomain<K>::map_[i].second[j]] -= scale ? m_[i][j] * dual[i][j] : dual[i][j];
+                for(unsigned short i = super::signed_; i < Subdomain<K>::map_.size(); ++i)
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                        primal[Subdomain<K>::map_[i].second[j]] += scale ? m_[i][j] * dual[i][j] : dual[i][j];
             }
             else {
-                for(unsigned short i = 0; i < super::_signed; ++i) {
-                    MPI_Irecv(Subdomain<K>::_buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        dual[i][j] = -(scale ? _m[i][j] * primal[Subdomain<K>::_map[i].second[j]] : primal[Subdomain<K>::_map[i].second[j]]);
-                    MPI_Isend(dual[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
+                for(unsigned short i = 0; i < super::signed_; ++i) {
+                    MPI_Irecv(Subdomain<K>::buff_[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                        dual[i][j] = -(scale ? m_[i][j] * primal[Subdomain<K>::map_[i].second[j]] : primal[Subdomain<K>::map_[i].second[j]]);
+                    MPI_Isend(dual[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
                 }
-                for(unsigned short i = super::_signed; i < Subdomain<K>::_map.size(); ++i) {
-                    MPI_Irecv(Subdomain<K>::_buff[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + i);
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        dual[i][j] = (scale ? _m[i][j] * primal[Subdomain<K>::_map[i].second[j]] : primal[Subdomain<K>::_map[i].second[j]]);
-                    MPI_Isend(dual[i], Subdomain<K>::_map[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::_map[i].first, 0, Subdomain<K>::_communicator, Subdomain<K>::_rq + Subdomain<K>::_map.size() + i);
+                for(unsigned short i = super::signed_; i < Subdomain<K>::map_.size(); ++i) {
+                    MPI_Irecv(Subdomain<K>::buff_[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                        dual[i][j] = (scale ? m_[i][j] * primal[Subdomain<K>::map_[i].second[j]] : primal[Subdomain<K>::map_[i].second[j]]);
+                    MPI_Isend(dual[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
                 }
-                MPI_Waitall(2 * Subdomain<K>::_map.size(), Subdomain<K>::_rq, MPI_STATUSES_IGNORE);
-                Blas<K>::axpy(&(super::_mult), &(Wrapper<K>::d__1), Subdomain<K>::_buff[0], &i__1, *dual, &i__1);
+                MPI_Waitall(2 * Subdomain<K>::map_.size(), Subdomain<K>::rq_, MPI_STATUSES_IGNORE);
+                Blas<K>::axpy(&(super::mult_), &(Wrapper<K>::d__1), Subdomain<K>::buff_[0], &i__1, *dual, &i__1);
             }
         }
         template<class U, typename std::enable_if<!Wrapper<U>::is_complex>::type* = nullptr>
         void allocate(U**& dual, underlying_type<U>**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
-            dual = new U*[2 * Subdomain<K>::_map.size()];
-            m    = dual + Subdomain<K>::_map.size();
+            dual = new U*[2 * Subdomain<K>::map_.size()];
+            m    = dual + Subdomain<K>::map_.size();
         }
         template<class U, typename std::enable_if<Wrapper<U>::is_complex>::type* = nullptr>
         void allocate(U**& dual, underlying_type<U>**& m) {
             static_assert(std::is_same<U, K>::value, "Wrong types");
-            dual = new U*[Subdomain<K>::_map.size()];
-            m    = new underlying_type<U>*[Subdomain<K>::_map.size()];
+            dual = new U*[Subdomain<K>::map_.size()];
+            m    = new underlying_type<U>*[Subdomain<K>::map_.size()];
         }
     public:
-        Feti() : _primal(), _dual(), _m() { }
+        Feti() : primal_(), dual_(), m_() { }
         ~Feti() {
-            delete [] super::_schur;
-            super::_schur = nullptr;
-            if(_m)
-                delete [] *_m;
+            delete [] super::schur_;
+            super::schur_ = nullptr;
+            if(m_)
+                delete [] *m_;
             if(Wrapper<K>::is_complex)
-                delete []  _m;
-            delete [] _dual;
+                delete []  m_;
+            delete [] dual_;
         }
         /* Typedef: super
          *  Type of the immediate parent class <Schur>. */
@@ -119,13 +119,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *  Allocates <Feti::primal>, <Feti::dual>, and <Feti::m> and calls <Schur::initialize>. */
         void initialize() {
             super::template initialize<true>();
-            _primal = super::_structure + super::_bi->_m;
-            allocate(_dual, _m);
-            *_dual  = super::_work;
-            *_m     = new underlying_type<K>[super::_mult];
-            for(unsigned short i = 1; i < Subdomain<K>::_map.size(); ++i) {
-                _dual[i] = _dual[i - 1] + Subdomain<K>::_map[i - 1].second.size();
-                _m   [i] = _m[i - 1]    + Subdomain<K>::_map[i - 1].second.size();
+            primal_ = super::structure_ + super::bi_->m_;
+            allocate(dual_, m_);
+            *dual_  = super::work_;
+            *m_     = new underlying_type<K>[super::mult_];
+            for(unsigned short i = 1; i < Subdomain<K>::map_.size(); ++i) {
+                dual_[i] = dual_[i - 1] + Subdomain<K>::map_[i - 1].second.size();
+                m_   [i] = m_[i - 1]    + Subdomain<K>::map_[i - 1].second.size();
             }
         }
         /* Function: start
@@ -143,49 +143,49 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<bool excluded>
         bool start(const K* const f, K* const x, K* const* const l, K* const* const r) const {
             bool allocate = Subdomain<K>::setBuffer();
-            Solver<K>* p = static_cast<Solver<K>*>(super::_pinv);
-            if(super::_co) {
+            Solver<K>* p = static_cast<Solver<K>*>(super::pinv_);
+            if(super::co_) {
                 super::start();
                 if(!excluded) {
-                    if(super::_ev) {
-                        if(super::_schur) {
+                    if(super::ev_) {
+                        if(super::schur_) {
                             super::condensateEffort(f, nullptr);
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_structure + super::_bi->_m, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1); //     _uc = R_b g
-                            super::_co->template callSolver<excluded>(super::_uc);                                                                                                                                                                               //     _uc = (G Q G^T) \ R_b g
-                            Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &i__1, &(Wrapper<K>::d__0), _primal, &i__1);                                              // _primal = R_b (G Q G^T) \ R f
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::structure_ + super::bi_->m_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1); //     uc_ = R_b g
+                            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                                                                               //     uc_ = (G Q G^T) \ R_b g
+                            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i__1, &(Wrapper<K>::d__0), primal_, &i__1);                                              // primal_ = R_b (G Q G^T) \ R f
                         }
                         else {
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_a->_n), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_a->_n), f, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);                              //     _uc = R f
-                            super::_co->template callSolver<excluded>(super::_uc);                                                                                                                                                                               //     _uc = (G Q G^T) \ R f
-                            Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), super::_uc, &i__1, &(Wrapper<K>::d__0), _primal, &i__1);                           // _primal = R_b (G Q G^T) \ R f
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::a_->n_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::a_->n_), f, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);                              //     uc_ = R f
+                            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                                                                               //     uc_ = (G Q G^T) \ R f
+                            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i__1, &(Wrapper<K>::d__0), primal_, &i__1);                           // primal_ = R_b (G Q G^T) \ R f
                         }
                     }
                     else {
-                        super::_co->template callSolver<excluded>(super::_uc);
-                        std::fill_n(_primal, Subdomain<K>::_dof, K());
+                        super::co_->template callSolver<excluded>(super::uc_);
+                        std::fill_n(primal_, Subdomain<K>::dof_, K());
                     }
-                    A<'N', 0>(_primal, l);                                                            //       l = A R_b (G Q G^T) \ R f
+                    A<'N', 0>(primal_, l);                                                            //       l = A R_b (G Q G^T) \ R f
                     precond(l);                                                                       //       l = Q A R_b (G Q G^T) \ R f
-                    A<'T', 0>(_primal, l);                                                            // _primal = A^T Q A R_b (G Q G^T) \ R f
-                    std::fill_n(super::_structure, super::_bi->_m, K());
-                    p->solve(super::_structure);                                                      // _primal = S \ A^T Q A R_b (G Q G^T) \ R f
+                    A<'T', 0>(primal_, l);                                                            // primal_ = A^T Q A R_b (G Q G^T) \ R f
+                    std::fill_n(super::structure_, super::bi_->m_, K());
+                    p->solve(super::structure_);                                                      // primal_ = S \ A^T Q A R_b (G Q G^T) \ R f
                 }
                 else
-                    super::_co->template callSolver<excluded>(super::_uc);
+                    super::co_->template callSolver<excluded>(super::uc_);
             }
             if(!excluded) {
                 p->solve(f, x);                                                                       //       x = S \ f
-                if(!super::_co) {
-                    A<'N', 0>(x + super::_bi->_m, r);                                                 //       r = A S \ f
-                    std::fill_n(*l, super::_mult, K());                                               //       l = 0
+                if(!super::co_) {
+                    A<'N', 0>(x + super::bi_->m_, r);                                                 //       r = A S \ f
+                    std::fill_n(*l, super::mult_, K());                                               //       l = 0
                 }
                 else {
-                    Blas<K>::axpby(Subdomain<K>::_dof, 1.0, x + super::_bi->_m, 1, -1.0, _primal, 1); // _primal = S \ (f - A^T Q A R_b (G Q G^T) \ R f)
-                    A<'N', 0>(_primal, r);                                                            //       r = A S \ (f - A^T Q A R_b (G Q G^T) \ R f)
+                    Blas<K>::axpby(Subdomain<K>::dof_, 1.0, x + super::bi_->m_, 1, -1.0, primal_, 1); // primal_ = S \ (f - A^T Q A R_b (G Q G^T) \ R f)
+                    A<'N', 0>(primal_, r);                                                            //       r = A S \ (f - A^T Q A R_b (G Q G^T) \ R f)
                     project<excluded, 'T'>(r);                                                        //       r = P^T r
                 }
             }
-            else if(super::_co)
+            else if(super::co_)
                 project<excluded, 'T'>(r);
             return allocate;
         }
@@ -196,10 +196,10 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          * Parameter:
          *    mult           - Reference to a Lagrange multiplier. */
         void allocateSingle(K**& mult) const {
-            mult  = new K*[Subdomain<K>::_map.size()];
-            *mult = new K[super::_mult];
-            for(unsigned short i = 1; i < Subdomain<K>::_map.size(); ++i)
-                mult[i] = mult[i - 1] + Subdomain<K>::_map[i - 1].second.size();
+            mult  = new K*[Subdomain<K>::map_.size()];
+            *mult = new K[super::mult_];
+            for(unsigned short i = 1; i < Subdomain<K>::map_.size(); ++i)
+                mult[i] = mult[i - 1] + Subdomain<K>::map_[i - 1].second.size();
         }
         /* Function: allocateArray
          *
@@ -212,13 +212,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    array          - Reference to an array of Lagrange multipliers. */
         template<unsigned short N>
         void allocateArray(K** (&array)[N]) const {
-            *array  = new K*[N * Subdomain<K>::_map.size()];
-            **array = new K[N * super::_mult];
+            *array  = new K*[N * Subdomain<K>::map_.size()];
+            **array = new K[N * super::mult_];
             for(unsigned short i = 0; i < N; ++i) {
-                array[i]  = *array + i * Subdomain<K>::_map.size();
-                *array[i] = **array + i * super::_mult;
-                for(unsigned short j = 1; j < Subdomain<K>::_map.size(); ++j)
-                    array[i][j] = array[i][j - 1] + Subdomain<K>::_map[j - 1].second.size();
+                array[i]  = *array + i * Subdomain<K>::map_.size();
+                *array[i] = **array + i * super::mult_;
+                for(unsigned short j = 1; j < Subdomain<K>::map_.size(); ++j)
+                    array[i][j] = array[i][j - 1] + Subdomain<K>::map_[j - 1].second.size();
             }
         }
         /* Function: buildScaling
@@ -231,27 +231,27 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<class T>
         void buildScaling(T& scaling, const K* const& rho = nullptr) {
             initialize();
-            std::vector<std::pair<unsigned short, unsigned int>>* array = new std::vector<std::pair<unsigned short, unsigned int>>[Subdomain<K>::_dof];
-            for(const pairNeighbor& neighbor: Subdomain<K>::_map)
+            std::vector<std::pair<unsigned short, unsigned int>>* array = new std::vector<std::pair<unsigned short, unsigned int>>[Subdomain<K>::dof_];
+            for(const pairNeighbor& neighbor: Subdomain<K>::map_)
                 for(unsigned int j = 0; j < neighbor.second.size(); ++j)
                     array[neighbor.second[j]].emplace_back(neighbor.first, j);
             if((scaling == 2 && rho) || scaling == 1) {
                 if(scaling == 1)
-                    super::stiffnessScaling(_primal);
+                    super::stiffnessScaling(primal_);
                 else
-                    std::copy_n(rho + super::_bi->_m, Subdomain<K>::_dof, _primal);
-                bool allocate = Subdomain<K>::setBuffer(super::_work, super::_mult + super::_bi->_m);
-                Subdomain<K>::exchange(_primal);
-                for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        _m[i][j] = std::real(Subdomain<K>::_buff[i][j] / _primal[Subdomain<K>::_map[i].second[j]]);
+                    std::copy_n(rho + super::bi_->m_, Subdomain<K>::dof_, primal_);
+                bool allocate = Subdomain<K>::setBuffer(super::work_, super::mult_ + super::bi_->m_);
+                Subdomain<K>::exchange(primal_);
+                for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i)
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                        m_[i][j] = std::real(Subdomain<K>::buff_[i][j] / primal_[Subdomain<K>::map_[i].second[j]]);
                 Subdomain<K>::clearBuffer(allocate);
             }
             else {
                 scaling = 0;
-                for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                    for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                        _m[i][j] = 1.0 / (1.0 + array[Subdomain<K>::_map[i].second[j]].size());
+                for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i)
+                    for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                        m_[i][j] = 1.0 / (1.0 + array[Subdomain<K>::map_[i].second[j]].size());
             }
             delete [] array;
         }
@@ -263,10 +263,10 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    in             - Input vector.
          *    out            - Output vector (optional). */
         void apply(K* const* const in, K* const* const out = nullptr) const {
-            A<'T', 0>(_primal, in);
-            std::fill_n(super::_structure, super::_bi->_m, K());
-            static_cast<Solver<K>*>(super::_pinv)->solve(super::_structure);
-            A<'N', 0>(_primal, out ? out : in);
+            A<'T', 0>(primal_, in);
+            std::fill_n(super::structure_, super::bi_->m_, K());
+            static_cast<Solver<K>*>(super::pinv_)->solve(super::structure_);
+            A<'N', 0>(primal_, out ? out : in);
         }
         /* Function: applyLocalPreconditioner(n)
          *
@@ -314,9 +314,9 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    out            - Output vector (optional). */
         template<FetiPrcndtnr q = P>
         void precond(K* const* const in, K* const* const out = nullptr) const {
-            A<'T', 1>(_primal, in);
-            applyLocalPreconditioner<q>(_primal);
-            A<'N', 1>(_primal, out ? out : in);
+            A<'T', 1>(primal_, in);
+            applyLocalPreconditioner<q>(primal_);
+            A<'N', 1>(primal_, out ? out : in);
         }
         /* Function: project
          *
@@ -332,44 +332,44 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<bool excluded, char trans>
         void project(K* const* const in, K* const* const out = nullptr) const {
             static_assert(trans == 'T' || trans == 'N', "Unsupported value for argument 'trans'");
-            if(super::_co) {
+            if(super::co_) {
                 if(!excluded) {
                     if(trans == 'T')
-                        precond(in, _dual);
-                    if(super::_ev) {
+                        precond(in, dual_);
+                    if(super::ev_) {
                         if(trans == 'T')
-                            A<'T', 0>(_primal, _dual);
+                            A<'T', 0>(primal_, dual_);
                         else
-                            A<'T', 0>(_primal, in);
-                        if(super::_schur) {
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), _primal, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);
-                            super::_co->template callSolver<excluded>(super::_uc);
-                            Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &i__1, &(Wrapper<K>::d__0), _primal, &i__1);
+                            A<'T', 0>(primal_, in);
+                        if(super::schur_) {
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), primal_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);
+                            super::co_->template callSolver<excluded>(super::uc_);
+                            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i__1, &(Wrapper<K>::d__0), primal_, &i__1);
                         }
                         else {
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), _primal, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);
-                            super::_co->template callSolver<excluded>(super::_uc);
-                            Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), super::_uc, &i__1, &(Wrapper<K>::d__0), _primal, &i__1);
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), primal_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);
+                            super::co_->template callSolver<excluded>(super::uc_);
+                            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i__1, &(Wrapper<K>::d__0), primal_, &i__1);
                         }
                     }
                     else {
-                        super::_co->template callSolver<excluded>(super::_uc);
-                        std::fill_n(_primal, Subdomain<K>::_dof, K());
+                        super::co_->template callSolver<excluded>(super::uc_);
+                        std::fill_n(primal_, Subdomain<K>::dof_, K());
                     }
-                    A<'N', 0>(_primal, _dual);
+                    A<'N', 0>(primal_, dual_);
                     if(trans == 'N')
-                        precond(_dual);
+                        precond(dual_);
                     if(out)
-                        for(unsigned int i = 0; i < super::_mult; ++i)
-                            (*out)[i] = (*in)[i] - (*_dual)[i];
+                        for(unsigned int i = 0; i < super::mult_; ++i)
+                            (*out)[i] = (*in)[i] - (*dual_)[i];
                     else
-                        Blas<K>::axpy(&(super::_mult), &(Wrapper<K>::d__2), *_dual, &i__1, *in, &i__1);
+                        Blas<K>::axpy(&(super::mult_), &(Wrapper<K>::d__2), *dual_, &i__1, *in, &i__1);
                 }
                 else
-                    super::_co->template callSolver<excluded>(super::_uc);
+                    super::co_->template callSolver<excluded>(super::uc_);
             }
             else if(!excluded && out)
-                std::copy_n(*in, super::_mult, *out);
+                std::copy_n(*in, super::mult_, *out);
         }
         /* Function: buildTwo
          *
@@ -399,37 +399,37 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<bool excluded>
         void computeSolution(K* const* const l, K* const x) const {
             if(!excluded) {
-                A<'T', 0>(_primal, l);                                                                                                                                                                                                                   //    _primal = A^T l
-                std::fill_n(super::_structure, super::_bi->_m, K());
-                static_cast<Solver<K>*>(super::_pinv)->solve(super::_structure);                                                                                                                                                                         // _structure = S \ A^T l
-                Blas<K>::axpy(&(Subdomain<K>::_a->_n), &(Wrapper<K>::d__2), super::_structure, &i__1, x, &i__1);                                                                                                                                         //          x = x - S \ A^T l
-                if(super::_co) {
-                    A<'N', 0>(x + super::_bi->_m, _dual);                                                                                                                                                                                                //      _dual = A (x - S \ A^T l)
-                    precond(_dual);                                                                                                                                                                                                                      //      _dual = Q A (x - S \ A^T l)
-                    if(!super::_ev)
-                        super::_co->template callSolver<excluded>(super::_uc);
+                A<'T', 0>(primal_, l);                                                                                                                                                                                                                   //    primal_ = A^T l
+                std::fill_n(super::structure_, super::bi_->m_, K());
+                static_cast<Solver<K>*>(super::pinv_)->solve(super::structure_);                                                                                                                                                                         // structure_ = S \ A^T l
+                Blas<K>::axpy(&(Subdomain<K>::a_->n_), &(Wrapper<K>::d__2), super::structure_, &i__1, x, &i__1);                                                                                                                                         //          x = x - S \ A^T l
+                if(super::co_) {
+                    A<'N', 0>(x + super::bi_->m_, dual_);                                                                                                                                                                                                //      dual_ = A (x - S \ A^T l)
+                    precond(dual_);                                                                                                                                                                                                                      //      dual_ = Q A (x - S \ A^T l)
+                    if(!super::ev_)
+                        super::co_->template callSolver<excluded>(super::uc_);
                     else {
-                        A<'T', 0>(_primal, _dual);                                                                                                                                                                                                       //    _primal = A^T Q A (x - S \ A^T l)
-                        if(super::_schur) {
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), _primal, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1);                    //        _uc = R_b^T A^T Q A (x - S \ A^T l)
-                            super::_co->template callSolver<excluded>(super::_uc);                                                                                                                                                                       //        _uc = (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
-                            Blas<K>::gemv("N", &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev, &(Subdomain<K>::_dof), super::_uc, &i__1, &(Wrapper<K>::d__0), _primal, &i__1);                                      //        x_b = x_b - R_b^T (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
-                            Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), &(super::_bi->_m), &(Wrapper<K>::d__2), false, super::_bi->_a, super::_bi->_ia, super::_bi->_ja, _primal, &(Wrapper<K>::d__0), super::_work);
-                            if(super::_bi->_m)
-                                super::_s.solve(super::_work);
-                            Blas<K>::axpy(&(super::_bi->_m), &(Wrapper<K>::d__2), super::_work, &i__1, x, &i__1);
-                            Blas<K>::axpy(&(Subdomain<K>::_dof), &(Wrapper<K>::d__2), _primal, &i__1, x + super::_bi->_m, &i__1);
+                        A<'T', 0>(primal_, dual_);                                                                                                                                                                                                       //    primal_ = A^T Q A (x - S \ A^T l)
+                        if(super::schur_) {
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), primal_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);                    //        uc_ = R_b^T A^T Q A (x - S \ A^T l)
+                            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                                                                       //        uc_ = (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
+                            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i__1, &(Wrapper<K>::d__0), primal_, &i__1);                                      //        x_b = x_b - R_b^T (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
+                            Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &(super::bi_->m_), &(Wrapper<K>::d__2), false, super::bi_->a_, super::bi_->ia_, super::bi_->ja_, primal_, &(Wrapper<K>::d__0), super::work_);
+                            if(super::bi_->m_)
+                                super::s_.solve(super::work_);
+                            Blas<K>::axpy(&(super::bi_->m_), &(Wrapper<K>::d__2), super::work_, &i__1, x, &i__1);
+                            Blas<K>::axpy(&(Subdomain<K>::dof_), &(Wrapper<K>::d__2), primal_, &i__1, x + super::bi_->m_, &i__1);
                         }
                         else {
-                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::_dof), super::_co->getAddrLocal(), &(Wrapper<K>::d__1), *super::_ev + super::_bi->_m, &(Subdomain<K>::_a->_n), _primal, &i__1, &(Wrapper<K>::d__0), super::_uc, &i__1); //       _uc = R A^T Q A (x - S \ A^T l)
-                            super::_co->template callSolver<excluded>(super::_uc);                                                                                                                                                                       //       _uc = (G Q G^T) \ R A^T Q A (x - S \ A^T l)
-                            Blas<K>::gemv("N", &(Subdomain<K>::_a->_n), super::_co->getAddrLocal(), &(Wrapper<K>::d__2), *super::_ev, &(Subdomain<K>::_a->_n), super::_uc, &i__1, &(Wrapper<K>::d__1), x, &i__1);                                        //         x = x - R^T (G Q G^T) \ R A^T Q A (x - S \ A^T l)
+                            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), primal_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1); //       uc_ = R A^T Q A (x - S \ A^T l)
+                            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                                                                       //       uc_ = (G Q G^T) \ R A^T Q A (x - S \ A^T l)
+                            Blas<K>::gemv("N", &(Subdomain<K>::a_->n_), super::co_->getAddrLocal(), &(Wrapper<K>::d__2), *super::ev_, &(Subdomain<K>::a_->n_), super::uc_, &i__1, &(Wrapper<K>::d__1), x, &i__1);                                        //         x = x - R^T (G Q G^T) \ R A^T Q A (x - S \ A^T l)
                         }
                     }
                 }
             }
-            else if(super::_co)
-                super::_co->template callSolver<excluded>(super::_uc);
+            else if(super::co_)
+                super::co_->template callSolver<excluded>(super::uc_);
         }
         template<bool>
         void computeSolution(const K* const, K* const) const { }
@@ -446,14 +446,14 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
         template<bool excluded>
         void computeDot(underlying_type<K>* const val, const K* const* const a, const K* const* const b, const MPI_Comm& comm) const {
             if(!excluded)
-                *val = std::real(Blas<K>::dot(&(super::_mult), *a, &i__1, *b, &i__1)) / 2.0;
+                *val = std::real(Blas<K>::dot(&(super::mult_), *a, &i__1, *b, &i__1)) / 2.0;
             else
                 *val = 0.0;
             MPI_Allreduce(MPI_IN_PLACE, val, 1, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
         }
         /* Function: getScaling
          *  Returns a constant pointer to <Feti::m>. */
-        const underlying_type<K>* const* getScaling() const { return _m; }
+        const underlying_type<K>* const* getScaling() const { return m_; }
         /* Function: solveGEVP
          *
          *  Solves the GenEO problem.
@@ -462,15 +462,15 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
          *    L              - 'S'ymmetric or 'G'eneral transfer of the local Schur complements. */
         template<char L = 'S'>
         void solveGEVP() {
-            underlying_type<K>* const pt = reinterpret_cast<underlying_type<K>*>(_primal);
-            for(unsigned short i = 0; i < Subdomain<K>::_map.size(); ++i)
-                for(unsigned int j = 0; j < Subdomain<K>::_map[i].second.size(); ++j)
-                    pt[Subdomain<K>::_map[i].second[j]] = _m[i][j];
+            underlying_type<K>* const pt = reinterpret_cast<underlying_type<K>*>(primal_);
+            for(unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i)
+                for(unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+                    pt[Subdomain<K>::map_[i].second[j]] = m_[i][j];
             super::template solveGEVP<L>(pt);
-            if(super::_deficiency == 0 && super::_ev) {
-                delete [] *super::_ev;
-                delete []  super::_ev;
-                super::_ev = nullptr;
+            if(super::deficiency_ == 0 && super::ev_) {
+                delete [] *super::ev_;
+                delete []  super::ev_;
+                super::ev_ = nullptr;
             }
         }
 };

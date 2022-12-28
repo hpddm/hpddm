@@ -40,16 +40,16 @@ using cpp_type = typename std::conditional<std::is_same<T, underlying_type>::val
 
 template<class Operator, class K>
 struct CustomOperator : public HPDDM::EmptyOperator<cpp_type<K>> {
-    const Operator* const                                  _A;
-    int      (*_mv)(const Operator* const, const K*, K*, int);
-    int (*_precond)(const Operator* const, const K*, K*, int);
-    CustomOperator(const Operator* const A, int n, int (*mv)(const Operator* const, const K*, K*, int), int (*precond)(const Operator* const, const K*, K*, int)) : HPDDM::EmptyOperator<cpp_type<K>>(n), _A(A), _mv(mv), _precond(precond) { }
+    const Operator* const                                  A_;
+    int      (*mv_)(const Operator* const, const K*, K*, int);
+    int (*precond_)(const Operator* const, const K*, K*, int);
+    CustomOperator(const Operator* const A, int n, int (*mv)(const Operator* const, const K*, K*, int), int (*precond)(const Operator* const, const K*, K*, int)) : HPDDM::EmptyOperator<cpp_type<K>>(n), A_(A), mv_(mv), precond_(precond) { }
     int GMV(const cpp_type<K>* const in, cpp_type<K>* const out, const int& mu = 1) const {
-        return _mv(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
+        return mv_(A_, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
     }
     template<bool>
     int apply(const cpp_type<K>* const in, cpp_type<K>* const out, const unsigned short& mu = 1, cpp_type<K>* = nullptr, const unsigned short& = 0) const {
-        return _precond(_A, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
+        return precond_(A_, reinterpret_cast<const K*>(in), reinterpret_cast<K*>(out), mu);
     }
 };
 
@@ -120,7 +120,7 @@ void HpddmMatrixCSRDestroy(HpddmMatrixCSR* a) {
 }
 void HpddmCSRMM(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
     HPDDM::MatrixCSR<cpp_type<K>>* A = reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(a);
-    HPDDM::Wrapper<cpp_type<K>>::csrmm(A->_sym, &A->_n, &m, A->_a, A->_ia, A->_ja, reinterpret_cast<const cpp_type<K>*>(x), reinterpret_cast<cpp_type<K>*>(prod));
+    HPDDM::Wrapper<cpp_type<K>>::csrmm(A->sym_, &A->n_, &m, A->a_, A->ia_, A->ja_, reinterpret_cast<const cpp_type<K>*>(x), reinterpret_cast<cpp_type<K>*>(prod));
 }
 
 #if defined(SUBDOMAIN) && defined(COARSEOPERATOR)

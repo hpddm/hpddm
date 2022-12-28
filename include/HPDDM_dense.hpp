@@ -38,8 +38,8 @@ class Dense : public Schwarz<
                 S, K> {
     public:
         Dense() : super() { }
-        Dense(const Subdomain<K>& s) : super(s) { super::_d = nullptr; }
-        ~Dense() { super::_d = nullptr; }
+        Dense(const Subdomain<K>& s) : super(s) { super::d_ = nullptr; }
+        ~Dense() { super::d_ = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
         typedef Schwarz<
@@ -59,7 +59,7 @@ class Dense : public Schwarz<
                 opt.setPrefix(super::prefix());
             super::setMatrix(A);
             super::destroySolver();
-            super::_s.numfact(A);
+            super::s_.numfact(A);
             if(resetPrefix)
                 opt.setPrefix("");
         }
@@ -71,43 +71,43 @@ class Dense : public Schwarz<
             const std::string prefix = super::prefix();
             Option& opt = *Option::get();
             const underlying_type<K>& threshold = opt.val(prefix + "geneo_threshold", -1.0);
-            if(super::_ev) {
-                delete [] *super::_ev;
-                delete [] super::_ev;
+            if(super::ev_) {
+                delete [] *super::ev_;
+                delete [] super::ev_;
             }
 #ifdef MU_ARPACK
-            K* const a = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
-            std::copy_n(A, Subdomain<K>::_dof * Subdomain<K>::_dof, a);
-            MatrixCSR<K> rhs(Subdomain<K>::_dof, Subdomain<K>::_dof, Subdomain<K>::_dof * Subdomain<K>::_dof, a, nullptr, nullptr, false, true);
-            K* const b = new K[Subdomain<K>::_dof * Subdomain<K>::_dof]();
-            for(unsigned int i = 0; i < Subdomain<K>::_dof; ++i)
-                b[(Subdomain<K>::_dof + 1) * i] = Wrapper<K>::d__1;
-            MatrixCSR<K> lhs(Subdomain<K>::_dof, Subdomain<K>::_dof, Subdomain<K>::_dof * Subdomain<K>::_dof, b, nullptr, nullptr, false, true);
-            EIGENSOLVER<K> evp(threshold, Subdomain<K>::_dof, opt.val<unsigned short>("geneo_nu", 20));
-            evp.template solve<SUBDOMAIN>(&lhs, &rhs, super::_ev, Subdomain<K>::_communicator, nullptr);
-            int mm = evp._nu;
-            const int n = Subdomain<K>::_dof;
-            std::for_each(super::_ev, super::_ev + evp._nu, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
+            K* const a = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_];
+            std::copy_n(A, Subdomain<K>::dof_ * Subdomain<K>::dof_, a);
+            MatrixCSR<K> rhs(Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_ * Subdomain<K>::dof_, a, nullptr, nullptr, false, true);
+            K* const b = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_]();
+            for(unsigned int i = 0; i < Subdomain<K>::dof_; ++i)
+                b[(Subdomain<K>::dof_ + 1) * i] = Wrapper<K>::d__1;
+            MatrixCSR<K> lhs(Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_ * Subdomain<K>::dof_, b, nullptr, nullptr, false, true);
+            EIGENSOLVER<K> evp(threshold, Subdomain<K>::dof_, opt.val<unsigned short>("geneo_nu", 20));
+            evp.template solve<SUBDOMAIN>(&lhs, &rhs, super::ev_, Subdomain<K>::communicator_, nullptr);
+            int mm = evp.nu_;
+            const int n = Subdomain<K>::dof_;
+            std::for_each(super::ev_, super::ev_ + evp.nu_, [&](K* const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
 #else
-            K* H = new K[std::max(2, Subdomain<K>::_dof * (Subdomain<K>::_dof + 1))]();
+            K* H = new K[std::max(2, Subdomain<K>::dof_ * (Subdomain<K>::dof_ + 1))]();
             int info;
             int lwork = -1;
             {
-                Lapack<K>::gehrd(&(Subdomain<K>::_dof), &i__1, &(Subdomain<K>::_dof), nullptr, &(Subdomain<K>::_dof), nullptr, H, &lwork, &info);
-                Lapack<K>::hseqr("E", "N", &(Subdomain<K>::_dof), &i__1, &(Subdomain<K>::_dof), nullptr, &(Subdomain<K>::_dof), nullptr, nullptr, nullptr, &i__1, H + 1, &lwork, &info);
-                lwork = std::max(Subdomain<K>::_dof * (Subdomain<K>::_dof + (Wrapper<K>::is_complex ? 0 : 2)), static_cast<int>(std::max(std::real(H[0]), std::real(H[1]))));
+                Lapack<K>::gehrd(&(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, H, &lwork, &info);
+                Lapack<K>::hseqr("E", "N", &(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, nullptr, nullptr, &i__1, H + 1, &lwork, &info);
+                lwork = std::max(Subdomain<K>::dof_ * (Subdomain<K>::dof_ + (Wrapper<K>::is_complex ? 0 : 2)), static_cast<int>(std::max(std::real(H[0]), std::real(H[1]))));
             }
             K* work = new K[lwork]();
-            std::copy_n(A, Subdomain<K>::_dof * Subdomain<K>::_dof, H);
-            Lapack<K>::gehrd(&(Subdomain<K>::_dof), &i__1, &(Subdomain<K>::_dof), H, &(Subdomain<K>::_dof), H + Subdomain<K>::_dof * Subdomain<K>::_dof, work, &lwork, &info);
-            K* w = new K[Wrapper<K>::is_complex ? Subdomain<K>::_dof : (2 * Subdomain<K>::_dof)];
-            K* backup = new K[Subdomain<K>::_dof * Subdomain<K>::_dof];
-            std::copy_n(H, Subdomain<K>::_dof * Subdomain<K>::_dof, backup);
-            Lapack<K>::hseqr("E", "N", &(Subdomain<K>::_dof), &i__1, &(Subdomain<K>::_dof), backup, &(Subdomain<K>::_dof), w, w + Subdomain<K>::_dof, nullptr, &i__1, work, &lwork, &info);
+            std::copy_n(A, Subdomain<K>::dof_ * Subdomain<K>::dof_, H);
+            Lapack<K>::gehrd(&(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), H + Subdomain<K>::dof_ * Subdomain<K>::dof_, work, &lwork, &info);
+            K* w = new K[Wrapper<K>::is_complex ? Subdomain<K>::dof_ : (2 * Subdomain<K>::dof_)];
+            K* backup = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_];
+            std::copy_n(H, Subdomain<K>::dof_ * Subdomain<K>::dof_, backup);
+            Lapack<K>::hseqr("E", "N", &(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), backup, &(Subdomain<K>::dof_), w, w + Subdomain<K>::dof_, nullptr, &i__1, work, &lwork, &info);
             delete [] backup;
             std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
-            q.reserve(Subdomain<K>::_dof);
-            selectNu(HPDDM_RECYCLE_TARGET_LM, q, Subdomain<K>::_dof, w, w + Subdomain<K>::_dof);
+            q.reserve(Subdomain<K>::dof_);
+            selectNu(HPDDM_RECYCLE_TARGET_LM, q, Subdomain<K>::dof_, w, w + Subdomain<K>::dof_);
             int k;
             if(threshold > 0.0)
                 k = std::distance(q.begin(), std::lower_bound(q.begin() + 1, q.end(), std::pair<unsigned short, std::complex<underlying_type<K>>>(0, threshold), [](const std::pair<unsigned short, std::complex<underlying_type<K>>>& lhs, const std::pair<unsigned short, std::complex<underlying_type<K>>>& rhs) { return std::norm(lhs.second) > std::norm(rhs.second); }));
@@ -115,12 +115,12 @@ class Dense : public Schwarz<
                 k = opt.val<int>(prefix + "geneo_nu", 20);
             q.resize(k);
             int mm = Wrapper<K>::is_complex ? k : 0;
-            int* select = new int[Subdomain<K>::_dof]();
+            int* select = new int[Subdomain<K>::dof_]();
             for(typename decltype(q)::const_iterator it = q.cbegin(); it < q.cend(); ++it) {
                 if(Wrapper<K>::is_complex)
                     select[it->first] = 1;
                 else {
-                    if(std::abs(w[Subdomain<K>::_dof + it->first]) < HPDDM_EPS) {
+                    if(std::abs(w[Subdomain<K>::dof_ + it->first]) < HPDDM_EPS) {
                         select[it->first] = 1;
                         ++mm;
                     }
@@ -134,15 +134,15 @@ class Dense : public Schwarz<
                 }
             }
             decltype(q)().swap(q);
-            underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[Subdomain<K>::_dof] : nullptr;
-            super::_ev = new K*[mm];
-            *super::_ev = new K[mm * Subdomain<K>::_dof];
+            underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[Subdomain<K>::dof_] : nullptr;
+            super::ev_ = new K*[mm];
+            *super::ev_ = new K[mm * Subdomain<K>::dof_];
             for(unsigned short i = 1; i < mm; ++i)
-                super::_ev[i] = *super::_ev + i * Subdomain<K>::_dof;
+                super::ev_[i] = *super::ev_ + i * Subdomain<K>::dof_;
             int* ifailr = new int[mm];
             int col;
-            Lapack<K>::hsein("R", "Q", "N", select, &(Subdomain<K>::_dof), H, &(Subdomain<K>::_dof), w, w + Subdomain<K>::_dof, nullptr, &i__1, *super::_ev, &(Subdomain<K>::_dof), &mm, &col, work, rwork, nullptr, ifailr, &info);
-            Lapack<K>::mhr("L", "N", &(Subdomain<K>::_dof), &mm, &i__1, &(Subdomain<K>::_dof), H, &(Subdomain<K>::_dof), H + Subdomain<K>::_dof * Subdomain<K>::_dof, *super::_ev, &(Subdomain<K>::_dof), work, &lwork, &info);
+            Lapack<K>::hsein("R", "Q", "N", select, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), w, w + Subdomain<K>::dof_, nullptr, &i__1, *super::ev_, &(Subdomain<K>::dof_), &mm, &col, work, rwork, nullptr, ifailr, &info);
+            Lapack<K>::mhr("L", "N", &(Subdomain<K>::dof_), &mm, &i__1, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), H + Subdomain<K>::dof_ * Subdomain<K>::dof_, *super::ev_, &(Subdomain<K>::dof_), work, &lwork, &info);
             delete [] ifailr;
             delete [] select;
             delete [] rwork;
@@ -151,8 +151,8 @@ class Dense : public Schwarz<
             delete [] H;
 #endif
             opt[prefix + "geneo_nu"] = mm;
-            if(super::_co)
-                super::_co->setLocal(mm);
+            if(super::co_)
+                super::co_->setLocal(mm);
         }
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, const K* const E) {
@@ -166,19 +166,19 @@ class Dense : public Schwarz<
 #if HPDDM_DENSE
                     Solver, CoarseSolver,
 #endif
-                    S, K>* const _A;
-                const K* const   _E;
+                    S, K>* const A_;
+                const K* const   E_;
                 ClassWithPtr(const Dense<
 #if HPDDM_DENSE
                     Solver, CoarseSolver,
 #endif
-                    S, K>* const A, const K* const E) : _A(A), _E(E) { }
-                const MPI_Comm& getCommunicator() const { return _A->getCommunicator(); }
-                const vectorNeighbor& getMap() const { return _A->getMap(); }
-                constexpr int getDof() const { return _A->getDof(); }
-                constexpr unsigned short getLocal() const { return _A->getLocal(); }
-                const K* const* getVectors() const { return _A->getVectors(); }
-                const K* getOperator() const { return _E; }
+                    S, K>* const A, const K* const E) : A_(A), E_(E) { }
+                const MPI_Comm& getCommunicator() const { return A_->getCommunicator(); }
+                const vectorNeighbor& getMap() const { return A_->getMap(); }
+                constexpr int getDof() const { return A_->getDof(); }
+                constexpr unsigned short getLocal() const { return A_->getLocal(); }
+                const K* const* getVectors() const { return A_->getVectors(); }
+                const K* getOperator() const { return E_; }
             };
             ClassWithPtr Op(this, E);
             return super::super::template buildTwo<excluded, UserCoarseOperator<ClassWithPtr, K>>(&Op, comm);

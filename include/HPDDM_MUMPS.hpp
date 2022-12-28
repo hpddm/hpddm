@@ -62,25 +62,25 @@ class Mumps : public DMatrix {
     private:
         /* Variable: id
          *  Internal data pointer. */
-        typename MUMPS_STRUC_C<K>::trait* _id;
+        typename MUMPS_STRUC_C<K>::trait* id_;
     protected:
         /* Variable: numbering
          *  1-based indexing. */
-        static constexpr char _numbering = 'F';
+        static constexpr char numbering_ = 'F';
 #if HPDDM_INEXACT_COARSE_OPERATOR
-        std::pair<unsigned int, unsigned int> _range;
+        std::pair<unsigned int, unsigned int> range_;
 #endif
     public:
-        Mumps() : _id() { }
+        Mumps() : id_() { }
         ~Mumps() {
-            if(_id) {
+            if(id_) {
 #if HPDDM_INEXACT_COARSE_OPERATOR
-                if(_id->nrhs)
-                    delete [] _id->rhs;
+                if(id_->nrhs)
+                    delete [] id_->rhs;
 #endif
-                _id->job = -2;
-                MUMPS_STRUC_C<K>::mumps_c(_id);
-                delete _id;
+                id_->job = -2;
+                MUMPS_STRUC_C<K>::mumps_c(id_);
+                delete id_;
             }
         }
         /* Function: numfact
@@ -97,47 +97,47 @@ class Mumps : public DMatrix {
          *    C              - Array of data. */
         template<char S>
         void numfact(unsigned int nz, int* I, int* J, K* C) {
-            _id = new typename MUMPS_STRUC_C<K>::trait();
-            _id->job = -1;
-            _id->par = 1;
-            _id->comm_fortran = MPI_Comm_c2f(DMatrix::_communicator);
+            id_ = new typename MUMPS_STRUC_C<K>::trait();
+            id_->job = -1;
+            id_->par = 1;
+            id_->comm_fortran = MPI_Comm_c2f(DMatrix::communicator_);
             const Option& opt = *Option::get();
             if(S == 'S')
-                _id->sym = opt.val<char>("operator_spd", 0) ? 1 : 2;
+                id_->sym = opt.val<char>("operator_spd", 0) ? 1 : 2;
             else
-                _id->sym = 0;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
-            _id->n = _id->lrhs = DMatrix::_n;
-            _id->nz_loc = nz;
-            _id->irn_loc = I;
-            _id->jcn_loc = J;
-            _id->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
+                id_->sym = 0;
+            MUMPS_STRUC_C<K>::mumps_c(id_);
+            id_->n = id_->lrhs = DMatrix::n_;
+            id_->nz_loc = nz;
+            id_->irn_loc = I;
+            id_->jcn_loc = J;
+            id_->a_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(C);
 #if !HPDDM_INEXACT_COARSE_OPERATOR
-            _id->nrhs = 1;
+            id_->nrhs = 1;
 #else
-            _id->nrhs = 0;
-            _id->icntl[20] = 0;
+            id_->nrhs = 0;
+            id_->icntl[20] = 0;
 #endif
-            _id->icntl[4]  = 0;
-            _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
-            _id->icntl[17] = 3;
+            id_->icntl[4]  = 0;
+            id_->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
+            id_->icntl[17] = 3;
             for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34, 35, 36 }) {
                 int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
-                    _id->icntl[i] = val;
+                    id_->icntl[i] = val;
             }
             for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
                 double val = opt.val("mumps_cntl_" + to_string(i + 1));
                 if(val >= std::numeric_limits<double>::lowest() / 10.0)
-                    _id->cntl[i] = val;
+                    id_->cntl[i] = val;
             }
-            _id->job = 4;
+            id_->job = 4;
             if(opt.val<char>("verbosity", 0) < 3)
-                _id->icntl[2] = 0;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
-            if(DMatrix::_rank == 0 && _id->infog[0] != 0)
-                std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
-            _id->icntl[2] = 0;
+                id_->icntl[2] = 0;
+            MUMPS_STRUC_C<K>::mumps_c(id_);
+            if(DMatrix::rank_ == 0 && id_->infog[0] != 0)
+                std::cerr << "BUG MUMPS, INFOG(1) = " << id_->infog[0] << std::endl;
+            id_->icntl[2] = 0;
             delete [] I;
         }
         /* Function: solve
@@ -153,55 +153,55 @@ class Mumps : public DMatrix {
 #if !HPDDM_INEXACT_COARSE_OPERATOR
         template<DMatrix::Distribution D>
         void solve(K* const rhs, const unsigned short& n) {
-            _id->nrhs = n;
+            id_->nrhs = n;
             if(D == DMatrix::DISTRIBUTED_SOL) {
-                _id->icntl[20] = 1;
-                int info = _id->info[22];
+                id_->icntl[20] = 1;
+                int info = id_->info[22];
                 int* isol_loc = new int[info];
                 K* sol_loc = new K[n * info];
-                _id->sol_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(sol_loc);
-                _id->lsol_loc = info;
-                _id->isol_loc = isol_loc;
-                _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(rhs);
-                _id->job = 3;
-                MUMPS_STRUC_C<K>::mumps_c(_id);
-                if(!DMatrix::_mapOwn && !DMatrix::_mapRecv) {
-                    int nloc = DMatrix::_ldistribution[DMatrix::_rank];
-                    DMatrix::initializeMap<0>(info, _id->isol_loc, sol_loc, rhs);
-                    DMatrix::_ldistribution = new int[1];
-                    *DMatrix::_ldistribution = nloc;
+                id_->sol_loc = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(sol_loc);
+                id_->lsol_loc = info;
+                id_->isol_loc = isol_loc;
+                id_->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(rhs);
+                id_->job = 3;
+                MUMPS_STRUC_C<K>::mumps_c(id_);
+                if(!DMatrix::mapOwn_ && !DMatrix::mapRecv_) {
+                    int nloc = DMatrix::ldistribution_[DMatrix::rank_];
+                    DMatrix::initializeMap<0>(info, id_->isol_loc, sol_loc, rhs);
+                    DMatrix::ldistribution_ = new int[1];
+                    *DMatrix::ldistribution_ = nloc;
                 }
                 else
                     DMatrix::redistribute<0>(sol_loc, rhs);
                 for(unsigned short nu = 1; nu < n; ++nu)
-                    DMatrix::redistribute<0>(sol_loc + nu * info, rhs + nu * *DMatrix::_ldistribution);
+                    DMatrix::redistribute<0>(sol_loc + nu * info, rhs + nu * *DMatrix::ldistribution_);
                 delete [] sol_loc;
                 delete [] isol_loc;
             }
             else {
-                _id->icntl[20] = 0;
-                _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(rhs);
-                _id->job = 3;
-                MUMPS_STRUC_C<K>::mumps_c(_id);
+                id_->icntl[20] = 0;
+                id_->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(rhs);
+                id_->job = 3;
+                MUMPS_STRUC_C<K>::mumps_c(id_);
             }
         }
 #else
         void solve(const K* const rhs, K* const x, const unsigned short& n) const {
-            if(n > _id->nrhs) {
-                if(_id->nrhs)
-                    delete [] reinterpret_cast<K*>(_id->rhs);
-                _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(new K[n * _id->n]);
-                _id->nrhs = n;
+            if(n > id_->nrhs) {
+                if(id_->nrhs)
+                    delete [] reinterpret_cast<K*>(id_->rhs);
+                id_->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(new K[n * id_->n]);
+                id_->nrhs = n;
             }
-            std::fill_n(reinterpret_cast<K*>(_id->rhs), n * _id->n, K());
+            std::fill_n(reinterpret_cast<K*>(id_->rhs), n * id_->n, K());
             for(unsigned short i = 0; i < n; ++i)
-                std::copy_n(rhs + i * (_range.second - _range.first), _range.second - _range.first, reinterpret_cast<K*>(_id->rhs) + i * _id->n + _range.first);
-            MPI_Allreduce(MPI_IN_PLACE, reinterpret_cast<K*>(_id->rhs), n * _id->n, Wrapper<K>::mpi_type(), MPI_SUM, DMatrix::_communicator);
-            _id->job = 3;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
-            MPI_Bcast(reinterpret_cast<K*>(_id->rhs), n * _id->n, Wrapper<K>::mpi_type(), 0, DMatrix::_communicator);
+                std::copy_n(rhs + i * (range_.second - range_.first), range_.second - range_.first, reinterpret_cast<K*>(id_->rhs) + i * id_->n + range_.first);
+            MPI_Allreduce(MPI_IN_PLACE, reinterpret_cast<K*>(id_->rhs), n * id_->n, Wrapper<K>::mpi_type(), MPI_SUM, DMatrix::communicator_);
+            id_->job = 3;
+            MUMPS_STRUC_C<K>::mumps_c(id_);
+            MPI_Bcast(reinterpret_cast<K*>(id_->rhs), n * id_->n, Wrapper<K>::mpi_type(), 0, DMatrix::communicator_);
             for(unsigned short i = 0; i < n; ++i)
-                std::copy_n(reinterpret_cast<K*>(_id->rhs) + i * _id->n + _range.first, _range.second - _range.first, x + i * (_range.second - _range.first));
+                std::copy_n(reinterpret_cast<K*>(id_->rhs) + i * id_->n + range_.first, range_.second - range_.first, x + i * (range_.second - range_.first));
         }
 #endif
 };
@@ -215,94 +215,94 @@ class Mumps : public DMatrix {
 template<class K>
 class MumpsSub {
     private:
-        typename MUMPS_STRUC_C<K>::trait* _id;
-        int*                               _I;
+        typename MUMPS_STRUC_C<K>::trait* id_;
+        int*                               I_;
     public:
-        MumpsSub() : _id(), _I() { }
+        MumpsSub() : id_(), I_() { }
         MumpsSub(const MumpsSub&) = delete;
         ~MumpsSub() { dtor(); }
-        static constexpr char _numbering = 'F';
+        static constexpr char numbering_ = 'F';
         void dtor() {
-            delete [] _I;
-            if(_id) {
-                _id->job = -2;
-                MUMPS_STRUC_C<K>::mumps_c(_id);
-                delete _id;
-                _id = nullptr;
-                _I = nullptr;
+            delete [] I_;
+            if(id_) {
+                id_->job = -2;
+                MUMPS_STRUC_C<K>::mumps_c(id_);
+                delete id_;
+                id_ = nullptr;
+                I_ = nullptr;
             }
         }
         template<char N = HPDDM_NUMBERING>
         void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
             static_assert(N == 'C' || N == 'F', "Unknown numbering");
             const Option& opt = *Option::get();
-            if(!_id) {
-                _id = new typename MUMPS_STRUC_C<K>::trait();
-                _id->job = -1;
-                _id->par = 1;
-                _id->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
-                _id->sym = A->_sym ? 2 - (opt.val<char>("operator_spd", 0) && !detection) : 0;
-                MUMPS_STRUC_C<K>::mumps_c(_id);
+            if(!id_) {
+                id_ = new typename MUMPS_STRUC_C<K>::trait();
+                id_->job = -1;
+                id_->par = 1;
+                id_->comm_fortran = MPI_Comm_c2f(MPI_COMM_SELF);
+                id_->sym = A->sym_ ? 2 - (opt.val<char>("operator_spd", 0) && !detection) : 0;
+                MUMPS_STRUC_C<K>::mumps_c(id_);
             }
-            _id->icntl[23] = detection;
-            _id->cntl[2] = -1.0e-6;
+            id_->icntl[23] = detection;
+            id_->cntl[2] = -1.0e-6;
             if(N == 'C')
-                std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { ++i; });
-            _id->jcn = A->_ja;
-            _id->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->_a);
+                std::for_each(A->ja_, A->ja_ + A->nnz_, [](int& i) { ++i; });
+            id_->jcn = A->ja_;
+            id_->a = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(A->a_);
             int* listvar = nullptr;
             if(opt.val<char>("verbosity", 0) >= 4) {
-                _id->icntl[0] = 6;
-                _id->icntl[2] = 6;
-                _id->icntl[3] = 2;
+                id_->icntl[0] = 6;
+                id_->icntl[2] = 6;
+                id_->icntl[3] = 2;
             }
             else {
-                _id->icntl[0] = 0;
-                _id->icntl[2] = 0;
-                _id->icntl[3] = 0;
+                id_->icntl[0] = 0;
+                id_->icntl[2] = 0;
+                id_->icntl[3] = 0;
             }
-            _id->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
+            id_->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
             for(unsigned short i : { 5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34, 35, 36 }) {
                 int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
                 if(val != std::numeric_limits<int>::lowest())
-                    _id->icntl[i] = val;
+                    id_->icntl[i] = val;
             }
             for(unsigned short i : { 0, 1, 2, 3, 4, 6 }) {
                 double val = opt.val("mumps_cntl_" + to_string(i + 1));
                 if(val >= std::numeric_limits<double>::lowest() / 10.0)
-                    _id->cntl[i] = val;
+                    id_->cntl[i] = val;
             }
-            if(_id->job == -1) {
-                _id->nrhs = 1;
-                _id->n = A->_n;
-                _id->lrhs = A->_n;
-                _I = new int[A->_nnz];
-                _id->nz = A->_nnz;
-                for(int i = 0; i < A->_n; ++i)
-                    std::fill(_I + A->_ia[i] - (N == 'F'), _I + A->_ia[i + 1] - (N == 'F'), i + 1);
-                _id->irn = _I;
+            if(id_->job == -1) {
+                id_->nrhs = 1;
+                id_->n = A->n_;
+                id_->lrhs = A->n_;
+                I_ = new int[A->nnz_];
+                id_->nz = A->nnz_;
+                for(int i = 0; i < A->n_; ++i)
+                    std::fill(I_ + A->ia_[i] - (N == 'F'), I_ + A->ia_[i + 1] - (N == 'F'), i + 1);
+                id_->irn = I_;
                 if(schur) {
                     listvar = new int[static_cast<int>(std::real(schur[0]))];
                     std::iota(listvar, listvar + static_cast<int>(std::real(schur[0])), static_cast<int>(std::real(schur[1])));
-                    _id->size_schur = _id->schur_lld = static_cast<int>(std::real(schur[0]));
-                    _id->icntl[18] = 2;
-                    _id->icntl[25] = 0;
-                    _id->listvar_schur = listvar;
-                    _id->nprow = _id->npcol = 1;
-                    _id->mblock = _id->nblock = 100;
-                    _id->schur = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(schur);
+                    id_->size_schur = id_->schur_lld = static_cast<int>(std::real(schur[0]));
+                    id_->icntl[18] = 2;
+                    id_->icntl[25] = 0;
+                    id_->listvar_schur = listvar;
+                    id_->nprow = id_->npcol = 1;
+                    id_->mblock = id_->nblock = 100;
+                    id_->schur = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(schur);
                 }
-                _id->job = 4;
+                id_->job = 4;
             }
             else
-                _id->job = 2;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
+                id_->job = 2;
+            MUMPS_STRUC_C<K>::mumps_c(id_);
             delete [] listvar;
-            if(_id->infog[0] != 0)
-                std::cerr << "BUG MUMPS, INFOG(1) = " << _id->infog[0] << std::endl;
-            _id->icntl[2] = 0;
+            if(id_->infog[0] != 0)
+                std::cerr << "BUG MUMPS, INFOG(1) = " << id_->infog[0] << std::endl;
+            id_->icntl[2] = 0;
             if(N == 'C')
-                std::for_each(A->_ja, A->_ja + A->_nnz, [](int& i) { --i; });
+                std::for_each(A->ja_, A->ja_ + A->nnz_, [](int& i) { --i; });
         }
         template<char N = HPDDM_NUMBERING>
         int inertia(MatrixCSR<K>* const& A) {
@@ -313,19 +313,19 @@ class MumpsSub {
             numfact<N>(A, true);
             if(remove)
                 opt.remove("mumps_icntl_13");
-            return _id->infog[11];
+            return id_->infog[11];
         }
-        unsigned short deficiency() const { return _id->infog[27]; }
+        unsigned short deficiency() const { return id_->infog[27]; }
         void solve(K* const x, const unsigned short& n = 1) const {
-            _id->icntl[20] = 0;
-            _id->icntl[26] = n;
-            _id->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);
-            _id->nrhs = n;
-            _id->job = 3;
-            MUMPS_STRUC_C<K>::mumps_c(_id);
+            id_->icntl[20] = 0;
+            id_->icntl[26] = n;
+            id_->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type*>(x);
+            id_->nrhs = n;
+            id_->job = 3;
+            MUMPS_STRUC_C<K>::mumps_c(id_);
         }
         void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            std::copy_n(b, n * _id->n, x);
+            std::copy_n(b, n * id_->n, x);
             solve(x, n);
         }
 };

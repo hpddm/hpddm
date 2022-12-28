@@ -34,7 +34,7 @@
 namespace HPDDM {
 template<int N>
 inline Option::Option(Singleton::construct_key<N>) {
-    _app = nullptr;
+    app_ = nullptr;
 }
 template<bool recursive, bool exact, class Container>
 inline int Option::parse(std::vector<std::string>& args, bool display, const Container& reg, std::string prefix) {
@@ -150,9 +150,9 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
     };
 
     if(reg.size() != 0) {
-        if(!_app)
-            _app = new std::unordered_map<std::string, double>;
-        _app->reserve(reg.size());
+        if(!app_)
+            app_ = new std::unordered_map<std::string, double>;
+        app_->reserve(reg.size());
         for(const auto& x : reg) {
             std::string def = std::get<0>(x);
             std::string::size_type n = def.find("=");
@@ -163,9 +163,9 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
 #if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
                     auto target = std::get<2>(x).template target<bool (*)(const std::string&, const std::string&, bool)>();
                     if(!target || (*target != Arg::argument))
-                        (*_app)[def] = sto<double>(val);
+                        (*app_)[def] = sto<double>(val);
 #else
-                    (*_app)[def] = sto<double>(val);
+                    (*app_)[def] = sto<double>(val);
 #endif
                 }
             }
@@ -210,7 +210,7 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
         }
     }
     if(!recursive) {
-        for(const auto& x : _opt) {
+        for(const auto& x : opt_) {
             const std::string key = x.first;
             const double val = x.second;
             if(val < -10000000 && key[-val - 10000000] == '#' && hasEnding(key.substr(0, -val - 10000000), "config_file")) {
@@ -218,11 +218,11 @@ inline int Option::parse(std::vector<std::string>& args, bool display, const Con
                 parse(cfg, display);
             }
         }
-        _opt.rehash(_opt.size());
+        opt_.rehash(opt_.size());
     }
     if(pre.size() > 0)
         std::cout << "WARNING -- too many prefixes have been pushed" << std::endl;
-    if(display && _opt.find("help") != _opt.cend()) {
+    if(display && opt_.find("help") != opt_.cend()) {
         size_t max = 0;
         size_t col = getenv("COLUMNS") ? sto<int>(std::getenv("COLUMNS")) : 200;
         for(const auto& x : option)

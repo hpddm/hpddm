@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
         auto tBegin = std::chrono::steady_clock::now();
         std::ifstream t(argv[1]);
         A = new HPDDM::MatrixCSR<K>(t);
-        if(A->_n <= 0) {
+        if(A->n_ <= 0) {
             delete A;
             return 1;
         }
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
         auto tBegin = std::chrono::steady_clock::now();
         std::ifstream t(argv[2]);
         B = new HPDDM::MatrixCSR<K>(t);
-        if(B->_n <= 0) {
+        if(B->n_ <= 0) {
             delete B;
             delete A;
             return 1;
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
         std::forward_as_tuple("trials=<5>", "Number of trial runs to time.", HPDDM::Option::Arg::integer),
     });
     std::streamsize old = std::cout.precision();
-    EIGENSOLVER<K>* S = new EIGENSOLVER<K>(A->_n, HPDDM::Option::get()->val("geneo_nu", 20));
+    EIGENSOLVER<K>* S = new EIGENSOLVER<K>(A->n_, HPDDM::Option::get()->val("geneo_nu", 20));
     std::cout << std::scientific;
     K** ev;
     for(unsigned int begin = 0, end = opt.app()["warm_up"]; begin < end; ++begin) {
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
             delete [] *ev;
         delete [] ev;
         delete S;
-        S = new EIGENSOLVER<K>(A->_n, HPDDM::Option::get()->val("geneo_nu", 20));
+        S = new EIGENSOLVER<K>(A->n_, HPDDM::Option::get()->val("geneo_nu", 20));
     }
     for(unsigned int begin = 0, end = opt.app()["trials"]; begin < end; ++begin) {
         auto tBegin = std::chrono::steady_clock::now();
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
             delete [] *ev;
         delete [] ev;
         delete S;
-        S = new EIGENSOLVER<K>(A->_n, HPDDM::Option::get()->val("geneo_nu", 20));
+        S = new EIGENSOLVER<K>(A->n_, HPDDM::Option::get()->val("geneo_nu", 20));
     }
     std::cout.unsetf(std::ios_base::scientific);
     std::cout.precision(old);
