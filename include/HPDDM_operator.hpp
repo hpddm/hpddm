@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_OPERATOR_
-#define _HPDDM_OPERATOR_
+#ifndef HPDDM_OPERATOR_HPP_
+#define HPDDM_OPERATOR_HPP_
 
 #include <queue>
 
@@ -1436,4 +1436,4 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 };
 #endif // HPDDM_BDD
 } // HPDDM
-#endif // _HPDDM_OPERATOR_
+#endif // HPDDM_OPERATOR_HPP_

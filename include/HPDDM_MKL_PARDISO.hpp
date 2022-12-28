@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_MKL_PARDISO_
-#define _HPDDM_MKL_PARDISO_
+#ifndef HPDDM_MKL_PARDISO_HPP_
+#define HPDDM_MKL_PARDISO_HPP_
 
 #ifdef DMKL_PARDISO
 #include <mkl_cluster_sparse_solver.h>
@@ -353,4 +353,4 @@ class MklPardisoSub {
 };
 #endif // MKL_PARDISOSUB
 } // HPDDM
-#endif // _HPDDM_MKL_PARDISO_
+#endif // HPDDM_MKL_PARDISO_HPP_

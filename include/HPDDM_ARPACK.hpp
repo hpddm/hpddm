@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_ARPACK_
-#define _HPDDM_ARPACK_
+#ifndef HPDDM_ARPACK_HPP_
+#define HPDDM_ARPACK_HPP_
 
 #define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U)                                                              \
 void HPDDM_F77(B ## saupd)(int*, const char*, const int*, const char*, const int*, const U*, U*, int*, U*,    \
@@ -241,4 +241,4 @@ inline void Arpack<T>::eupd(const int* rvec, const char* HowMny, int* select, T*
 HPDDM_GENERATE_ARPACK(c, std::complex<float>, s, float)
 HPDDM_GENERATE_ARPACK(z, std::complex<double>, d, double)
 } // HPDDM
-#endif // _HPDDM_ARPACK_
+#endif // HPDDM_ARPACK_HPP_

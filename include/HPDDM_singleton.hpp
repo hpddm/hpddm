@@ -20,8 +20,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_SINGLETON_
-#define _HPDDM_SINGLETON_
+#ifndef HPDDM_SINGLETON_HPP_
+#define HPDDM_SINGLETON_HPP_
 
 namespace HPDDM {
 /* Class: Singleton
@@ -39,4 +39,4 @@ class Singleton {
         }
 };
 } // HPDDM
-#endif // _HPDDM_SINGLETON_
+#endif // HPDDM_SINGLETON_HPP_

@@ -23,8 +23,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_SCHWARZ_
-#define _HPDDM_SCHWARZ_
+#ifndef HPDDM_SCHWARZ_HPP_
+#define HPDDM_SCHWARZ_HPP_
 
 #if HPDDM_PETSC
 #include "HPDDM_dmatrix.hpp"
@@ -1470,4 +1470,4 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscFunctionReturn(0);
 }
 #endif
-#endif // _HPDDM_SCHWARZ_
+#endif // HPDDM_SCHWARZ_HPP_

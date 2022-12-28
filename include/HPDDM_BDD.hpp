@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_BDD_
-#define _HPDDM_BDD_
+#ifndef HPDDM_BDD_HPP_
+#define HPDDM_BDD_HPP_
 
 #include "HPDDM_schur.hpp"
 
@@ -351,4 +351,4 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
 template<template<class> class Solver, template<class> class CoarseSolver, char S, class K>
 struct hpddm_method_id<Bdd<Solver, CoarseSolver, S, K>> { static constexpr char value = 3; };
 } // HPDDM
-#endif // _HPDDM_BDD_
+#endif // HPDDM_BDD_HPP_

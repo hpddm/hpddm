@@ -21,8 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_BLAS_
-#define _HPDDM_BLAS_
+#ifndef HPDDM_BLAS_HPP_
+#define HPDDM_BLAS_HPP_
 
 #define HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                     \
 void    HPDDM_F77(C ## axpy)(const int*, const T*, const T*, const int*, T*, const int*);                    \
@@ -442,4 +442,4 @@ inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const
 # endif // HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 } // HPDDM
 #endif // __cplusplus
-#endif // _HPDDM_BLAS_
+#endif // HPDDM_BLAS_HPP_

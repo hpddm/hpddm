@@ -20,8 +20,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_PETSC_
-#define _HPDDM_PETSC_
+#ifndef HPDDM_PETSC_HPP_
+#define HPDDM_PETSC_HPP_
 
 #include <petsc.h>
 
@@ -500,4 +500,4 @@ class PetscSub {
 };
 #endif // PETSCSUB
 } // HPDDM
-#endif // _HPDDM_PETSC_
+#endif // HPDDM_PETSC_HPP_

@@ -23,8 +23,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_
-#define _HPDDM_
+#ifndef HPDDM_HPP_
+#define HPDDM_HPP_
 
 /* Title: HPDDM */
 
@@ -507,4 +507,4 @@ using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
 # include "HPDDM_PETSc.hpp"
 #endif
 
-#endif // _HPDDM_
+#endif // HPDDM_HPP_

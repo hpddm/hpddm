@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_MUMPS_
-#define _HPDDM_MUMPS_
+#ifndef HPDDM_MUMPS_HPP_
+#define HPDDM_MUMPS_HPP_
 
 #include <smumps_c.h>
 #include <dmumps_c.h>
@@ -331,4 +331,4 @@ class MumpsSub {
 };
 #endif // MUMPSSUB
 } // HPDDM
-#endif // _HPDDM_MUMPS_
+#endif // HPDDM_MUMPS_HPP_

@@ -20,8 +20,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_SLEPC_
-#define _HPDDM_SLEPC_
+#ifndef HPDDM_SLEPC_HPP_
+#define HPDDM_SLEPC_HPP_
 
 #include <slepc.h>
 
@@ -128,4 +128,4 @@ class Slepc : public Eigensolver<K> {
 };
 #endif // MU_SLEPC
 } // HPDDM
-#endif // _HPDDM_SLEPC_
+#endif // HPDDM_SLEPC_HPP_

@@ -21,8 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SCHWARZ_
-#define _SCHWARZ_
+#ifndef SCHWARZ_HPP_
+#define SCHWARZ_HPP_
 
 #if HPDDM_MKL
 #include <complex>
@@ -84,4 +84,4 @@ const HPDDM::underlying_type<K> pi = 3.141592653589793238463;
 
 void generate(int, int, std::list<int>&, std::vector<std::vector<int>>&, int&, HPDDM::MatrixCSR<K>*&, HPDDM::MatrixCSR<K>*&, HPDDM::underlying_type<K>*&, K*&, K*&);
 
-#endif // _SCHWARZ_
+#endif // SCHWARZ_HPP_

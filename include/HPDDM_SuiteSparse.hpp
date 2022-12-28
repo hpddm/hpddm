@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_SUITESPARSE_
-#define _HPDDM_SUITESPARSE_
+#ifndef HPDDM_SUITESPARSE_HPP_
+#define HPDDM_SUITESPARSE_HPP_
 
 #include <cholmod.h>
 #include <umfpack.h>
@@ -445,4 +445,4 @@ class SuiteSparseSub {
 };
 #endif // SUITESPARSESUB
 } // HPDDM
-#endif // _HPDDM_SUITESPARSE_
+#endif // HPDDM_SUITESPARSE_HPP_

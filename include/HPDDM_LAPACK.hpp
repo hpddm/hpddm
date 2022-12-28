@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_LAPACK_
-#define _HPDDM_LAPACK_
+#ifndef HPDDM_LAPACK_HPP_
+#define HPDDM_LAPACK_HPP_
 
 #define HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, SYM, ORT)                                                      \
 void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
@@ -733,4 +733,4 @@ HPDDM_GENERATE_LAPACK_COMPLEX(k, std::complex<__fp16>, h, __fp16)
 # endif
 } // HPDDM
 #endif // __cplusplus
-#endif // _HPDDM_LAPACK_
+#endif // HPDDM_LAPACK_HPP_

@@ -21,8 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_OPTION_
-#define _HPDDM_OPTION_
+#ifndef HPDDM_OPTION_HPP_
+#define HPDDM_OPTION_HPP_
 
 #define HPDDM_PREFIX "hpddm_"
 #define HPDDM_CONCAT(NAME) "" HPDDM_PREFIX #NAME ""
@@ -516,4 +516,4 @@ class OptionsPrefix {
         }
 };
 } // HPDDM
-#endif // _HPDDM_OPTION_
+#endif // HPDDM_OPTION_HPP_
