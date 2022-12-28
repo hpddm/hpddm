@@ -140,7 +140,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 if(!std::is_same<PetscScalar, K>::value) {
                     PetscCall(VecGetArrayWrite(_b, &write));
                     std::copy_n(in, super::_n, write);
-                    PetscCall(VecGetArrayRead(_x, &read));
+                    PetscCall(VecRestoreArrayWrite(_b, &write));
                 }
                 else {
                     PetscCall(VecPlaceArray(_b, reinterpret_cast<const PetscScalar*>(in)));
@@ -152,9 +152,9 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(VecResetArray(_b));
                 }
                 else {
+                    PetscCall(VecGetArrayRead(_x, &read));
                     HPDDM::copy_n(read, super::_n, out);
                     PetscCall(VecRestoreArrayRead(_x, &read));
-                    PetscCall(VecRestoreArrayWrite(_b, &write));
                 }
             }
             else {
@@ -354,7 +354,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                 if(!std::is_same<PetscScalar, K>::value) {
                     PetscCall(VecGetArrayWrite(_b, &write));
                     std::copy_n(in, super::_n, write);
-                    PetscCall(VecGetArrayRead(_x, &read));
+                    PetscCall(VecRestoreArrayWrite(_b, &write));
                 }
                 else {
                     PetscCall(VecPlaceArray(_b, reinterpret_cast<const PetscScalar*>(in)));
@@ -366,9 +366,9 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(VecResetArray(_b));
                 }
                 else {
+                    PetscCall(VecGetArrayRead(_x, &read));
                     HPDDM::copy_n(read, super::_n, out);
                     PetscCall(VecRestoreArrayRead(_x, &read));
-                    PetscCall(VecRestoreArrayWrite(_b, &write));
                 }
             }
             PetscFunctionReturn(0);
