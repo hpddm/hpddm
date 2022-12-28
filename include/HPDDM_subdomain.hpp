@@ -23,8 +23,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_SUBDOMAIN_
-#define _HPDDM_SUBDOMAIN_
+#ifndef HPDDM_SUBDOMAIN_HPP_
+#define HPDDM_SUBDOMAIN_HPP_
 
 #include <unordered_set>
 #include <map>
@@ -802,4 +802,4 @@ inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*&
 template<class K>
 struct hpddm_method_id<Subdomain<K>> { static constexpr char value = 10; };
 } // HPDDM
-#endif // _HPDDM_SUBDOMAIN_
+#endif // HPDDM_SUBDOMAIN_HPP_

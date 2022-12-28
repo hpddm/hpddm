@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_FETI_
-#define _HPDDM_FETI_
+#ifndef HPDDM_FETI_HPP_
+#define HPDDM_FETI_HPP_
 
 #include "HPDDM_schur.hpp"
 
@@ -478,4 +478,4 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
 template<template<class> class Solver, template<class> class CoarseSolver, char S, class K, FetiPrcndtnr P>
 struct hpddm_method_id<Feti<Solver, CoarseSolver, S, K, P>> { static constexpr char value = 2; };
 } // HPDDM
-#endif // _HPDDM_FETI_
+#endif // HPDDM_FETI_HPP_

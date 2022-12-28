@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_COARSE_OPERATOR_
-#define _HPDDM_COARSE_OPERATOR_
+#ifndef HPDDM_COARSE_OPERATOR_HPP_
+#define HPDDM_COARSE_OPERATOR_HPP_
 
 #if HPDDM_PETSC
 #define HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template<class Solver, class K>
@@ -294,4 +294,4 @@ class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(S
         const MPI_Comm& getCommunicator() const { return _scatterComm; }
 };
 } // HPDDM
-#endif // _HPDDM_COARSE_OPERATOR_
+#endif // HPDDM_COARSE_OPERATOR_HPP_

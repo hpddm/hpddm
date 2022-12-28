@@ -20,8 +20,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_INEXACT_COARSE_OPERATOR_
-#define _HPDDM_INEXACT_COARSE_OPERATOR_
+#ifndef HPDDM_INEXACT_COARSE_OPERATOR_HPP_
+#define HPDDM_INEXACT_COARSE_OPERATOR_HPP_
 
 #if !HPDDM_PETSC
 # if !defined(PETSCSUB)
@@ -1794,4 +1794,4 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #endif
 };
 } // HPDDM
-#endif // _HPDDM_INEXACT_COARSE_OPERATOR_
+#endif // HPDDM_INEXACT_COARSE_OPERATOR_HPP_

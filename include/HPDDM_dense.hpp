@@ -20,8 +20,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_DENSE_
-#define _HPDDM_DENSE_
+#ifndef HPDDM_DENSE_HPP_
+#define HPDDM_DENSE_HPP_
 
 #include "HPDDM_schwarz.hpp"
 
@@ -198,4 +198,4 @@ struct hpddm_method_id<Dense<
 #endif
     S, K>> { static constexpr char value = 4; };
 } // HPDDM
-#endif // _HPDDM_DENSE_
+#endif // HPDDM_DENSE_HPP_

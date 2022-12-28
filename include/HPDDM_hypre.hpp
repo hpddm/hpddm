@@ -21,8 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_HYPRE_
-#define _HPDDM_HYPRE_
+#ifndef HPDDM_HYPRE_HPP_
+#define HPDDM_HYPRE_HPP_
 
 #include <HYPRE.h>
 #include <_hypre_parcsr_ls.h>
@@ -213,4 +213,4 @@ class Hypre : public DMatrix {
 };
 #endif // DHYPRE
 } // HPDDM
-#endif // _HPDDM_HYPRE_
+#endif // HPDDM_HYPRE_HPP_

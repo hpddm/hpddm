@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_WRAPPER_
-#define _HPDDM_WRAPPER_
+#ifndef HPDDM_WRAPPER_HPP_
+#define HPDDM_WRAPPER_HPP_
 
 #if HPDDM_LIBXSMM
 #include <libxsmm.h>
@@ -1023,4 +1023,4 @@ inline void reorder(std::vector<T>& order, const Args&... arguments) {
     }
 }
 } // HPDDM
-#endif // _HPDDM_WRAPPER_
+#endif // HPDDM_WRAPPER_HPP_

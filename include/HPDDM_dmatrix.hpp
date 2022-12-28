@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_DMATRIX_
-#define _HPDDM_DMATRIX_
+#ifndef HPDDM_DMATRIX_HPP_
+#define HPDDM_DMATRIX_HPP_
 
 #include <map>
 
@@ -396,4 +396,4 @@ class DMatrix {
         }
 };
 } // HPDDM
-#endif // _HPDDM_DMATRIX_
+#endif // HPDDM_DMATRIX_HPP_

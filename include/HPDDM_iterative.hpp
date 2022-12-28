@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_ITERATIVE_
-#define _HPDDM_ITERATIVE_
+#ifndef HPDDM_ITERATIVE_HPP_
+#define HPDDM_ITERATIVE_HPP_
 
 #include "HPDDM_LAPACK.hpp"
 
@@ -1172,4 +1172,4 @@ class IterativeMethod {
         }
 };
 } // HPDDM
-#endif // _HPDDM_ITERATIVE_
+#endif // HPDDM_ITERATIVE_HPP_

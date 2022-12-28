@@ -20,8 +20,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_ELEMENTAL_
-#define _HPDDM_ELEMENTAL_
+#ifndef HPDDM_ELEMENTAL_HPP_
+#define HPDDM_ELEMENTAL_HPP_
 
 #ifdef DELEMENTAL
 #include <El.hpp>
@@ -192,4 +192,4 @@ class Elemental : public DMatrix {
 };
 #endif // DELEMENTAL
 } // HPDDM
-#endif // _HPDDM_ELEMENTAL_
+#endif // HPDDM_ELEMENTAL_HPP_

@@ -21,8 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_CG_
-#define _HPDDM_CG_
+#ifndef HPDDM_CG_HPP_
+#define HPDDM_CG_HPP_
 
 #include "HPDDM_iterative.hpp"
 
@@ -651,4 +651,4 @@ inline int IterativeMethod::PCG(const Operator& A, const K* const f, K* const x,
     return std::min(i, it);
 }
 } // HPDDM
-#endif // _HPDDM_CG_
+#endif // HPDDM_CG_HPP_

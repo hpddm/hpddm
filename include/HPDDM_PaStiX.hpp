@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_PASTIX_
-#define _HPDDM_PASTIX_
+#ifndef HPDDM_PASTIX_HPP_
+#define HPDDM_PASTIX_HPP_
 
 #define HPDDM_GENERATE_PASTIX_EXTERN(C, T)                                                                   \
 int C ## _cscd_redispatch(pastix_int_t, pastix_int_t*, pastix_int_t*, T*, T*, pastix_int_t, pastix_int_t*,   \
@@ -375,4 +375,4 @@ class PastixSub {
 };
 #endif // PASTIXSUB
 } // HPDDM
-#endif // _HPDDM_PASTIX_
+#endif // HPDDM_PASTIX_HPP_

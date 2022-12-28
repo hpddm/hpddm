@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_SCHUR_
-#define _HPDDM_SCHUR_
+#ifndef HPDDM_SCHUR_HPP_
+#define HPDDM_SCHUR_HPP_
 
 #include "HPDDM_preconditioner.hpp"
 #include "HPDDM_eigensolver.hpp"
@@ -868,4 +868,4 @@ class Schur : public Preconditioner<
         }
 };
 } // HPDDM
-#endif // _HPDDM_SCHUR_
+#endif // HPDDM_SCHUR_HPP_

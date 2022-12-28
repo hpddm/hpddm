@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_PRECONDITIONER_
-#define _HPDDM_PRECONDITIONER_
+#ifndef HPDDM_PRECONDITIONER_HPP_
+#define HPDDM_PRECONDITIONER_HPP_
 
 #define HPDDM_LAMBDA_F(in, input, inout, output, len, N)                                                     \
     if(len && *len) {                                                                                        \
@@ -382,4 +382,4 @@ class Preconditioner : public Subdomain<K> {
 #endif
 };
 } // HPDDM
-#endif // _HPDDM_PRECONDITIONER_
+#endif // HPDDM_PRECONDITIONER_HPP_

@@ -22,8 +22,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_MATRIX_
-#define _HPDDM_MATRIX_
+#ifndef HPDDM_MATRIX_HPP_
+#define HPDDM_MATRIX_HPP_
 
 #include <iterator>
 #include <array>
@@ -415,4 +415,4 @@ inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) {
         return f << "Malformed CSR matrix" << std::endl;
 }
 } // HPDDM
-#endif // _HPDDM_MATRIX_
+#endif // HPDDM_MATRIX_HPP_

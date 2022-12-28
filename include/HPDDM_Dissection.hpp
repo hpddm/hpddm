@@ -21,8 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_DISSECTION_
-#define _HPDDM_DISSECTION_
+#ifndef HPDDM_DISSECTION_HPP_
+#define HPDDM_DISSECTION_HPP_
 
 #ifndef INTEL_MKL_VERSION
 # define BLAS_GENERIC
@@ -87,4 +87,4 @@ class DissectionSub {
 };
 } // HPDDM
 #endif // DISSECTIONSUB
-#endif // _HPDDM_DISSECTION_
+#endif // HPDDM_DISSECTION_HPP_

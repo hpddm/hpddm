@@ -20,11 +20,11 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HPDDM_PREPROCESSOR_CHECK_
-# define _HPDDM_PREPROCESSOR_CHECK_
+#ifndef HPDDM_PREPROCESSOR_CHECK_HPP_
+# define HPDDM_PREPROCESSOR_CHECK_HPP_
 # define HPDDM_STR_HELPER(x) #x
 # define HPDDM_STR(x) HPDDM_STR_HELPER(x)
-#endif // _HPDDM_PREPROCESSOR_CHECK_
+#endif // HPDDM_PREPROCESSOR_CHECK_HPP_
 
 #ifdef HPDDM_CHECK_COARSEOPERATOR
 # ifdef COARSEOPERATOR
