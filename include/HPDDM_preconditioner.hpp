@@ -330,7 +330,7 @@ class Preconditioner : public Subdomain<K> {
         /* Function: destroyVectors
          *  Destroys the pointer <Preconditioner::ev> using a custom deallocator. */
         void destroyVectors(void (*dtor)(void*)) {
-            if(_ev && *_ev)
+            if(_ev)
                 dtor(*_ev);
             dtor(_ev);
             _ev = nullptr;
