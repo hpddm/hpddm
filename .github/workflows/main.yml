@@ -113,8 +113,11 @@ jobs:
     - name: Fetch PETSc and data files
       run: |
         cd .. && git clone --depth 1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
-        diff --suppress-common-lines -y -W 500 src/ksp/ksp/impls/hpddm/hpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/ksp/hpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo KSPHPDDM source file has diverged; exit 1; fi
-        diff --suppress-common-lines -y src/ksp/pc/impls/hpddm/pchpddm.cxx ../${{ github.event.repository.name }}/interface/petsc/pc/pchpddm.cxx | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo PCHPDDM source file has diverged; exit 1; fi
+        OUTPUT=$(for SRC in ksp/impls/hpddm/hpddm.cxx ksp/impls/hpddm/cuda/hpddm.cu pc/impls/hpddm/pchpddm.cxx;
+        do
+          diff --suppress-common-lines -y -W 500 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
+        done)
+        if [ ! -z "${OUTPUT}" ]; then printf '%s\n' "${OUTPUT}"; exit 1; fi
         wget -nv http://joliv.et/petsc_datafiles.tar.gz && tar xzf petsc_datafiles.tar.gz
         if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
           cp -r ~/.cache/arch-packages .
@@ -187,7 +190,10 @@ jobs:
               if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "${{ matrix.compiler }}" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type -Wno-unknown-warning-option"
+              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
+              if [ "${{ matrix.compiler }}" = "clang" ]; then
+                export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wno-unknown-warning-option"
+              fi
               if [ "$PRECISION" != "__float128" ]; then
                 export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Werror"
@@ -234,7 +240,7 @@ jobs:
               if [ "$PRECISION" != "__float128" ]; then make cpp; fi
               if [ "${{ matrix.compiler }}" = "gcc" ]; then
                 if [ "$PRECISION" != "__float128" ]; then make test_cpp; fi
-                lcov --directory . --directory ../petsc --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
+                lcov --directory . --directory ../petsc/arch-ci/lib --exclude '/tmp/*' --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
               fi
               make clean
               cd ../petsc && rm -rf ${PETSC_ARCH}
@@ -270,7 +276,7 @@ jobs:
         export PETSC_CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
-        sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
+        sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(PETSC_COMPILE.cu) $(abspath $<) -o $@=$(PETSC_COMPILE.cu) $(subst impls/hpddm/,,$(subst petsc/src/ksp/ksp,'"${REPOSITORY_NAME}"'/interface/petsc/ksp,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc/ksp,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
         sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
         echo ::add-mask::${{ secrets.HOSTNAME }}
         echo ::add-mask::${{ secrets.LOGIN }}
@@ -283,13 +289,13 @@ jobs:
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
-        make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp"
+        make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS}"
         cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
         export LD_PRELOAD="`pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
         make check
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
         cd ../${REPOSITORY_NAME}
-        ~/lcov-1.16/bin/lcov --directory . --directory ../petsc --capture --output-file ../coverage_nvcc.info
+        ~/lcov-1.16/bin/lcov --directory . --directory ../petsc/arch-ci/lib --exclude '/tmp/*' --capture --output-file ../coverage_nvcc.info
       if: matrix.runs_on != 'ubuntu-latest'
     - uses: actions/upload-artifact@v3
       with:
@@ -337,7 +343,7 @@ jobs:
           if [ -d $PWD/artifact ]; then
             sudo apt-get install -yq lcov
             find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
-            lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info
+            lcov --remove coverage.info '/usr/*' '*petsc/arch*' --output-file coverage.info > /dev/null
             if [ "${{ github.event.repository.name }}" = "hpddm" ]; then
               bash <(curl -s https://codecov.io/bash) -f coverage.info
             fi

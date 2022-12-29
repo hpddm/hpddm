@@ -266,7 +266,7 @@ class Schwarz : public Preconditioner<
                     std::sort(idx[i], idx[i] + v.size(), [&v] (const unsigned int& lhs, const unsigned int& rhs) { return v[lhs] < v[rhs]; });
                 }
                 underlying_type<K>* const d = new underlying_type<K>[Subdomain<K>::dof_];
-                HPDDM::copy_n(D, Subdomain<K>::dof_, d);
+                std::copy_n(D, Subdomain<K>::dof_, d);
                 for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i) {
                     int index;
                     MPI_Waitany(size, Subdomain<K>::rq_, &index, MPI_STATUS_IGNORE);
