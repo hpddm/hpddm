@@ -190,12 +190,13 @@ jobs:
               if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "${{ matrix.compiler }}" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
+              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wpedantic -Wno-sign-compare -Wno-cast-function-type"
               if [ "${{ matrix.compiler }}" = "clang" ]; then
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wno-unknown-warning-option"
               fi
               if [ "$PRECISION" != "__float128" ]; then
                 export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
+                if [ "${{ matrix.compiler }}" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Werror"
               fi
               if [ "$PRECISION" = "double" ]; then
@@ -212,7 +213,6 @@ jobs:
                 fi
                 if [ "${{ matrix.compiler }}" = "gcc" ] && [ "$TYPE" = "real" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"
-                  if [ "$PRECISION" != "__float128" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                 fi
               fi
               ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
@@ -273,7 +273,7 @@ jobs:
         export PETSC_DIR=`pwd`
         export PETSC_ARCH=arch-ci
         export DATAFILESPATH=`pwd`/../datafiles
-        export PETSC_CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-cast-function-type"
+        export PETSC_CXXPPFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-cast-function-type"
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
         sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$@))=;s=$(PETSC_COMPILE.cu) $(abspath $<) -o $@=$(PETSC_COMPILE.cu) $(subst impls/hpddm/,,$(subst petsc/src/ksp/ksp,'"${REPOSITORY_NAME}"'/interface/petsc/ksp,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/ksp/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc/ksp,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
@@ -285,7 +285,7 @@ jobs:
                     --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
                     --with-c2html=0 --with-fc=0 --download-slepc \
                     --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-sign-compare,-Wno-unused-parameter ${INCS}'
+                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-deprecated-declarations,-Werror ${INCS}'
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*

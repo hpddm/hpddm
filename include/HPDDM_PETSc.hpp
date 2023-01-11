@@ -490,7 +490,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
         std::string prefix() const {
             const char* prefix = nullptr;
             if(ksp_)
-                KSPGetOptionsPrefix(ksp_, &prefix);
+                PetscCallContinue(KSPGetOptionsPrefix(ksp_, &prefix));
             return prefix ? prefix : "";
         }
 };

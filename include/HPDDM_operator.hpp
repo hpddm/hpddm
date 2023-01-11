@@ -367,22 +367,22 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
         MatrixMultiplication(const Preconditioner& p, const unsigned short& c, const unsigned int& max, Mat A, PC_HPDDM_Level* level, std::string& prefix, Types...) : super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling()) { static_assert(sizeof...(Types) == 0, "Wrong constructor"); }
         void initialize(unsigned int k, K*& work, unsigned short s) {
             PetscBool sym;
-            PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &sym);
-            MatConvert(A_, sym ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_);
+            PetscCallVoid(PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &sym));
+            PetscCallVoid(MatConvert(A_, sym ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
             Vec D;
             PetscScalar* d;
             if(!std::is_same<PetscScalar, PetscReal>::value) {
                 d = new PetscScalar[super::p_.getDof()];
                 std::copy_n(D_, super::p_.getDof(), d);
-                VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), d, &D);
+                PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), d, &D));
             }
             else {
                 d = nullptr;
-                VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar*>(D_), &D);
+                PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar*>(D_), &D));
             }
-            MatDiagonalScale(C_, nullptr, D);
+            PetscCallVoid(MatDiagonalScale(C_, nullptr, D));
             delete [] d;
-            VecDestroy(&D);
+            PetscCallVoid(VecDestroy(&D));
             work = new K[2 * k];
             work_ = work + k;
             super::signed_ = s;
@@ -464,13 +464,13 @@ class MatrixMultiplication : public OperatorBase<'s', Preconditioner, K> {
 #else
             {
                 Mat Z, P;
-                MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, const_cast<PetscScalar*>(*super::deflation_), &Z);
-                MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, work_, &P);
-                MatMatMult(C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
-                MatDestroy(&P);
-                MatDestroy(&Z);
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, const_cast<PetscScalar*>(*super::deflation_), &Z));
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, work_, &P));
+                PetscCallVoid(MatMatMult(C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
+                PetscCallVoid(MatDestroy(&P));
+                PetscCallVoid(MatDestroy(&Z));
             }
-            MatDestroy(&C_);
+            PetscCallVoid(MatDestroy(&C_));
 #endif
             for(unsigned short i = 0; i < super::signed_; ++i) {
                 if(U || info[i]) {
@@ -697,7 +697,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             std::vector<typename Preconditioner::integer_type> omap;
 #if HPDDM_PETSC
             PetscInt n;
-            MatGetLocalSize(super::A_, &n, nullptr);
+            PetscCallVoid(MatGetLocalSize(super::A_, &n, nullptr));
 #endif
             {
                 std::set<typename Preconditioner::integer_type> o;
@@ -740,16 +740,16 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                         data = new PetscInt[omap.size()];
                         std::copy_n(omap.data(), omap.size(), data);
                     }
-                    ISCreateGeneral(PETSC_COMM_SELF, omap.size(), data, PETSC_USE_POINTER, &is);
+                    PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, omap.size(), data, PETSC_USE_POINTER, &is));
                 }
                 else {
                     imap.reserve(omap.size());
                     const underlying_type<K>* const D = super::D_;
                     std::for_each(omap.cbegin(), omap.cend(), [&D, &imap](const typename Preconditioner::integer_type& i) { if(HPDDM::abs(D[i]) > HPDDM_EPS) imap.emplace_back(i); });
-                    ISCreateGeneral(PETSC_COMM_SELF, imap.size(), imap.data(), PETSC_USE_POINTER, &is);
+                    PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, imap.size(), imap.data(), PETSC_USE_POINTER, &is));
                 }
-                MatCreateSubMatrix(super::A_, is, is, MAT_INITIAL_MATRIX, &(super::C_));
-                ISDestroy(&is);
+                PetscCallVoid(MatCreateSubMatrix(super::A_, is, is, MAT_INITIAL_MATRIX, &(super::C_)));
+                PetscCallVoid(ISDestroy(&is));
                 if(n == super::n_ && !std::is_same<typename Preconditioner::integer_type, PetscInt>::value)
                     delete [] data;
 #endif
@@ -796,13 +796,13 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
 #else
             Mat Z, P;
             if(n == super::n_) {
-                MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, *tmp, &Z);
-                MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, super::work_, &P);
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, *tmp, &Z));
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, super::work_, &P));
             }
             else {
-                MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &Z);
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &Z));
                 PetscScalar* array;
-                MatDenseGetArray(Z, &array);
+                PetscCallVoid(MatDenseGetArray(Z, &array));
                 for(PetscInt i = 0, k = 0; i < super::n_; ++i) {
                     if(HPDDM::abs(super::D_[i]) > HPDDM_EPS) {
                         for(unsigned short j = 0; j < super::local_; ++j)
@@ -811,14 +811,14 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                     }
 
                 }
-                MatDenseRestoreArray(Z, &array);
-                MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &P);
+                PetscCallVoid(MatDenseRestoreArray(Z, &array));
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &P));
             }
-            MatMatMult(super::A_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
-            MatDestroy(&Z);
+            PetscCallVoid(MatMatMult(super::A_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
+            PetscCallVoid(MatDestroy(&Z));
             if(n != super::n_) {
                 PetscScalar* array;
-                MatDenseGetArray(P, &array);
+                PetscCallVoid(MatDenseGetArray(P, &array));
                 std::fill_n(super::work_, super::local_ * super::n_, K());
                 for(PetscInt i = 0, k = 0; i < super::n_; ++i) {
                     if(HPDDM::abs(super::D_[i]) > HPDDM_EPS) {
@@ -828,9 +828,9 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                     }
 
                 }
-                MatDenseRestoreArray(P, &array);
+                PetscCallVoid(MatDenseRestoreArray(P, &array));
             }
-            MatDestroy(&P);
+            PetscCallVoid(MatDestroy(&P));
 #endif
             std::fill_n(*tmp, super::local_ * super::n_, K());
             for(unsigned short i = 0; i < super::map_.size(); ++i) {
@@ -873,8 +873,8 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 Mat Z, P;
                 std::vector<PetscInt> imap;
                 if(n == super::n_) {
-                    MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), m, *tmp, &Z);
-                    MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), m, tmp[super::map_.size()], &P);
+                    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), m, *tmp, &Z));
+                    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), m, tmp[super::map_.size()], &P));
                 }
                 else {
                     imap.reserve(omap.size());
@@ -882,31 +882,31 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                         if(HPDDM::abs(super::D_[*it]) > HPDDM_EPS)
                             imap.emplace_back(std::distance(omap.cbegin(), it));
                     }
-                    MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &Z);
+                    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &Z));
                     PetscScalar* array;
-                    MatDenseGetArray(Z, &array);
+                    PetscCallVoid(MatDenseGetArray(Z, &array));
                     for(int i = 0; i < imap.size(); ++i) {
                         for(unsigned short j = 0; j < m; ++j)
                             array[i + j * imap.size()] = tmp[0][imap[i] + j * omap.size()];
                     }
-                    MatDenseRestoreArray(Z, &array);
-                    MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &P);
+                    PetscCallVoid(MatDenseRestoreArray(Z, &array));
+                    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &P));
                 }
-                MatMatMult(super::C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P);
-                MatDestroy(&Z);
+                PetscCallVoid(MatMatMult(super::C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
+                PetscCallVoid(MatDestroy(&Z));
                 if(n != super::n_) {
                     PetscScalar* array;
-                    MatDenseGetArray(P, &array);
+                    PetscCallVoid(MatDenseGetArray(P, &array));
                     std::fill_n(tmp[super::map_.size()], m * omap.size(), K());
                     for(int i = 0; i < imap.size(); ++i) {
                         for(unsigned short j = 0; j < m; ++j)
                             tmp[super::map_.size()][imap[i] + j * omap.size()] = array[i + j * imap.size()];
                     }
-                    MatDenseRestoreArray(P, &array);
+                    PetscCallVoid(MatDenseRestoreArray(P, &array));
                 }
-                MatDestroy(&P);
+                PetscCallVoid(MatDestroy(&P));
             }
-            MatDestroy(&(super::C_));
+            PetscCallVoid(MatDestroy(&(super::C_)));
 #endif
             MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
             for(unsigned short i = 0; i < super::map_.size(); ++i) {
