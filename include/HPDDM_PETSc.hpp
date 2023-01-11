@@ -119,7 +119,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                         HPDDM::copy_n(work, m, out);
                         PetscCall(MatDenseRestoreArrayRead(X_[0], &work));
                     }
-                    PetscFunctionReturn(0);
+                    PetscFunctionReturn(PETSC_SUCCESS);
                 }
             }
 #if PetscDefined(HAVE_CUDA)
@@ -295,7 +295,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(MatDenseRestoreArrayRead(X_[0], &work));
                 }
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
 #if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || defined(PETSCSUB)
         template<bool = false, class K>
@@ -359,7 +359,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(VecRestoreArrayRead(x_, &read));
                     PetscCall(VecRestoreArrayWrite(b_, &write));
                 }
-                PetscFunctionReturn(0);
+                PetscFunctionReturn(PETSC_SUCCESS);
             }
 #if PetscDefined(HAVE_CUDA)
             VecType vtype;
@@ -484,7 +484,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(VecRestoreArrayRead(x_, &read));
                 }
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
 #endif
         std::string prefix() const {
@@ -535,7 +535,7 @@ inline PetscErrorCode convert(MatrixCSR<K>* const& A, Mat& P) {
         delete [] J;
         delete [] I;
     }
-    PetscFunctionReturn(0);
+    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
 #if defined(PETSCSUB)
@@ -558,7 +558,7 @@ class PetscSub {
                 PetscCall(KSPDestroy(const_cast<KSP*>(&op_->ksp_)));
             delete op_;
             op_ = nullptr;
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         template<char N = HPDDM_NUMBERING>
         PetscErrorCode numfact(MatrixCSR<K>* const& A, bool = false, K* const& = nullptr) {
@@ -592,7 +592,7 @@ class PetscSub {
                 PetscCall(KSPView(ksp, PETSC_VIEWER_STDOUT_SELF));
             if(!op_)
                 op_ = new PETScOperator(ksp, A->n_);
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         PetscErrorCode solve(K* const x, const unsigned short& n = 1) const {
             PetscFunctionBeginUser;
@@ -602,13 +602,13 @@ class PetscSub {
                 PetscCall(op_->apply(b, x, n));
                 delete [] b;
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         PetscErrorCode solve(const K* const b, K* const x, const unsigned short& n = 1) const {
             PetscFunctionBeginUser;
             if(op_)
                 PetscCall(op_->apply(b, x, n));
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
 };
 #endif // PETSCSUB

@@ -123,7 +123,7 @@ class Slepc : public Eigensolver<K> {
             if(Eigensolver<K>::threshold_ > 0.0)
                 Eigensolver<K>::selectNu(evr, ev, communicator);
             delete [] evr;
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
 };
 #endif // MU_SLEPC

@@ -787,7 +787,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #else
             PetscFunctionBeginUser;
             PetscCall(PCHPDDMSolve_Private(s_, rhs, mu));
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
 #endif
         }
         decltype(s_) getSubdomain() const {
@@ -1729,7 +1729,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
 #if HPDDM_PETSC
             else
                 *D = *N = nullptr;
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
 #endif
         }
     private:

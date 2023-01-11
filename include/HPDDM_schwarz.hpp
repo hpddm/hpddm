@@ -825,7 +825,7 @@ class Schwarz : public Preconditioner<
                     ctx->P->clearBuffer();
                 }
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         PetscErrorCode structure(const IS interior, IS is, const Mat D, Mat N, PC_HPDDM_Level** const levels) {
             Mat                    P;
@@ -992,7 +992,7 @@ class Schwarz : public Preconditioner<
                     PetscCall(VecRestoreArray(levels[0]->D, nullptr));
                 }
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
 #endif
 #if HPDDM_SLEPC
@@ -1033,7 +1033,7 @@ class Schwarz : public Preconditioner<
                 PetscCall(super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels));
             }
 #endif
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
@@ -1291,7 +1291,7 @@ class Schwarz : public Preconditioner<
                 PetscCall(MatCopy(weighted, local, SAME_NONZERO_PATTERN));
                 PetscCall(MatDestroy(&local));
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         static PetscErrorCode next(Mat* A, Mat* N, PetscInt i, PetscInt* const n, PC_HPDDM_Level** const levels) {
             Mat            P;
@@ -1329,7 +1329,7 @@ class Schwarz : public Preconditioner<
             }
             if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
                 *n = i + 1;
-                PetscFunctionReturn(0);
+                PetscFunctionReturn(PETSC_SUCCESS);
             }
             if(i + 1 < *n && levels[i - 1]->P) {
                 PetscBool algebraic;
@@ -1417,13 +1417,13 @@ class Schwarz : public Preconditioner<
                         PetscCall(PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
                 }
             }
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
         PetscErrorCode initialize(IS is, Mat N, Mat weighted, Mat rhs, std::vector<Vec> initial, PC_HPDDM_Level** const levels) {
             PetscFunctionBeginUser;
             PetscCall(solveGEVP(is, N, initial, levels, weighted, rhs));
             PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->ksp, "PCHPDDMSetUp_Private_C", next));
-            PetscFunctionReturn(0);
+            PetscFunctionReturn(PETSC_SUCCESS);
         }
 #endif
         /* Function: deflation
@@ -1495,7 +1495,7 @@ PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar>* const 
     PetscFunctionBeginUser;
     PetscCheck(P, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal() called with no HPDDM object");
     PetscCall(P->initialize(is, N, weighted, rhs, initial, levels));
-    PetscFunctionReturn(0);
+    PetscFunctionReturn(PETSC_SUCCESS);
 }
 static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     Aux aux;
@@ -1517,7 +1517,7 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscCall(VecDestroy(&left));
     PetscCall(VecDestroy(&right));
     PetscCall(VecDestroy(&leftEcon));
-    PetscFunctionReturn(0);
+    PetscFunctionReturn(PETSC_SUCCESS);
 }
 #endif
 #endif // HPDDM_SCHWARZ_HPP_

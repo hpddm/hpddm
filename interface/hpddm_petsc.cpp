@@ -40,7 +40,7 @@ PetscErrorCode PetscFinalize_HPDDM(void)
 #if HPDDM_SLEPC
   if (!SlepcInit) PetscCall(SlepcFinalize()); /* HPDDM initialized SLEPc, now shut it down */
 #endif
-  PetscFunctionReturn(0);
+  PetscFunctionReturn(PETSC_SUCCESS);
 }
 
 PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
@@ -51,7 +51,7 @@ PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
   PetscCall(SlepcInitializeNoArguments());
 #endif
   PetscCall(PetscRegisterFinalize(PetscFinalize_HPDDM));
-  PetscFunctionReturn(0);
+  PetscFunctionReturn(PETSC_SUCCESS);
 }
 #endif
 
@@ -213,5 +213,5 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
     }
   }
   if (redistribute > 1 && redistribute < size) PetscCallMPI(MPI_Bcast(vr, n * k, HPDDM::Wrapper<PetscScalar>::mpi_type(), 0, comm));
-  PetscFunctionReturn(0);
+  PetscFunctionReturn(PETSC_SUCCESS);
 }
