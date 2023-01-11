@@ -982,7 +982,7 @@ class Schwarz : public Preconditioner<
             else {
                 if(Subdomain<K>::dof_ == -1) {
                     PetscInt n;
-                    VecGetLocalSize(levels[0]->D, &n);
+                    PetscCall(VecGetLocalSize(levels[0]->D, &n));
                     Subdomain<K>::dof_ = n;
                 }
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
@@ -1002,15 +1002,14 @@ class Schwarz : public Preconditioner<
             Mat            A;
             PetscBool      flg;
 #endif
-            PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
 #if defined(PETSC_HAVE_HTOOL)
-            ierr = KSPGetOperators(levels[n]->ksp, nullptr, &A);
-            ierr = PetscObjectTypeCompare((PetscObject)A, MATHTOOL, &flg);
+            PetscCall(KSPGetOperators(levels[n]->ksp, nullptr, &A));
+            PetscCall(PetscObjectTypeCompare((PetscObject)A, MATHTOOL, &flg));
             if(!flg) {
 #endif
-                ierr = super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels);
+                PetscCall(super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels));
 #if defined(PETSC_HAVE_HTOOL)
             }
             else {
@@ -1027,14 +1026,14 @@ class Schwarz : public Preconditioner<
                     const K* getOperator() const { return E_; }
                 };
                 const htool::VirtualHMatrix<PetscScalar>* hmatrix;
-                MatHtoolGetHierarchicalMat(A, &hmatrix);
+                PetscCall(MatHtoolGetHierarchicalMat(A, &hmatrix));
                 std::vector<PetscScalar> E;
                 htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::getDof(), super::getVectors(), E);
                 ClassWithPtr Op(levels[n]->P, E.data());
-                ierr = super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels);
+                PetscCall(super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels));
             }
 #endif
-            PetscFunctionReturn(ierr);
+            PetscFunctionReturn(0);
         }
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
@@ -1126,7 +1125,7 @@ class Schwarz : public Preconditioner<
                 PetscCall(EPSGetST(eps, &st));
                 PetscCall(STSetType(st, STSINVERT));
                 PetscCall(EPSSetInitialSpace(eps, initial.size(), initial.data()));
-                std::for_each(initial.begin(), initial.end(), [&](Vec v) { VecDestroy(&v); });
+                std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
                 std::vector<Vec>().swap(initial);
                 PetscCall(EPSSetFromOptions(eps));
                 PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
@@ -1345,7 +1344,7 @@ class Schwarz : public Preconditioner<
                     std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
                     MPI_Request rs = MPI_REQUEST_NULL;
                     coNeumann = new CoarseOperator<DMatrix, K>;
-                    levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra);
+                    PetscCall(levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra));
                     if(i > 1)
                         PetscCall(MatDestroy(N));
                     if(overlap.size())

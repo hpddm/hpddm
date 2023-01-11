@@ -136,7 +136,7 @@ class Preconditioner : public Subdomain<K> {
 #if HPDDM_SLEPC
             {
                 const char* prefix;
-                KSPGetOptionsPrefix(levels[n]->ksp, &prefix);
+                PetscCallContinue(KSPGetOptionsPrefix(levels[n]->ksp, &prefix));
                 std::string prefixF(prefix);
                 unsigned int pos = prefixF.rfind("levels_", prefixF.size() - 1);
                 unsigned short levelF = std::stoi(prefixF.substr(pos + 7, prefixF.size() - 1));
@@ -172,7 +172,7 @@ class Preconditioner : public Subdomain<K> {
                 {
                     PetscBool flg;
                     PetscBool uniform;
-                    PetscOptionsGetBool(nullptr, prefixC.c_str(), "-force_uniformity", &uniform, &flg);
+                    PetscCallContinue(PetscOptionsGetBool(nullptr, prefixC.c_str(), "-force_uniformity", &uniform, &flg));
                     if(flg)
                         uniformity = uniform;
                 }

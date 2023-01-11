@@ -692,7 +692,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             oj_ = J + di_[nrow] - (super::numbering_ == 'F');
             off_ = off.size();
             if(factorize && !idx_) {
-                PetscMalloc1(on.size() + overlap.size() + off.size(), &idx_);
+                PetscCallVoid(PetscMalloc1(on.size() + overlap.size() + off.size(), &idx_));
                 for(const auto& range : { on, overlap })
                     for(const int& i : range)
                         *idx_++ = i - (super::numbering_ == 'F');
@@ -737,7 +737,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
             delete [] rq_;
 #else
-            PetscFree(idx_);
+            PetscCallVoid(PetscFree(idx_));
             delete [] di_;
             delete [] da_;
 #endif
@@ -844,9 +844,9 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             char S;
             {
                 Mat A;
-                KSPGetOperators(s_->ksp, &A, nullptr);
+                PetscCallContinue(KSPGetOperators(s_->ksp, &A, nullptr));
                 PetscBool symmetric;
-                PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric);
+                PetscCallContinue(PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric));
                 S = (symmetric ? 'S' : 'G');
             }
 #endif
@@ -1364,27 +1364,27 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
 #else
             Mat ret;
-            MatCreate(PETSC_COMM_SELF, &ret);
+            PetscCallContinue(MatCreate(PETSC_COMM_SELF, &ret));
             {
                 const char* prefix;
-                KSPGetOptionsPrefix(s_->ksp, &prefix);
-                MatSetOptionsPrefix(ret, prefix);
+                PetscCallContinue(KSPGetOptionsPrefix(s_->ksp, &prefix));
+                PetscCallContinue(MatSetOptionsPrefix(ret, prefix));
             }
-            MatSetFromOptions(ret);
-            MatSetBlockSize(ret, in->bs_);
-            MatSetSizes(ret, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_);
+            PetscCallContinue(MatSetFromOptions(ret));
+            PetscCallContinue(MatSetBlockSize(ret, in->bs_));
+            PetscCallContinue(MatSetSizes(ret, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_));
             if(S == 'S') {
-                MatSetType(ret, MATSEQSBAIJ);
-                MatSeqSBAIJSetPreallocationCSR(ret, in->bs_, di, dj, da);
+                PetscCallContinue(MatSetType(ret, MATSEQSBAIJ));
+                PetscCallContinue(MatSeqSBAIJSetPreallocationCSR(ret, in->bs_, di, dj, da));
             }
             else {
                 if(in->bs_ > 1) {
-                    MatSetType(ret, MATSEQBAIJ);
-                    MatSeqBAIJSetPreallocationCSR(ret, in->bs_, di, dj, da);
+                    PetscCallContinue(MatSetType(ret, MATSEQBAIJ));
+                    PetscCallContinue(MatSeqBAIJSetPreallocationCSR(ret, in->bs_, di, dj, da));
                 }
                 else {
-                    MatSetType(ret, MATSEQAIJ);
-                    MatSeqAIJSetPreallocationCSR(ret, di, dj, da);
+                    PetscCallContinue(MatSetType(ret, MATSEQAIJ));
+                    PetscCallContinue(MatSeqAIJSetPreallocationCSR(ret, di, dj, da));
                 }
             }
             delete [] da;
@@ -1412,9 +1412,9 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 char S;
                 {
                     Mat A;
-                    KSPGetOperators(level->ksp, &A, nullptr);
+                    PetscCall(KSPGetOperators(level->ksp, &A, nullptr));
                     PetscBool symmetric;
-                    PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric);
+                    PetscCall(PetscObjectTypeCompare((PetscObject)A, MATMPISBAIJ, &symmetric));
                     S = (symmetric ? 'S' : 'G');
                 }
 #endif
@@ -1615,10 +1615,10 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                 s->initialize(d);
                 if(!std::is_same<PetscScalar, PetscReal>::value) {
                     PetscScalar* c;
-                    VecGetArray(s_->D, &c);
+                    PetscCall(VecGetArray(s_->D, &c));
                     std::copy_n(d, m, c);
                 }
-                VecRestoreArray(s_->D, nullptr);
+                PetscCall(VecRestoreArray(s_->D, nullptr));
 #endif
                 if(A) {
                     auto overlapNeumann = buildMatrix(A, displs, ranges, off, reduction, sizes, extra, transfer);
@@ -1695,7 +1695,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                             Vec vr;
                             PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, m, ev[0], &vr));
                             for(int i = 0; i < level->nu; ++i) {
-                                VecPlaceArray(vr, ev[i]);
+                                PetscCall(VecPlaceArray(vr, ev[i]));
                                 PetscCall(EPSGetEigenvector(eps, i, vr, nullptr));
                                 PetscCall(VecResetArray(vr));
                             }
