@@ -299,7 +299,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         PetscCall(constructionMatrix<'S', U, excluded, Operator>(v));
     else
         PetscCall(constructionMatrix<'G', U, excluded, Operator>(v));
-    PetscFunctionReturn(0);
+    PetscFunctionReturn(PETSC_SUCCESS);
 #endif
 }
 
@@ -1389,7 +1389,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     if(extended != MPI_COMM_NULL)
         MPI_Comm_free(&extended);
 #endif
-    PetscFunctionReturn(0);
+    PetscFunctionReturn(PETSC_SUCCESS);
 #endif
 }
 
@@ -1666,7 +1666,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #if !HPDDM_PETSC
     return nullptr;
 #else
-    PetscFunctionReturn(0);
+    PetscFunctionReturn(PETSC_SUCCESS);
 #endif
 }
 

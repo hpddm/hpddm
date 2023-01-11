@@ -34,7 +34,7 @@
 #define HPDDM_IT(i, A)       i
 #define HPDDM_RET(i)         i
 #else
-#define HPDDM_CALL(arg)      PetscCall(arg)
+#define HPDDM_CALL(arg)      PetscCall(PetscErrorCode(arg))
 #define HPDDM_TOL(tol, A)    ((A.ksp_)->rtol)
 #define HPDDM_MAX_IT(max, A) ((A.ksp_)->max_it)
 #define HPDDM_IT(i, A)       ((A.ksp_)->its)
@@ -1087,12 +1087,21 @@ class IterativeMethod {
         static int PCG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm);
 #if !HPDDM_PETSC || defined(_KSPIMPL_H)
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
-        static int solve(const Operator& A, const K* const b, K* const x, const int& mu
+        static
+#if !defined(_KSPIMPL_H)
+               int
+#else
+               PetscErrorCode
+#endif
+                              solve(const Operator& A, const K* const b, K* const x, const int& mu
 #if HPDDM_MPI
                                                                         , const MPI_Comm& comm) {
 #else
                                                                                               ) {
             int comm = 0;
+#endif
+#if defined(_KSPIMPL_H)
+            PetscFunctionBeginUser;
 #endif
             std::ios_base::fmtflags ff(std::cout.flags());
             std::cout << std::scientific;
@@ -1154,9 +1163,14 @@ class IterativeMethod {
 #endif
             }
             std::cout.flags(ff);
-            return HPDDM_RET(it);
+#if defined(_KSPIMPL_H)
+            PetscFunctionReturn(PETSC_SUCCESS);
+#else
+            return it;
+#endif
         }
 #endif
+#if !defined(_KSPIMPL_H)
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm) {
             std::ios_base::fmtflags ff(std::cout.flags());
@@ -1170,6 +1184,7 @@ class IterativeMethod {
             std::cout.flags(ff);
             return it;
         }
+#endif
 };
 } // HPDDM
 #endif // HPDDM_ITERATIVE_HPP_
