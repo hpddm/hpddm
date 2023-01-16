@@ -294,6 +294,7 @@ jobs:
         export LD_PRELOAD="`pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
         make check
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
+        config/report_tests.py -t 5 -s
         cd ../${REPOSITORY_NAME}
         ~/lcov-1.16/bin/lcov --directory . --directory ../petsc/arch-ci/lib --exclude '/tmp/*' --capture --output-file ../coverage_nvcc.info
       if: matrix.runs_on != 'ubuntu-latest'
