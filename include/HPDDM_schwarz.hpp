@@ -1128,7 +1128,6 @@ class Schwarz : public Preconditioner<
                 std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
                 std::vector<Vec>().swap(initial);
                 PetscCall(EPSSetFromOptions(eps));
-                PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
                 if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
                     KSP *ksp;
                     PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
@@ -1137,6 +1136,58 @@ class Schwarz : public Preconditioner<
                     PetscCall(PetscObjectReference((PetscObject)empty));
                     PetscCall(STSetKSP(st, ksp[0]));
                 }
+                if(levels[0]->threshold >= 0.0) {
+                    flg = PETSC_FALSE;
+                    PetscCall(PetscOptionsGetBool(nullptr, prefix, "-eps_use_inertia", &flg, nullptr));
+                    if(flg) {
+                        KSP           ksp;
+                        PC            pc;
+                        Mat           F;
+                        MatSolverType type;
+                        PetscInt      val;
+                        PetscCall(EPSSetTarget(eps, levels[0]->threshold));
+                        PetscCall(STGetOperator(st, nullptr));
+                        PetscCall(STGetKSP(st, &ksp));
+                        PetscCall(KSPGetPC(ksp, &pc));
+                        PetscCall(PCSetFromOptions(pc));
+                        PetscCall(PetscObjectTypeCompareAny((PetscObject)pc, &flg, PCLU, PCCHOLESKY, nullptr));
+                        PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_use_inertia without PCLU or PCCHOLESKY", prefix);
+                        if(PetscDefined(HAVE_MUMPS)) {
+                            PetscCall(PCFactorGetMatSolverType(pc, &type));
+                            if(!type) {
+                                PetscCall(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
+                                PetscCall(PCSetFromOptions(pc));
+                            }
+                            else
+                                PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
+                        }
+#if PetscDefined(HAVE_MUMPS)
+                        if(flg) {
+                            PetscCall(PCFactorGetMatrix(pc, &F));
+                            PetscCall(MatMumpsGetIcntl(F, 13, &val));
+                            PetscCall(MatMumpsSetIcntl(F, 13, 1));
+                            PetscCall(PCSetUp(pc));
+                            PetscCall(MatMumpsSetIcntl(F, 13, val));
+                            PetscCall(MatMumpsGetInfog(F, 12, &val));
+                        }
+                        else
+#endif
+                        {
+                            PetscCall(PCSetUp(pc));
+                            PetscCall(PCFactorGetMatrix(pc, &F));
+                            PetscCall(MatGetInertia(F, &val, nullptr, nullptr));
+                        }
+                        if(val > 0) {
+                            PetscCall(EPSSetDimensions(eps, val, PETSC_DEFAULT, PETSC_DEFAULT));
+                            PetscCall(EPSSetTarget(eps, 0.0));
+                        }
+                        else {
+                            solve = PETSC_FALSE;
+                            nconv = 0;
+                        }
+                    }
+                }
+                PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
                 if(solve) {
                     MatStructure str;
                     PetscCall(STGetMatStructure(st, &str));
