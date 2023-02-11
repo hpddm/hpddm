@@ -1167,6 +1167,7 @@ class Schwarz : public Preconditioner<
                             PetscCall(MatMumpsGetIcntl(F, 13, &val));
                             PetscCall(MatMumpsSetIcntl(F, 13, 1));
                             PetscCall(PCSetUp(pc));
+                            PetscCall(PCFactorGetMatrix(pc, &F));
                             PetscCall(MatMumpsSetIcntl(F, 13, val));
                             PetscCall(MatMumpsGetInfog(F, 12, &val));
                         }
