@@ -1,0 +1,252 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{hyperref}
+
+\def \rot{\operatorname{rot}}
+\def \div {\operatorname{div}}
+\def \C{\mathcal C}
+\def \R {\mathbb R}
+\def \N {\mathbb N}
+\def \Z {\mathbb Z}
+\def \tr {\operatorname{tr}}
+\def \Id {\operatorname {Id}}
+\def \signature {\operatorname {sgn}}
+\def \Vol {\operatorname {Vol}}
+\def \cond {\operatorname {cond}}
+
+\newtheorem{problem}{Problem}[section]
+\newtheorem{example}{Example}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{assumption}{Assumption}[section]
+\newtheorem{result}{Result}[section]
+\newtheorem{remark}{Remark}[section]
+
+
+\def \free{\color{red} \tt}
+
+\everymath{\displaystyle}
+
+\begin{document}
+\color{black}
+\noindent
+\begin{tabular}{lcr}
+\hspace*{1.3cm}&\textbf{Initiation à GenEO}&\hspace*{1.3cm}
+\\
+P.~Jolivet -- F.~Nataf && 20/02/2023
+\end{tabular}\par
+\vspace*{1.5cm}
+These notes are a summary of theoretical results on the GenEO method implemented in the HPDDM library. It is an aid to understanding the options of the HPDDM library, whose cheatsheet is available online, click~\href{https://github.com/hpddm/hpddm/blob/main/doc/cheatsheet.pdf}{ here.}\\
+
+
+\section*{Introduction}
+% diapositives 10 a 23 de 
+% /Users/nataf/Documents/EnCours/DdmSmith/elasticite/DtN-AGEO-Talk/talk-DAlembert2016.pdf
+
+In this document, the matrix $A$ is assumed to be symmetric positive definite (SPD). In \S~\ref{sec:maincvresult}, we present the two-level method $M_{\texttt{balanced},GenEO,\texttt{asm}}^{-1}$ for which we have the best theoretical estimate. Then in \S~\ref{sec:parameters}, we show how HPDDM enables the use of faster (in practice) variants at the expense of less (or no) theoretical control. For instance, replacing the one-level Additive Schwarz method (ASM) by the Restricted Additive Schwarz (RAS) method leads to smaller iteration counts but then without theoretical control.   
+
+\section{Main convergence result for GenEO}
+   \label{sec:maincvresult}
+We first state the main result on the two-level domain decomposition preconditioner built by HPDDM and then precise the statement.\\ 
+
+Let $\boldsymbol{k_0}$ be the maximum number of neighbours of a subdomain including itself. %pas super clair
+ Let $\boldsymbol{k_1}$ be the maximum multiplicity of a degree of freedom. Let $0< \boldsymbol{\nu}<1$ be a user-chosen parameter.\\ 
+
+\fbox{\parbox{\textwidth}{
+ The coarse space GenEO built via the GEVP~eq.~\eqref{eq:gevpgeneo} guarantees that the two-level preconditioned operator $M_{\texttt{balanced},GenEO,\texttt{asm}}^{-1}A$~eq.~\eqref{eq:bnnGenEO} has a condition number bounded from above by $$
+ %\kappa(M_2^{-1}A) \le 
+ \boldsymbol{k_0}\,(1+\boldsymbol{k_1}\,\boldsymbol{\nu}^{-1}).$$ 
+ }
+ }\\
+ 
+ \bigskip
+ 
+The two-level preconditioner $M_{\texttt{balanced},GenEO,\texttt{asm}}^{-1}$ is built from three ingredients: a one-level method, a coarse space and a correction formula that are defined below. 
+
+\subsection{A robust two-level method}
+	\label{sec:geneoCS}
+The blocks leading to formula~\eqref{eq:bnnGenEO} are now detailed. 
+\paragraph{One-level Additive Schwarz method}
+The set of indices ${\mathcal N}$ is decomposed into $N$ subsets $({\mathcal N}_i)_{1\le _i\le N}$
+%copie de ffddm introtoddm 
+Let $(D_i)_{1\le i \le N}$ be square diagonal non negative matrices of size $\#{\mathcal N}_i$ which form a partition of unity in the sense that:
+\[
+Id_{} = \sum_{i=1}^N R_i^T\,D_i\,R_i\text{ in }\R^{\#{\mathcal N}\times \#{\mathcal N}} \,.
+\]
+For instance if a degree of freedom is shared by k subdomains defining the corresponding entry of the diagonal matrix $D$ to be $1/k$ yields partition of unity matrices. The matrices $R_i$ and $D_i$ are the heart of distributed linear algebra.\\
+ The one-level Additive Schwarz method (\texttt{asm}) preconditioner reads:
+ \begin{equation}
+    \label{eq:ASM}\boxed{
+    M_{\texttt{asm}}^{-1} := \sum_{i=1}^N R_i^T\,(R_i\,A\,R_i^T)^{-1}\,R_i\,.
+    }
+ \end{equation}
+
+\paragraph{GenEO coarse space}
+In each subdomain, $1\le i\le N$, let $A^{Neu}_i$ denotes the local Neumann matrix (i.e. with Neumann boundary conditions at the subdomain interface),  a generalized eigenvalue problem (GEVP) is solved:\\
+Find ${V_{i,k}} \in \R^{\mathcal{N}_i}$
+and ${\nu_{i,k}} \ge 0$:
+\begin{equation}
+  \label{eq:gevpgeneo}
+  \boxed{
+ A^{Neu}_i\, {V_{i,k}}
+  \ =\ \nu_{i,k}\,  {D_i\, R_i A R_i^T D_i}\,{V_{i,k}}\,. 
+  } 
+\end{equation}
+Let us denote by $Z$ the tall and skinny matrix made of the concatenation of the vectors $R_i^T\,D_i\,V_{i,k}$ for $\nu_{i,k}<\boldsymbol{\nu}$ and $1\le i\le N$, that is using Matlab notations:
+\begin{equation}
+  \label{eq:GenEOCS}
+ \boxed{
+	Z=\text{cat}((R_i^T\,D_i\,V_{i,k})_{\nu_{i,k}<\boldsymbol{\nu},\,1\le i\le N}).
+}
+\end{equation}
+Let $Q$ denote the reduced matrix:
+\begin{equation}
+  \label{eq:reducedmatrix}
+  \boxed{
+  Q := Z\,(Z^T\,A\,Z)^{-1}\,Z^T\,.
+  }
+\end{equation}
+
+
+\paragraph{Correction formula}
+The GenEO coarse space is used via the \texttt{balanced} correction formula:
+\begin{equation}
+  \label{eq:bnnGenEO}
+  \boxed{
+ M_{\texttt{balanced},GenEO,\texttt{asm}}^{-1} := Q+(I-Q\,A)\,M_{\texttt{asm}}^{-1}\,(I-A\,Q)
+ }
+\end{equation}
+
+\paragraph{Condition number estimate} 
+In exact arithmetic, we have:
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%theorem%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{theorem}
+	\label{th:geneo}
+\[
+ \kappa(M_{\texttt{balanced},GenEO,\texttt{asm}}^{-1}\,A) \le k_0\,(1+k_1\,\boldsymbol{\nu}^{-1})\,.
+\]
+\end{theorem}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Parameters}
+	\label{sec:parameters}
+The various parameters of \texttt{HPDDM} give access to variants of $M_{\texttt{balanced},GenEO,\texttt{asm}}^{-1}$, see e.g.  eq.~\eqref{eq:bnn}. Since a two-level preconditioner is built from three ingredients: a one-level method, a coarse space and a correction formula that are defined below, this section is itself divided into three parts. 
+
+
+\subsection{One level methods}
+Explained Keywords: \texttt{ras, asm}\\
+
+
+As a replacement for the one-level additive Schwarz method~\eqref{eq:ASM}, the restricted additive Schwarz method:
+ \begin{equation}
+    \label{eq:ASM}\boxed{
+    M_{\texttt{ras}}^{-1} := \sum_{i=1}^N R_i^T\,D_i\,(R_i\,A\,R_i^T)^{-1}\,R_i\,,
+    }
+ \end{equation}
+ can be used. Note the $D_i$ following the local solve with matrix $(R_i\,A\,R_i^T)^{-1}$. It is not symmetric so that GMRES, BiCGSTAB have to be used in place of CG. \texttt{ras} {\bf is the default option in HPDDM, it is usually faster than ASM but at the expense of no theoretical guarantee} when used in a two-level method.  
+
+\subsection{Coarse spaces}
+Explained Keywords: \texttt{geneo\_nu}, \texttt{geneo\_threshold}, \texttt{geneo\_estimate\_nu}, \texttt{eigensolver\_tol}\\
+% a faire
+% \texttt{geneo\_force\_uniformity, arpack\_ncv}
+% iterative arpack, ... 
+
+
+A threshold $0< \texttt{nu} <1$ in the GenEO coarse space~\eqref{eq:GenEOCS} is specified with option \texttt{geneo\_estimate\_nu nu}.\\
+The following other options allow for cheaper computations but they do not ensure a coarse space in agreement with definition~\eqref{eq:GenEOCS} and thus nor with theorems~\ref{th:geneo} and~\ref{th:geneoadditive}. Selecting all eigenvalues satisfying a given threshold usually comes at the expense of at least one local factorisation. In order to avoid this extra cost, it is possible to request a given number of eigenvalues, denoted \texttt{nev}, at the low end of the spectrum of~\eqref{eq:gevpgeneo}.  In HPDDM, it is the default choice and corresponds to the parameter \texttt{geneo\_nu 20}.  By adding the option \texttt{geneo\_threshold nu}, only the eigenvectors with eigenvalues lower than \texttt{nu} will be kept among the \texttt{nev} previously computed eigenvectors. The parameter \texttt{eigensolver\_tol} specifies the tolerance for computing eigenvectors by ARPACK or LAPACK. 
+%imbalance in the local contribution to the global coarse space , and so what? 
+
+
+\subsection{Correction formulas}
+Explained Keywords: \texttt{deflated, additive, balanced, none}\\
+
+More generally, for a given preconditioner $M^{-1}$ and a coarse space matrix $Z$, several correction formulas using the reduced matrix $Q$~\eqref{eq:reducedmatrix} are possible. \\
+
+The two-level GenEO coarse space makes use of the "balanced" formula:
+\begin{equation}
+  \label{eq:bnn}
+  \boxed{
+ M_{\texttt{balanced}}^{-1} := Q+(I-Q\,A)\,M^{-1}\,(I-A\,Q)
+ }
+\end{equation}
+
+
+
+For a given one-level preconditioner $M_1^{-1}$, a two-level preconditioner is defined via an Additive correction:
+\begin{equation}
+  \label{eq:add}
+  \boxed{
+ M_{\texttt{additive}}^{-1} := Q+\,M_{1}^{-1}\,.
+ }
+\end{equation}
+
+
+If the GenEO coarse space is used to improve the $M_1^{-1}:=M_{\texttt{additive},GenEO,\texttt{asm}}^{-1}$, we have in exact arithmetic:
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%theorem%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{theorem}
+  \label{th:geneoadditive}
+\[
+ \kappa({M_{\texttt{additive},GenEO,\texttt{asm}}^{-1}\,A}) \le 2\,k_0\,(2+(2\,k_0+1)\,k_1\,\boldsymbol{\nu}^{-1})\,.
+\]
+\end{theorem}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+One advantage of the balanced correction formula~\eqref{eq:bnnGenEO} is that for any coarse space matrix $Z$ it improves the condition number over that of the original preconditioner. On the other hand, an additive correction allows for parallelism (applying concurrently $Q$ and $M_{1}^{-1}$). The following table sums up all correction formulas found in HPDDM: 
+\begin{equation}
+\begin{array}{llll}
+\nonumber
+    \text{"\texttt{additive}"}:&&\textit{Additive}, \quad &M^{-1}_2 = \phantom{(I - Q A) }M^{-1}_1\phantom{ (I - A Q)} + Q\\
+    \text{"\texttt{balanced}"}:&&\textit{Balanced}, \quad &M^{-1}_2 = (I - Q A) M^{-1}_1 (I - A Q) + Q\\
+    \text{"\texttt{deflated}"}:&&\textit{Deflated}, \quad &M^{-1}_2 = \phantom{(I - Q A)} M^{-1}_1 (I - A Q) + Q\\
+    \text{"\texttt{none}"}:&&\textit{no coarse correction}, \quad &M^{-1}_2 = \phantom{(I - Q A) }M^{-1}_1\phantom{ (I - A Q)}\\
+\end{array}
+\end{equation}
+Formula \textit{Balanced} requires two applications of the reduced matrix $Q$ compared to only one for  \textit{deflated} but at the expense of a loss on the theoretical control. Note that there is no default option in HPDDM for the correction formula.\\
+Additional useful informations on correction formulas are given in~\href{https://link.springer.com/article/10.1007/s10915-009-9272-6}{{\em Comparison of Two-Level Preconditioners Derived from Deflation, Domain Decomposition and Multigrid Methods}}. 
+
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
