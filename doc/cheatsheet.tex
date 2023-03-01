@@ -26,9 +26,10 @@
 \usepackage[landscape,vmargin=1cm,hmargin=1cm]{geometry}
 \usepackage{array}
 \usepackage{longtable}
-\usepackage{url}
 \usepackage{amsmath}
 \usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[urlbordercolor=teal]{hyperref}
 \usepackage{color,colortbl}
 \usepackage{multicol}
 \usepackage{enumitem}
@@ -42,7 +43,18 @@
 \definecolor{LightRed}{rgb}{1,0.88,0.88}
 \begin{document}
 \begin{center} {\LARGE --- $\quad$ HPDDM $\quad$ ---} \\[5pt] \url{https://github.com/hpddm/hpddm} \end{center}
-    All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified in the column \emph{Default}, this value is used when the corresponding option is not set by the user. When no default value is specified but the corresponding option is set by the user, the option is true (represented internally by 1). If the option is not set, its value is false (represented internally by 0). Options highlighted in \colorbox{LightRed}{red} should be reserved to expert users.
+All keywords must be prefixed by \texttt{-hpddm\_}. If a value is specified
+in the column \emph{Default}, this value is used when the corresponding
+option is not set by the user. When no default value is specified but the
+corresponding option is set by the user, the option is true (represented
+internally by 1). If the option is not set, its value is false (represented
+internally by 0). Options highlighted in \colorbox{LightRed}{red} should be
+reserved to expert users.
+This document is relevant only if using HPDDM through its native interface. If
+using HPDDM through PETSc, one should instead consult
+\href{https://petsc.org/main/manualpages/PC/PCHPDDM/}{PCHPDDM} and
+\href{https://petsc.org/main/manualpages/KSP/KSPHPDDM/}{KSPHPDDM}
+documentation.
 \vspace*{\parspace}
 \newdimen\origiwspc
 \origiwspc=\fontdimen2\font
@@ -82,7 +94,7 @@
         \cellcolor{LightRed}geneo\_estimate\_nu & Estimate the number of eigenvalues below a threshold using the inertia of the stencil & Numeric & & \\ \hline
         geneo\_force\_uniformity & Ensure that the number of local eigenvectors is the same for all subdomains & \texttt{min}, \texttt{max} & & \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
 \noindent{
 When using multilevel methods, there are additional options, that are all prefixed by \texttt{-hpddm\_level\_}$N$\texttt{\_}, with $N > 1$.}
@@ -98,7 +110,7 @@ When using multilevel methods, there are additional options, that are all prefix
         level\_([2-9]|[1-9]\textbackslash{}d+)\_dump\_matrix & Save the coarse operator to disk & String & & \\ \hline
         \cellcolor{LightRed}level\_([2-9]|[1-9]\textbackslash{}d+)\_exclude & Exclude the main processes from the domain decomposition & Boolean & & \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
 \setlength{\LTleft}{\LTbackup}
 \noindent{
@@ -110,7 +122,7 @@ When using Schwarz methods, there are additional options.}
         schwarz\_method & Type of Schwarz preconditioner used to solve linear systems & \texttt{ras}, \texttt{oras}, \texttt{soras}, \texttt{asm}, \texttt{osm}, \texttt{none} & \texttt{ras} \\ \hline
         schwarz\_coarse\_correction & Type of coarse correction used in two-level methods & \texttt{deflated}, \texttt{additive}, \texttt{balanced} & \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
 When using substructuring methods, there is an additional option.
 \vspace*{\parspace}
@@ -119,18 +131,18 @@ When using substructuring methods, there is an additional option.
         \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} & \normalfont{\emph{Default}} \\ \hline
         substructuring\_scaling & Scaling used in the definition of the Schur complement preconditioner & \texttt{multiplicity}, \texttt{stiffness}, \texttt{coefficient} & \texttt{multiplicity} \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
-When using MKL PARDISO as a subdomain or coarse operator solver, there are additional options, cf. \url{https://software.intel.com/en-us/node/470298} (resp. \url{https://software.intel.com/en-us/node/590089}).
+When using MKL PARDISO as a subdomain or coarse operator solver, there are additional options, cf.\ \url{https://www.intel.com/content/www/us/en/develop/documentation/onemkl-developer-reference-c/top/sparse-solver-routines/onemkl-pardiso-parallel-direct-sparse-solver-iface.html} (resp. \url{https://www.intel.com/content/www/us/en/develop/documentation/onemkl-developer-reference-c/top/sparse-solver-routines/parallel-direct-sp-solver-for-clusters-iface.html}).
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
         \normalfont{\emph{Keyword}} & \emph{Description} & \emph{Possible values} \\ \hline
         \cellcolor{LightRed}mkl\_pardiso\_iparm\_(2|1[013]|2[1457]) & Integer control parameters of MKL PARDISO for the subdomain solvers & Integer \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
-When using MUMPS as a subdomain or coarse operator solver, there are additional options, cf. \url{http://mumps-solver.org/index.php?page=doc}.
+When using MUMPS as a subdomain or coarse operator solver, there are additional options, cf.\ \url{http://mumps-solver.org/index.php?page=doc}.
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.3\textwidth} | p{.5\textwidth}| p{.1\textwidth} |} \hline
@@ -138,9 +150,9 @@ When using MUMPS as a subdomain or coarse operator solver, there are additional 
         \cellcolor{LightRed}mumps\_icntl\_([678]|1[234]|2[34789]|3[567]) & Integer control parameters & Integer \\ \hline
         \cellcolor{LightRed}mumps\_cntl\_([123457]) & Real control parameters & Numeric \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
-When using \textit{hypre} as a coarse operator solver, there are additional options, cf. \url{http://acts.nersc.gov/hypre/#Documentation}.
+When using \textit{hypre} as a coarse operator solver, there are additional options, cf.\ \url{https://computing.llnl.gov/projects/hypre-scalable-linear-solvers-multigrid-methods}.
 \vspace*{\parspace}
 \begin{center}
     \begin{longtable}{| >{\tt}p{.26\textwidth} | p{.49\textwidth}| p{.115\textwidth}| p{.05\textwidth} |} \hline
@@ -155,7 +167,7 @@ When using \textit{hypre} as a coarse operator solver, there are additional opti
         \cellcolor{LightRed}boomeramg\_relax\_type & Smoother & Integer & 3 \\ \hline
         \cellcolor{LightRed}boomeramg\_interp\_type & Parallel interpolation operator & Integer & 0 \\ \hline
     \end{longtable}
-\vspace*{\parspace}
+\vspace*{1.25\parspace}
 \end{center}
 When using ARPACK as an eigensolver, there is an additional option.
 \vspace*{\parspace}
