@@ -23,7 +23,7 @@
 #ifndef HPDDM_GCRODR_HPP_
 #define HPDDM_GCRODR_HPP_
 
-#if defined(PETSC_HAVE_SLEPC) && defined(PETSC_USE_SHARED_LIBRARIES)
+#if defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
 static PetscErrorCode (*loadedKSPSym)(const char*, const MPI_Comm&, PetscMPIInt, PetscInt, PetscScalar*, int, PetscScalar*, int, PetscInt, PetscScalar*, const PetscBool) = nullptr;
 #endif
 
@@ -749,7 +749,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         if(id[4] / 4 <= 1)
 #endif
         {
-#if defined(PETSC_HAVE_SLEPC) && defined(PETSC_USE_SHARED_LIBRARIES)
+#if defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
             PetscBool symmetric = PETSC_FALSE;
             PetscCall(PetscOptionsGetBool(NULL, NULL, std::string("-" + A.prefix() + "ksp_hpddm_recycle_symmetric").c_str(), &symmetric, NULL));
 #else
@@ -781,7 +781,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     int lwork = -1;
                     int row = dim + deflated;
                     int bK = deflated * k;
-#if !defined(PETSC_HAVE_SLEPC) || !defined(PETSC_USE_SHARED_LIBRARIES)
+#if !(defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES))
                     K* w = new K[Wrapper<K>::is_complex ? dim : (2 * dim)];
                     K* vr = new K[std::max(2, dim * dim)];
                     underlying_type<K>* rwork = Wrapper<K>::is_complex ? new underlying_type<K>[2 * dim] : nullptr;
@@ -798,7 +798,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, &lwork, &info);
                     lwork = std::max(HPDDM::real(work[0]), HPDDM::real(work[1]));
                     delete [] work;
-#if !defined(PETSC_HAVE_SLEPC) || !defined(PETSC_USE_SHARED_LIBRARIES)
+#if !(defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES))
                     std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>> q;
                     q.reserve(dim);
                     selectNu(id[3], q, dim, w, w + dim);
@@ -931,7 +931,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     }
                     int lwork = -1;
                     int bDim = dim;
-#if !defined(PETSC_HAVE_SLEPC) || !defined(PETSC_USE_SHARED_LIBRARIES)
+#if !(defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES))
                     K* alpha = a + dim * dim;
                     K* vr = new K[dim * dim];
                     Lapack<K>::ggev("N", "V", &bDim, a, &bDim, B, &row, alpha, alpha + 2 * bDim, alpha + bDim, nullptr, &i__1, nullptr, &bDim, alpha, &lwork, nullptr, &info);

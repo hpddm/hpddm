@@ -52,6 +52,7 @@ class DMatrix {
          *    p              - Number of main processes.
          *    T              - Main processes distribution topology. */
         static bool splitCommunicator(const MPI_Comm& in, MPI_Comm& out, const bool& exclude, unsigned short& p, const unsigned short& T) {
+#if !defined(PETSC_HAVE_MPIUNI)
             int size, rank;
             MPI_Comm_size(in, &size);
             MPI_Comm_rank(in, &rank);
@@ -92,6 +93,9 @@ class DMatrix {
                 MPI_Comm_dup(in, &out);
                 return false;
             }
+#else
+            return false;
+#endif
         }
     protected:
 #ifdef HPDDM_PETSC

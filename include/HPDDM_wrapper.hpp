@@ -560,14 +560,16 @@ template<>                                                                      
 template<char O>                                                                                             \
 inline void Wrapper<T>::imatcopy(const int n, const int m, T* const ab, const int lda, const int ldb) {      \
     static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");                        \
-    mkl_ ## C ## imatcopy('C', O, m, n, d__1, ab, lda, ldb);                                                 \
+    if(lda && ldb)                                                                                           \
+        mkl_ ## C ## imatcopy('C', O, m, n, d__1, ab, lda, ldb);                                             \
 }                                                                                                            \
 template<>                                                                                                   \
 template<char O>                                                                                             \
 inline void Wrapper<T>::omatcopy(const int n, const int m, const T* const a, const int lda,                  \
                                  T* const b, const int ldb) {                                                \
     static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");                        \
-    mkl_ ## C ## omatcopy('C', O, m, n, d__1, a, lda, b, ldb);                                               \
+    if(lda && ldb)                                                                                           \
+        mkl_ ## C ## omatcopy('C', O, m, n, d__1, a, lda, b, ldb);                                           \
 }
 #define HPDDM_GENERATE_MKL_VML(C, T)                                                                         \
 template<>                                                                                                   \
