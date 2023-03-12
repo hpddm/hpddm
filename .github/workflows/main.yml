@@ -226,7 +226,6 @@ jobs:
               cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
               make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi ${COVERAGE_FLAGS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" TIMEOUT=120 EXTRA_OPTIONS='-malloc_dump' check-test-errors
               config/report_tests.py -t 5 -s
-              mkdir -p ../install/lib
               if [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ] && [ "$INT64" = "0" ]; then
                 cd arch-ci/externalpackages/git.slepc
                 mkdir -p arch-ci/tests
@@ -234,11 +233,13 @@ jobs:
                 chmod u+x arch-ci/tests/echofailures.sh
                 make -f gmakefile test test-fail='1' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/${PETSC_ARCH}/externalpackages/git.slepc 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi ${COVERAGE_FLAGS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors && cd ../../../
                 if [ "${{ matrix.compiler }}" = "gcc" ]; then
+                  mkdir -p ../install/lib
                   mv arch-ci/lib/libhpddm_petsc.so arch-ci/lib/libslepc.so* ../install/lib
                   echo 'echo ksp_ksp_tutorials-ex72_hpddm_gen_non_hermitian' > arch-ci/tests/echofailures.sh
                   chmod u+x arch-ci/tests/echofailures.sh
                   make -f gmakefile test test-fail='1' PETSC_ARCH=arch-ci PETSC_DIR=${PETSC_DIR} SLEPC_DIR=${PETSC_DIR}/../install 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi ${COVERAGE_FLAGS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors
                   mv ../install/lib/libhpddm_petsc.so ../install/lib/libslepc.so* arch-ci/lib
+                  rm -rf ../install
                 fi
               fi
               if [ "$PRECISION" = "single" ]; then export HPDDMFLAGS="-DFORCE_SINGLE"; fi
@@ -248,9 +249,8 @@ jobs:
               if [ "$PRECISION" != "__float128" ]; then make cpp; fi
               if [ "${{ matrix.compiler }}" = "gcc" ]; then
                 if [ "$PRECISION" != "__float128" ]; then make test_cpp; fi
-                lcov --directory . --directory ../petsc/arch-ci/lib --directory ../install/lib --exclude '/tmp/*' --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
+                lcov --directory . --directory ../petsc/arch-ci/lib --exclude '/tmp/*' --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
               fi
-              rm -rf ../install
               make clean
               cd ../petsc && rm -rf ${PETSC_ARCH}
             done
@@ -290,11 +290,13 @@ jobs:
         echo ::add-mask::${{ secrets.HOSTNAME }}
         echo ::add-mask::${{ secrets.LOGIN }}
         export INCS="-I`pwd`/../${REPOSITORY_NAME}/include"
-        ./configure --with-mpi-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
+        ./configure --with-strict-petscerrorcode --with-mpi-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
                     --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
+                    --with-blaslapack-lib=[/local/${{ secrets.LOGIN }}/lib/libmkl_core.so,/local/${{ secrets.LOGIN }}/lib/libmkl_intel_lp64.so,/local/${{ secrets.LOGIN }}/lib/libmkl_sequential.so] \
+                    --with-blaslapack-include=/local/${{ secrets.LOGIN }}/include --with-mkl_pardiso \
                     --with-c2html=0 --with-fc=0 --download-slepc \
                     --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-deprecated-declarations,-Werror ${INCS}'
+                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-psabi,-Wno-deprecated-declarations,-Werror ${INCS}'
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
