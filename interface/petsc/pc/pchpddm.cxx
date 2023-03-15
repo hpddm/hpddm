@@ -315,8 +315,8 @@ static PetscErrorCode PCSetFromOptions_HPDDM(PC pc, PetscOptionItems *PetscOptio
     PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "pc_hpddm_coarse_"));
     PetscCall(PetscOptionsHasName(NULL, prefix, "-mat_mumps_use_omp_threads", &flg));
     if (flg) {
-      char type[64];                                                                                     /* same size as in src/ksp/pc/impls/factor/factimpl.c */
-      PetscCall(PetscStrcpy(type, n > 1 && PetscDefined(HAVE_MUMPS) ? MATSOLVERMUMPS : MATSOLVERPETSC)); /* default solver for a MatMPIAIJ or a MatSeqAIJ */
+      char type[64];                                                                                                    /* same size as in src/ksp/pc/impls/factor/factimpl.c */
+      PetscCall(PetscStrncpy(type, n > 1 && PetscDefined(HAVE_MUMPS) ? MATSOLVERMUMPS : MATSOLVERPETSC, sizeof(type))); /* default solver for a MatMPIAIJ or a MatSeqAIJ */
       PetscCall(PetscOptionsGetString(NULL, prefix, "-pc_factor_mat_solver_type", type, sizeof(type), NULL));
       PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
       PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "-%smat_mumps_use_omp_threads and -%spc_factor_mat_solver_type != %s", prefix, prefix, MATSOLVERMUMPS);
@@ -1589,7 +1589,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
     PetscCall(ISDestroy(&uis));
   }
   if (algebraic) PetscCall(MatDestroy(&data->aux));
-  if (!ismatis && unsorted != is[0]) {
+  if (unsorted && unsorted != is[0]) {
     PetscCall(ISCopy(unsorted, data->is));
     PetscCall(ISDestroy(&unsorted));
   }
@@ -1778,21 +1778,33 @@ static PetscErrorCode PCHPDDMSetDeflationMat_HPDDM(PC pc, IS is, Mat U)
 
 PetscErrorCode HPDDMLoadDL_Private(PetscBool *found)
 {
-  char lib[PETSC_MAX_PATH_LEN], dlib[PETSC_MAX_PATH_LEN], dir[PETSC_MAX_PATH_LEN];
+  PetscBool flg;
+  char      lib[PETSC_MAX_PATH_LEN], dlib[PETSC_MAX_PATH_LEN], dir[PETSC_MAX_PATH_LEN];
 
   PetscFunctionBegin;
   PetscValidBoolPointer(found, 1);
-  PetscCall(PetscStrcpy(dir, "${PETSC_LIB_DIR}"));
+  PetscCall(PetscStrncpy(dir, "${PETSC_LIB_DIR}", sizeof(dir)));
   PetscCall(PetscOptionsGetString(NULL, NULL, "-hpddm_dir", dir, sizeof(dir), NULL));
   PetscCall(PetscSNPrintf(lib, sizeof(lib), "%s/libhpddm_petsc", dir));
   PetscCall(PetscDLLibraryRetrieve(PETSC_COMM_SELF, lib, dlib, 1024, found));
-#if defined(SLEPC_LIB_DIR) /* this variable is passed during SLEPc ./configure since    */
-  if (!*found) {           /* slepcconf.h is not yet built (and thus can't be included) */
-    PetscCall(PetscStrcpy(dir, HPDDM_STR(SLEPC_LIB_DIR)));
+#if defined(SLEPC_LIB_DIR) /* this variable is passed during SLEPc ./configure when PETSc has not been configured   */
+  if (!*found) {           /* with --download-hpddm since slepcconf.h is not yet built (and thus can't be included) */
+    PetscCall(PetscStrncpy(dir, HPDDM_STR(SLEPC_LIB_DIR), sizeof(dir)));
     PetscCall(PetscSNPrintf(lib, sizeof(lib), "%s/libhpddm_petsc", dir));
     PetscCall(PetscDLLibraryRetrieve(PETSC_COMM_SELF, lib, dlib, 1024, found));
   }
 #endif
+  if (!*found) { /* probable options for this to evaluate to PETSC_TRUE: system inconsistency (libhpddm_petsc moved by user?) or PETSc configured without --download-slepc */
+    PetscCall(PetscOptionsGetenv(PETSC_COMM_SELF, "SLEPC_DIR", dir, sizeof(dir), &flg));
+    if (flg) { /* if both PETSc and SLEPc are configured with --download-hpddm but PETSc has been configured without --download-slepc, one must ensure that libslepc is loaded before libhpddm_petsc */
+      PetscCall(PetscSNPrintf(lib, sizeof(lib), "%s/lib/libslepc", dir));
+      PetscCall(PetscDLLibraryRetrieve(PETSC_COMM_SELF, lib, dlib, 1024, found));
+      PetscCheck(*found, PETSC_COMM_SELF, PETSC_ERR_PLIB, "%s not found but SLEPC_DIR=%s", lib, dir);
+      PetscCall(PetscDLLibraryAppend(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, dlib));
+      PetscCall(PetscSNPrintf(lib, sizeof(lib), "%s/lib/libhpddm_petsc", dir)); /* libhpddm_petsc is always in the same directory as libslepc */
+      PetscCall(PetscDLLibraryRetrieve(PETSC_COMM_SELF, lib, dlib, 1024, found));
+    }
+  }
   PetscCheck(*found, PETSC_COMM_SELF, PETSC_ERR_PLIB, "%s not found", lib);
   PetscCall(PetscDLLibraryAppend(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, dlib));
   PetscFunctionReturn(PETSC_SUCCESS);
