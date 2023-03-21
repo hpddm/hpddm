@@ -119,11 +119,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                         Blas<K>::trsm("R", "U", "N", "N", &n, &k, &(Wrapper<K>::d__1), *save + nu * k * k, &k, U + nu * n, &ldv);
                 }
             }
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
             orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i], H[i], d, Ax, comm);
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
             if(id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
@@ -207,11 +207,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                     HPDDM_CALL(A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, v[i + 1], mu));
             }
             if(U) {
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
                 PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
                 orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], d, Ax, comm);
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
                 PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
             }
@@ -588,11 +588,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 }
                 std::fill_n(*save, bK * bK, K());
             }
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
             blockOrthogonalization<excluded>(id[2] & 3, n, k, mu, C, *v, *H, ldh, d, Ax, comm);
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
             if(id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
@@ -683,11 +683,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                     HPDDM_CALL(A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, v[i + 1], deflated));
             }
             if(U) {
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
                 PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
                 blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, d, Ax, comm);
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
                 PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
 #endif
             }

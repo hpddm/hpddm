@@ -66,7 +66,7 @@ typedef double underlying_type;
 
 struct HpddmOption;
 typedef struct HpddmOption HpddmOption;
-const HpddmOption* HpddmOptionGet();
+const HpddmOption* HpddmOptionGet(void);
 int HpddmOptionParse(const HpddmOption* const, int, char**, bool);
 int HpddmOptionParseString(const HpddmOption* const, const char*);
 int HpddmOptionParseInt(const HpddmOption* const, int, char**, char*, char*);
@@ -120,7 +120,7 @@ void axpy(const int*, const K* const, const K* const, const int*, K* const, cons
 
 #if HPDDM_PETSC
 #include <petscsys.h>
-PetscErrorCode HpddmRegisterKSP();
+PetscErrorCode HpddmRegisterKSP(void);
 #endif
 
 #endif // HPDDM_H_

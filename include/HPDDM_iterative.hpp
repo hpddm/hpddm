@@ -720,7 +720,7 @@ class IterativeMethod {
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class K>
         static void Arnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscLogEventBegin(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
 #endif
             orthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, d, work, comm);
@@ -761,7 +761,7 @@ class IterativeMethod {
             }
             if(mu > 1)
                 Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscLogEventEnd(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
 #endif
         }
@@ -769,7 +769,7 @@ class IterativeMethod {
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class K>
         static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscLogEventBegin(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
 #endif
             int ldh = (m + 1) * mu;
@@ -787,7 +787,7 @@ class IterativeMethod {
                 Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
             Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
-#ifdef PETSCHPDDM_H
+#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
             PetscLogEventEnd(KSP_GMRESOrthogonalization, 0, 0, 0, 0);
 #endif
             return false;

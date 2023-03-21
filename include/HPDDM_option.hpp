@@ -448,7 +448,7 @@ class OptionsPrefix {
 #if !HPDDM_PETSC
                                     , prefix_()
 #endif
-                                                { };
+                                                { }
         ~OptionsPrefix() {
             delete [] storage_;
             storage_ = nullptr;
