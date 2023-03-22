@@ -172,7 +172,11 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
 #endif
                 }
+#if defined(_KSPIMPL_H)
+                PetscCall(KSP_MatMult(ksp_, A, b_, x_));
+#else
                 PetscCall(MatMult(A, b_, x_));
+#endif
                 if(std::is_same<PetscScalar, K>::value
 #if PetscDefined(HAVE_CUDA)
                                                        && it == list.end()
@@ -237,7 +241,11 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
 #endif
                     }
                     PetscCall(MatProductCreateWithMat(A, X_[1], NULL, X_[0]));
+#if defined(_KSPIMPL_H)
+                    PetscCall(MatProductSetType(X_[0], !ksp_->transpose_solve ? MATPRODUCT_AB : MATPRODUCT_AtB));
+#else
                     PetscCall(MatProductSetType(X_[0], MATPRODUCT_AB));
+#endif
                     PetscCall(MatProductSetFromOptions(X_[0]));
                     PetscCall(MatProductSymbolic(X_[0]));
                     if(flg) {
@@ -250,6 +258,23 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
                 }
                 else {
+#if defined(_KSPIMPL_H)
+                    MatProductType type;
+                    bool change = false;
+                    PetscCall(MatProductGetType(X_[0], &type));
+                    if(type == MATPRODUCT_AB && ksp_->transpose_solve) {
+                        change = true;
+                        PetscCall(MatProductSetType(X_[0], MATPRODUCT_AtB));
+                    }
+                    else if(type == MATPRODUCT_AtB && !ksp_->transpose_solve) {
+                        change = true;
+                        PetscCall(MatProductSetType(X_[0], MATPRODUCT_AB));
+                    }
+                    if(change) {
+                        PetscCall(MatProductSetFromOptions(X_[0]));
+                        PetscCall(MatProductSymbolic(X_[0]));
+                    }
+#endif
                     reset = true;
                     if(container)
                         PetscCall(MatProductReplaceMats(NULL, X_[1], NULL, X_[0]));
@@ -343,7 +368,11 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
                     else
                         std::copy_n(in + nu * n, n, write);
+#if defined(_KSPIMPL_H)
+                    PetscCall(KSP_PCApply(ksp_, b_, x_));
+#else
                     PetscCall(PCApply(pc, b_, x_));
+#endif
                     if(std::is_same<PetscScalar, K>::value) {
                         PetscCall(VecResetArray(x_));
                         PetscCall(VecResetArray(b_));
@@ -413,7 +442,11 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
 #endif
                 }
+#if defined(_KSPIMPL_H)
+                PetscCall(KSP_PCMatApply(ksp_, C_, Y_));
+#else
                 PetscCall(PCMatApply(pc, C_, Y_));
+#endif
                 if(reset) {
                     PetscCall(MatDenseResetArray(Y_));
                     PetscCall(MatDenseResetArray(C_));
@@ -469,7 +502,11 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
 #endif
                 }
+#if defined(_KSPIMPL_H)
+                PetscCall(KSP_PCApply(ksp_, b_, x_));
+#else
                 PetscCall(PCApply(pc, b_, x_));
+#endif
                 if(std::is_same<PetscScalar, K>::value
 #if PetscDefined(HAVE_CUDA)
                                                        && it == list.end()
