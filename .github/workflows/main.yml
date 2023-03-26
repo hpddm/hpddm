@@ -95,16 +95,18 @@ jobs:
           cp -R ~/.local/lib ~/.cache
           find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" \) -prune -exec rm -rf "{}" \;
         fi
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 0
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 0
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 0
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 0
+        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-12 0
         sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-14/bin/clang++ 0
         sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-14/bin/clang 0
-        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-11 0
-        sudo update-alternatives --set g++ /usr/bin/g++-11
-        sudo update-alternatives --set gcc /usr/bin/gcc-11
+        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-12 0
+        sudo update-alternatives --set g++ /usr/bin/g++-12
+        sudo update-alternatives --set gcc /usr/bin/gcc-12
+        sudo update-alternatives --set gcov /usr/bin/gcov-12
         sudo update-alternatives --set clang++ /usr/lib/llvm-14/bin/clang++
         sudo update-alternatives --set clang /usr/lib/llvm-14/bin/clang
-        sudo update-alternatives --set gfortran /usr/bin/gfortran-11
+        sudo update-alternatives --set gfortran /usr/bin/gfortran-12
         if [ "${{ matrix.compiler }}" = "clang" ]; then
           echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
         else
@@ -195,7 +197,7 @@ jobs:
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wno-unknown-warning-option"
               fi
               if [ "$PRECISION" != "__float128" ]; then
-                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so]"
+                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/12/libgomp.so]"
                 if [ "${{ matrix.compiler }}" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -DPETSC_SKIP_ATTRIBUTE_MAY_ALIAS -Werror"
               fi
@@ -296,7 +298,7 @@ jobs:
                     --with-blaslapack-include=/local/${{ secrets.LOGIN }}/include --with-mkl_pardiso \
                     --with-c2html=0 --with-fc=0 --download-slepc \
                     --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-psabi,-Wno-deprecated-declarations,-Werror ${INCS}'
+                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-psabi,-Werror ${INCS}'
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
