@@ -120,11 +120,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 }
             }
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+            PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
             orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i], H[i], d, Ax, comm);
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+            PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
             if(id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
                 if(!excluded && n)
@@ -208,11 +208,11 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
             if(U) {
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-                PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+                PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
                 orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], d, Ax, comm);
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-                PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+                PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
             }
             Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0);
@@ -589,11 +589,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 std::fill_n(*save, bK * bK, K());
             }
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+            PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
             blockOrthogonalization<excluded>(id[2] & 3, n, k, mu, C, *v, *H, ldh, d, Ax, comm);
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+            PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
             if(id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
                 if(!excluded && n)
@@ -684,11 +684,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             }
             if(U) {
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-                PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+                PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
                 blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, d, Ax, comm);
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-                PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, 0, 0, 0));
+                PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
             }
             if(BlockArnoldi<excluded>(id[2], m[0], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm, save, U ? k : 0)) {
@@ -751,7 +751,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         {
 #if defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
             PetscBool symmetric = PETSC_FALSE;
-            PetscCall(PetscOptionsGetBool(NULL, NULL, std::string("-" + A.prefix() + "ksp_hpddm_recycle_symmetric").c_str(), &symmetric, NULL));
+            PetscCall(PetscOptionsGetBool(nullptr, nullptr, std::string("-" + A.prefix() + "ksp_hpddm_recycle_symmetric").c_str(), &symmetric, nullptr));
 #else
             constexpr bool symmetric = false;
 #endif
@@ -815,7 +815,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #else
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) {
-                        PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym));
+                        PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, nullptr, "KSPHPDDM_Internal", (void**)&loadedKSPSym));
                         PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
                     }
 #if !defined(_KSPIMPL_H)
@@ -953,7 +953,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #else
                     K* vr = new K[bK * dim]();
                     if(!loadedKSPSym) { // LCOV_EXCL_START
-                        PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, NULL, "KSPHPDDM_Internal", (void**)&loadedKSPSym));
+                        PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, nullptr, "KSPHPDDM_Internal", (void**)&loadedKSPSym));
                         PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
                     } // LCOV_EXCL_STOP
 #if !defined(_KSPIMPL_H)

@@ -92,6 +92,9 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #  define HPDDM_MKL                                     0
 # endif
 #endif
+#ifndef HPDDM_OPENBLAS
+# define HPDDM_OPENBLAS                                 0
+#endif
 #ifndef HPDDM_SCHWARZ
 # define HPDDM_SCHWARZ                                  1
 #endif

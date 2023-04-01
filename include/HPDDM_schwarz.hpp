@@ -1038,7 +1038,7 @@ class Schwarz : public Preconditioner<
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
             ST                     st;
-            KSP                    empty = NULL;
+            KSP                    empty = nullptr;
             Mat                    local, *resized;
             Vec                    vr, vreduced;
             ISLocalToGlobalMapping l2g;
@@ -1046,7 +1046,7 @@ class Schwarz : public Preconditioner<
             PetscInt               nev, nconv = 0;
             PetscBool              flg, ismatis, solve = PETSC_FALSE;
             const char             *prefix;
-            Aux                    aux = NULL;
+            Aux                    aux = nullptr;
 
             PetscFunctionBeginUser;
             if(!levels[0]->parent->deflation) {
@@ -1070,20 +1070,20 @@ class Schwarz : public Preconditioner<
                         aux->is = is;
                         PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
                         PetscCall(SVDSetOptionsPrefix(svd, prefix));
-                        PetscCall(SVDSetOperators(svd, compact, NULL));
+                        PetscCall(SVDSetOperators(svd, compact, nullptr));
                         PetscCall(SVDSetType(svd, SVDLAPACK));
                         PetscCall(SVDSetFromOptions(svd));
                         PetscCall(SVDSetUp(svd));
                         PetscCall(SVDSolve(svd));
                         PetscCall(MatGetLocalSize(compact, &m, &p));
                         PetscCall(VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma));
-                        PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, p, m, NULL, &aux->V));
+                        PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, p, m, nullptr, &aux->V));
                         PetscCall(VecGetArrayWrite(aux->sigma, &values));
                         for(PetscInt n = 0; n < m; ++n) {
                             PetscReal s;
                             Vec       v;
                             PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
-                            PetscCall(SVDGetSingularTriplet(svd, n, &s, NULL, v));
+                            PetscCall(SVDGetSingularTriplet(svd, n, &s, nullptr, v));
                             values[n] = 1.0/s;
                             PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
                         }
@@ -1131,7 +1131,7 @@ class Schwarz : public Preconditioner<
                 if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
                     KSP *ksp;
                     PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
-                    PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, NULL, NULL, &ksp));
+                    PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, nullptr, nullptr, &ksp));
                     PetscCall(STGetKSP(st, &empty));
                     PetscCall(PetscObjectReference((PetscObject)empty));
                     PetscCall(STSetKSP(st, ksp[0]));
@@ -1204,7 +1204,7 @@ class Schwarz : public Preconditioner<
                         PetscReal   re, im;
 #if defined(PETSC_USE_COMPLEX)
                         PetscScalar eig;
-                        PetscCall(EPSGetEigenvalue(eps, i, &eig, NULL));
+                        PetscCall(EPSGetEigenvalue(eps, i, &eig, nullptr));
                         re = PetscRealPart(eig);
                         im = PetscImaginaryPart(eig);
 #else
@@ -1231,7 +1231,7 @@ class Schwarz : public Preconditioner<
             }
             else {
                 PetscInt n;
-                PetscCall(MatGetSize(weighted, NULL, &n));
+                PetscCall(MatGetSize(weighted, nullptr, &n));
                 levels[0]->nu = n;
             }
             if(levels[0]->nu) {
@@ -1302,7 +1302,7 @@ class Schwarz : public Preconditioner<
             PetscFunctionBeginUser;
 #if defined(PETSC_USE_LOG)
             if(!levels[0]->parent->log_separate)
-                PetscCall(PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0));
+                PetscCall(PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, nullptr, nullptr, nullptr));
 #endif
             char fail[2] { };
             if(levels[i - 1]->P) {
@@ -1329,7 +1329,7 @@ class Schwarz : public Preconditioner<
                 PetscCall(MatDestroy(A));
 #if defined(PETSC_USE_LOG)
             if(!levels[0]->parent->log_separate)
-                PetscCall(PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, 0, 0, 0));
+                PetscCall(PetscLogEventEnd(PC_HPDDM_PtAP, levels[i]->ksp, nullptr, nullptr, nullptr));
 #endif
             if(fail[1]) { /* cannot build level i + 1 because at least one subdomain is empty */
                 *n = i + 1;
@@ -1342,7 +1342,7 @@ class Schwarz : public Preconditioner<
                 unsigned int pos = prefix.rfind("levels_", prefix.size() - 1);
                 unsigned short level = std::stoi(prefix.substr(pos + 7, prefix.size() - 1));
                 prefix = prefix.substr(0, pos + 7) + std::to_string(level + 1) + "_";
-                PetscCall(PetscOptionsGetString(NULL, prefix.c_str(), "-st_pc_type", type, sizeof(type), NULL));
+                PetscCall(PetscOptionsGetString(nullptr, prefix.c_str(), "-st_pc_type", type, sizeof(type), nullptr));
                 PetscCall(PetscStrcmp(type, PCMAT, &algebraic));
                 if(!levels[0]->parent->aux || algebraic) {
                     if(levels[i]->ksp) {
@@ -1362,37 +1362,37 @@ class Schwarz : public Preconditioner<
                         PetscCall(VecDestroy(&levels[i]->D));
                         PetscCall(VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &levels[i]->D));
                         PetscCall(VecScatterDestroy(&levels[i]->scatter));
-                        PetscCall(MatCreateVecs(P, &xin, NULL));
-                        PetscCall(VecScatterCreate(xin, uis, levels[i]->D, NULL, &levels[i]->scatter));
+                        PetscCall(MatCreateVecs(P, &xin, nullptr));
+                        PetscCall(VecScatterCreate(xin, uis, levels[i]->D, nullptr, &levels[i]->scatter));
                         PetscCall(VecDestroy(&xin));
                         PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS*, Mat*[], PetscBool), (P, &uis, &sub, PETSC_FALSE));
-                        PetscCall(levels[i]->P->structure(loc, uis, sub[0], NULL, levels + i));
+                        PetscCall(levels[i]->P->structure(loc, uis, sub[0], nullptr, levels + i));
                         PetscCall(ISDestroy(&loc));
                         PetscCall(MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted));
                         PetscCall(MatDiagonalScale(weighted, levels[i]->D, levels[i]->D));
                         PetscCall(MatPropagateSymmetryOptions(sub[0], weighted));
-                        PetscCall(levels[i]->P->solveGEVP(uis, sub[0], initial, levels + 1, weighted, NULL));
+                        PetscCall(levels[i]->P->solveGEVP(uis, sub[0], initial, levels + 1, weighted, nullptr));
                         PetscCall(PetscObjectReference((PetscObject)sub[0]));
                         Mat Q = sub[0];
-                        PetscCall(next(&Q, NULL, i + 1, n, levels));
+                        PetscCall(next(&Q, nullptr, i + 1, n, levels));
                         PetscCall(ISDestroy(&uis));
                         PetscCall(PetscObjectQuery((PetscObject)sub[0], "_PCHPDDM_Embed", (PetscObject*)&uis));
                         PetscCall(ISDestroy(&uis));
-                        PetscCall(PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Embed", NULL));
-                        PetscCall(PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Compact", NULL));
+                        PetscCall(PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Embed", nullptr));
+                        PetscCall(PetscObjectCompose((PetscObject)sub[0], "_PCHPDDM_Compact", nullptr));
                         PetscCall(MatDestroySubMatrices(2, &sub));
                     }
                     else {
                         delete levels[i]->P;
                         levels[i]->P = nullptr;
-                        PetscCall(next(NULL, NULL, i + 1, n, levels));
+                        PetscCall(next(nullptr, nullptr, i + 1, n, levels));
                     }
-                    PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->parent->levels[0]->ksp, "PCHPDDMSetUp_Private_C", NULL));
+                    PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->parent->levels[0]->ksp, "PCHPDDMSetUp_Private_C", nullptr));
                 }
                 else {
 #if defined(PETSC_USE_LOG)
                     if(!levels[0]->parent->log_separate)
-                        PetscCall(PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0));
+                        PetscCall(PetscLogEventBegin(PC_HPDDM_PtBP, levels[i]->ksp, nullptr, nullptr, nullptr));
 #endif
                     CoarseOperator<DMatrix, K>* coNeumann  = nullptr;
                     std::vector<K> overlap;
@@ -1408,8 +1408,8 @@ class Schwarz : public Preconditioner<
                         PetscCallMPI(MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs));
 #if defined(PETSC_USE_LOG)
                     if(!levels[0]->parent->log_separate) {
-                        PetscCall(PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, 0, 0, 0));
-                        PetscCall(PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
+                        PetscCall(PetscLogEventEnd(PC_HPDDM_PtBP, levels[i]->ksp, nullptr, nullptr, nullptr));
+                        PetscCall(PetscLogEventBegin(PC_HPDDM_Next, levels[i]->ksp, nullptr, nullptr, nullptr));
                     }
 #endif
                     PetscCall(levels[i - 1]->P->co_->buildThree(coNeumann, reduction, sizes, extra, A, N, levels[i]));
@@ -1423,7 +1423,7 @@ class Schwarz : public Preconditioner<
                     PetscCallMPI(MPI_Wait(&rs, MPI_STATUS_IGNORE));
 #if defined(PETSC_USE_LOG)
                     if(!levels[0]->parent->log_separate)
-                        PetscCall(PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, 0, 0, 0));
+                        PetscCall(PetscLogEventEnd(PC_HPDDM_Next, levels[i]->ksp, nullptr, nullptr, nullptr));
 #endif
                 }
             }
@@ -1514,7 +1514,7 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscFunctionBeginUser;
     PetscCall(MatShellGetContext(A, &aux));
     PetscCall(MatCreateVecs(aux->V, &right, &left));
-    PetscCall(MatCreateVecs(aux->V, NULL, &leftEcon));
+    PetscCall(MatCreateVecs(aux->V, nullptr, &leftEcon));
     PetscCall(VecZeroEntries(left));
     PetscCall(VecISCopy(left, aux->is, SCATTER_FORWARD, x));
     PetscCall(MatMultTranspose(aux->V, left, right));

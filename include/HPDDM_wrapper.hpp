@@ -261,6 +261,7 @@ template<class K>
 inline MPI_Op Wrapper<K>::mpi_op(const MPI_Op& op) { return op; }
 #endif
 
+#if !defined(__cplusplus) || __cplusplus < 201703L
 template<class K>
 constexpr char Wrapper<K>::transc;
 
@@ -270,6 +271,7 @@ template<class K>
 constexpr K Wrapper<K>::d__1;
 template<class K>
 constexpr K Wrapper<K>::d__2;
+#endif
 
 template<class K>
 inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, K* const in, const int& n) {
