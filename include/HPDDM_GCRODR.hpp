@@ -532,8 +532,18 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
             U = nullptr;
         }
         else {
-            k = (storage.first >= mu ? storage.second : (storage.second * storage.first) / mu);
-            C = U + storage.first * storage.second * n;
+            char clear = 0;
+            for(int i = 0; i < ldv && !clear; ++i)
+                clear = !std::isfinite(HPDDM::abs(U[i]));
+            MPI_Allreduce(MPI_IN_PLACE, &clear, 1, MPI_CHAR, MPI_BOR, comm);
+            if(clear) {
+                const_cast<Operator&>(A).destroy();
+                U = nullptr;
+            }
+            else {
+                k = (storage.first >= mu ? storage.second : (storage.second * storage.first) / mu);
+                C = U + storage.first * storage.second * n;
+            }
         }
     }
     int lwork = mu * (d ? (n + (id[1] == HPDDM_VARIANT_RIGHT ? std::max(n, ldh) : ldh)) : std::max((id[1] == HPDDM_VARIANT_RIGHT ? 2 : 1) * n, ldh));
@@ -692,8 +702,12 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
 #endif
             }
             if(BlockArnoldi<excluded>(id[2], m[0], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm, save, U ? k : 0)) {
-                dim = deflated * (i - 1);
-                i = HPDDM_IT(j, A) = 0;
+                for(int mu = 0; mu < deflated; ++mu)
+                    if(std::abs(H[i - 1][i * deflated + mu * (ldh + 1)]) > HPDDM_EPS) {
+                        dim = deflated * (i - 1);
+                        i = HPDDM_IT(j, A) = 0;
+                        break;
+                    }
                 break;
             }
             bool converged = (mu == checkBlockConvergence<5>(id[0], HPDDM_IT(j, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, s + deflated * i, ldh, Ax, m[1]));

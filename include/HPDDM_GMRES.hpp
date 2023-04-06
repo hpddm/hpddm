@@ -279,8 +279,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                     HPDDM_CALL(A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, v[i + 1], deflated));
             }
             if(BlockArnoldi<excluded>(id[2], m[0], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm)) {
-                dim = deflated * (i - 1);
-                i = HPDDM_IT(j, A) = 0;
+                for(int mu = 0; mu < deflated; ++mu)
+                    if(std::abs(H[i - 1][i * deflated + mu * (ldh + 1)]) > HPDDM_EPS) {
+                        dim = deflated * (i - 1);
+                        i = HPDDM_IT(j, A) = 0;
+                        break;
+                    }
                 break;
             }
             bool converged = (mu == checkBlockConvergence<1>(id[0], HPDDM_IT(j, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, s + deflated * i, ldh, Ax, m[1]));
