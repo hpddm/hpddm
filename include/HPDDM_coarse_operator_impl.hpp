@@ -498,7 +498,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     int* loc2glob = nullptr;
 #endif
     if(rankSplit) {
-        MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, NULL, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
+        MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, nullptr, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
         if(!Operator::factorize_) {
             v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_);
             if(S == 'S') {
@@ -1515,7 +1515,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     int* loc2glob;
 #endif
     if(rankSplit)
-        MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, NULL, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
+        MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, nullptr, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
     else {
         size = 0;
         infoSplit = new unsigned short*[sizeSplit_];
@@ -1851,14 +1851,14 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     std::for_each(DMatrix::gatherCounts_, DMatrix::displs_ + sizeWorld_ - 2 * p, [&](int& i) { i /= mu; });
                 }
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+                    MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
                     std::for_each(DMatrix::gatherSplitCounts_, DMatrix::displsSplit_ + sizeSplit_, [&](int& i) { i *= mu; });
                     transfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs);
                 }
                 else
-                    MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+                    MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
             }
             else {
                 if(rankWorld_ == 0) {
@@ -1869,14 +1869,14 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeWorld_ - p, mu, rhs + (p ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
                 }
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
+                    MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu);
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
                     MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
                 }
                 else
-                    MPI_Scatter(NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+                    MPI_Scatter(nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
             }
         }
         else {
@@ -1890,13 +1890,13 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     transfer<false>(DMatrix::gatherCounts_, sizeWorld_ - p, mu, rhs);
                 }
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+                    MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
                 if(DMatrix::communicator_ != MPI_COMM_NULL)
                     super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
                 if(rankWorld_ == 0)
                     transfer<true>(DMatrix::gatherCounts_, mu, sizeWorld_ - p, rhs);
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+                    MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
             }
             else {
                 if(rankWorld_ == 0) {
@@ -1906,7 +1906,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeWorld_ - p, mu, rhs + (p ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
                 }
                 else
-                    MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
+                    MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
                 if(DMatrix::communicator_ != MPI_COMM_NULL)
                     super::template solve<DMatrix::CENTRALIZED>(rhs + (offset_ || excluded ? mu * local_ : 0), mu);
                 if(rankWorld_ == 0) {
@@ -1914,7 +1914,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
                 }
                 else
-                    MPI_Scatter(NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+                    MPI_Scatter(nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
             }
         }
 #else
@@ -1925,12 +1925,12 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     transfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs);
                 }
                 else {
-                    MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+                    MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
 #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
                     if(super::s_)
                         PetscCallVoid(super::solve(nullptr, mu));
 #endif
-                    MPI_Scatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+                    MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
                 }
             }
             else {
@@ -1942,12 +1942,12 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
                 }
                 else {
-                    MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
+                    MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
 #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
                     if(super::s_)
                         PetscCallVoid(super::solve(nullptr, mu));
 #endif
-                    MPI_Scatter(NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+                    MPI_Scatter(nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
                 }
             }
 #endif
@@ -1989,7 +1989,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     std::for_each(DMatrix::gatherCounts_, DMatrix::displs_ + sizeWorld_, [&](int& i) { i /= mu; });
                 }
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+                    MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
@@ -1997,7 +1997,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     Itransfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs, rq + 1);
                 }
                 else
-                    MPI_Iscatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+                    MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
             }
             else {
                 if(rankWorld_ == 0) {
@@ -2010,7 +2010,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeWorld_ - p, mu, rhs + (p ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
                 }
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+                    MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu);
@@ -2018,7 +2018,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     MPI_Iscatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_, rq + 1);
                 }
                 else
-                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+                    MPI_Iscatter(nullptr, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
             }
         }
         else {
@@ -2026,7 +2026,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                 if(rankWorld_ == 0)
                     Itransfer<false>(DMatrix::gatherCounts_, sizeWorld_, mu, rhs, rq);
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+                    MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
@@ -2034,7 +2034,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                 if(rankWorld_ == 0)
                     Itransfer<true>(DMatrix::gatherCounts_, mu, sizeWorld_, rhs, rq + 1);
                 else if(gatherComm_ != MPI_COMM_NULL)
-                    MPI_Iscatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq + 1);
+                    MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq + 1);
             }
             else {
                 int p = 0;
@@ -2047,7 +2047,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeWorld_ - p, mu, rhs + (p ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
                 }
                 else
-                    MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+                    MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     MPI_Wait(rq, MPI_STATUS_IGNORE);
                     super::template solve<DMatrix::CENTRALIZED>(rhs + (offset_ || excluded ? mu * local_ : 0), mu);
@@ -2057,7 +2057,7 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     MPI_Iscatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_, rq + 1);
                 }
                 else
-                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+                    MPI_Iscatter(nullptr, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
             }
         }
 #else
@@ -2068,8 +2068,8 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     Itransfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs, rq + 1);
                 }
                 else {
-                    MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
-                    MPI_Iscatterv(NULL, 0, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+                    MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+                    MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
                 }
             }
             else {
@@ -2082,8 +2082,8 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K* const pt, const unsigne
                     MPI_Iscatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_, rq + 1);
                 }
                 else {
-                    MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), NULL, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
-                    MPI_Iscatter(NULL, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+                    MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+                    MPI_Iscatter(nullptr, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
                 }
             }
 #endif
