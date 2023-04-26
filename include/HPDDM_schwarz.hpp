@@ -1144,7 +1144,9 @@ class Schwarz : public Preconditioner<
                         PC            pc;
                         Mat           F;
                         MatSolverType type;
+                        PetscScalar   target;
                         PetscInt      val;
+                        PetscCall(EPSGetTarget(eps, &target));
                         PetscCall(EPSSetTarget(eps, levels[0]->threshold));
                         PetscCall(STGetOperator(st, nullptr));
                         PetscCall(STGetKSP(st, &ksp));
@@ -1180,7 +1182,7 @@ class Schwarz : public Preconditioner<
                         }
                         if(val > 0) {
                             PetscCall(EPSSetDimensions(eps, val, PETSC_DEFAULT, PETSC_DEFAULT));
-                            PetscCall(EPSSetTarget(eps, 0.0));
+                            PetscCall(EPSSetTarget(eps, target));
                         }
                         else {
                             solve = PETSC_FALSE;
