@@ -751,7 +751,9 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
         {
 #if defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
             PetscBool symmetric = PETSC_FALSE;
-            PetscCall(PetscOptionsGetBool(nullptr, nullptr, std::string("-" + A.prefix() + "ksp_hpddm_recycle_symmetric").c_str(), &symmetric, nullptr));
+            std::string prefix = "-";
+            prefix += A.prefix() + "ksp_hpddm_recycle_symmetric";
+            PetscCall(PetscOptionsGetBool(nullptr, nullptr, prefix.c_str(), &symmetric, nullptr));
 #else
             constexpr bool symmetric = false;
 #endif

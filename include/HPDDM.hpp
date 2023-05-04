@@ -121,7 +121,7 @@ class has_##member {                                                            
         template<class C> static one test(decltype(&C::member));                    \
         template<class C> static two test(...);                                     \
     public:                                                                         \
-        static constexpr bool value = (sizeof(test<T>(0)) == sizeof(one));          \
+        static constexpr bool value = (sizeof(test<T>(nullptr)) == sizeof(one));    \
 };
 
 namespace HPDDM {

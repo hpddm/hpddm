@@ -284,7 +284,7 @@ class Preconditioner : public Subdomain<K> {
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     operator()(in + nu * n, out + nu * n);
             }
-            virtual ~CoarseCorrection() { };
+            virtual ~CoarseCorrection() { }
         };
         CoarseCorrection*  cc_;
 #endif
@@ -343,7 +343,7 @@ class Preconditioner : public Subdomain<K> {
         const int* getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i__0; }
 #else
     protected:
-        Preconditioner() { };
+        Preconditioner() { }
 #endif
     protected:
         explicit Preconditioner(const Subdomain<K>& s) : super(s)
