@@ -111,7 +111,7 @@ static PetscErrorCode KSPView_HPDDM(KSP ksp, PetscViewer viewer)
   PetscFunctionBegin;
   PetscCall(PetscObjectTypeCompare((PetscObject)viewer, PETSCVIEWERASCII, &ascii));
   if (op && ascii) {
-    PetscCall(PetscViewerASCIIPrintf(viewer, "HPDDM type: %s\n", KSPHPDDMTypes[std::min(static_cast<PetscInt>(data->cntl[0]), static_cast<PetscInt>(PETSC_STATIC_ARRAY_LENGTH(KSPHPDDMTypes) - 1))]));
+    PetscCall(PetscViewerASCIIPrintf(viewer, "HPDDM type: %s%s\n", KSPHPDDMTypes[std::min(static_cast<PetscInt>(data->cntl[0]), static_cast<PetscInt>(PETSC_STATIC_ARRAY_LENGTH(KSPHPDDMTypes) - 1))], data->cntl[1] == HPDDM_VARIANT_FLEXIBLE ? " (with support for variable preconditioning)" : ""));
     PetscCall(PetscViewerASCIIPrintf(viewer, "precision: %s\n", KSPHPDDMPrecisionTypes[data->precision]));
     if (data->cntl[0] == HPDDM_KRYLOV_METHOD_BGMRES || data->cntl[0] == HPDDM_KRYLOV_METHOD_BGCRODR || data->cntl[0] == HPDDM_KRYLOV_METHOD_BFBCG) {
       if (PetscAbsReal(data->rcntl[0] - static_cast<PetscReal>(PETSC_DECIDE)) < PETSC_SMALL) PetscCall(PetscViewerASCIIPrintf(viewer, "no deflation at restarts\n"));
@@ -403,7 +403,7 @@ static PetscErrorCode KSPSolve_HPDDM(KSP ksp)
 
    Level: intermediate
 
-.seealso: [](chapter_ksp), `KSPHPDDM`, `KSPCreate()`, `KSPType`, `KSPHPDDMGetDeflationMat()`
+.seealso: [](ch_ksp), `KSPHPDDM`, `KSPCreate()`, `KSPType`, `KSPHPDDMGetDeflationMat()`
 @*/
 PetscErrorCode KSPHPDDMSetDeflationMat(KSP ksp, Mat U)
 {
@@ -427,7 +427,7 @@ PetscErrorCode KSPHPDDMSetDeflationMat(KSP ksp, Mat U)
 
    Level: intermediate
 
-.seealso: [](chapter_ksp), `KSPHPDDM`, `KSPCreate()`, `KSPType`, `KSPHPDDMSetDeflationMat()`
+.seealso: [](ch_ksp), `KSPHPDDM`, `KSPCreate()`, `KSPType`, `KSPHPDDMSetDeflationMat()`
 @*/
 PetscErrorCode KSPHPDDMGetDeflationMat(KSP ksp, Mat *U)
 {
@@ -560,7 +560,7 @@ static PetscErrorCode KSPMatSolve_HPDDM(KSP ksp, Mat B, Mat X)
 .ve
     the recycled space is reused in the second `KSPSolve()`.
 
-.seealso: [](chapter_ksp), `KSPCreate()`, `KSPType`, `KSPHPDDMType`, `KSPHPDDMGetType()`
+.seealso: [](ch_ksp), `KSPCreate()`, `KSPType`, `KSPHPDDMType`, `KSPHPDDMGetType()`
 @*/
 PetscErrorCode KSPHPDDMSetType(KSP ksp, KSPHPDDMType type)
 {
@@ -582,7 +582,7 @@ PetscErrorCode KSPHPDDMSetType(KSP ksp, KSPHPDDMType type)
 
    Level: intermediate
 
-.seealso: [](chapter_ksp), `KSPCreate()`, `KSPType`, `KSPHPDDMType`, `KSPHPDDMSetType()`
+.seealso: [](ch_ksp), `KSPCreate()`, `KSPType`, `KSPHPDDMType`, `KSPHPDDMSetType()`
 @*/
 PetscErrorCode KSPHPDDMGetType(KSP ksp, KSPHPDDMType *type)
 {
@@ -657,7 +657,7 @@ static PetscErrorCode KSPHPDDMGetType_HPDDM(KSP ksp, KSPHPDDMType *type)
 -   2021 - KSPHPDDM and PCHPDDM: extending PETSc with advanced Krylov methods and robust multilevel overlapping Schwarz preconditioners. Jolivet, Roman, and Zampini.
            Computer & Mathematics with Applications.
 
-.seealso: [](chapter_ksp), [](sec_flexibleksp), `KSPCreate()`, `KSPSetType()`, `KSPType`, `KSP`, `KSPGMRES`, `KSPCG`, `KSPLGMRES`, `KSPDGMRES`
+.seealso: [](ch_ksp), [](sec_flexibleksp), `KSPCreate()`, `KSPSetType()`, `KSPType`, `KSP`, `KSPGMRES`, `KSPCG`, `KSPLGMRES`, `KSPDGMRES`
 M*/
 
 PETSC_EXTERN PetscErrorCode KSPCreate_HPDDM(KSP ksp)
