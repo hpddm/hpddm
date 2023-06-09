@@ -1099,9 +1099,8 @@ class Schwarz : public Preconditioner<
                     PetscCall(ISGlobalToLocalMappingApplyIS(l2g, IS_GTOLM_DROP, is, &sub[0]));
                     PetscCall(ISDestroy(&is));
                     PetscCall(MatCreateSubMatrices(weighted, 1, sub, sub, MAT_INITIAL_MATRIX, &resized));
-                    if(!rhs) {
+                    if(!rhs)
                         PetscCall(MatDestroy(&weighted));
-                    }
                     PetscCall(MatISGetLocalMat(N, &local));
                     PetscCall(PetscObjectTypeCompare((PetscObject)local, MATSEQSBAIJ, &flg));
                     if(flg) {
@@ -1317,7 +1316,7 @@ class Schwarz : public Preconditioner<
                 }
             }
             else
-                ierr = PetscErrorCode(0);
+                ierr = PetscErrorCode(PETSC_SUCCESS);
             fail[0] = (ierr == PETSC_ERR_ARG_WRONG ? 1 : 0);
             MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
             if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */

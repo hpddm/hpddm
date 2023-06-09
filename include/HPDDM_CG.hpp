@@ -205,7 +205,8 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
 #endif
     const int n = excluded ? 0 : A.getDof();
     const int dim = n * mu;
-    K* const trash = new K[4 * (dim + mu * mu)];
+    const unsigned int size = 4 * (dim + mu * mu);
+    K* const trash = new K[size];
     K* const p = trash + dim;
     K* const z = p + dim;
     K* const r = z + dim;
