@@ -721,7 +721,7 @@ class IterativeMethod {
         template<bool excluded, class K>
         static void Arnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscLogEventBegin(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr);
+            PetscCallContinue(PetscLogEventBegin(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
             orthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, d, work, comm);
             if(excluded)
@@ -762,7 +762,7 @@ class IterativeMethod {
             if(mu > 1)
                 Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscLogEventEnd(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr);
+            PetscCallContinue(PetscLogEventEnd(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
         }
         /* Function: BlockArnoldi
@@ -770,7 +770,7 @@ class IterativeMethod {
         template<bool excluded, class K>
         static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscLogEventBegin(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr);
+            PetscCallContinue(PetscLogEventBegin(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
             int ldh = (m + 1) * mu;
             blockOrthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, d, work, comm);
@@ -788,7 +788,7 @@ class IterativeMethod {
             Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
 #if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
-            PetscLogEventEnd(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr);
+            PetscCallContinue(PetscLogEventEnd(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
             return false;
         }
