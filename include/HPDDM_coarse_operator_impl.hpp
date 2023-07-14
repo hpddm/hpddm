@@ -844,16 +844,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             }
             PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
             PetscCall(MatPropagateSymmetryOptions(A, E));
-            PetscReal chop = -1.0;
-            PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_chop", &chop, nullptr));
-            if(chop >= 0.0) {
-                PetscCall(MatChop(E, chop));
-#if PETSC_VERSION_GE(3, 20, 0)
-                PetscCall(MatEliminateZeros(E, PETSC_TRUE));
-#else
-                PetscCall(MatEliminateZeros(E));
-#endif
-            }
+            PetscReal filter = -1.0;
+            PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
+            if(filter >= 0.0)
+                PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
             PetscCall(KSPSetOperators(v.level_->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
             PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
@@ -1317,16 +1311,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             }
             PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
             PetscCall(MatPropagateSymmetryOptions(A, E));
-            PetscReal chop = -1.0;
-            PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_chop", &chop, nullptr));
-            if(chop >= 0.0) {
-                PetscCall(MatChop(E, chop));
-#if PETSC_VERSION_GE(3, 20, 0)
-                PetscCall(MatEliminateZeros(E, PETSC_TRUE));
-#else
-                PetscCall(MatEliminateZeros(E));
-#endif
-            }
+            PetscReal filter = -1.0;
+            PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
+            if(filter >= 0.0)
+                PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
             PetscCall(KSPSetOperators(v.level_->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
             if(coarse) {
