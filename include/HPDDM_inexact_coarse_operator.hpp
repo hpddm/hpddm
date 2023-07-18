@@ -888,7 +888,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
             std::vector<std::pair<std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator, unsigned short>> rows;
             std::unordered_map<unsigned short, unsigned int> map;
-            std::vector<std::pair<int*, K*>>* recv;
+            std::vector<std::pair<int*, K*>>* recv = nullptr;
             std::vector<int> nnz;
             std::vector<std::pair<unsigned int, K*>>* oa = nullptr;
             if(in == this) {

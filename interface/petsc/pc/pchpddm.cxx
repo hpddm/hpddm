@@ -179,17 +179,20 @@ static PetscErrorCode PCHPDDMSetAuxiliaryMat_HPDDM(PC pc, IS is, Mat A, PetscErr
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-/*@
-     PCHPDDMSetAuxiliaryMat - Sets the auxiliary matrix used by `PCHPDDM` for the concurrent GenEO problems at the finest level. As an example, in a finite element context with nonoverlapping subdomains plus (overlapping) ghost elements, this could be the unassembled (Neumann) local overlapping operator. As opposed to the assembled (Dirichlet) local overlapping operator obtained by summing neighborhood contributions at the interface of ghost elements.
+/*@C
+  PCHPDDMSetAuxiliaryMat - Sets the auxiliary matrix used by `PCHPDDM` for the concurrent GenEO problems at the finest level. As an example, in a finite element context with nonoverlapping subdomains plus (overlapping) ghost elements, this could be the unassembled (Neumann) local overlapping operator. As opposed to the assembled (Dirichlet) local overlapping operator obtained by summing neighborhood contributions at the interface of ghost elements.
 
-   Input Parameters:
-+     pc - preconditioner context
-.     is - index set of the local auxiliary, e.g., Neumann, matrix
-.     A - auxiliary sequential matrix
-.     setup - function for generating the auxiliary matrix
--     setup_ctx - context for setup
+  Input Parameters:
++ pc        - preconditioner context
+. is        - index set of the local auxiliary, e.g., Neumann, matrix
+. A         - auxiliary sequential matrix
+. setup     - function for generating the auxiliary matrix, may be `NULL`
+- setup_ctx - context for setup, may be `NULL`
 
-   Level: intermediate
+  Level: intermediate
+
+  Fortran Notes:
+  Only `PETSC_NULL_FUNCTION` is supported for `setup` and `setup_ctx` is never accessed
 
 .seealso: `PCHPDDM`, `PCCreate()`, `PCSetType()`, `PCType`, `PC`, `PCHPDDMSetRHSMat()`, `MATIS`
 @*/
@@ -199,10 +202,6 @@ PetscErrorCode PCHPDDMSetAuxiliaryMat(PC pc, IS is, Mat A, PetscErrorCode (*setu
   PetscValidHeaderSpecific(pc, PC_CLASSID, 1);
   if (is) PetscValidHeaderSpecific(is, IS_CLASSID, 2);
   if (A) PetscValidHeaderSpecific(A, MAT_CLASSID, 3);
-#if PetscDefined(USE_FORTRAN_BINDINGS)
-  if (reinterpret_cast<void *>(setup) == reinterpret_cast<void *>(PETSC_NULL_FUNCTION_Fortran)) setup = nullptr;
-  if (setup_ctx == PETSC_NULL_INTEGER_Fortran) setup_ctx = nullptr;
-#endif
   PetscTryMethod(pc, "PCHPDDMSetAuxiliaryMat_C", (PC, IS, Mat, PetscErrorCode(*)(Mat, PetscReal, Vec, Vec, PetscReal, IS, void *), void *), (pc, is, A, setup, setup_ctx));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -217,18 +216,18 @@ static PetscErrorCode PCHPDDMHasNeumannMat_HPDDM(PC pc, PetscBool has)
 }
 
 /*@
-     PCHPDDMHasNeumannMat - Informs `PCHPDDM` that the `Mat` passed to `PCHPDDMSetAuxiliaryMat()` is the local Neumann matrix.
+  PCHPDDMHasNeumannMat - Informs `PCHPDDM` that the `Mat` passed to `PCHPDDMSetAuxiliaryMat()` is the local Neumann matrix.
 
-   Input Parameters:
-+     pc - preconditioner context
--     has - Boolean value
+  Input Parameters:
++ pc  - preconditioner context
+- has - Boolean value
 
-   Level: intermediate
+  Level: intermediate
 
-   Notes:
-   This may be used to bypass a call to `MatCreateSubMatrices()` and to `MatConvert()` for `MATSBAIJ` matrices.
+  Notes:
+  This may be used to bypass a call to `MatCreateSubMatrices()` and to `MatConvert()` for `MATSBAIJ` matrices.
 
-   If a `DMCreateNeumannOverlap()` implementation is available in the `DM` attached to the Pmat, or the Amat, or the `PC`, the flag is internally set to `PETSC_TRUE`. Its default value is otherwise `PETSC_FALSE`.
+  If a `DMCreateNeumannOverlap()` implementation is available in the `DM` attached to the Pmat, or the Amat, or the `PC`, the flag is internally set to `PETSC_TRUE`. Its default value is otherwise `PETSC_FALSE`.
 
 .seealso: `PCHPDDM`, `PCHPDDMSetAuxiliaryMat()`
 @*/
@@ -252,13 +251,13 @@ static PetscErrorCode PCHPDDMSetRHSMat_HPDDM(PC pc, Mat B)
 }
 
 /*@
-     PCHPDDMSetRHSMat - Sets the right-hand side matrix used by `PCHPDDM` for the concurrent GenEO problems at the finest level. Must be used in conjunction with `PCHPDDMSetAuxiliaryMat`(N), so that Nv = lambda Bv is solved using `EPSSetOperators`(N, B). It is assumed that N and B are provided using the same numbering. This provides a means to try more advanced methods such as GenEO-II or H-GenEO.
+  PCHPDDMSetRHSMat - Sets the right-hand side matrix used by `PCHPDDM` for the concurrent GenEO problems at the finest level. Must be used in conjunction with `PCHPDDMSetAuxiliaryMat`(N), so that Nv = lambda Bv is solved using `EPSSetOperators`(N, B). It is assumed that N and B are provided using the same numbering. This provides a means to try more advanced methods such as GenEO-II or H-GenEO.
 
-   Input Parameters:
-+     pc - preconditioner context
--     B - right-hand side sequential matrix
+  Input Parameters:
++ pc - preconditioner context
+- B  - right-hand side sequential matrix
 
-   Level: advanced
+  Level: advanced
 
 .seealso: `PCHPDDMSetAuxiliaryMat()`, `PCHPDDM`
 @*/
@@ -1638,18 +1637,18 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
 }
 
 /*@
-     PCHPDDMSetCoarseCorrectionType - Sets the coarse correction type.
+  PCHPDDMSetCoarseCorrectionType - Sets the coarse correction type.
 
-   Collective
+  Collective
 
-   Input Parameters:
-+     pc - preconditioner context
--     type - `PC_HPDDM_COARSE_CORRECTION_DEFLATED`, `PC_HPDDM_COARSE_CORRECTION_ADDITIVE`, or `PC_HPDDM_COARSE_CORRECTION_BALANCED`
+  Input Parameters:
++ pc   - preconditioner context
+- type - `PC_HPDDM_COARSE_CORRECTION_DEFLATED`, `PC_HPDDM_COARSE_CORRECTION_ADDITIVE`, or `PC_HPDDM_COARSE_CORRECTION_BALANCED`
 
-   Options Database Key:
-.   -pc_hpddm_coarse_correction <deflated, additive, balanced> - type of coarse correction to apply
+  Options Database Key:
+. -pc_hpddm_coarse_correction <deflated, additive, balanced> - type of coarse correction to apply
 
-   Level: intermediate
+  Level: intermediate
 
 .seealso: `PCHPDDMGetCoarseCorrectionType()`, `PCHPDDM`, `PCHPDDMCoarseCorrectionType`
 @*/
@@ -1663,15 +1662,15 @@ PetscErrorCode PCHPDDMSetCoarseCorrectionType(PC pc, PCHPDDMCoarseCorrectionType
 }
 
 /*@
-     PCHPDDMGetCoarseCorrectionType - Gets the coarse correction type.
+  PCHPDDMGetCoarseCorrectionType - Gets the coarse correction type.
 
-   Input Parameter:
-.     pc - preconditioner context
+  Input Parameter:
+. pc - preconditioner context
 
-   Output Parameter:
-.     type - `PC_HPDDM_COARSE_CORRECTION_DEFLATED`, `PC_HPDDM_COARSE_CORRECTION_ADDITIVE`, or `PC_HPDDM_COARSE_CORRECTION_BALANCED`
+  Output Parameter:
+. type - `PC_HPDDM_COARSE_CORRECTION_DEFLATED`, `PC_HPDDM_COARSE_CORRECTION_ADDITIVE`, or `PC_HPDDM_COARSE_CORRECTION_BALANCED`
 
-   Level: intermediate
+  Level: intermediate
 
 .seealso: `PCHPDDMSetCoarseCorrectionType()`, `PCHPDDM`, `PCHPDDMCoarseCorrectionType`
 @*/
@@ -1706,17 +1705,17 @@ static PetscErrorCode PCHPDDMGetCoarseCorrectionType_HPDDM(PC pc, PCHPDDMCoarseC
 }
 
 /*@
-     PCHPDDMSetSTShareSubKSP - Sets whether the `KSP` in SLEPc `ST` and the fine-level subdomain solver should be shared.
+  PCHPDDMSetSTShareSubKSP - Sets whether the `KSP` in SLEPc `ST` and the fine-level subdomain solver should be shared.
 
-   Input Parameters:
-+     pc - preconditioner context
--     share - whether the `KSP` should be shared or not
+  Input Parameters:
++ pc    - preconditioner context
+- share - whether the `KSP` should be shared or not
 
-   Note:
-     This is not the same as `PCSetReusePreconditioner()`. Given certain conditions (visible using -info), a symbolic factorization can be skipped
-     when using a subdomain `PCType` such as `PCLU` or `PCCHOLESKY`.
+  Note:
+  This is not the same as `PCSetReusePreconditioner()`. Given certain conditions (visible using -info), a symbolic factorization can be skipped
+  when using a subdomain `PCType` such as `PCLU` or `PCCHOLESKY`.
 
-   Level: advanced
+  Level: advanced
 
 .seealso: `PCHPDDM`, `PCHPDDMGetSTShareSubKSP()`
 @*/
@@ -1729,19 +1728,19 @@ PetscErrorCode PCHPDDMSetSTShareSubKSP(PC pc, PetscBool share)
 }
 
 /*@
-     PCHPDDMGetSTShareSubKSP - Gets whether the `KSP` in SLEPc `ST` and the fine-level subdomain solver is shared.
+  PCHPDDMGetSTShareSubKSP - Gets whether the `KSP` in SLEPc `ST` and the fine-level subdomain solver is shared.
 
-   Input Parameter:
-.     pc - preconditioner context
+  Input Parameter:
+. pc - preconditioner context
 
-   Output Parameter:
-.     share - whether the `KSP` is shared or not
+  Output Parameter:
+. share - whether the `KSP` is shared or not
 
-   Note:
-     This is not the same as `PCGetReusePreconditioner()`. The return value is unlikely to be true, but when it is, a symbolic factorization can be skipped
-     when using a subdomain `PCType` such as `PCLU` or `PCCHOLESKY`.
+  Note:
+  This is not the same as `PCGetReusePreconditioner()`. The return value is unlikely to be true, but when it is, a symbolic factorization can be skipped
+  when using a subdomain `PCType` such as `PCLU` or `PCCHOLESKY`.
 
-   Level: advanced
+  Level: advanced
 
 .seealso: `PCHPDDM`, `PCHPDDMSetSTShareSubKSP()`
 @*/
@@ -1750,7 +1749,7 @@ PetscErrorCode PCHPDDMGetSTShareSubKSP(PC pc, PetscBool *share)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc, PC_CLASSID, 1);
   if (share) {
-    PetscValidBoolPointer(share, 2);
+    PetscAssertPointer(share, 2);
     PetscUseMethod(pc, "PCHPDDMGetSTShareSubKSP_C", (PC, PetscBool *), (pc, share));
   }
   PetscFunctionReturn(PETSC_SUCCESS);
@@ -1775,14 +1774,14 @@ static PetscErrorCode PCHPDDMGetSTShareSubKSP_HPDDM(PC pc, PetscBool *share)
 }
 
 /*@
-     PCHPDDMSetDeflationMat - Sets the deflation space used to assemble a coarser operator.
+  PCHPDDMSetDeflationMat - Sets the deflation space used to assemble a coarser operator.
 
-   Input Parameters:
-+     pc - preconditioner context
-.     is - index set of the local deflation matrix
--     U - deflation sequential matrix stored as a `MATSEQDENSE`
+  Input Parameters:
++ pc - preconditioner context
+. is - index set of the local deflation matrix
+- U  - deflation sequential matrix stored as a `MATSEQDENSE`
 
-   Level: advanced
+  Level: advanced
 
 .seealso: `PCHPDDM`, `PCDeflationSetSpace()`, `PCMGSetRestriction()`
 @*/
@@ -1809,7 +1808,7 @@ PetscErrorCode HPDDMLoadDL_Private(PetscBool *found)
   char      lib[PETSC_MAX_PATH_LEN], dlib[PETSC_MAX_PATH_LEN], dir[PETSC_MAX_PATH_LEN];
 
   PetscFunctionBegin;
-  PetscValidBoolPointer(found, 1);
+  PetscAssertPointer(found, 1);
   PetscCall(PetscStrncpy(dir, "${PETSC_LIB_DIR}", sizeof(dir)));
   PetscCall(PetscOptionsGetString(nullptr, nullptr, "-hpddm_dir", dir, sizeof(dir), nullptr));
   PetscCall(PetscSNPrintf(lib, sizeof(lib), "%s/libhpddm_petsc", dir));
@@ -1942,9 +1941,9 @@ PETSC_EXTERN PetscErrorCode PCCreate_HPDDM(PC pc)
 }
 
 /*@C
-     PCHPDDMInitializePackage - This function initializes everything in the `PCHPDDM` package. It is called from `PCInitializePackage()`.
+  PCHPDDMInitializePackage - This function initializes everything in the `PCHPDDM` package. It is called from `PCInitializePackage()`.
 
-   Level: developer
+  Level: developer
 
 .seealso: `PetscInitialize()`
 @*/
@@ -1985,9 +1984,9 @@ PetscErrorCode PCHPDDMInitializePackage(void)
 }
 
 /*@C
-     PCHPDDMFinalizePackage - This function frees everything from the `PCHPDDM` package. It is called from `PetscFinalize()`.
+  PCHPDDMFinalizePackage - This function frees everything from the `PCHPDDM` package. It is called from `PetscFinalize()`.
 
-   Level: developer
+  Level: developer
 
 .seealso: `PetscFinalize()`
 @*/
