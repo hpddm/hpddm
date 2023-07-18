@@ -491,7 +491,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     unsigned int*    offsetIdx = nullptr;
     unsigned short*  infoWorld = nullptr;
 #if HPDDM_INEXACT_COARSE_OPERATOR
-    unsigned short*  neighbors;
+    unsigned short*  neighbors = nullptr;
 #endif
 #ifdef HPDDM_CSR_CO
     unsigned int nrow = 0;
