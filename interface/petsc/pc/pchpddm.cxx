@@ -1680,7 +1680,7 @@ PetscErrorCode PCHPDDMGetCoarseCorrectionType(PC pc, PCHPDDMCoarseCorrectionType
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc, PC_CLASSID, 1);
   if (type) {
-    PetscValidPointer(type, 2);
+    PetscAssertPointer(type, 2);
     PetscUseMethod(pc, "PCHPDDMGetCoarseCorrectionType_C", (PC, PCHPDDMCoarseCorrectionType *), (pc, type));
   }
   PetscFunctionReturn(PETSC_SUCCESS);
