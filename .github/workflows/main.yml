@@ -58,17 +58,17 @@ jobs:
         key: dependencies-v0
     - name: Install dependencies
       env:
-        PKGS: "clang ibverbs-providers lcov libarpack2 libarpack2-dev libcaf-openmpi-3        \
+        PKGS: "clang-15 ibverbs-providers lcov libarpack2 libarpack2-dev libcaf-openmpi-3     \
                libcoarrays-dev libcoarrays-openmpi-dev libcombblas1.16.0 libevent-2.1-7       \
                libevent-dev libevent-extra-2.1-7 libevent-openssl-2.1-7 libfabric1            \
                libgd-perl libhwloc-dev libhwloc-plugins libhwloc15 libhypre-2.22.1            \
                libhypre-dev libibverbs-dev libibverbs1 libjs-jquery-ui libmetis-dev           \
                libmetis5 libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev          \
-               libomp-14-dev libomp-dev libomp5-14 libopenmpi-dev libopenmpi3                 \
+               libllvm15 libclang-cpp15 libomp-15-dev libomp5-15 libopenmpi-dev libopenmpi3   \
                libparmetis-dev libparmetis4.0 libpciaccess0 libperlio-gzip-perl libpmix-dev   \
                libpmix2 libpsm-infinipath1 libpsm2-2 libptscotch-6.1 librdmacm1               \
-               libscalapack-mpi-dev libscalapack-openmpi-dev libscalapack-openmpi2.1          \
-               libsuperlu-dev libsuperlu-dist7 libsuperlu5 libucx0 libxnvctrl0                \
+               libscalapack-mpi-dev libscalapack-openmpi-dev libscalapack-openmpi2.1 libucx0  \
+               libsuperlu-dev libsuperlu-dist7 libsuperlu5 libxnvctrl0 libclang-common-15-dev \
                mpi-default-bin mpi-default-dev ocl-icd-libopencl1 openmpi-bin openmpi-common"
       run: |
         if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
@@ -78,8 +78,6 @@ jobs:
           rm -rf ~/.cache/lib
           sudo cp --force --recursive ~/.cache/* /
           sudo update-alternatives --install /usr/lib/x86_64-linux-gnu/libpsm_infinipath.so.1 libpsm_infinipath.so.1 /usr/lib/libpsm1/libpsm_infinipath.so.1.16 0
-          sudo mkdir -p /usr/include/clang/14.0.0
-          sudo ln -s /usr/include/clang/14.0.0/../../../lib/llvm-14/lib/clang/14.0.0/include /usr/include/clang/14.0.0/include
           sudo mkdir -p /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/
           sudo ln -s /usr/lib/x86_64-linux-gnu/openmpi/lib/ /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/gfortran
         else
@@ -98,14 +96,14 @@ jobs:
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 0
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 0
         sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-12 0
-        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-14/bin/clang++ 0
-        sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-14/bin/clang 0
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-15/bin/clang++ 0
+        sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-15/bin/clang 0
         sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-12 0
         sudo update-alternatives --set g++ /usr/bin/g++-12
         sudo update-alternatives --set gcc /usr/bin/gcc-12
         sudo update-alternatives --set gcov /usr/bin/gcov-12
-        sudo update-alternatives --set clang++ /usr/lib/llvm-14/bin/clang++
-        sudo update-alternatives --set clang /usr/lib/llvm-14/bin/clang
+        sudo update-alternatives --set clang++ /usr/lib/llvm-15/bin/clang++
+        sudo update-alternatives --set clang /usr/lib/llvm-15/bin/clang
         sudo update-alternatives --set gfortran /usr/bin/gfortran-12
         if [ "${{ matrix.compiler }}" = "clang" ]; then
           echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
@@ -217,7 +215,7 @@ jobs:
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"
                 fi
               fi
-              ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --with-x=0 --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
+              ./configure --with-x=0 --with-fortran-bindings=0 --with-cc=mpicc.openmpi --with-cxx=mpicxx.openmpi --with-fc=mpif90.openmpi --with-mpiexec=mpirun.openmpi --download-slepc --download-hpddm=../${REPOSITORY_NAME} --download-hpddm-commit=HEAD 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' --with-64-bit-indices=${INT64} --with-scalar-type=${TYPE} --with-precision=${PRECISION} ${EXTERNALPACKAGES} || (cat ${PETSC_ARCH}/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
               if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ] && [ "${{ matrix.compiler }}" = "gcc" ]; then
