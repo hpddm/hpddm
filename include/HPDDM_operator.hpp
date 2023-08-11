@@ -802,7 +802,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
             else {
                 PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &Z));
                 PetscScalar* array;
-                PetscCallVoid(MatDenseGetArray(Z, &array));
+                PetscCallVoid(MatDenseGetArrayWrite(Z, &array));
                 for(PetscInt i = 0, k = 0; i < super::n_; ++i) {
                     if(HPDDM::abs(super::D_[i]) > HPDDM_EPS) {
                         for(unsigned short j = 0; j < super::local_; ++j)
@@ -811,14 +811,14 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                     }
 
                 }
-                PetscCallVoid(MatDenseRestoreArray(Z, &array));
+                PetscCallVoid(MatDenseRestoreArrayWrite(Z, &array));
                 PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &P));
             }
             PetscCallVoid(MatMatMult(super::A_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
             PetscCallVoid(MatDestroy(&Z));
             if(n != super::n_) {
-                PetscScalar* array;
-                PetscCallVoid(MatDenseGetArray(P, &array));
+                const PetscScalar* array;
+                PetscCallVoid(MatDenseGetArrayRead(P, &array));
                 std::fill_n(super::work_, super::local_ * super::n_, K());
                 for(PetscInt i = 0, k = 0; i < super::n_; ++i) {
                     if(HPDDM::abs(super::D_[i]) > HPDDM_EPS) {
@@ -828,7 +828,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                     }
 
                 }
-                PetscCallVoid(MatDenseRestoreArray(P, &array));
+                PetscCallVoid(MatDenseRestoreArrayRead(P, &array));
             }
             PetscCallVoid(MatDestroy(&P));
 #endif

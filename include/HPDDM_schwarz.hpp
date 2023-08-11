@@ -1226,7 +1226,10 @@ class Schwarz : public Preconditioner<
                         }
                         ++i;
                     }
-                    levels[0]->nu = i;
+                    if(i == levels[0]->nu)
+                        PetscCall(PetscInfo(eps, "HPDDM: Not enough computed eigenpairs to satisfy the threshold criterion\n"));
+                    else
+                        levels[0]->nu = i;
                 }
                 PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv));
             }
@@ -1301,6 +1304,10 @@ class Schwarz : public Preconditioner<
             PetscErrorCode ierr;
 
             PetscFunctionBeginUser;
+            if (A && *A) PetscValidHeaderSpecific(*A, MAT_CLASSID, 1);
+            if (N && *N) PetscValidHeaderSpecific(*N, MAT_CLASSID, 2);
+            PetscAssertPointer(n, 4);
+            PetscAssertPointer(levels, 5);
 #if defined(PETSC_USE_LOG)
             if(!levels[0]->parent->log_separate)
                 PetscCall(PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, nullptr, nullptr, nullptr));
@@ -1318,7 +1325,7 @@ class Schwarz : public Preconditioner<
             else
                 ierr = PetscErrorCode(PETSC_SUCCESS);
             fail[0] = (ierr == PETSC_ERR_ARG_WRONG ? 1 : 0);
-            MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp)));
+            PetscCallMPI(MPI_Allreduce(MPI_IN_PLACE, fail, 2, MPI_CHAR, MPI_MAX, PetscObjectComm((PetscObject)(levels[0]->ksp))));
             if(fail[0]) { /* building level i + 1 failed because there was no deflation vector */
                 *n = i;
                 if(i > 1 && N)
@@ -1353,7 +1360,7 @@ class Schwarz : public Preconditioner<
                         PetscInt         m;
                         std::vector<Vec> initial;
                         delete levels[i]->P;
-                        levels[i]->P = new HPDDM::Schwarz<PetscScalar>();
+                        levels[i]->P = new Schwarz<PetscScalar>();
                         PetscCall(ISCreateStride(PETSC_COMM_SELF, rend - rstart, rstart, 1, &uis));
                         PetscCall(ISDuplicate(uis, &loc));
                         PetscCall(MatIncreaseOverlap(P, 1, &uis, 1));
