@@ -753,7 +753,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                     for(unsigned short k = 0; k < info[0]; ++k) {
                         int index;
                         MPI_Waitany(info[0], rqRecv, &index, MPI_STATUS_IGNORE);
-                        v.template assembleForMain<!blocked ? S : 'B', U == 1>(C + offsetArray[index], recvNeighbor[index], coefficients + (S == 'S' && !blocked ? local_ - 1 : 0), index + first, blocked && super::numbering_ == 'F' ? C + offsetArray[index] * local_ : work, infoNeighbor + first + index);
+                        v.template assembleForMain<!blocked ? S : 'B', U == 1>(C + offsetArray[index], recvNeighbor[index], coefficients + (S == 'S' && !blocked ? local_ - 1 : 0), index + first, blocked && super::numbering_ == 'F' ? C + offsetArray[index] * local_ : work, !U ? infoNeighbor + first + index : nullptr);
                         if(blocked && super::numbering_ == 'C')
                             Wrapper<K>::template omatcopy<'T'>(local_, local_, work, local_, C + offsetArray[index] * local_, local_);
                     }

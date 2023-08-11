@@ -41,6 +41,14 @@ struct _n_Aux {
     IS  is;
 };
 static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
+typedef struct _n_Sum *Sum;
+struct _n_Sum {
+    Mat                       A[3];
+    void*                     decomposition;
+    std::set<unsigned short>* work;
+    char                      status;
+};
+static PetscErrorCode MatMult_Sum(Mat, Vec, Vec);
 # endif
 # if defined(PETSC_HAVE_HTOOL) && HPDDM_SLEPC
 #  include <petscmathtool.h>
@@ -998,18 +1006,20 @@ class Schwarz : public Preconditioner<
 #if HPDDM_SLEPC
     public:
         typename super::co_type::return_type buildTwo(const MPI_Comm& comm, Mat D, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels) {
-#if defined(PETSC_HAVE_HTOOL)
-            Mat            A;
-            PetscBool      flg;
-#endif
+            Mat       A;
+            PetscBool flg;
 
             PetscFunctionBeginUser;
-#if defined(PETSC_HAVE_HTOOL)
             PetscCall(KSPGetOperators(levels[n]->ksp, nullptr, &A));
+#if defined(PETSC_HAVE_HTOOL)
             PetscCall(PetscObjectTypeCompare((PetscObject)A, MATHTOOL, &flg));
             if(!flg) {
 #endif
-                PetscCall(super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels));
+                PetscCall(PetscObjectTypeCompare((PetscObject)A, MATSCHURCOMPLEMENT, &flg));
+                if (!flg)
+                    PetscCall(super::template buildTwo<false, MatrixMultiplication<Schwarz<K>, K>>(this, comm, D, n, M, levels));
+                else
+                    PetscCall(super::template buildTwo<false, BddProjection<Schwarz<K>, K>>(this, comm, D, n, M, levels));
 #if defined(PETSC_HAVE_HTOOL)
             }
             else {
@@ -1038,7 +1048,7 @@ class Schwarz : public Preconditioner<
         PetscErrorCode solveGEVP(IS is, Mat N, std::vector<Vec> initial, PC_HPDDM_Level** const levels, Mat weighted, Mat rhs) {
             EPS                    eps;
             ST                     st;
-            KSP                    empty = nullptr;
+            KSP                    empty = nullptr, *ksp;
             Mat                    local, *resized;
             Vec                    vr, vreduced;
             ISLocalToGlobalMapping l2g;
@@ -1047,6 +1057,7 @@ class Schwarz : public Preconditioner<
             PetscBool              flg, ismatis, solve = PETSC_FALSE;
             const char             *prefix;
             Aux                    aux = nullptr;
+            Sum                    ctx = nullptr;
 
             PetscFunctionBeginUser;
             if(!levels[0]->parent->deflation) {
@@ -1092,7 +1103,8 @@ class Schwarz : public Preconditioner<
                         PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
                         PetscCall(SVDDestroy(&svd));
                     }
-                    PetscCall(EPSSetOperators(eps, N, weighted));
+                    if(weighted)
+                        PetscCall(EPSSetOperators(eps, N, weighted));
                 }
                 else {
                     PetscCall(MatISGetLocalToGlobalMapping(N, &l2g, nullptr));
@@ -1127,76 +1139,106 @@ class Schwarz : public Preconditioner<
                 std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
                 std::vector<Vec>().swap(initial);
                 PetscCall(EPSSetFromOptions(eps));
-                if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
-                    KSP *ksp;
+                if(weighted || ismatis) {
+                    if(levels == levels[0]->parent->levels && levels[0]->parent->share) {
+                        PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
+                        PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, nullptr, nullptr, &ksp));
+                        PetscCall(STGetKSP(st, &empty));
+                        PetscCall(PetscObjectReference((PetscObject)empty));
+                        PetscCall(STSetKSP(st, ksp[0]));
+                    }
+                    if(levels[0]->threshold >= 0.0) {
+                        flg = PETSC_FALSE;
+                        PetscCall(PetscOptionsGetBool(nullptr, prefix, "-eps_use_inertia", &flg, nullptr));
+                        if(flg) {
+                            KSP           ksp;
+                            PC            pc;
+                            Mat           F;
+                            MatSolverType type;
+                            PetscScalar   target;
+                            PetscInt      val;
+                            PetscCall(EPSGetTarget(eps, &target));
+                            PetscCall(EPSSetTarget(eps, levels[0]->threshold));
+                            PetscCall(STGetOperator(st, nullptr));
+                            PetscCall(STGetKSP(st, &ksp));
+                            PetscCall(KSPGetPC(ksp, &pc));
+                            PetscCall(PCSetFromOptions(pc));
+                            PetscCall(PetscObjectTypeCompareAny((PetscObject)pc, &flg, PCLU, PCCHOLESKY, nullptr));
+                            PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_use_inertia without PCLU or PCCHOLESKY", prefix);
+                            if(PetscDefined(HAVE_MUMPS)) {
+                                PetscCall(PCFactorGetMatSolverType(pc, &type));
+                                if(!type) {
+                                    PetscCall(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
+                                    PetscCall(PCSetFromOptions(pc));
+                                }
+                                else
+                                    PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
+                            }
+#if PetscDefined(HAVE_MUMPS)
+                            if(flg) {
+                                PetscCall(PCFactorGetMatrix(pc, &F));
+                                PetscCall(MatMumpsGetIcntl(F, 13, &val));
+                                PetscCall(MatMumpsSetIcntl(F, 13, 1));
+                                PetscCall(PCSetUp(pc));
+                                PetscCall(PCFactorGetMatrix(pc, &F));
+                                PetscCall(MatMumpsSetIcntl(F, 13, val));
+                                PetscCall(MatMumpsGetInfog(F, 12, &val));
+                            }
+                            else
+#endif
+                            {
+                                PetscCall(PCSetUp(pc));
+                                PetscCall(PCFactorGetMatrix(pc, &F));
+                                PetscCall(MatGetInertia(F, &val, nullptr, nullptr));
+                            }
+                            if(val > 0) {
+                                PetscCall(EPSSetDimensions(eps, val, PETSC_DEFAULT, PETSC_DEFAULT));
+                                PetscCall(EPSSetTarget(eps, target));
+                            }
+                            else {
+                                solve = PETSC_FALSE;
+                                nconv = 0;
+                            }
+                        }
+                    }
+                }
+                else {
+                    PetscScalar target;
                     PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
                     PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, nullptr, nullptr, &ksp));
+                    PetscCall(PetscNew(&ctx));
+                    PetscCall(KSPGetOperators(ksp[0], ctx->A, nullptr));
+                    ctx->A[1] = ctx->A[2] = nullptr;
+                    ctx->decomposition = this;
+                    ctx->work = new std::set<unsigned short>();
+                    for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                        ctx->work->insert(i);
+                    ctx->status = 'a';
+                    PetscCall(MatCreateShell(PETSC_COMM_SELF, Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_, ctx, &weighted));
+                    PetscCall(MatShellSetOperation(weighted, MATOP_MULT, (void (*)(void))MatMult_Sum));
+                    Subdomain<K>::setBuffer();
+                    PetscCall(EPSSetOperators(eps, ctx->A[0], weighted));
+                    PetscCall(EPSGetTarget(eps, &target));
+                    PetscCheck(PetscAbsScalar(target) < PETSC_MACHINE_EPSILON, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_target with a magnitude %g (!= 0.0)", prefix, double(PetscAbsScalar(target)));
                     PetscCall(STGetKSP(st, &empty));
                     PetscCall(PetscObjectReference((PetscObject)empty));
                     PetscCall(STSetKSP(st, ksp[0]));
                 }
-                if(levels[0]->threshold >= 0.0) {
-                    flg = PETSC_FALSE;
-                    PetscCall(PetscOptionsGetBool(nullptr, prefix, "-eps_use_inertia", &flg, nullptr));
-                    if(flg) {
-                        KSP           ksp;
-                        PC            pc;
-                        Mat           F;
-                        MatSolverType type;
-                        PetscScalar   target;
-                        PetscInt      val;
-                        PetscCall(EPSGetTarget(eps, &target));
-                        PetscCall(EPSSetTarget(eps, levels[0]->threshold));
-                        PetscCall(STGetOperator(st, nullptr));
-                        PetscCall(STGetKSP(st, &ksp));
-                        PetscCall(KSPGetPC(ksp, &pc));
-                        PetscCall(PCSetFromOptions(pc));
-                        PetscCall(PetscObjectTypeCompareAny((PetscObject)pc, &flg, PCLU, PCCHOLESKY, nullptr));
-                        PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_use_inertia without PCLU or PCCHOLESKY", prefix);
-                        if(PetscDefined(HAVE_MUMPS)) {
-                            PetscCall(PCFactorGetMatSolverType(pc, &type));
-                            if(!type) {
-                                PetscCall(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
-                                PetscCall(PCSetFromOptions(pc));
-                            }
-                            else
-                                PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
-                        }
-#if PetscDefined(HAVE_MUMPS)
-                        if(flg) {
-                            PetscCall(PCFactorGetMatrix(pc, &F));
-                            PetscCall(MatMumpsGetIcntl(F, 13, &val));
-                            PetscCall(MatMumpsSetIcntl(F, 13, 1));
-                            PetscCall(PCSetUp(pc));
-                            PetscCall(PCFactorGetMatrix(pc, &F));
-                            PetscCall(MatMumpsSetIcntl(F, 13, val));
-                            PetscCall(MatMumpsGetInfog(F, 12, &val));
-                        }
-                        else
-#endif
-                        {
-                            PetscCall(PCSetUp(pc));
-                            PetscCall(PCFactorGetMatrix(pc, &F));
-                            PetscCall(MatGetInertia(F, &val, nullptr, nullptr));
-                        }
-                        if(val > 0) {
-                            PetscCall(EPSSetDimensions(eps, val, PETSC_DEFAULT, PETSC_DEFAULT));
-                            PetscCall(EPSSetTarget(eps, target));
-                        }
-                        else {
-                            solve = PETSC_FALSE;
-                            nconv = 0;
-                        }
-                    }
-                }
                 PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
                 if(solve) {
-                    MatStructure str;
-                    PetscCall(STGetMatStructure(st, &str));
-                    if(str != SAME_NONZERO_PATTERN)
-                        PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
+                    if(!ctx) {
+                        MatStructure str;
+                        PetscCall(STGetMatStructure(st, &str));
+                        if(str != SAME_NONZERO_PATTERN)
+                            PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
+                    }
                     PetscCall(EPSSolve(eps));
                     PetscCall(EPSGetConverged(eps, &nconv));
+                }
+                if(ctx) {
+                    ctx->status = 'b';
+                    while(!ctx->work->empty() || ctx->status != 'c')
+                        PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
                 }
                 levels[0]->nu = std::min(nconv, nev);
                 if(levels[0]->threshold >= 0.0) {
@@ -1248,6 +1290,11 @@ class Schwarz : public Preconditioner<
                 PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::dof_, levels[0]->nu ? super::ev_[0] : nullptr, &vr));
                 if(ismatis)
                     PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
+                else if(ctx) {
+                    for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                        ctx->work->insert(i);
+                    ctx->status = 'a';
+                }
                 for(PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
                     PetscCall(VecPlaceArray(vr, super::ev_[i]));
                     if(!ismatis)
@@ -1267,6 +1314,17 @@ class Schwarz : public Preconditioner<
                     else
                         flg = PETSC_FALSE;
 #endif
+                }
+                if(ctx) {
+                    ctx->status = 'b';
+                    while(!ctx->work->empty() || ctx->status != 'c')
+                        PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
+                    PetscCall(MatDestroy(&weighted));
+                    PetscCall(MatDestroy(ctx->A + 1));
+                    PetscCall(MatDestroy(ctx->A + 2));
+                    delete ctx->work;
+                    PetscCall(PetscFree(ctx));
+                    Subdomain<K>::clearBuffer(true);
                 }
                 PetscCall(VecDestroy(&vr));
                 if(empty) {
@@ -1535,6 +1593,116 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscCall(VecDestroy(&left));
     PetscCall(VecDestroy(&right));
     PetscCall(VecDestroy(&leftEcon));
+    PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
+    PetscScalar                 *out, *work, **buffer;
+    const PetscScalar           *in;
+    const PetscReal             *d;
+    PetscInt                    n;
+    Sum                         p;
+    HPDDM::Schwarz<PetscScalar> *decomposition;
+    HPDDM::vectorNeighbor       map;
+    MPI_Request*                rq;
+    MPI_Comm                    communicator;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatShellGetContext(A, &p));
+    decomposition = reinterpret_cast<HPDDM::Schwarz<PetscScalar>*>(p->decomposition);
+    buffer = decomposition->getBuffer();
+    d = decomposition->getScaling();
+    map = decomposition->getMap();
+    rq = decomposition->getRq();
+    communicator = decomposition->getCommunicator();
+    PetscCall(MatGetLocalSize(A, &n, nullptr));
+    if(p->status == 'a') {
+        PetscCall(VecGetArrayWrite(y, &out));
+        PetscCall(VecGetArrayRead(x, &in));
+        HPDDM::Wrapper<PetscScalar>::diag(n, d, in, out);
+        PetscCall(VecRestoreArrayRead(x, &in));
+    }
+    for(unsigned short i = 0, size = map.size(); i < size; ++i) {
+        if(p->work->find(i) != p->work->cend())
+            PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + i));
+        else
+            rq[i] = MPI_REQUEST_NULL;
+        if(p->status == 'a') {
+            HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), out, buffer[size + i], map[i].second.data());
+            PetscCallMPI(MPI_Isend(buffer[size + i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + size + i));
+        }
+        else if(p->status == 'b')
+            PetscCallMPI(MPI_Isend(buffer[size + i], 0, HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + size + i));
+    }
+    if(!p->work->empty() || p->status == 'a') {
+        PetscInt m = 0;
+        if(p->A[1])
+            PetscCall(MatGetLocalSize(p->A[1], nullptr, &m));
+        if(m != p->work->size() + (p->status == 'a')) {
+            PetscCall(MatDestroy(p->A + 1));
+            PetscCall(MatDestroy(p->A + 2));
+            PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, n, p->work->size() + (p->status == 'a'), nullptr, p->A + 1));
+            PetscCall(MatProductCreate(p->A[0], p->A[1], nullptr, p->A + 2));
+            PetscCall(MatProductSetType(p->A[2], MATPRODUCT_AB));
+            PetscCall(MatProductSetFromOptions(p->A[2]));
+            PetscCall(MatProductSymbolic(p->A[2]));
+        }
+        PetscCall(MatDenseGetArrayWrite(p->A[1], &work));
+    }
+    if(p->status == 'a') {
+        std::copy_n(out, n, work);
+        PetscCall(VecRestoreArrayWrite(y, &out));
+    }
+    for(unsigned short i = 0, size = map.size(); i < size; ++i) {
+        int index;
+        MPI_Status st;
+        PetscCallMPI(MPI_Waitany(map.size(), rq, &index, &st));
+        std::set<unsigned short>::const_iterator it = p->work->find(index);
+        if(it != p->work->cend()) {
+            int count;
+            PetscCallMPI(MPI_Get_count(&st, HPDDM::Wrapper<PetscScalar>::mpi_type(), &count));
+            if(count == 0)
+              p->work->erase(it);
+        }
+    }
+    if(!p->work->empty() || p->status == 'a') {
+        for(std::set<unsigned short>::const_iterator it = p->work->cbegin(); it != p->work->cend(); ++it)
+            HPDDM::Wrapper<PetscScalar>::sctr(map[*it].second.size(), buffer[*it], map[*it].second.data(), work + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n);
+        PetscCall(MatDenseRestoreArrayWrite(p->A[1], &work));
+        PetscCall(MatProductNumeric(p->A[2]));
+        PetscCall(MatDenseGetArrayRead(p->A[2], &in));
+    }
+    if(p->status != 'c') {
+        PetscCallMPI(MPI_Waitall(map.size(), rq + map.size(), MPI_STATUSES_IGNORE));
+        if(p->status == 'b')
+            p->status = 'c';
+    }
+    for(unsigned short i = 0, size = map.size(); i < size; ++i) {
+        if(p->status == 'a')
+            PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + i));
+        std::set<unsigned short>::const_iterator it = p->work->find(i);
+        if(it != p->work->cend()) {
+            HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n, buffer[size + i], map[i].second.data());
+            PetscCallMPI(MPI_Isend(buffer[size + i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + size + i));
+        }
+        else
+            rq[size + i] = MPI_REQUEST_NULL;
+    }
+    if(p->status == 'a') {
+        PetscCall(VecGetArrayWrite(y, &out));
+        std::copy_n(in, n, out);
+        PetscCall(MatDenseRestoreArrayRead(p->A[2], &in));
+        for(unsigned short i = 0, size = map.size(); i < size; ++i) {
+            int index;
+            PetscCallMPI(MPI_Waitany(map.size(), rq, &index, MPI_STATUS_IGNORE));
+            for(unsigned int j = 0; j < map[index].second.size(); ++j)
+                out[map[index].second[j]] += buffer[index][j];
+        }
+        HPDDM::Wrapper<PetscScalar>::diag(n, d, out);
+        PetscCall(VecRestoreArrayWrite(y, &out));
+    }
+    else if(!p->work->empty())
+        PetscCall(MatDenseRestoreArrayRead(p->A[2], &in));
+    PetscCallMPI(MPI_Waitall(map.size(), rq + map.size(), MPI_STATUSES_IGNORE));
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 #endif
