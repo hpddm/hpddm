@@ -67,7 +67,7 @@ class Subdomain
             vectorNeighbor().swap(map_);
             delete [] buff_;
             buff_ = nullptr;
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
             destroyMatrix(nullptr);
 #endif
         }
@@ -153,7 +153,7 @@ class Subdomain
             else
                 communicator_ = MPI_COMM_WORLD;
             unsigned int* perm = nullptr;
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
             if(a && restriction) {
                 perm = new unsigned int[a->n_]();
                 for(unsigned int i = 0; i < restriction->n_; ++i)
@@ -229,7 +229,7 @@ class Subdomain
             rq_ = new MPI_Request[2 * map_.size()];
             buff_ = new K*[2 * map_.size()]();
         }
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
         void initialize(MatrixCSR<K>* const& a, const int neighbors, const int* const list, const int* const sizes, const int* const* const connectivity, MPI_Comm* const& comm = nullptr) {
             if(comm)
                 communicator_ = *comm;
@@ -304,7 +304,7 @@ class Subdomain
             MPI_Comm_compare(communicator_, comm, &result);
             return result != MPI_CONGRUENT && result != MPI_IDENT;
         }
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
         K boundaryCond(const unsigned int i) const {
             if(a_->ia_) {
                 const int shift = a_->ia_[0];
@@ -347,13 +347,13 @@ class Subdomain
          *  Sets the value of <Subdomain::dof>. */
         void setDof(int dof) {
             if(!dof_
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
                     && !a_
 #endif
                           )
                 dof_ = dof;
         }
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
         /* Function: getMatrix
          *  Returns a pointer to <Subdomain::a>. */
         const MatrixCSR<K>* getMatrix() const { return a_; }
@@ -456,7 +456,7 @@ class Subdomain
             }
 #endif
         }
-#ifndef PETSCHPDDM_H
+#ifndef PETSC_PCHPDDM_MAXLEVELS
         /* Function: globalMapping
          *
          *  Computes a global numbering of all unknowns.
@@ -699,7 +699,7 @@ class Subdomain
 #endif
 };
 
-#if !HPDDM_PETSC || defined(_KSPIMPL_H)
+#if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
 template<bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type*>
 inline void IterativeMethod::preprocess(const Operator& A, const K* const b, K*& sb, K* const x, K*& sx, const int& mu, unsigned short& k, const MPI_Comm& comm) {
     int size;

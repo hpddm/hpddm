@@ -1,7 +1,7 @@
-#include <petsc/private/dmimpl.h>
 #include <petsc/private/matimpl.h>
 #include <petsc/private/petschpddm.h> /*I "petscpc.h" I*/
-#include <petsc/private/pcimpl.h>     /* this must be included after petschpddm.h so that _PCIMPL_H is not defined            */
+#include <petsc/private/pcimpl.h>
+#include <petsc/private/dmimpl.h>     /* this must be included after petschpddm.h so that DM_MAX_WORK_VECTORS is not defined  */
                                       /* otherwise, it is assumed that one is compiling libhpddm_petsc => circular dependency */
 #if PetscDefined(USE_FORTRAN_BINDINGS)
   #include <petsc/private/fortranimpl.h>

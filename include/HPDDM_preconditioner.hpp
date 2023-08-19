@@ -295,7 +295,7 @@ class Preconditioner : public Subdomain<K> {
                                                       { }
         Preconditioner(const Preconditioner&) = delete;
         ~Preconditioner() {
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
             dtor();
 #endif
         }
@@ -354,7 +354,7 @@ class Preconditioner : public Subdomain<K> {
 #endif
 #endif
                                                                                               { }
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSCHPDDM_H))
+#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
         void dtor() {
 #if !HPDDM_PETSC
             s_.dtor();

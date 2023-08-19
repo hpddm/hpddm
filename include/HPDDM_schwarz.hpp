@@ -807,7 +807,7 @@ class Schwarz : public Preconditioner<
                 MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_MAX, Subdomain<K>::communicator_);
         }
 #endif
-#ifdef PETSCHPDDM_H
+#ifdef PETSC_PCHPDDM_MAXLEVELS
         static PetscErrorCode destroy(PC_HPDDM_Level* const ctx, PetscBool all) {
             PetscFunctionBeginUser;
             PetscCheck(ctx, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCSHELL from PCHPDDM called with no context");

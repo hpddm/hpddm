@@ -29,7 +29,7 @@
 namespace HPDDM {
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     underlying_type<K> tol;
     unsigned short j, m[2];
     char id[3];
@@ -148,7 +148,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         }
         if(HPDDM_IT(j, A) != HPDDM_MAX_IT(m[1], A) + 1 && i == m[0]) {
             HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), hasConverged, mu, Ax));
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
             if(id[0] > 1)
                 std::cout << "GMRES restart(" << m[0] << ")" << std::endl;
 #endif
@@ -170,7 +170,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     underlying_type<K> tol[2];
     unsigned short j, m[3];
     char id[3];
@@ -213,7 +213,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         if(id[1] == HPDDM_VARIANT_LEFT)
             HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
         RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[0], N, piv, d, Ax, comm);
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
         diagonal<1>(id[0], s, mu, tol[0], piv);
 #endif
         if(tol[0] > -0.9 && m[1] <= 1)
@@ -310,7 +310,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
                 if(m[1] <= 1)
                     Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
             }
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
             if(id[0] > 1)
                 std::cout << "BGMRES restart(" << m[0] << ")" << std::endl;
 #endif
@@ -333,13 +333,13 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     delete [] *H;
     delete [] H;
     if(HPDDM_IT(j, A) != 0 || deflated == -1) {
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
         convergence<1>(id[0], HPDDM_IT(j, A), HPDDM_MAX_IT(m[2], A));
 #endif
         return HPDDM_RET(std::min(HPDDM_IT(j, A), HPDDM_MAX_IT(m[2], A)));
     }
     else {
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
         A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
         return HPDDM_RET(GMRES<excluded>(A, b, x, mu, comm));

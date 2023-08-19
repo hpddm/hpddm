@@ -172,7 +172,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
 #endif
                 }
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                 PetscCall(KSP_MatMult(ksp_, A, b_, x_));
 #else
                 PetscCall(MatMult(A, b_, x_));
@@ -241,7 +241,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
 #endif
                     }
                     PetscCall(MatProductCreateWithMat(A, X_[1], nullptr, X_[0]));
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                     PetscCall(MatProductSetType(X_[0], !ksp_->transpose_solve ? MATPRODUCT_AB : MATPRODUCT_AtB));
 #else
                     PetscCall(MatProductSetType(X_[0], MATPRODUCT_AB));
@@ -258,7 +258,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
                 }
                 else {
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                     MatProductType type;
                     bool change = false;
                     PetscCall(MatProductGetType(X_[0], &type));
@@ -322,7 +322,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
             }
             PetscFunctionReturn(PETSC_SUCCESS);
         }
-#if !defined(PETSC_HAVE_HPDDM) || defined(_KSPIMPL_H) || defined(PETSCSUB)
+#if !defined(PETSC_HAVE_HPDDM) || defined(PETSC_PCHPDDM_MAXLEVELS) || defined(PETSCSUB)
         template<bool = false, class K>
         PetscErrorCode apply(const K* const in, K* const out, const unsigned short& mu = 1, K* = nullptr, const unsigned short& = 0) const {
             PC                pc;
@@ -368,7 +368,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
                     else
                         std::copy_n(in + nu * n, n, write);
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                     PetscCall(KSP_PCApply(ksp_, b_, x_));
 #else
                     PetscCall(PCApply(pc, b_, x_));
@@ -442,7 +442,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
 #endif
                 }
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                 PetscCall(KSP_PCMatApply(ksp_, C_, Y_));
 #else
                 PetscCall(PCMatApply(pc, C_, Y_));
@@ -502,7 +502,7 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     }
 #endif
                 }
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                 PetscCall(KSP_PCApply(ksp_, b_, x_));
 #else
                 PetscCall(PCApply(pc, b_, x_));

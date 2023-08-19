@@ -454,7 +454,7 @@ inline void hash_range(std::size_t& seed, T begin, T end) {
 typedef int MPI_Comm;
 typedef int MPI_Request;
 #  endif
-#  if !HPDDM_PETSC || defined(_KSPIMPL_H)
+#  if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
 #   include "HPDDM_GCRODR.hpp"
 #   include "HPDDM_CG.hpp"
 #  endif
