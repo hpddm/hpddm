@@ -347,7 +347,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
         p = n;
     }
-#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+#if defined(PETSC_HAVE_MUMPS)
     MPI_Comm extended = MPI_COMM_NULL;
     if(Operator::factorize_ && coarse) {
         PetscInt n = 1;

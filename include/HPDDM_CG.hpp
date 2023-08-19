@@ -29,7 +29,7 @@
 namespace HPDDM {
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     underlying_type<K> tol;
     unsigned short it;
     char id[2];
@@ -61,7 +61,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     std::copy_n(b, dim, r);
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), z, &i__1, r, &i__1);
     HPDDM_CALL(A.template apply<excluded>(r, p, mu, z));
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
     underlying_type<K>* norm = new underlying_type<K>[mu];
     PetscCall(A.template apply<excluded>(b, z, mu, trash));
     Wrapper<K>::diag(n, d, z, trash, mu);
@@ -75,7 +75,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
         dir[nu] = HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + n * nu, &i__1));
     MPI_Allreduce(MPI_IN_PLACE, dir, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
     std::transform(dir, dir + mu, res, [](const underlying_type<K>& d) { return HPDDM::sqrt(d); });
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
     if(A.ksp_->guess_zero) {
         A.ksp_->rnorm = *dir / *norm;
         for(unsigned short nu = 1; nu < mu; ++nu)
@@ -171,7 +171,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     else
         i = -1;
     ++i;
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     convergence<2>(id[0], i, HPDDM_MAX_IT(it, A));
 #else
     A.ksp_->its = i;
@@ -185,7 +185,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     underlying_type<K> tol;
     unsigned short i, m[2];
     char id[2];
@@ -244,12 +244,12 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     if(info != mu) {
         delete [] trash;
         A.end(allocate);
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
         A.ksp_->reason = (info != -1 ? KSP_DIVERGED_BREAKDOWN : KSP_CONVERGED_HAPPY_BREAKDOWN);
 #endif
         return HPDDM_RET(CG<excluded>(A, b, x, mu, comm));
     }
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     diagonal<3>(id[0], gamma, mu);
 #endif
     underlying_type<K>* const norm = new underlying_type<K>[mu];
@@ -262,7 +262,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             Blas<K>::axpy(&(info = nu + 1), &(Wrapper<K>::d__1), gamma + mu * nu, &i__1, z, &i__1);
         *norm = Blas<K>::nrm2(&(info = m[0]), z, &i__1);
     }
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
     A.ksp_->rnorm = *std::max_element(norm, norm + (m[0] <= 1 ? mu : 1));
     PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
     PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
@@ -294,7 +294,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             delete [] norm;
             delete [] trash;
             A.end(allocate);
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
             A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
             return HPDDM_RET(CG<excluded>(A, b, x, mu, comm));
@@ -325,7 +325,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
         MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
         bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0, trash, (m[0] <= 1 ? mu : 1)));
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
         A.ksp_->rnorm = *std::max_element(reinterpret_cast<underlying_type<K>*>(trash), reinterpret_cast<underlying_type<K>*>(trash) + (m[0] <= 1 ? mu : 1));
         PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
         PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
@@ -349,7 +349,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
                 delete [] norm;
                 delete [] trash;
                 A.end(allocate);
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                 A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
                 return HPDDM_RET(CG<excluded>(A, b, x, mu, comm));
@@ -363,7 +363,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
                 delete [] norm;
                 delete [] trash;
                 A.end(allocate);
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                 A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
                 return HPDDM_RET(CG<excluded>(A, b, x, mu, comm));
@@ -371,7 +371,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
             std::copy_n(rho + mu * mu, mu * mu, rho);
         }
     }
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     convergence<3>(id[0], HPDDM_IT(i, A), HPDDM_MAX_IT(m[1], A));
 #endif
     delete [] norm;
@@ -381,7 +381,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
 }
 template<bool excluded, class Operator, class K>
 inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm& comm) {
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     underlying_type<K> tol[2];
     unsigned short i, m[2];
     char id[2];
@@ -418,7 +418,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), trash, &i__1, r, &i__1);
     HPDDM_CALL(A.template apply<excluded>(r, p, mu, trash));
     RRQR<excluded>(id[1], n, mu, p, gamma, tol[0], deflated, piv, d, trash, comm);
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     diagonal<6>(id[0], gamma, mu, tol[0], piv);
 #endif
     underlying_type<K>* const norm = new underlying_type<K>[mu];
@@ -437,7 +437,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
         if(m[0] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
     }
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
     A.ksp_->rnorm = *std::max_element(norm, norm + (m[0] <= 1 ? deflated : 1));
     PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
     PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
@@ -499,7 +499,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
              std::fill_n(alpha, deflated * mu + mu / m[0], K());
         MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + mu / m[0], Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
         bool converged = (mu == checkBlockConvergence<6>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, res, 0, trash, m[0]));
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
         A.ksp_->rnorm = *std::max_element(reinterpret_cast<underlying_type<K>*>(trash), reinterpret_cast<underlying_type<K>*>(trash) + deflated);
         PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
         PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
@@ -535,7 +535,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
     }
     if(tol[0] > -0.9)
         Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
     convergence<6>(id[0], HPDDM_IT(i, A), HPDDM_MAX_IT(m[1], A));
 #endif
     delete [] norm;

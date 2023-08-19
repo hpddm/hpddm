@@ -27,7 +27,7 @@
 
 #include "HPDDM_LAPACK.hpp"
 
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
 #define HPDDM_CALL(arg)      do { int ierr = (arg); if(ierr < 0) return (ierr); } while(0)
 #define HPDDM_TOL(tol, A)    tol
 #define HPDDM_MAX_IT(max, A) max
@@ -720,7 +720,7 @@ class IterativeMethod {
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
         template<bool excluded, class K>
         static void Arnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const s, underlying_type<K>* const sn, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
-#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
             PetscCallContinue(PetscLogEventBegin(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
             orthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, d, work, comm);
@@ -761,7 +761,7 @@ class IterativeMethod {
             }
             if(mu > 1)
                 Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
-#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
             PetscCallContinue(PetscLogEventEnd(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
         }
@@ -769,7 +769,7 @@ class IterativeMethod {
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
         template<bool excluded, class K>
         static bool BlockArnoldi(const char id, const unsigned short m, K* const* const H, K* const* const v, K* const tau, K* const s, const int lwork, const int n, const int i, const int mu, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm, K* const* const save = nullptr, const unsigned short shift = 0) {
-#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
             PetscCallContinue(PetscLogEventBegin(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
             int ldh = (m + 1) * mu;
@@ -787,7 +787,7 @@ class IterativeMethod {
                 Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
             Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
             Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
-#if defined(PETSCHPDDM_H) && defined(PETSC_USE_LOG)
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
             PetscCallContinue(PetscLogEventEnd(KSP_GMRESOrthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
             return false;
@@ -1043,7 +1043,7 @@ class IterativeMethod {
         static int BCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         template<bool, class Operator, class K>
         static int BFBCG(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
         template<bool excluded, class Operator, class K>
         static int Richardson(const Operator& A, const K* const b, K* const x, const int& mu, const MPI_Comm&) {
             K factor;
@@ -1085,10 +1085,10 @@ class IterativeMethod {
          *    comm           - Global MPI communicator. */
         template<bool excluded = false, class Operator, class K>
         static int PCG(const Operator& A, const K* const b, K* const x, const MPI_Comm& comm);
-#if !HPDDM_PETSC || defined(_KSPIMPL_H)
+#if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type* = nullptr>
         static
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
                int
 #else
                PetscErrorCode
@@ -1100,13 +1100,13 @@ class IterativeMethod {
                                                                                               ) {
             int comm = 0;
 #endif
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
             PetscFunctionBeginUser;
 #endif
             std::ios_base::fmtflags ff(std::cout.flags());
             std::cout << std::scientific;
             const std::string prefix = A.prefix();
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
             Option& opt = *Option::get();
 #if HPDDM_MIXED_PRECISION
             opt[prefix + "variant"] = HPDDM_VARIANT_FLEXIBLE;
@@ -1134,7 +1134,7 @@ class IterativeMethod {
                                                      delete [] work;
                                                      A.end(allocate);
                                                      HPDDM_IT(it, A) = 1;
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
                                                      if(it) {
                                                          A.ksp_->its = 0;
                                                          A.ksp_->reason = KSP_DIVERGED_PC_FAILED;
@@ -1142,7 +1142,7 @@ class IterativeMethod {
                                                      else A.ksp_->reason = KSP_CONVERGED_ITS;
 #endif
                                                      break; }
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
                 case HPDDM_KRYLOV_METHOD_RICHARDSON: it = Richardson<excluded>(A, sb, sx, k * mu, comm); break;
 #endif
                 case HPDDM_KRYLOV_METHOD_BFBCG:      it = BFBCG<excluded>(A, sb, sx, k * mu, comm); break;
@@ -1163,14 +1163,14 @@ class IterativeMethod {
 #endif
             }
             std::cout.flags(ff);
-#if defined(_KSPIMPL_H)
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
             PetscFunctionReturn(PETSC_SUCCESS);
 #else
             return it;
 #endif
         }
 #endif
-#if !defined(_KSPIMPL_H)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS)
         template<bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type* = nullptr>
         static int solve(const Operator& A, const K* const b, K* const x, const int&, const MPI_Comm& comm) {
             std::ios_base::fmtflags ff(std::cout.flags());

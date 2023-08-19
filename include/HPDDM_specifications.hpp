@@ -46,7 +46,7 @@ public:
 #if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
 # include <quadmath.h>
 namespace std {
-# if defined(PETSCHPDDM_H) && !defined(__MINGW32__)
+# if defined(PETSC_PCHPDDM_MAXLEVELS) && !defined(__MINGW32__)
 template<>
 class numeric_limits<__float128> {
 public:
@@ -80,7 +80,7 @@ template<class K> struct Wrapper;
 template<class K>
 inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>>& q, unsigned short n, const K* const alphar, const K* const alphai, const K* const beta = nullptr) {
     for(unsigned short i = 0; i < n; ++i) {
-#if !defined(PETSCHPDDM_H) || !defined(PETSC_HAVE_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
+#if !defined(PETSC_PCHPDDM_MAXLEVELS) || !defined(PETSC_HAVE_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
         HPDDM::complex<underlying_type<K>> tmp(Wrapper<K>::is_complex ? alphar[i] : HPDDM::complex<underlying_type<K>>(HPDDM::real(alphar[i]), HPDDM::real(alphai[i])));
 #else
         HPDDM::complex<underlying_type<K>> tmp;

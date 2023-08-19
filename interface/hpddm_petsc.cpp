@@ -22,6 +22,7 @@
  */
 
 #include <petsc/private/pcimpl.h>
+#include <petsc/private/dmimpl.h>
 
 #ifdef PCHPDDM
 #if PETSC_HAVE_SLEPC

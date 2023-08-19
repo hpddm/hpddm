@@ -64,7 +64,7 @@
 # define HPDDM_SCHWARZ                                  0
 # define HPDDM_BDD                                      0
 # define HPDDM_FETI                                     0
-# if defined(PETSCHPDDM_H)
+# if defined(PETSC_PCHPDDM_MAXLEVELS)
 #  define HPDDM_INEXACT_COARSE_OPERATOR                 1
 # endif
 #elif !defined(HPDDM_PETSC)
@@ -119,7 +119,7 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 # endif
 #endif
 #ifndef HPDDM_SLEPC
-# if (defined(SLEPCVERSION_H) || (HPDDM_PETSC && defined(PETSC_HAVE_SLEPC))) && defined(_PCIMPL_H)
+# if (defined(SLEPCVERSION_H) || (HPDDM_PETSC && defined(PETSC_HAVE_SLEPC))) && defined(DM_MAX_WORK_VECTORS)
 #  define HPDDM_SLEPC                                   1
 # else
 #  define HPDDM_SLEPC                                   0
