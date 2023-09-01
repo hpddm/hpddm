@@ -368,7 +368,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #endif
     constexpr bool blocked =
 #if defined(DMKL_PARDISO) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
-                             (U == 1 && Operator::pattern_ == 's');
+                             (U == 1 && (Operator::pattern_ == 's' || (Operator::pattern_ == 'c' && HPDDM_PETSC)));
 #else
                              false;
 #endif
@@ -764,7 +764,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 for(unsigned short k = 0; k < M.size(); ++k) {
                     int index;
                     MPI_Waitany(M.size(), rqRecv, &index, MPI_STATUS_IGNORE);
-                    v.template assembleForMain<S, U == 1>(C, recvNeighbor[index], coefficients, index, work, infoNeighbor);
+                    v.template assembleForMain<!blocked ? S : (S == 'S' ? 'B' : 'C'), U == 1>(C, recvNeighbor[index], coefficients, index, work, infoNeighbor);
                 }
             }
             if(excluded)
@@ -1131,7 +1131,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #endif
                     }
                     else
-                        v.template applyFromNeighborMain<S, super::numbering_, U == 1>(recvNeighbor[index], index, I, J, backup, coefficients, v.max_, U == 1 ? nullptr : *offsetArray, work, U == 1 ? nullptr : infoNeighbor);
+                        v.template applyFromNeighborMain<!blocked ? S : (S == 'S' ? 'B' : 'C'), super::numbering_, U == 1>(recvNeighbor[index], index, I, J, backup, coefficients, v.max_, U == 1 ? nullptr : *offsetArray, work, U == 1 ? nullptr : infoNeighbor);
                 }
                 downscaled_type<K>* pt = reinterpret_cast<downscaled_type<K>*>(C);
                 if(!std::is_same<downscaled_type<K>, K>::value) {
