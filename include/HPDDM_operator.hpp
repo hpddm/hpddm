@@ -268,42 +268,54 @@ class OperatorBase : protected Members<P != 's' && P != 'u'> {
             if(Members<true>::consolidate_ == map_.size()) {
                 unsigned short between = std::distance(sparsity_.cbegin(), std::lower_bound(sparsity_.cbegin(), sparsity_.cend(), Members<true>::rank_));
                 unsigned int offset = 0;
-                if(S != 'S')
+                if(S != 'S' && S != 'B')
                     for(unsigned short k = 0; k < between; ++k) {
+                        if(S != 'C') {
+                            for(unsigned short i = 0; i < local_; ++i) {
+                                unsigned int l = offset + coefficients * i;
+                                for(unsigned short j = 0; j < (U ? local_ : infoNeighbor[k]); ++j) {
+#ifndef HPDDM_CSR_CO
+                                    I[l + j] = offsetI + i;
+#endif
+                                    J[l + j] = (U ? sparsity_[k] * local_ + (N == 'F') : offsetJ[k]) + j;
+                                }
+                            }
+                            offset += U ? local_ : infoNeighbor[k];
+                        }
+                        else
+                            J[offset++] = sparsity_[k];
+                    }
+                else if(S != 'C')
+                    coefficients += local_ - 1;
+                if(S != 'B' && S != 'C') {
+                    for(unsigned short i = 0; i < local_; ++i) {
+                        unsigned int l = offset + coefficients * i - (S == 'S') * ((i * (i - 1)) / 2);
+                        for(unsigned short j = (S == 'S') * i; j < local_; ++j) {
+#ifndef HPDDM_CSR_CO
+                            I[l + j] = offsetI + i;
+#endif
+                            J[l + j] = offsetI + j;
+                        }
+                    }
+                    offset += local_;
+                }
+                else
+                    J[offset++] = offsetI / (U ? local_ : 1);
+                for(unsigned short k = between; k < sparsity_.size(); ++k) {
+                    if(S != 'B' && S != 'C') {
                         for(unsigned short i = 0; i < local_; ++i) {
-                            unsigned int l = offset + coefficients * i;
+                            unsigned int l = offset + coefficients * i - (S == 'S') * ((i * (i - 1)) / 2);
                             for(unsigned short j = 0; j < (U ? local_ : infoNeighbor[k]); ++j) {
 #ifndef HPDDM_CSR_CO
                                 I[l + j] = offsetI + i;
 #endif
-                                J[l + j] = (U ? sparsity_[k] * local_ + (N == 'F') : offsetJ[k]) + j;
+                                J[l + j] = (U ? sparsity_[k] * local_ + (N == 'F') : offsetJ[k - (S == 'S') * between]) + j;
                             }
                         }
                         offset += U ? local_ : infoNeighbor[k];
                     }
-                else
-                    coefficients += local_ - 1;
-                for(unsigned short i = 0; i < local_; ++i) {
-                    unsigned int l = offset + coefficients * i - (S == 'S') * ((i * (i - 1)) / 2);
-                    for(unsigned short j = (S == 'S') * i; j < local_; ++j) {
-#ifndef HPDDM_CSR_CO
-                        I[l + j] = offsetI + i;
-#endif
-                        J[l + j] = offsetI + j;
-                    }
-                }
-                offset += local_;
-                for(unsigned short k = between; k < sparsity_.size(); ++k) {
-                    for(unsigned short i = 0; i < local_; ++i) {
-                        unsigned int l = offset + coefficients * i - (S == 'S') * ((i * (i - 1)) / 2);
-                        for(unsigned short j = 0; j < (U ? local_ : infoNeighbor[k]); ++j) {
-#ifndef HPDDM_CSR_CO
-                            I[l + j] = offsetI + i;
-#endif
-                            J[l + j] = (U ? sparsity_[k] * local_ + (N == 'F') : offsetJ[k - (S == 'S') * between]) + j;
-                        }
-                    }
-                    offset += U ? local_ : infoNeighbor[k];
+                    else
+                        J[offset++] = sparsity_[k];
                 }
             }
         }
@@ -1488,11 +1500,20 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
         }
         template<char S, bool U>
         void assembleForMain(K* C, const K* in, const int& coefficients, unsigned short index, K* arrayC, unsigned short* const& infoNeighbor = nullptr) {
-            applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
+            applyFromNeighbor<S == 'B' ? 'S' : (S == 'C' ? 'G' : S), U>(in, index, arrayC, infoNeighbor);
             if(++super::consolidate_ == super::map_.size()) {
                 const underlying_type<K>* const m = super::p_.getScaling();
                 Wrapper<K>::diag(super::n_, m, arrayC, coefficients + (S == 'S') * super::local_);
-                if(S != 'S') {
+                if(S == 'B' || S == 'C') {
+                    K* tmp = new K[coefficients * super::local_];
+                    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d__1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d__0), tmp, &coefficients);
+                    for(int i = 0; i < coefficients; ++i) {
+                        for(unsigned short j = 0; j < super::local_; ++j)
+                            C[(i / super::local_) * super::local_ * super::local_ + j * super::local_ + (i % super::local_)] = tmp[i + j * coefficients];
+                    }
+                    delete [] tmp;
+                }
+                else if(S != 'S') {
                     if (super::local_)
 #if HPDDM_BDD
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d__1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d__0), C, &coefficients);
