@@ -35,7 +35,7 @@
 #define HPDDM_RET(i)         i
 #else
 #define HPDDM_CALL(arg)      PetscCall(PetscErrorCode(arg))
-#define HPDDM_TOL(tol, A)    ((A.ksp_)->rtol)
+#define HPDDM_TOL(tol, A)    (static_cast<underlying_type<K>>((A.ksp_)->rtol))
 #define HPDDM_MAX_IT(max, A) ((A.ksp_)->max_it)
 #define HPDDM_IT(i, A)       ((A.ksp_)->its)
 #define HPDDM_RET(i)         0
@@ -87,7 +87,7 @@ class IterativeMethod {
         template<char T, class K>
         static void checkConvergence(const char verbosity, const unsigned short j, const unsigned short i, const underlying_type<K>& tol, const int& mu, const underlying_type<K>* const norm, const K* const res, short* const conv, const short sentinel) {
             for(unsigned short nu = 0; nu < mu; ++nu)
-                if(conv[nu] == -sentinel && ((tol > 0.0 && HPDDM::abs(res[nu]) / norm[nu] <= tol) || (tol < 0.0 && HPDDM::abs(res[nu]) <= -tol)))
+                if(conv[nu] == -sentinel && ((tol > underlying_type<K>() && HPDDM::abs(res[nu]) / norm[nu] <= tol) || (tol < underlying_type<K>() && HPDDM::abs(res[nu]) <= -tol)))
                     conv[nu] = i;
 #if !HPDDM_PETSC || defined(PETSCSUB) || defined(MU_SLEPC)
             if(verbosity > 2) {
@@ -125,7 +125,7 @@ class IterativeMethod {
             if(T == 3 || T == 6) {
                 for(unsigned short nu = 0; nu < mu / t; ++nu) {
                     pt[nu] = HPDDM::sqrt(HPDDM::real(res[nu]));
-                    if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
+                    if(((tol > underlying_type<K>() && pt[nu] / norm[nu] <= tol) || (tol < underlying_type<K>() && pt[nu] <= -tol)))
                         ++conv;
                 }
             }
@@ -134,7 +134,7 @@ class IterativeMethod {
                 for(unsigned short nu = 0; nu < d; ++nu) {
                     int dim = nu + 1;
                     pt[nu] = Blas<K>::nrm2(&dim, res + nu * ldh, &i__1);
-                    if(((tol > 0.0 && pt[nu] / norm[nu] <= tol) || (tol < 0.0 && pt[nu] <= -tol)))
+                    if(((tol > underlying_type<K>() && pt[nu] / norm[nu] <= tol) || (tol < underlying_type<K>() && pt[nu] <= -tol)))
                         ++conv;
                 }
             }
@@ -145,7 +145,7 @@ class IterativeMethod {
                     Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), res + nu * ldh, &i__1, work, &i__1);
                 }
                 *pt = Blas<K>::nrm2(&d, work, &i__1);
-                if(((tol > 0.0 && *pt / *norm <= tol) || (tol < 0.0 && *pt <= -tol)))
+                if(((tol > underlying_type<K>() && *pt / *norm <= tol) || (tol < underlying_type<K>() && *pt <= -tol)))
                     ++conv;
             }
 #if !HPDDM_PETSC || defined(PETSCSUB) || defined(MU_SLEPC)
@@ -217,7 +217,7 @@ class IterativeMethod {
             if(T == 4 || T == 5) {
                 *i = std::min(m[0] - 1, opt.val<int>(prefix + "recycle", 0));
                 id[3] = opt.val<char>(prefix + "recycle_target", HPDDM_RECYCLE_TARGET_SM);
-                id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
+                id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), (unsigned short)(2)));
             }
             if(std::abs(d[T == 1 || T == 5 || T == 6]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
                 if(id[0])
@@ -482,10 +482,10 @@ class IterativeMethod {
                 for(unsigned short nu = 0; nu < mu / k; ++nu) {
                     norm[nu] = 0.0;
                     for(int i = 0; i < n; ++i) {
-                        if(HPDDM::abs(work[nu * n + i]) > HPDDM_PEN * HPDDM_EPS && map.find(i) != map.cend())
-                            norm[nu] += (d ? d[i] : 1.0) * HPDDM::norm(work[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+                        if(HPDDM::abs(work[nu * n + i]) > underlying_type<K>(HPDDM_PEN * HPDDM_EPS) && map.find(i) != map.cend())
+                            norm[nu] += (d ? d[i] : underlying_type<K>(1.0)) * HPDDM::norm(work[nu * n + i] / underlying_type<K>(HPDDM_PEN));
                         else
-                            norm[nu] += (d ? d[i] : 1.0) * HPDDM::norm(work[nu * n + i]);
+                            norm[nu] += (d ? d[i] : underlying_type<K>(1.0)) * HPDDM::norm(work[nu * n + i]);
                     }
                 }
             }
@@ -622,7 +622,7 @@ class IterativeMethod {
         }
         template<bool excluded, class K>
         static void RRQR(const char id, const int n, const int k, K* const Q, K* const R, const underlying_type<K> tol, int& rank, int* const piv, const underlying_type<K>* const d, K* const work, const MPI_Comm& comm) {
-            if(tol < -0.9)
+            if(tol < underlying_type<K>(-0.9))
                 rank = QR<excluded>(id, n, k, Q, R, k, d, work, comm);
             else {
                 VR<excluded>(n, k, 1, Q, R, k, d, work, comm);
@@ -698,7 +698,7 @@ class IterativeMethod {
                     MPI_Allreduce(MPI_IN_PLACE, work + xi * (k + 1) * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         work[xi * (k + 1) * mu + nu] = HPDDM::sqrt(work[xi * (k + 1) * mu + nu]);
-                        if(HPDDM::real(work[xi * (k + 1) * mu + nu]) < HPDDM_EPS)
+                        if(HPDDM::real(work[xi * (k + 1) * mu + nu]) < underlying_type<K>(HPDDM_EPS))
                             rank = xi;
                     }
                     if(rank != xi)
@@ -850,7 +850,7 @@ class IterativeMethod {
                 std::function<void ()> check_size = [&] {
                     std::fill_n(local, k, 0U);
                     for(int i = 0; i < n; ++i) {
-                        if(HPDDM::abs(b[i]) > HPDDM_EPS) {
+                        if(HPDDM::abs(b[i]) > underlying_type<K>(HPDDM_EPS)) {
                             if(++local[j] > k)
                                 break;
                         }
@@ -874,7 +874,7 @@ class IterativeMethod {
                     sb = new K[k * n]();
                     std::copy_n(x, n, sx + j * n);
                     std::copy_n(b, n, sb + j * n);
-                    std::function<K* (K*, unsigned int*, unsigned int*, int)> lambda = [](K* sb, unsigned int* local, unsigned int* swap, int n) { return static_cast<K*>(std::find_if(sb + std::distance(local, swap) * n, sb + (std::distance(local, swap) + 1) * n, [](const K& v) { return HPDDM::abs(v) > HPDDM_EPS; })); };
+                    std::function<K* (K*, unsigned int*, unsigned int*, int)> lambda = [](K* sb, unsigned int* local, unsigned int* swap, int n) { return static_cast<K*>(std::find_if(sb + std::distance(local, swap) * n, sb + (std::distance(local, swap) + 1) * n, [](const K& v) { return HPDDM::abs(v) > underlying_type<K>(HPDDM_EPS); })); };
                     equilibrate<excluded>(n, sb, sx, lambda, local, k, rank, size / k, comm);
                 }
                 else {

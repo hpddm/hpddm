@@ -39,7 +39,7 @@ class Dense : public Schwarz<
     public:
         Dense() : super() { }
         Dense(const Subdomain<K>& s) : super(s) { super::d_ = nullptr; }
-        ~Dense() { super::d_ = nullptr; }
+        virtual ~Dense() { super::d_ = nullptr; }
         /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
         typedef Schwarz<
@@ -154,6 +154,10 @@ class Dense : public Schwarz<
             if(super::co_)
                 super::co_->setLocal(mm);
         }
+#if defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wunused-local-typedefs"
+#endif
         template<unsigned short excluded = 0>
         std::pair<MPI_Request, const K*>* buildTwo(const MPI_Comm& comm, const K* const E) {
             struct ClassWithPtr {
@@ -183,6 +187,9 @@ class Dense : public Schwarz<
             ClassWithPtr Op(this, E);
             return super::super::template buildTwo<excluded, UserCoarseOperator<ClassWithPtr, K>>(&Op, comm);
         }
+#if defined(__GNUC__)
+# pragma GCC diagnostic pop
+#endif
         static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
         virtual int GMV(const K* const in, K* const out, const int& mu = 1) const override = 0;
 };

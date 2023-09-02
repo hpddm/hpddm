@@ -117,6 +117,9 @@ class Schwarz : public Preconditioner<
                                                                 , hash_(), type_(Prcndtnr::NO)
 #endif
                                                                                                { }
+#if HPDDM_DENSE
+        virtual
+#endif
         ~Schwarz() { d_ = nullptr; }
         void operator=(const Schwarz& B) {
             dtor();
@@ -916,7 +919,7 @@ class Schwarz : public Preconditioner<
                             for(const PetscInt& i : p.second)
                                 map[i].insert(cols, cols + ncols);
                             PetscCall(MatRestoreRow(D, p.first, &ncols, &cols, nullptr));
-                            std::fill_n(d + p.first, bs, 1.0 / underlying_type<K>(1 + p.second.size()));
+                            std::fill_n(d + p.first, bs, underlying_type<K>(1.0) / underlying_type<K>(1 + p.second.size()));
                         }
                     }
                     else {
@@ -929,7 +932,7 @@ class Schwarz : public Preconditioner<
                             if(it != boundary.cend()) {
                                 for(const PetscInt& i : it->second)
                                     map[i].insert(cols, cols + ncols);
-                                std::fill_n(d + it->first, bs, 1.0 / underlying_type<K>(1 + it->second.size()));
+                                std::fill_n(d + it->first, bs, underlying_type<K>(1.0) / underlying_type<K>(1 + it->second.size()));
                             }
                             for(PetscInt j = 0; j < ncols; j += bs) {
                                 it = boundary.find(cols[j]);
@@ -1062,7 +1065,7 @@ class Schwarz : public Preconditioner<
             PetscFunctionBeginUser;
             if(!levels[0]->parent->deflation) {
                 for(int i = 0; i < Subdomain<K>::dof_ && !solve; ++i)
-                    if(HPDDM::abs(d_[i]) > HPDDM_EPS)
+                    if(HPDDM::abs(d_[i]) > underlying_type<K>(HPDDM_EPS))
                         solve = PETSC_TRUE;
                 PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
                 PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
@@ -1095,7 +1098,7 @@ class Schwarz : public Preconditioner<
                             Vec       v;
                             PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
                             PetscCall(SVDGetSingularTriplet(svd, n, &s, nullptr, v));
-                            values[n] = 1.0/s;
+                            values[n] = PetscReal(1.0) / s;
                             PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
                         }
                         PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
@@ -1147,7 +1150,7 @@ class Schwarz : public Preconditioner<
                         PetscCall(PetscObjectReference((PetscObject)empty));
                         PetscCall(STSetKSP(st, ksp[0]));
                     }
-                    if(levels[0]->threshold >= 0.0) {
+                    if(levels[0]->threshold >= PetscReal()) {
                         flg = PETSC_FALSE;
                         PetscCall(PetscOptionsGetBool(nullptr, prefix, "-eps_use_inertia", &flg, nullptr));
                         if(flg) {
@@ -1241,7 +1244,7 @@ class Schwarz : public Preconditioner<
                         PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
                 }
                 levels[0]->nu = std::min(nconv, nev);
-                if(levels[0]->threshold >= 0.0) {
+                if(levels[0]->threshold >= PetscReal()) {
                     PetscInt i = 0;
                     while(i < levels[0]->nu) {
                         PetscReal   re, im;
@@ -1588,7 +1591,7 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscCall(VecAXPY(leftEcon, -1.0, left));
     PetscCall(VecPointwiseMult(y, aux->sigma, right));
     PetscCall(MatMult(aux->V, y, left));
-    PetscCall(VecAXPY(left, -1.0 / PETSC_SMALL, leftEcon));
+    PetscCall(VecAXPY(left, PetscReal(-1.0) / PETSC_SMALL, leftEcon));
     PetscCall(VecISCopy(left, aux->is, SCATTER_REVERSE, y));
     PetscCall(VecDestroy(&left));
     PetscCall(VecDestroy(&right));

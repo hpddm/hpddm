@@ -76,9 +76,9 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 norm[nu] = HPDDM::sqrt(norm[nu]);
-                if(norm[nu] < HPDDM_EPS)
+                if(norm[nu] < underlying_type<K>(HPDDM_EPS))
                     norm[nu] = 1.0;
-                if(sn[nu] < std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2)) {
+                if(sn[nu] < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2))) {
                     HPDDM_IT(j, A) = 0;
                     break;
                 }
@@ -88,8 +88,8 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
         if(HPDDM_IT(j, A) == 0) {
 #if HPDDM_PETSC
-            PetscCall(KSPLogResidualHistory(A.ksp_, underlying_type<K>()));
-            PetscCall(KSPMonitor(A.ksp_, 0, underlying_type<K>()));
+            PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
+            PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
             A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
             std::fill_n(hasConverged, mu, 0);
@@ -103,7 +103,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
         }
 #if HPDDM_PETSC
         if(HPDDM_IT(j, A) == 1) {
-            A.ksp_->rnorm = HPDDM::abs(*std::max_element(s, s + mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); }));
+            A.ksp_->rnorm = static_cast<PetscReal>(HPDDM::abs(*std::max_element(s, s + mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); })));
             PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
             PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
             PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
@@ -131,7 +131,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm);
             checkConvergence<0>(id[0], HPDDM_IT(j, A), i, HPDDM_TOL(tol, A), mu, norm, s + i * mu, hasConverged, m[0]);
 #if HPDDM_PETSC
-            A.ksp_->rnorm = HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); }));
+            A.ksp_->rnorm = static_cast<PetscReal>(HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K& lhs, const K& rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); })));
             PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
             PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
             PetscCall((*A.ksp_->converged)(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
@@ -199,7 +199,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
     for(unsigned short nu = 0; nu < mu / m[1]; ++nu) {
         norm[nu] = HPDDM::sqrt(norm[nu]);
-        if(norm[nu] < HPDDM_EPS)
+        if(norm[nu] < underlying_type<K>(HPDDM_EPS))
             norm[nu] = 1.0;
     }
     HPDDM_IT(j, A) = 1;
@@ -212,16 +212,16 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
         if(id[1] == HPDDM_VARIANT_LEFT)
             HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
-        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, tol[0], N, piv, d, Ax, comm);
+        RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, static_cast<underlying_type<K>>(tol[0]), N, piv, d, Ax, comm);
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
         diagonal<1>(id[0], s, mu, tol[0], piv);
 #endif
-        if(tol[0] > -0.9 && m[1] <= 1)
+        if(tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9) && m[1] <= 1)
             Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
         if(N == 0) {
 #if HPDDM_PETSC
-            PetscCall(KSPLogResidualHistory(A.ksp_, underlying_type<K>()));
-            PetscCall(KSPMonitor(A.ksp_, 0, underlying_type<K>()));
+            PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
+            PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
             A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
 #endif
             HPDDM_IT(j, A) = 0;
@@ -229,12 +229,12 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
         }
 #if HPDDM_PETSC
         else if(HPDDM_IT(j, A) == 1) {
-            A.ksp_->rnorm = HPDDM::abs(s[0]);
+            A.ksp_->rnorm = static_cast<PetscReal>(HPDDM::abs(s[0]));
             for(unsigned short nu = 1; nu < mu; ++nu)
                 A.ksp_->rnorm = std::max(A.ksp_->rnorm, PetscReal(HPDDM::abs(s[nu * (mu + 1)])));
             PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
             PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-            if(tol[0] <= -0.9 && N != mu)
+            if(tol[0] <= static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9) && N != mu)
                 A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
             else
                 PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
@@ -285,7 +285,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             }
             bool converged = (mu == checkBlockConvergence<1>(id[0], HPDDM_IT(j, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, s + deflated * i, ldh, Ax, m[1]));
 #if HPDDM_PETSC
-            A.ksp_->rnorm = *std::max_element(reinterpret_cast<underlying_type<K>*>(Ax), reinterpret_cast<underlying_type<K>*>(Ax) + deflated);
+            A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(reinterpret_cast<underlying_type<K>*>(Ax), reinterpret_cast<underlying_type<K>*>(Ax) + deflated));
             PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
             PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
             PetscCall((*A.ksp_->converged)(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
@@ -301,11 +301,11 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
             }
             ++HPDDM_IT(j, A);
         }
-        if(tol[0] > -0.9)
+        if(tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9))
             Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
         if(HPDDM_IT(j, A) != HPDDM_MAX_IT(m[2], A) + 1 && i == m[0]) {
             HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), &dim, mu, Ax, deflated));
-            if(tol[0] > -0.9) {
+            if(tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) {
                 Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
                 if(m[1] <= 1)
                     Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
@@ -325,7 +325,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     }
     if(HPDDM_IT(j, A) != 0 && deflated != -1) {
         HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), &dim, mu, Ax, deflated));
-        if(tol[0] > -0.9)
+        if(tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9))
             Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
     }
     delete [] piv;

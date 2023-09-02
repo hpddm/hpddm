@@ -1676,7 +1676,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
                         PetscCall(EPSSolve(eps));
                         PetscCall(EPSGetConverged(eps, &nconv));
                         level->nu = std::min(nconv, nev);
-                        if(level->threshold >= 0.0) {
+                        if(level->threshold >= PetscReal()) {
                             PetscInt i = 0;
                             while(i < level->nu) {
                                 PetscScalar eigr;

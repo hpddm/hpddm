@@ -30,8 +30,7 @@ struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
         const HPDDM::MatrixCSR<K>* const A = getMatrix();
         for(int i = 0; i < n_; ++i) {
             int mid = (A->sym_ ? (A->ia_[i + 1] - A->ia_[0]) : std::distance(A->ja_, std::upper_bound(A->ja_ + A->ia_[i] - A->ia_[0], A->ja_ + A->ia_[i + 1] - A->ia_[0], i + A->ia_[0]))) - 1;
-            for(unsigned short nu = 0; nu < mu; ++nu)
-                out[nu * n_ + i] = in[nu * n_ + i] / A->a_[mid];
+            HPDDM::Blas<K>::axpby(mu, HPDDM::Wrapper<K>::d__1 / A->a_[mid], in + i, n_, K(), out + i, n_);
         }
         return 0;
     }

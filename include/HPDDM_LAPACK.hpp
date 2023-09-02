@@ -363,7 +363,7 @@ class LapackTRSub {
             ipiv_ = nullptr;
         }
         template<char N = HPDDM_NUMBERING, bool transpose = false>
-        void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& schur = nullptr) {
+        void numfact(MatrixCSR<K>* const& A, bool detection = false, K* const& = nullptr) {
             n_ = A->n_;
             a_ = new K[n_ * n_]();
             if(A->nnz_ == n_ * n_) {
@@ -406,9 +406,7 @@ class LapackTRSub {
             }
         }
         template<char N = HPDDM_NUMBERING>
-        int inertia(MatrixCSR<K>* const& A) {
-            return 0;
-        }
+        int inertia(MatrixCSR<K>* const&) { return 0; }
         unsigned short deficiency() const { return 0; }
         void solve(K* const x, const unsigned short& n = 1) const {
             int nrhs = n, info;
