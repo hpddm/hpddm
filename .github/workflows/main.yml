@@ -60,7 +60,7 @@ jobs:
       env:
         PKGS: "lcov libalgorithm-c3-perl libamd-comgr2 libamdhip64-5 libarpack2-dev            \
                libarpack2t64 libb-hooks-endofscope-perl libb-hooks-op-check-perl               \
-               libblas-dev libblas3 libcaf-openmpi-3t64 libcapture-tiny-perl                   \
+               libblas-dev libblas3 libcaf-openmpi-3t64 libcapture-tiny-perl libtry-tiny-perl  \
                libclass-c3-perl libclass-c3-xs-perl libclass-data-inheritable-perl             \
                libclass-inspector-perl libclass-method-modifiers-perl                          \
                libclass-singleton-perl libclass-xsaccessor-perl libcoarrays-dev                \
@@ -111,7 +111,7 @@ jobs:
           pip install --user mpi4py numpy scipy
           rm -rf ~/.cache/pip
           cp -R ~/.local/lib ~/.cache
-          find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" -o -wholename "*/share/perl5/auto/*" \) -prune -exec rm -rf "{}" \;
+          find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" -o -wholename "*/share/perl5/auto/*" -o -wholename "*/tests/__pycache__/*" -o -wholename "*/tests/test_*.pyc" \) -prune -exec rm -rf "{}" \;
         fi
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 0
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 0
@@ -182,6 +182,14 @@ jobs:
         lcov --ignore-errors gcov --directory . --capture --output-file coverage3.info
         make clean
       if: matrix.compiler == 'gcc'
+    - name: Build and test with Htool
+      run: |
+        cd .. && git clone --depth=1 https://github.com/htool-ddm/htool.git && cd htool
+        export OMPI_CXXFLAGS="-fprofile-arcs -ftest-coverage -DOMPI_SKIP_MPICXX"
+        mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=mpicxx.openmpi -DBLAS_LIBRARIES=/usr/lib/x86_64-linux-gnu/libblas.so '-DLAPACK_LIBRARIES=/usr/lib/x86_64-linux-gnu/liblapack.so;/usr/lib/x86_64-linux-gnu/libblas.so' -DHPDDM_INCLUDE_DIR=../../${{ github.event.repository.name }}/include && make Test_solver
+        mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0 -n 2 ./tests/functional_tests/solvers/Test_solver _deps/data_test_repository-src/data  --hpddm_verbosity 10 --hpddm_compute_residual l2
+        lcov --ignore-errors gcov --directory . --capture --output-file ../../${{ github.event.repository.name }}/coverage_htool.info
+      if: matrix.compiler == 'clang'
     - name: Build and test with PETSc and SLEPc
       run: |
         if [ "${{ matrix.compiler }}" = "clang" ]; then export OMPI_CC=clang && export OMPI_CXX=clang++
@@ -278,8 +286,8 @@ jobs:
         done
     - uses: actions/upload-artifact@v4
       with:
+        name: artifact-${{ matrix.compiler}}
         path: coverage*.info
-      if: matrix.compiler == 'gcc'
   nvcc:
     timeout-minutes: 120
     needs:
@@ -324,6 +332,7 @@ jobs:
         make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
         cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
         export LD_PRELOAD="/software/gcc/13/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
+        export LD_LIBRARY_PATH=/software/gcc/13/lib:/software/gcc/13/lib64:/software/cuda/12.5/lib64
         make check
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
         config/report_tests.py -t 5 -s
@@ -375,7 +384,7 @@ jobs:
       - uses: actions/download-artifact@v4
       - name: Merge coverage reports
         run: |
-          if [ -d $PWD/artifact ]; then
+          if [ -d $PWD/artifact-gcc ]; then
             sudo apt-get install -yq lcov
             find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
             lcov --remove coverage.info '/usr/*' --output-file coverage.info > /dev/null
