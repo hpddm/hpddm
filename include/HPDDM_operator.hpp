@@ -772,7 +772,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 else {
                     imap.reserve(omap.size());
                     const underlying_type<K>* const D = super::D_;
-                    std::for_each(omap.cbegin(), omap.cend(), [&D, &imap](const typename Preconditioner::integer_type& i) { if(HPDDM::abs(D[i]) > HPDDM_EPS) imap.emplace_back(i); });
+                    std::for_each(omap.cbegin(), omap.cend(), [&D, &imap](const typename Preconditioner::integer_type& i) { if(HPDDM::abs(D[i]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(i); });
                     PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, imap.size(), imap.data(), PETSC_USE_POINTER, &is));
                 }
                 PetscCallVoid(MatCreateSubMatrix(super::A_, is, is, MAT_INITIAL_MATRIX, &(super::C_)));
@@ -831,7 +831,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 PetscScalar* array;
                 PetscCallVoid(MatDenseGetArrayWrite(Z, &array));
                 for(PetscInt i = 0, k = 0; i < super::n_; ++i) {
-                    if(HPDDM::abs(super::D_[i]) > HPDDM_EPS) {
+                    if(HPDDM::abs(super::D_[i]) > underlying_type<K>(HPDDM_EPS)) {
                         for(unsigned short j = 0; j < super::local_; ++j)
                             array[k + j * n] = tmp[0][i + j * super::n_];
                         ++k;
@@ -848,7 +848,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 PetscCallVoid(MatDenseGetArrayRead(P, &array));
                 std::fill_n(super::work_, super::local_ * super::n_, K());
                 for(PetscInt i = 0, k = 0; i < super::n_; ++i) {
-                    if(HPDDM::abs(super::D_[i]) > HPDDM_EPS) {
+                    if(HPDDM::abs(super::D_[i]) > underlying_type<K>(HPDDM_EPS)) {
                         for(unsigned short j = 0; j < super::local_; ++j)
                             super::work_[i + j * super::n_] = array[k + j * n];
                         ++k;
@@ -906,7 +906,7 @@ class MatrixAccumulation : public MatrixMultiplication<Preconditioner, K> {
                 else {
                     imap.reserve(omap.size());
                     for(typename std::vector<typename Preconditioner::integer_type>::const_iterator it = omap.cbegin(); it != omap.cend(); ++it) {
-                        if(HPDDM::abs(super::D_[*it]) > HPDDM_EPS)
+                        if(HPDDM::abs(super::D_[*it]) > underlying_type<K>(HPDDM_EPS))
                             imap.emplace_back(std::distance(omap.cbegin(), it));
                     }
                     PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &Z));

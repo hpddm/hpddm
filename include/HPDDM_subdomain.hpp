@@ -448,7 +448,7 @@ class Subdomain
                 ss.clear();
                 ss.str(std::string());
                 MPI_Comm_size(communicator_, &n);
-                ss << std::fixed << std::setprecision(1) << global[3] / static_cast<float>(n) << " neighboring process" << (global[3] / static_cast<float>(n) > 1.0 ? "es" : "") << " (average)";
+                ss << std::fixed << std::setprecision(1) << global[3] / static_cast<float>(n) << " neighboring process" << (global[3] / static_cast<float>(n) > 1.0f ? "es" : "") << " (average)";
                 v.emplace_back(" │  " + ss.str());
                 v.emplace_back(" └");
                 std::vector<std::string>::const_iterator max = std::max_element(v.cbegin(), v.cend(), [](const std::string& lhs, const std::string& rhs) { return lhs.size() < rhs.size(); });

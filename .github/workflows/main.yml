@@ -112,7 +112,7 @@ jobs:
         fi
     - name: Fetch PETSc and data files
       run: |
-        cd .. && git clone --depth 1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
+        cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
         OUTPUT=$(for SRC in ksp/impls/hpddm/hpddm.cxx ksp/impls/hpddm/cuda/hpddm.cu pc/impls/hpddm/pchpddm.cxx;
         do
           diff --suppress-common-lines -y -W 600 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
@@ -192,7 +192,7 @@ jobs:
               unset EXTERNALPACKAGES
               export PETSC_CXXPPFLAGS="-Wall -Wextra -Wextra-semi -Wpedantic -Wno-sign-compare -Wno-cast-function-type"
               if [ "${{ matrix.compiler }}" = "clang" ]; then
-                export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wextra-semi-stmt"
+                export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wextra-semi-stmt -Wdouble-promotion"
               fi
               if [ "$PRECISION" != "__float128" ]; then
                 export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/12/libgomp.so]"

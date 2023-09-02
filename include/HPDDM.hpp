@@ -30,6 +30,16 @@
 
 #include "HPDDM_define.hpp"
 
+#ifdef __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wshadow"
+# pragma clang diagnostic ignored "-Wsign-compare"
+#elif defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wshadow"
+# pragma GCC diagnostic ignored "-Wsign-compare"
+#endif
+
 #ifdef _MSC_VER
 # ifndef _CRT_SECURE_NO_WARNINGS
 #  define _CRT_SECURE_NO_WARNINGS
@@ -505,6 +515,12 @@ using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #  include "HPDDM_iterative.hpp"
 # endif
 # include "HPDDM_PETSc.hpp"
+#endif
+
+#ifdef __clang__
+# pragma clang diagnostic pop
+#elif defined(__GNUC__)
+# pragma GCC diagnostic pop
 #endif
 
 #endif // HPDDM_HPP_

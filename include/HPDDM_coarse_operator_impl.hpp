@@ -80,7 +80,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
             float area = sizeWorld_ *sizeWorld_ / (2.0 * p);
             *DMatrix::ldistribution_ = 0;
             for(unsigned short i = 1; i < p; ++i)
-                DMatrix::ldistribution_[i] = static_cast<int>(sizeWorld_ - std::sqrt(std::max(sizeWorld_ * sizeWorld_ - 2 * sizeWorld_ * DMatrix::ldistribution_[i - 1] - 2 * area + DMatrix::ldistribution_[i - 1] * DMatrix::ldistribution_[i - 1], 1.0f)) + 0.5);
+                DMatrix::ldistribution_[i] = static_cast<int>(sizeWorld_ - std::sqrt(std::max(sizeWorld_ * sizeWorld_ - 2 * sizeWorld_ * DMatrix::ldistribution_[i - 1] - 2 * area + DMatrix::ldistribution_[i - 1] * DMatrix::ldistribution_[i - 1], 1.0f)) + 0.5f);
             int* idx = std::upper_bound(DMatrix::ldistribution_, DMatrix::ldistribution_ + p, rankWorld_);
             unsigned short i = idx - DMatrix::ldistribution_;
             tmp = (i == p) ? sizeWorld_ - DMatrix::ldistribution_[i - 1] : DMatrix::ldistribution_[i] - DMatrix::ldistribution_[i - 1];
@@ -846,7 +846,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             PetscCall(MatPropagateSymmetryOptions(A, E));
             PetscReal filter = -1.0;
             PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
-            if(filter >= 0.0)
+            if(filter >= PetscReal())
                 PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
             PetscCall(KSPSetOperators(v.level_->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
@@ -1313,7 +1313,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             PetscCall(MatPropagateSymmetryOptions(A, E));
             PetscReal filter = -1.0;
             PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
-            if(filter >= 0.0)
+            if(filter >= PetscReal())
                 PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
             PetscCall(KSPSetOperators(v.level_->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));

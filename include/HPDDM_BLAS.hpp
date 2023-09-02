@@ -143,8 +143,7 @@ struct Blas {
 #endif
                                                                                                                                              >::type* = nullptr>
     static void axpy(const int* const n, const K* const a, const U* const x, const int* const incx, V* const y, const int* const incy) {
-        const U alpha(*a);
-        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += alpha * x[j];
+        for(int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += static_cast<V>(static_cast<U>(*a) * x[j]);
     }
 #if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
     template<class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) && std::is_same<U, __complex128>::value>::type* = nullptr>
@@ -420,6 +419,7 @@ HPDDM_GENERATE_BLAS_COMPLEX(k, std::complex<__fp16>, h, __fp16)
 # if HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 HPDDM_GENERATE_AXPBY(c, std::complex<float>, s, float)
 HPDDM_GENERATE_AXPBY(z, std::complex<double>, d, double)
+# endif
 template<class K>
 inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const int& incx, const K& beta, K* const v, const int& incy) {
     if(beta == K())
@@ -429,17 +429,6 @@ inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const
         for(int i = 0; i < n; ++i)
             v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
 }
-# else
-template<class K>
-inline void Blas<K>::axpby(const int& n, const K& alpha, const K* const u, const int& incx, const K& beta, K* const v, const int& incy) {
-    if(beta == K())
-        for(int i = 0; i < n; ++i)
-            v[i * incy] = alpha * u[i * incx];
-    else
-        for(int i = 0; i < n; ++i)
-            v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
-}
-# endif // HPDDM_MKL || HPDDM_OPENBLAS || (defined(__APPLE__) && !defined(PETSC_HAVE_F2CBLASLAPACK))
 } // HPDDM
 #endif // __cplusplus
 #endif // HPDDM_BLAS_HPP_

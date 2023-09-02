@@ -73,7 +73,7 @@ class DMatrix {
                     float area = size * size / (2.0 * p);
                     *pm = 0;
                     for(unsigned short i = 1; i < p; ++i)
-                        pm[i] = static_cast<int>(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)) + 0.5);
+                        pm[i] = static_cast<int>(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)) + 0.5f);
                 }
                 else
                     for(unsigned short i = 0; i < p; ++i)
