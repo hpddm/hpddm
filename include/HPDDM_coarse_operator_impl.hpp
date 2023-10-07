@@ -825,8 +825,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             PetscCall(KSPCreate(extended, &v.level_->ksp));
             PetscCall(MatCreate(extended, &E));
             PetscCall(MatSetOptionsPrefix(E, v.prefix_.c_str()));
+            if(blocked)
+                PetscCall(MatSetBlockSizes(E, local_, local_));
             PetscCall(MatSetFromOptions(E));
-            PetscCall(MatSetBlockSize(E, !blocked ? 1 : local_));
             PetscCall(MatSetSizes(E, 0, 0, rank, rank));
             if(S == 'S') {
                 PetscCall(MatSetType(E, MATSBAIJ));
@@ -1283,8 +1284,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             PetscCall(KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &v.level_->ksp));
             PetscCall(MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &E));
             PetscCall(MatSetOptionsPrefix(E, v.prefix_.c_str()));
+            if(blocked)
+                PetscCall(MatSetBlockSizes(E, local_, local_));
             PetscCall(MatSetFromOptions(E));
-            PetscCall(MatSetBlockSize(E, !blocked ? 1 : local_));
             PetscCall(MatSetSizes(E, nrow, nrow, rank, rank));
             if(S == 'S') {
                 PetscCall(MatSetType(E, MATSBAIJ));

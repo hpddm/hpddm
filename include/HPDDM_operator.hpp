@@ -257,7 +257,7 @@ class OperatorBase : protected Members<P != 's' && P != 'u'> {
                             out[i] = nullptr;
                     }
             }
-            else
+            else if(out)
                 *in = nullptr;
         }
         template<char S, char N, bool U, class T, char Q = P, typename std::enable_if<Q != 's'>::type* = nullptr>
@@ -1355,26 +1355,26 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             unsigned short* infoNeighbor;
             super::template initialize<S, U>(in, info, out, rqRecv, infoNeighbor);
             MPI_Request* rqMult = new MPI_Request[2 * super::map_.size()];
-            unsigned int* offset = new unsigned int[super::map_.size() + 2];
-            offset[0] = 0;
-            offset[1] = super::local_;
-            for(unsigned short i = 2; i < super::map_.size() + 2; ++i)
-                offset[i] = offset[i - 1] + (U ? super::local_ : infoNeighbor[i - 2]);
-#if HPDDM_BDD
-            const int n = super::p_.getMult();
-#else
-            PetscInt n;
-            PetscCallVoid(MatGetLocalSize(A_, &n, nullptr));
-#endif
-            K* mult = new K[offset[super::map_.size() + 1] * n];
-            unsigned short* displs = new unsigned short[super::map_.size() + 1];
-            displs[0] = 0;
-            for(unsigned short i = 0; i < super::map_.size(); ++i) {
-                MPI_Irecv(mult + offset[i + 1] * n + displs[i] * (U ? super::local_ : infoNeighbor[i]), super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + i);
-                displs[i + 1] = displs[i] + super::map_[i].second.size();
+            unsigned int* displs[U ? 1 : 3];
+            *displs = new unsigned int[(U ? 1 : 3) * (super::map_.size() + 1) + 1];
+            displs[0][0] = 0;
+            if(!U) {
+                displs[1] = displs[0] + super::map_.size() + 1;
+                displs[2] = displs[1] + super::map_.size() + 1;
+                displs[1][0] = displs[2][0] = 0;
+                displs[2][1] = super::local_;
             }
-
-            K* tmp = new K[offset[super::map_.size() + 1] * super::n_]();
+            for(unsigned short i = 0; i < super::map_.size(); ++i) {
+                displs[0][i + 1] = displs[0][i] + super::map_[i].second.size();
+                if(!U) {
+                    displs[1][i + 1] = displs[1][i] + super::map_[i].second.size() * infoNeighbor[i];
+                    displs[2][i + 2] = displs[2][i + 1] + infoNeighbor[i];
+                }
+            }
+            K* mult = new K[U ? 2 * displs[0][super::map_.size()] * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][super::map_.size()]];
+            for(unsigned short i = 0; i < super::map_.size(); ++i)
+                MPI_Irecv(mult + (U ? (displs[0][super::map_.size()] + displs[0][i]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][i]), super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + i);
+            K* tmp = new K[(U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]) * super::n_]();
             const underlying_type<K>* const m = super::p_.getScaling();
 #if HPDDM_PETSC
             if(super::local_)
@@ -1382,36 +1382,32 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 #endif
             for(unsigned short i = 0; i < super::map_.size(); ++i) {
                 for(unsigned short k = 0; k < super::local_; ++k)
-                    for(unsigned int j = 0; j < super::map_[i].second.size(); ++j)
 #if HPDDM_BDD
-                        tmp[super::map_[i].second[j] + k * super::n_] = (mult[displs[i] * super::local_ + j + k * super::map_[i].second.size()] = m[super::map_[i].second[j]] * super::deflation_[k][super::map_[i].second[j]]);
+                    for(unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+                        tmp[super::map_[i].second[j] + k * super::n_] = (mult[displs[0][i] * super::local_ + j + k * super::map_[i].second.size()] = m[super::map_[i].second[j]] * super::deflation_[k][super::map_[i].second[j]]);
 #else
-                        mult[displs[i] * super::local_ + j + k * super::map_[i].second.size()] = tmp[super::map_[i].second[j] + k * super::n_];
+                    Wrapper<K>::gthr(super::map_[i].second.size(), tmp + k * super::n_, mult + displs[0][i] * super::local_ + k * super::map_[i].second.size(), super::map_[i].second.data());
 #endif
-                MPI_Isend(mult + displs[i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + super::map_.size() + i);
+                MPI_Isend(mult + displs[0][i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + super::map_.size() + i);
             }
 
             for(unsigned short i = 0; i < super::map_.size(); ++i) {
                 int index;
                 MPI_Waitany(super::map_.size(), rqMult, &index, MPI_STATUS_IGNORE);
                 for(unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[index]); ++k)
-                    for(unsigned int j = 0; j < super::map_[index].second.size(); ++j)
-                        tmp[super::map_[index].second[j] + (offset[index + 1] + k) * super::n_] = mult[offset[index + 1] * n + displs[index] * (U ? super::local_ : infoNeighbor[index]) + j + k * super::map_[index].second.size()];
+                    Wrapper<K>::sctr(super::map_[index].second.size(), mult + (U ? (displs[0][super::map_.size()] + displs[0][index]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][index]) + k * super::map_[index].second.size(), super::map_[index].second.data(), tmp + ((U ? (index + 1) * super::local_ : displs[2][index + 1]) + k) * super::n_);
             }
-
-            delete [] displs;
-
-            if(offset[super::map_.size() + 1]) {
+            if(U || displs[2][super::map_.size() + 1]) {
 #if HPDDM_BDD
-                super::p_.applyLocalSchurComplement(tmp, offset[super::map_.size() + 1]);
+                super::p_.applyLocalSchurComplement(tmp, U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]);
 #else
                 Mat Z, P;
-                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, offset[super::map_.size() + 1], tmp, &Z));
+                PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1], tmp, &Z));
                 PetscCallVoid(MatMatMult(A_, Z, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &P));
                 PetscCallVoid(MatDestroy(&Z));
                 const PetscScalar* array;
                 PetscCallVoid(MatDenseGetArrayRead(P, &array));
-                std::copy_n(array, offset[super::map_.size() + 1] * super::n_, tmp);
+                std::copy_n(array, (U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]) * super::n_, tmp);
                 PetscCallVoid(MatDenseRestoreArrayRead(P, &array));
                 PetscCallVoid(MatDestroy(&P));
 #endif
@@ -1441,24 +1437,24 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 
             work = new K[accumulate]();
 #if HPDDM_PETSC
-            std::copy(tmp, tmp + offset[1] * super::n_, work + super::offsets_[super::rank_]);
+            std::copy_n(tmp, super::local_ * super::n_, work + super::offsets_[super::rank_]);
             if(S != 'S') {
                 for(unsigned short i = 0; i < super::signed_; ++i)
-                    std::copy(tmp + offset[i + 1] * super::n_, tmp + offset[i + 2] * super::n_, work + super::offsets_[super::sparsity_[super::map_[i].first]]);
+                    std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::sparsity_[super::map_[i].first]]);
             }
             for(unsigned short i = super::signed_; i < super::map_.size(); ++i)
-                std::copy(tmp + offset[i + 1] * super::n_, tmp + offset[i + 2] * super::n_, work + super::offsets_[super::map_[i].first]);
+                std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::map_[i].first]);
 #endif
 
             for(unsigned short i = 0; i < super::map_.size(); ++i) {
                 if(i < super::signed_ || S != 'S') {
                     accumulate = super::local_;
                     for(unsigned short k = 0; k < super::local_; ++k)
-                        for(unsigned int j = 0; j < super::map_[i].second.size(); ++j)
 #if HPDDM_BDD
+                        for(unsigned int j = 0; j < super::map_[i].second.size(); ++j)
                             work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] = in[i][k * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + k * super::n_];
 #else
-                            in[i][k * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + k * super::n_];
+                        Wrapper<K>::gthr(super::map_[i].second.size(), tmp + k * super::n_, in[i] + k * super::map_[i].second.size(), super::map_[i].second.data());
 #endif
                 }
                 else {
@@ -1471,22 +1467,21 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                 }
                 for(unsigned short l = S != 'S' ? 0 : std::min(i, super::signed_); l < super::map_.size(); ++l) {
                     for(unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[l]); ++k)
+#if HPDDM_BDD
                         for(unsigned int j = 0; j < super::map_[i].second.size(); ++j) {
                             if(S != 'S' || !(l < std::max(i, super::signed_)))
-#if HPDDM_BDD
-                                work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] = in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
-#else
-                                in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
-#endif
+                                work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] = in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
                             else {
                                 if(i < super::signed_)
-                                    in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
-#if HPDDM_BDD
+                                    in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
                                 else
-                                    work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] = tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
-#endif
+                                    work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
                             }
                         }
+#else
+                        if(S != 'S' || !(l < std::max(i, super::signed_)) || i < super::signed_)
+                            Wrapper<K>::gthr(super::map_[i].second.size(), tmp + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_, in[i] + (accumulate + k) * super::map_[i].second.size(), super::map_[i].second.data());
+#endif
                     if(S != 'S' || !(l < i) || i < super::signed_)
                         accumulate += U ? super::local_ : infoNeighbor[l];
                 }
@@ -1494,7 +1489,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
                     MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
             }
             delete [] tmp;
-            delete [] offset;
+            delete [] *displs;
             if(!U)
                 delete [] infoNeighbor;
         }
