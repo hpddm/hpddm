@@ -126,7 +126,7 @@ void HpddmCSRMM(HpddmMatrixCSR* a, const K* const x, K* prod, int m) {
 #if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
 void HpddmSubdomainNumfact(HpddmSubdomain** S, HpddmMatrixCSR* Mat) {
     if(Mat) {
-        if(*S == NULL)
+        if(*S == nullptr)
             *S = reinterpret_cast<HpddmSubdomain*>(new SUBDOMAIN<cpp_type<K>>());
         reinterpret_cast<SUBDOMAIN<cpp_type<K>>*>(*S)->numfact(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>>*>(Mat));
     }

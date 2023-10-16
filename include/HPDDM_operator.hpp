@@ -1440,7 +1440,7 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
             std::copy_n(tmp, super::local_ * super::n_, work + super::offsets_[super::rank_]);
             if(S != 'S') {
                 for(unsigned short i = 0; i < super::signed_; ++i)
-                    std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::sparsity_[super::map_[i].first]]);
+                    std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::map_[i].first]);
             }
             for(unsigned short i = super::signed_; i < super::map_.size(); ++i)
                 std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::map_[i].first]);

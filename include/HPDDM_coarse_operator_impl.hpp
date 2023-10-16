@@ -1960,7 +1960,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
     }
     if(!std::is_same<downscaled_type<K>, K>::value)
         for(unsigned int i = mu * local_; i-- > 0; )
-            pt[i] = rhs[i];
+            pt[i] = static_cast<K>(rhs[i]);
 }
 
 #ifdef HPDDM_PETSC_CALL_VOID

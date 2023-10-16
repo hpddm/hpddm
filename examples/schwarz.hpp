@@ -24,7 +24,7 @@
 #ifndef SCHWARZ_HPP_
 #define SCHWARZ_HPP_
 
-#if HPDDM_MKL
+#if defined(HPDDM_MKL) && HPDDM_MKL
 #include <complex>
 #define MKL_Complex16         std::complex<double>
 #define MKL_Complex8          std::complex<float>
