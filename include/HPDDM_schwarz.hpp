@@ -1152,30 +1152,25 @@ class Schwarz : public Preconditioner<
                             PetscCall(SVDSolve(svd));
                             PetscCall(MatShellSetOperation(N, MATOP_DESTROY, destroy));
                             PetscCall(SVDGetConverged(svd, &nconv));
-                            levels[0]->nu = std::min(nconv, nev);
                             if(levels[0]->threshold >= PetscReal()) {
-                                PetscInt i = 0;
-                                if(levels[0]->nu) {
-                                    PetscReal theta;
-                                    PetscCall(SVDGetSingularTriplet(svd, 0, &theta, nullptr, nullptr));
-                                    while(i < levels[0]->nu) {
-                                        PetscReal sigma;
-                                        PetscCall(SVDGetSingularTriplet(svd, i, &sigma, nullptr, nullptr));
-                                        if(sigma / theta < levels[0]->threshold) {
-                                            PetscCall(PetscInfo(svd, "HPDDM: Discarding singular value %g, which is higher than the largest singular value %g times %g\n", double(sigma), double(theta), double(levels[0]->threshold)));
-                                            break;
-                                        }
-                                        else
-                                            PetscCall(PetscInfo(svd, "HPDDM: Using singular value %g\n", double(sigma)));
-                                        ++i;
+                                PetscReal theta;
+                                PetscCall(SVDGetSingularTriplet(svd, 0, &theta, nullptr, nullptr));
+                                for(levels[0]->nu = 0; levels[0]->nu < nconv; ++levels[0]->nu) {
+                                    PetscReal sigma;
+                                    PetscCall(SVDGetSingularTriplet(svd, levels[0]->nu, &sigma, nullptr, nullptr));
+                                    if(sigma / theta < levels[0]->threshold) {
+                                        PetscCall(PetscInfo(svd, "HPDDM: Discarding singular value %g, which is lower than the largest singular value %g times %g\n", double(sigma), double(theta), double(levels[0]->threshold)));
+                                        break;
                                     }
+                                    else
+                                        PetscCall(PetscInfo(svd, "HPDDM: Using singular value %g\n", double(sigma)));
                                 }
-                                if(i == levels[0]->nu)
-                                    PetscCall(PetscInfo(eps, "HPDDM: Not enough computed singular triplets to satisfy the threshold criterion\n"));
-                                else
-                                    levels[0]->nu = i;
+                                if(levels[0]->nu == nconv)
+                                    PetscCall(PetscInfo(svd, "HPDDM: Not enough converged singular triplets to satisfy the threshold criterion\n"));
                             }
-                            PetscCall(PetscInfo(svd, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed singular vectors\n", levels[0]->nu, nconv));
+                            else
+                                levels[0]->nu = std::min(nconv, nev);
+                            PetscCall(PetscInfo(svd, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " converged singular vectors\n", levels[0]->nu, nconv));
                             if(levels[0]->nu) {
                                 Harmonic h;
                                 Vec      u, full;
@@ -1378,21 +1373,19 @@ class Schwarz : public Preconditioner<
                     while(!ctx->work->empty() || ctx->status != 'c')
                         PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
                 }
-                levels[0]->nu = std::min(nconv, nev);
                 if(levels[0]->threshold >= PetscReal()) {
                     PetscReal relative = 1.0;
-                    PetscInt i = 0;
-                    while(i < levels[0]->nu) {
+                    for(levels[0]->nu = 0; levels[0]->nu < nconv; ++levels[0]->nu) {
                         PetscReal   re, im;
 #if defined(PETSC_USE_COMPLEX)
                         PetscScalar eig;
-                        PetscCall(EPSGetEigenvalue(eps, i, &eig, nullptr));
+                        PetscCall(EPSGetEigenvalue(eps, levels[0]->nu, &eig, nullptr));
                         re = PetscRealPart(eig);
                         im = PetscImaginaryPart(eig);
 #else
-                        PetscCall(EPSGetEigenvalue(eps, i, &re, &im));
+                        PetscCall(EPSGetEigenvalue(eps, levels[0]->nu, &re, &im));
 #endif
-                        if(i == 0 && h) relative = HPDDM::hypot(re, im);
+                        if(levels[0]->nu == 0 && h) relative = HPDDM::hypot(re, im);
                         if(HPDDM::hypot(re, im) / relative > levels[0]->threshold) {
                             if(HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon()) {
                                 if(!h)
@@ -1414,14 +1407,13 @@ class Schwarz : public Preconditioner<
                             else
                                 PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(re)));
                         }
-                        ++i;
                     }
-                    if(i == levels[0]->nu)
-                        PetscCall(PetscInfo(eps, "HPDDM: Not enough computed eigenpairs to satisfy the threshold criterion\n"));
-                    else
-                        levels[0]->nu = i;
+                    if(levels[0]->nu == nconv)
+                        PetscCall(PetscInfo(eps, "HPDDM: Not enough converged eigenpairs to satisfy the threshold criterion\n"));
                 }
-                PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " computed eigenvectors\n", levels[0]->nu, nconv));
+                else
+                    levels[0]->nu = std::min(nconv, nev);
+                PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " converged eigenvectors\n", levels[0]->nu, nconv));
             }
             else {
                 PetscInt n;
@@ -1819,7 +1811,7 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
             int count;
             PetscCallMPI(MPI_Get_count(&st, HPDDM::Wrapper<PetscScalar>::mpi_type(), &count));
             if(count == 0)
-              p->work->erase(it);
+                p->work->erase(it);
         }
     }
     if(!p->work->empty() || p->status == 'a') {
