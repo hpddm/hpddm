@@ -43,12 +43,26 @@ struct _n_Aux {
 static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
 typedef struct _n_Sum *Sum;
 struct _n_Sum {
-    Mat                       A[3];
+    Mat                       A[4];
+    Vec                       v;
+    IS                        overlap;
     void*                     decomposition;
     std::set<unsigned short>* work;
     char                      status;
 };
+template<unsigned short>
 static PetscErrorCode MatMult_Sum(Mat, Vec, Vec);
+static PetscErrorCode MatDestroy_Sum(Mat);
+typedef struct _n_LRC *LRC;
+struct _n_LRC {
+    PC  pc;
+    Mat O;
+    Vec work[3];
+    IS  overlap;
+};
+static PetscErrorCode PCApply_LRC(PC, Vec, Vec);
+static PetscErrorCode PCView_LRC(PC, PetscViewer);
+static PetscErrorCode PCDestroy_LRC(PC);
 static PetscErrorCode MatMult_Harmonic(Mat, Vec, Vec);
 static PetscErrorCode MatDestroy_Harmonic(Mat);
 # endif
@@ -1336,20 +1350,47 @@ class Schwarz : public Preconditioner<
                     }
                 }
                 else {
-                    PetscScalar target;
+                    std::unordered_set<unsigned int> overlap;
+                    Mat                              tmp[3];
+                    PetscScalar                      target;
+                    PetscInt                         i = 0, *indices;
                     PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
                     PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt*, PetscInt*, KSP**), (levels[0]->pc, nullptr, nullptr, &ksp));
                     PetscCall(PetscNew(&ctx));
                     PetscCall(KSPGetOperators(ksp[0], ctx->A, nullptr));
-                    ctx->A[1] = ctx->A[2] = nullptr;
+                    ctx->A[2] = ctx->A[3] = nullptr;
+                    PetscCall(VecCreateSeq(PETSC_COMM_SELF, Subdomain<K>::dof_, &ctx->v));
                     ctx->decomposition = this;
                     ctx->work = new std::set<unsigned short>();
                     for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
                         ctx->work->insert(i);
                     ctx->status = 'a';
-                    PetscCall(MatCreateShell(PETSC_COMM_SELF, Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_, ctx, &weighted));
-                    PetscCall(MatShellSetOperation(weighted, MATOP_MULT, (void (*)(void))MatMult_Sum));
                     Subdomain<K>::setBuffer();
+                    for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                        overlap.insert(Subdomain<K>::map_[i].second.cbegin(), Subdomain<K>::map_[i].second.cend());
+                    PetscCall(PetscMalloc1(overlap.size(), &indices));
+                    for(std::unordered_set<unsigned int>::const_iterator it = overlap.cbegin(); it != overlap.cend(); ++it)
+                        indices[i++] = *it;
+                    PetscCall(ISCreateGeneral(PETSC_COMM_SELF, i, indices, PETSC_OWN_POINTER, &ctx->overlap));
+                    PetscCall(MatCreateShell(PETSC_COMM_SELF, i, i, i, i, ctx, tmp + 1));
+                    local = tmp[1];
+                    PetscCall(MatShellSetOperation(tmp[1], MATOP_MULT, (void (*)(void))MatMult_Sum<0>));
+                    PetscCall(MatShellSetOperation(tmp[1], MATOP_DESTROY, (void (*)(void))MatDestroy_Sum));
+                    PetscCall(MatCreateSeqAIJ(PETSC_COMM_SELF, i, Subdomain<K>::dof_, 1, nullptr, tmp));
+                    for(PetscInt j = 0; j < i; ++j)
+                        PetscCall(MatSetValue(tmp[0], j, indices[j], 1.0, INSERT_VALUES));
+                    PetscCall(MatAssemblyBegin(tmp[0], MAT_FINAL_ASSEMBLY));
+                    PetscCall(MatAssemblyEnd(tmp[0], MAT_FINAL_ASSEMBLY));
+                    PetscCall(MatCreateTranspose(tmp[0], tmp + 2));
+                    PetscCall(MatCreateComposite(PETSC_COMM_SELF, 3, tmp, ctx->A + 1));
+                    PetscCall(MatCompositeSetType(ctx->A[1], MAT_COMPOSITE_MULTIPLICATIVE));
+                    PetscCall(PetscObjectDereference((PetscObject)tmp[0]));
+                    PetscCall(PetscObjectDereference((PetscObject)tmp[1]));
+                    PetscCall(PetscObjectDereference((PetscObject)tmp[2]));
+                    PetscCall(MatCreateComposite(PETSC_COMM_SELF, 2, ctx->A, &weighted));
+                    PetscCall(PetscObjectDereference((PetscObject)ctx->A[1]));
+                    ctx->A[1] = nullptr;
+                    PetscCall(MatDiagonalScale(weighted, levels[0]->D, levels[0]->D));
                     PetscCall(EPSSetOperators(eps, ctx->A[0], weighted));
                     PetscCall(EPSGetTarget(eps, &target));
                     PetscCheck(PetscAbsScalar(target) < PETSC_MACHINE_EPSILON, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_target with a magnitude %g (!= 0.0)", prefix, double(PetscAbsScalar(target)));
@@ -1371,7 +1412,7 @@ class Schwarz : public Preconditioner<
                 if(ctx) {
                     ctx->status = 'b';
                     while(!ctx->work->empty() || ctx->status != 'c')
-                        PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
+                        PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
                 }
                 if(levels[0]->threshold >= PetscReal()) {
                     PetscReal relative = 1.0;
@@ -1462,14 +1503,157 @@ class Schwarz : public Preconditioner<
 #endif
                 }
                 if(ctx) {
+                    PetscContainer container;
                     ctx->status = 'b';
                     while(!ctx->work->empty() || ctx->status != 'c')
-                        PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
-                    PetscCall(MatDestroy(&weighted));
-                    PetscCall(MatDestroy(ctx->A + 1));
-                    PetscCall(MatDestroy(ctx->A + 2));
-                    delete ctx->work;
-                    PetscCall(PetscFree(ctx));
+                        PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
+                    PetscCall(PetscObjectQuery((PetscObject)levels[0]->pc, "_PCHPDDM_LRC", (PetscObject*)&container));
+                    if(container) {
+                        PC          pc;
+                        SVD         svd;
+                        Mat         U, V, tmp[2];
+                        Vec         c;
+                        PetscScalar *array;
+                        PetscReal   sigma, *ptr;
+                        PetscInt    m;
+                        LRC         shell;
+                        PetscCall(PetscNew(&shell));
+                        shell->overlap = ctx->overlap;
+                        for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                            ctx->work->insert(i);
+                        ctx->status = 'a';
+                        PetscCall(PetscContainerGetPointer(container, (void**)&ptr));
+                        PetscCall(PetscObjectCompose((PetscObject)levels[0]->pc, "_PCHPDDM_LRC", nullptr));
+                        PetscCall(MatAssemblyBegin(weighted, MAT_FINAL_ASSEMBLY));
+                        PetscCall(MatAssemblyEnd(weighted, MAT_FINAL_ASSEMBLY));
+                        PetscCall(MatDestroy(ctx->A + 1));
+                        PetscCall(MatDestroy(ctx->A + 2));
+                        PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
+                        PetscCall(SVDSetOperators(svd, local, nullptr));
+                        PetscCall(SVDSetOptionsPrefix(svd, prefix));
+                        PetscCall(MatGetSize(local, &m, nullptr));
+                        PetscCall(SVDSetDimensions(svd, m / 2, PETSC_DEFAULT, PETSC_DEFAULT));
+                        PetscCall(SVDSetFromOptions(svd));
+                        PetscCall(PetscObjectTypeCompare((PetscObject)svd, SVDLAPACK, &flg));
+                        if (!flg) {
+                            PetscCall(PetscObjectTypeCompare((PetscObject)svd, SVDCROSS, &solve));
+                            if (!solve) {
+                                PetscCall(PetscObjectTypeCompareAny((PetscObject)svd, &flg, SVDCYCLIC, SVDTRLANCZOS, nullptr));
+                                flg = static_cast<PetscBool>(!flg);
+                            }
+                            PetscCheck(!flg, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%ssvd_type %s", prefix, ((PetscObject)svd)->type_name);
+                            PetscCall(MatShellSetOperation(local, MATOP_MULT_TRANSPOSE, (void (*)(void))MatMult_Sum<1>));
+                        }
+                        PetscCall(MatShellSetOperation(local, MATOP_DESTROY, nullptr));
+                        PetscCall(SVDSolve(svd));
+                        ctx->status = 'b';
+                        while(!ctx->work->empty() || ctx->status != 'c') {
+                            if(!flg) {
+                                PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
+                                PetscCall(MatMult_Sum<1>(local, nullptr, nullptr));
+                            }
+                            else
+                                PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
+                        }
+                        if(flg || !solve)
+                            PetscCall(MatDestroy_Sum(local));
+                        else {
+                            for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                                ctx->work->insert(i);
+                            ctx->status = 'a';
+                        }
+                        PetscCall(SVDGetConverged(svd, &nconv));
+                        PetscCall(SVDGetSingularTriplet(svd, 0, &sigma, nullptr, nullptr));
+                        for(PetscInt i = 1; i < nconv; ++i) {
+                            PetscReal gamma;
+                            PetscCall(SVDGetSingularTriplet(svd, i, &gamma, nullptr, nullptr));
+                            if(gamma / sigma < *ptr)
+                                nconv = i;
+                        }
+                        delete ptr;
+                        PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, m, nconv, nullptr, &U));
+                        PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, m, nconv, nullptr, &V));
+                        PetscCall(VecCreateSeq(PETSC_COMM_SELF, nconv, &c));
+                        PetscCall(VecGetArrayWrite(c, &array));
+                        for(PetscInt i = 0; i < nconv; ++i) {
+                            Vec       u, v;
+                            PetscReal gamma;
+                            PetscCall(MatDenseGetColumnVec(U, i, &u));
+                            PetscCall(MatDenseGetColumnVec(V, i, &v));
+                            PetscCall(SVDGetSingularTriplet(svd, i, &gamma, u, v));
+                            array[i] = static_cast<PetscReal>(1.0) / gamma;
+                            PetscCall(MatDenseRestoreColumnVec(V, i, &v));
+                            PetscCall(MatDenseRestoreColumnVec(U, i, &u));
+                        }
+                        PetscCall(VecRestoreArrayWrite(c, &array));
+                        if(!flg && solve) {
+                            ctx->status = 'b';
+                            while(!ctx->work->empty() || ctx->status != 'c') {
+                                PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
+                                PetscCall(MatMult_Sum<1>(local, nullptr, nullptr));
+                            }
+                            PetscCall(MatDestroy_Sum(local));
+                        }
+                        PetscCall(SVDDestroy(&svd));
+                        PetscCall(MatTranspose(V, MAT_INPLACE_MATRIX, &V));
+                        PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, Subdomain<K>::dof_, nconv, nullptr, tmp + 1));
+                        for(PetscInt i = 0; i < nconv; ++i) {
+                            Vec u, v;
+                            PetscCall(MatDenseGetColumnVec(U, i, &u));
+                            PetscCall(MatDenseGetColumnVec(tmp[1], i, &v));
+                            PetscCall(VecISCopy(v, shell->overlap, SCATTER_FORWARD, u));
+                            PetscCall(MatDenseRestoreColumnVec(tmp[1], i, &v));
+                            PetscCall(MatDenseRestoreColumnVec(U, i, &u));
+                        }
+                        PetscCall(MatDuplicate(tmp[1], MAT_DO_NOT_COPY_VALUES, tmp));
+                        PetscCall(KSPMatSolve(ksp[0], tmp[1], tmp[0]));
+                        PetscCall(MatDestroy(tmp + 1));
+                        PetscCall(MatDuplicate(U, MAT_DO_NOT_COPY_VALUES, tmp + 1));
+                        for(PetscInt i = 0; i < nconv; ++i) {
+                            Vec u, v;
+                            PetscCall(MatDenseGetColumnVec(tmp[0], i, &u));
+                            PetscCall(MatDenseGetColumnVec(tmp[1], i, &v));
+                            PetscCall(VecISCopy(u, shell->overlap, SCATTER_REVERSE, v));
+                            PetscCall(MatDenseRestoreColumnVec(tmp[1], i, &v));
+                            PetscCall(MatDenseRestoreColumnVec(tmp[0], i, &u));
+                        }
+                        PetscCall(MatDestroy(tmp));
+                        PetscCall(MatMatMult(V, tmp[1], MAT_INITIAL_MATRIX, PETSC_DEFAULT, tmp));
+                        PetscCall(MatDestroy(tmp + 1));
+                        PetscCall(MatDiagonalSet(tmp[0], c, ADD_VALUES));
+                        PetscCall(MatLUFactor(tmp[0], nullptr, nullptr, nullptr));
+                        PetscCall(MatMatSolve(tmp[0], V, V));
+                        PetscCall(MatDestroy(tmp));
+                        if(Subdomain<K>::dof_ > 3 * nconv) {
+                            Mat UV[2] = {V, U};
+                            PetscCall(MatCreateComposite(PETSC_COMM_SELF, 2, UV, tmp));
+                            PetscCall(MatCompositeSetType(tmp[0], MAT_COMPOSITE_MULTIPLICATIVE));
+                        }
+                        else
+                            PetscCall(MatMatMult(U, V, MAT_INITIAL_MATRIX, PETSC_DEFAULT, tmp));
+                        PetscCall(MatDestroy(&V));
+                        PetscCall(MatDestroy(&U));
+                        PetscCall(VecDestroy(&c));
+                        PetscCall(PCCreate(PETSC_COMM_SELF, &pc));
+                        PetscCall(PCSetType(pc, PCSHELL));
+                        PetscCall(PCSetOperators(pc, weighted, weighted));
+                        PetscCall(KSPGetPC(ksp[0], &shell->pc));
+                        PetscCall(PetscObjectReference((PetscObject)shell->pc));
+                        shell->O = tmp[0];
+                        PetscCall(PCShellSetContext(pc, shell));
+                        PetscCall(PCShellSetApply(pc, PCApply_LRC));
+                        PetscCall(PCShellSetView(pc, PCView_LRC));
+                        PetscCall(PCShellSetDestroy(pc, PCDestroy_LRC));
+                        PetscCall(MatCreateVecs(tmp[0], shell->work, shell->work + 1));
+                        PetscCall(VecCreateSeq(PETSC_COMM_SELF, Subdomain<K>::dof_, shell->work + 2));
+                        PetscCall(KSPSetOperators(ksp[0], weighted, weighted));
+                        PetscCall(PetscObjectDereference((PetscObject)weighted));
+                        weighted = nullptr;
+                        PetscCall(KSPSetPC(ksp[0], pc));
+                        PetscCall(PetscObjectDereference((PetscObject)pc));
+                    }
+                    else
+                        PetscCall(ISDestroy(&ctx->overlap));
                     Subdomain<K>::clearBuffer(true);
                 }
                 PetscCall(VecDestroy(&vr));
@@ -1747,10 +1931,10 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscCall(VecDestroy(&leftEcon));
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+template<unsigned short T>
 static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
-    PetscScalar                 *out, *work, **buffer;
+    PetscScalar                 *out, **buffer;
     const PetscScalar           *in;
-    const PetscReal             *d;
     PetscInt                    n;
     Sum                         p;
     HPDDM::Schwarz<PetscScalar> *decomposition;
@@ -1762,16 +1946,14 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
     PetscCall(MatShellGetContext(A, &p));
     decomposition = reinterpret_cast<HPDDM::Schwarz<PetscScalar>*>(p->decomposition);
     buffer = decomposition->getBuffer();
-    d = decomposition->getScaling();
     map = decomposition->getMap();
     rq = decomposition->getRq();
     communicator = decomposition->getCommunicator();
-    PetscCall(MatGetLocalSize(A, &n, nullptr));
+    PetscCall(MatGetLocalSize(p->A[0], &n, nullptr));
     if(p->status == 'a') {
-        PetscCall(VecGetArrayWrite(y, &out));
-        PetscCall(VecGetArrayRead(x, &in));
-        HPDDM::Wrapper<PetscScalar>::diag(n, d, in, out);
-        PetscCall(VecRestoreArrayRead(x, &in));
+        PetscCall(VecGetArrayWrite(p->v, &out));
+        std::fill_n(out, n, 0.0);
+        PetscCall(VecISCopy(p->v, p->overlap, SCATTER_FORWARD, x));
     }
     for(unsigned short i = 0, size = map.size(); i < size; ++i) {
         if(p->work->find(i) != p->work->cend())
@@ -1785,43 +1967,46 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
         else if(p->status == 'b')
             PetscCallMPI(MPI_Isend(buffer[size + i], 0, HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + size + i));
     }
-    if(!p->work->empty() || p->status == 'a') {
+    if(!p->work->empty()) {
         PetscInt m = 0;
         if(p->A[1])
             PetscCall(MatGetLocalSize(p->A[1], nullptr, &m));
-        if(m != p->work->size() + (p->status == 'a')) {
+        if(m != p->work->size()) {
             PetscCall(MatDestroy(p->A + 1));
             PetscCall(MatDestroy(p->A + 2));
-            PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, n, p->work->size() + (p->status == 'a'), nullptr, p->A + 1));
+            PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, n, p->work->size(), nullptr, p->A + 1));
             PetscCall(MatProductCreate(p->A[0], p->A[1], nullptr, p->A + 2));
             PetscCall(MatProductSetType(p->A[2], MATPRODUCT_AB));
             PetscCall(MatProductSetFromOptions(p->A[2]));
             PetscCall(MatProductSymbolic(p->A[2]));
         }
-        PetscCall(MatDenseGetArrayWrite(p->A[1], &work));
-    }
-    if(p->status == 'a') {
-        std::copy_n(out, n, work);
-        PetscCall(VecRestoreArrayWrite(y, &out));
+        if(T == 1 && (m != p->work->size() || !p->A[3])) {
+            PetscCall(MatDestroy(p->A + 3));
+            PetscCall(MatProductCreate(p->A[0], p->A[1], nullptr, p->A + 3));
+            PetscCall(MatProductSetType(p->A[3], MATPRODUCT_AtB));
+            PetscCall(MatProductSetFromOptions(p->A[3]));
+            PetscCall(MatProductSymbolic(p->A[3]));
+        }
     }
     for(unsigned short i = 0, size = map.size(); i < size; ++i) {
-        int index;
+        int n;
         MPI_Status st;
-        PetscCallMPI(MPI_Waitany(map.size(), rq, &index, &st));
-        std::set<unsigned short>::const_iterator it = p->work->find(index);
+        PetscCallMPI(MPI_Waitany(map.size(), rq, &n, &st));
+        std::set<unsigned short>::const_iterator it = p->work->find(n);
         if(it != p->work->cend()) {
-            int count;
-            PetscCallMPI(MPI_Get_count(&st, HPDDM::Wrapper<PetscScalar>::mpi_type(), &count));
-            if(count == 0)
+            PetscCallMPI(MPI_Get_count(&st, HPDDM::Wrapper<PetscScalar>::mpi_type(), &n));
+            if(n == 0)
                 p->work->erase(it);
         }
     }
-    if(!p->work->empty() || p->status == 'a') {
+    if(!p->work->empty()) {
+        PetscScalar *work;
+        PetscCall(MatDenseGetArrayWrite(p->A[1], &work));
         for(std::set<unsigned short>::const_iterator it = p->work->cbegin(); it != p->work->cend(); ++it)
-            HPDDM::Wrapper<PetscScalar>::sctr(map[*it].second.size(), buffer[*it], map[*it].second.data(), work + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n);
+            HPDDM::Wrapper<PetscScalar>::sctr(map[*it].second.size(), buffer[*it], map[*it].second.data(), work + std::distance(p->work->cbegin(), it) * n);
         PetscCall(MatDenseRestoreArrayWrite(p->A[1], &work));
-        PetscCall(MatProductNumeric(p->A[2]));
-        PetscCall(MatDenseGetArrayRead(p->A[2], &in));
+        PetscCall(MatProductNumeric(p->A[2 + T]));
+        PetscCall(MatDenseGetArrayRead(p->A[2 + T], &in));
     }
     if(p->status != 'c') {
         PetscCallMPI(MPI_Waitall(map.size(), rq + map.size(), MPI_STATUSES_IGNORE));
@@ -1833,29 +2018,78 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y) {
             PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + i));
         std::set<unsigned short>::const_iterator it = p->work->find(i);
         if(it != p->work->cend()) {
-            HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n, buffer[size + i], map[i].second.data());
+            HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + std::distance(p->work->cbegin(), it) * n, buffer[size + i], map[i].second.data());
             PetscCallMPI(MPI_Isend(buffer[size + i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + size + i));
         }
         else
             rq[size + i] = MPI_REQUEST_NULL;
     }
+    if(!p->work->empty())
+        PetscCall(MatDenseRestoreArrayRead(p->A[2 + T], &in));
     if(p->status == 'a') {
-        PetscCall(VecGetArrayWrite(y, &out));
-        std::copy_n(in, n, out);
-        PetscCall(MatDenseRestoreArrayRead(p->A[2], &in));
+        std::fill_n(out, n, 0.0);
         for(unsigned short i = 0, size = map.size(); i < size; ++i) {
             int index;
             PetscCallMPI(MPI_Waitany(map.size(), rq, &index, MPI_STATUS_IGNORE));
             for(unsigned int j = 0; j < map[index].second.size(); ++j)
                 out[map[index].second[j]] += buffer[index][j];
         }
-        HPDDM::Wrapper<PetscScalar>::diag(n, d, out);
-        PetscCall(VecRestoreArrayWrite(y, &out));
+        PetscCall(VecISCopy(p->v, p->overlap, SCATTER_REVERSE, y));
+        PetscCall(VecRestoreArrayWrite(p->v, &out));
     }
-    else if(!p->work->empty())
-        PetscCall(MatDenseRestoreArrayRead(p->A[2], &in));
     PetscCallMPI(MPI_Waitall(map.size(), rq + map.size(), MPI_STATUSES_IGNORE));
     PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode MatDestroy_Sum(Mat A) {
+    Sum p;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatShellGetContext(A, &p));
+    PetscCall(MatDestroy(p->A + 1));
+    PetscCall(MatDestroy(p->A + 2));
+    PetscCall(MatDestroy(p->A + 3));
+    PetscCall(VecDestroy(&p->v));
+    delete p->work;
+    PetscCall(PetscFree(p));
+    PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode PCApply_LRC(PC pc, Vec x, Vec y) {
+  LRC ctx;
+
+  PetscFunctionBeginUser;
+  PetscCall(PCShellGetContext(pc, &ctx));
+  PetscCall(PCApply(ctx->pc, x, y));
+  PetscCall(VecISCopy(y, ctx->overlap, SCATTER_REVERSE, ctx->work[0]));
+  PetscCall(MatMult(ctx->O, ctx->work[0], ctx->work[1]));
+  PetscCall(VecSet(ctx->work[2], 0.0));
+  PetscCall(VecISCopy(ctx->work[2], ctx->overlap, SCATTER_FORWARD, ctx->work[1]));
+  PetscCall(VecAYPX(ctx->work[2], -1.0, x));
+  PetscCall(PCApply(ctx->pc, ctx->work[2], y));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode PCView_LRC(PC pc, PetscViewer viewer) {
+  LRC ctx;
+
+  PetscFunctionBeginUser;
+  PetscCall(PCShellGetContext(pc, &ctx));
+  PetscCall(PCView(ctx->pc, viewer));
+  PetscCall(PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_INFO));
+  PetscCall(MatView(ctx->O, viewer));
+  PetscCall(PetscViewerPopFormat(viewer));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+static PetscErrorCode PCDestroy_LRC(PC pc) {
+  LRC ctx;
+
+  PetscFunctionBeginUser;
+  PetscCall(PCShellGetContext(pc, &ctx));
+  PetscCall(PCDestroy(&ctx->pc));
+  PetscCall(MatDestroy(&ctx->O));
+  for(PetscInt i = 0; i < 3; ++i)
+      PetscCall(VecDestroy(ctx->work + i));
+  PetscCall(ISDestroy(&ctx->overlap));
+  PetscCall(PetscFree(ctx));
+  PetscFunctionReturn(PETSC_SUCCESS);
 }
 static PetscErrorCode MatMult_Harmonic(Mat A, Vec x, Vec y) {
     std::tuple<Harmonic, Mat, Vec[4]> *p;
