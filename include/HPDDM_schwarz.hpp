@@ -1685,6 +1685,8 @@ class Schwarz : public Preconditioner<
                 super::co_->template callSolver<excluded>(super::uc_, mu);                                                                                                                                                        // uc_ = E \ ev_^T D in
                 if(local)
                     Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &tmp, &local, &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &local, &(Wrapper<K>::d__0), out, &(Subdomain<K>::dof_));                   // out = ev_ E \ ev_^T D in
+                else
+                    std::fill_n(out, mu * Subdomain<K>::dof_, 0.0);
                 exchange(out, mu);
             }
 #if HPDDM_PETSC
