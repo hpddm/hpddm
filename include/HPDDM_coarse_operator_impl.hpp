@@ -1056,12 +1056,14 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         if(excluded < 2) {
 #ifdef HPDDM_CSR_CO
             if(!blocked) {
-                I[1] = coefficients + (S == 'S' ? local_ : 0);
-                for(unsigned short k = 1; k < local_; ++k) {
-                    I[k + 1] = coefficients + (S == 'S' ? local_ - k : 0);
+                if(local_) {
+                    I[1] = coefficients + (S == 'S' ? local_ : 0);
+                    for(unsigned short k = 1; k < local_; ++k) {
+                        I[k + 1] = coefficients + (S == 'S' ? local_ - k : 0);
 #ifndef HPDDM_CONTIGUOUS
-                    loc2glob[k] = v.max_ + k;
+                        loc2glob[k] = v.max_ + k;
 #endif
+                    }
                 }
             }
             else
@@ -1268,7 +1270,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 if(T == 1)
                     DMatrix::n_ += (end - super::di_[2]) * local_;
             }
-        } // }
+        }
         super::bs_ = (!blocked ? 1 : local_);
 #if !HPDDM_PETSC
         super::template numfact<T, Operator::factorize_>(nrow / (!blocked ? 1 : local_), I, loc2glob, J, pt, neighbors);
