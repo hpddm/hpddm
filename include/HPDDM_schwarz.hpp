@@ -54,13 +54,21 @@ template<unsigned short>
 static PetscErrorCode MatMult_Sum(Mat, Vec, Vec);
 static PetscErrorCode MatDestroy_Sum(Mat);
 typedef struct _n_LRC *LRC;
+#define DEBUG 1
 struct _n_LRC {
     PC  pc;
     Mat O;
     Vec work[3];
     IS  overlap;
+#if DEBUG
+    PC  debug;
+    KSP ksp_debug;
+#endif
 };
 static PetscErrorCode PCApply_LRC(PC, Vec, Vec);
+#if DEBUG
+static PetscErrorCode PCApply_LRC_minimal(PC, Vec, Vec);
+#endif
 static PetscErrorCode PCView_LRC(PC, PetscViewer);
 static PetscErrorCode PCDestroy_LRC(PC);
 static PetscErrorCode MatMult_Harmonic(Mat, Vec, Vec);
@@ -1556,7 +1564,11 @@ class Schwarz : public Preconditioner<
                                 PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
                         }
                         if(flg || !solve)
+#if !DEBUG
                             PetscCall(MatDestroy_Sum(local));
+#else
+                        { }
+#endif
                         else {
                             for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
                                 ctx->work->insert(i);
@@ -1592,7 +1604,9 @@ class Schwarz : public Preconditioner<
                                 PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
                                 PetscCall(MatMult_Sum<1>(local, nullptr, nullptr));
                             }
+#if !DEBUG
                             PetscCall(MatDestroy_Sum(local));
+#endif
                         }
                         PetscCall(SVDDestroy(&svd));
                         PetscCall(MatTranspose(V, MAT_INPLACE_MATRIX, &V));
@@ -1640,6 +1654,48 @@ class Schwarz : public Preconditioner<
                         PetscCall(KSPGetPC(ksp[0], &shell->pc));
                         PetscCall(PetscObjectReference((PetscObject)shell->pc));
                         shell->O = tmp[0];
+#if DEBUG
+                        flg = PETSC_FALSE;
+                        PetscCall(PetscOptionsGetBool(nullptr, nullptr, "-no_woodbury", &flg, nullptr));
+                        shell->ksp_debug = nullptr;
+                        if(flg) {
+                            Mat sum[2], mult[3], S, Amat;
+                            PetscCall(MatCompositeGetMat(weighted, 0, sum));
+                            PetscCall(MatCompositeGetMat(weighted, 1, sum + 1));
+                            PetscCall(MatCompositeGetMat(sum[1], 0, mult));
+                            PetscCall(MatCompositeGetMat(sum[1], 1, mult + 1));
+                            for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                                ctx->work->insert(i);
+                            ctx->status = 'a';
+                            PetscCall(MatConvert(mult[1], MATAIJ, MAT_INITIAL_MATRIX, &S));
+                            ctx->status = 'b';
+                            while(!ctx->work->empty() || ctx->status != 'c')
+                                PetscCall(MatMult_Sum<0>(mult[1], nullptr, nullptr));
+                            PetscCall(MatPtAP(S, mult[0], MAT_INITIAL_MATRIX, PETSC_DEFAULT, sum + 1));
+                            PetscCall(MatDestroy(&S));
+                            PetscCall(MatCreateComposite(PETSC_COMM_SELF, 2, sum, &Amat));
+                            PetscCall(MatDestroy(sum + 1));
+                            PetscCall(MatConvert(Amat, MATAIJ, MAT_INPLACE_MATRIX, &Amat));
+                            PetscCall(PCCreate(PETSC_COMM_SELF, &shell->debug));
+                            PetscCall(PCSetOperators(shell->debug, Amat, Amat));
+                            PetscCall(PCSetType(shell->debug, PCLU));
+                            PetscCall(PCSetErrorIfFailure(shell->pc, PETSC_FALSE));
+                            PetscCall(PetscOptionsGetBool(nullptr, nullptr, "-ksp_woodbury", &flg, nullptr));
+                            if (flg) {
+                                PC pc;
+                                PetscCall(KSPCreate(PETSC_COMM_SELF, &shell->ksp_debug));
+                                PetscCall(KSPSetOperators(shell->ksp_debug, Amat, Amat));
+                                PetscCall(KSPSetOptionsPrefix(shell->ksp_debug, std::string("woodbury_").c_str()));
+                                PetscCall(KSPGetPC(shell->ksp_debug, &pc));
+                                PetscCall(PCSetType(pc, PCSHELL));
+                                PetscCall(PCShellSetContext(pc, shell));
+                                PetscCall(PCShellSetApply(pc, PCApply_LRC_minimal));
+                                PetscCall(KSPSetFromOptions(shell->ksp_debug));
+                            }
+                            PetscCall(MatDestroy(&Amat));
+                        }
+                        // PetscCall(MatDestroy_Sum(local));
+#endif
                         PetscCall(PCShellSetContext(pc, shell));
                         PetscCall(PCShellSetApply(pc, PCApply_LRC));
                         PetscCall(PCShellSetView(pc, PCView_LRC));
@@ -1650,7 +1706,10 @@ class Schwarz : public Preconditioner<
                         PetscCall(PetscObjectDereference((PetscObject)weighted));
                         weighted = nullptr;
                         PetscCall(KSPSetPC(ksp[0], pc));
+                        PetscCall(KSPAppendOptionsPrefix(ksp[0], "shell_"));
+                        PetscCall(KSPSetFromOptions(ksp[0]));
                         PetscCall(PetscObjectDereference((PetscObject)pc));
+                        // if (PetscGlobalRank == 0) PetscCall(KSPView(ksp[0], PETSC_VIEWER_STDOUT_SELF));
                     }
                     else
                         PetscCall(ISDestroy(&ctx->overlap));
@@ -2058,6 +2117,10 @@ static PetscErrorCode PCApply_LRC(PC pc, Vec x, Vec y) {
 
   PetscFunctionBeginUser;
   PetscCall(PCShellGetContext(pc, &ctx));
+#if DEBUG && !defined(PETSC_USE_REAL___FLOAT128)
+  if (ctx->ksp_debug) PetscCall(KSPSolve(ctx->ksp_debug, x, y));
+  else {
+#else
   PetscCall(PCApply(ctx->pc, x, y));
   PetscCall(VecISCopy(y, ctx->overlap, SCATTER_REVERSE, ctx->work[0]));
   PetscCall(MatMult(ctx->O, ctx->work[0], ctx->work[1]));
@@ -2065,8 +2128,44 @@ static PetscErrorCode PCApply_LRC(PC pc, Vec x, Vec y) {
   PetscCall(VecISCopy(ctx->work[2], ctx->overlap, SCATTER_FORWARD, ctx->work[1]));
   PetscCall(VecAYPX(ctx->work[2], -1.0, x));
   PetscCall(PCApply(ctx->pc, ctx->work[2], y));
+#endif
+#if DEBUG && !defined(PETSC_USE_REAL___FLOAT128)
+  }
+  if(ctx->debug) {
+      Vec z;
+      PetscReal norm[2];
+      PetscCall(VecDuplicate(y, &z));
+      PetscCall(VecCopy(y, z));
+      PetscCall(PCApply(ctx->debug, x, y));
+      PetscCall(VecAXPY(z, -1.0, y));
+      PetscCall(VecNorm(y, NORM_2, norm));
+      PetscCall(VecNorm(z, NORM_2, norm + 1));
+      PetscReal alpha = static_cast<PetscReal>(0.1);
+      PetscCall(PetscOptionsGetReal(nullptr, nullptr, "-woodbury_check", &alpha, nullptr));
+      if(norm[1] / norm[0] > alpha) std::cout << "Danger! Norm of difference between PCApply() and Woodbury formula: " << norm[1] << "/" << norm[0] << " = " << norm[1] / norm[0] << " > " << alpha << std::endl;
+      PetscCall(VecDestroy(&z));
+  }
+#endif
   PetscFunctionReturn(PETSC_SUCCESS);
 }
+#if DEBUG
+static PetscErrorCode PCApply_LRC_minimal(PC pc, Vec x, Vec y) {
+  LRC ctx;
+
+  PetscFunctionBeginUser;
+  PetscCall(PCShellGetContext(pc, &ctx));
+  PetscCall(PCApply(ctx->pc, x, y));
+  PetscCall(VecISCopy(y, ctx->overlap, SCATTER_REVERSE, ctx->work[0]));
+  PetscCall(MatMult(ctx->O, ctx->work[0], ctx->work[1]));
+  PetscCall(VecSet(ctx->work[2], 0.0));
+  PetscCall(VecISCopy(ctx->work[2], ctx->overlap, SCATTER_FORWARD, ctx->work[1]));
+  PetscCall(VecAYPX(ctx->work[2], -1.0, x));
+  PetscCall(PCApply(ctx->pc, ctx->work[2], y));
+#if 0
+#endif
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+#endif
 static PetscErrorCode PCView_LRC(PC pc, PetscViewer viewer) {
   LRC ctx;
 
@@ -2084,6 +2183,10 @@ static PetscErrorCode PCDestroy_LRC(PC pc) {
   PetscFunctionBeginUser;
   PetscCall(PCShellGetContext(pc, &ctx));
   PetscCall(PCDestroy(&ctx->pc));
+#if DEBUG
+  PetscCall(PCDestroy(&ctx->debug));
+  PetscCall(KSPDestroy(&ctx->ksp_debug));
+#endif
   PetscCall(MatDestroy(&ctx->O));
   for(PetscInt i = 0; i < 3; ++i)
       PetscCall(VecDestroy(ctx->work + i));
