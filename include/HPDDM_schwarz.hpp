@@ -1671,9 +1671,30 @@ class Schwarz : public Preconditioner<
                             ctx->status = 'b';
                             while(!ctx->work->empty() || ctx->status != 'c')
                                 PetscCall(MatMult_Sum<0>(mult[1], nullptr, nullptr));
-                            PetscCall(MatPtAP(S, mult[0], MAT_INITIAL_MATRIX, PETSC_DEFAULT, sum + 1));
-                            PetscCall(MatDestroy(&S));
+                            PetscCall(MatViewFromOptions(S, nullptr, std::string("-A_" + std::to_string(PetscGlobalRank)).c_str()));
+                            Mat tilde;
+                            {
+                                Mat B, S;
+                                PetscCall(MatSchurComplementSetAinvType(ctx->A[0], MAT_SCHUR_COMPLEMENT_AINV_DIAG));
+                                PetscCall(MatSchurComplementGetPmat(ctx->A[0], MAT_INITIAL_MATRIX, &B));
+                                S = ctx->A[0];
+                                ctx->A[0] = B;
+                                for(unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i)
+                                    ctx->work->insert(i);
+                                ctx->status = 'a';
+                                PetscCall(MatConvert(mult[1], MATAIJ, MAT_INITIAL_MATRIX, &tilde));
+                                ctx->status = 'b';
+                                while(!ctx->work->empty() || ctx->status != 'c')
+                                    PetscCall(MatMult_Sum<0>(mult[1], nullptr, nullptr));
+                                PetscCall(MatViewFromOptions(tilde, nullptr, std::string("-tilde_" + std::to_string(PetscGlobalRank)).c_str()));
+                                PetscCall(MatDestroy(&B));
+                                ctx->A[0] = S;
+                            }
+                            PetscCall(MatViewFromOptions(mult[0], nullptr, std::string("-P_" + std::to_string(PetscGlobalRank)).c_str()));
+                            PetscCall(MatPtAP(S, mult[0], MAT_INITIAL_MATRIX, 1.0, sum + 1));
                             PetscCall(MatCreateComposite(PETSC_COMM_SELF, 2, sum, &Amat));
+                            PetscCall(MatConvert(sum[0], MATAIJ, MAT_INPLACE_MATRIX, sum));
+                            PetscCall(MatViewFromOptions(sum[0], nullptr, std::string("-S_" + std::to_string(PetscGlobalRank)).c_str()));
                             PetscCall(MatDestroy(sum + 1));
                             PetscCall(MatConvert(Amat, MATAIJ, MAT_INPLACE_MATRIX, &Amat));
                             PetscCall(PCCreate(PETSC_COMM_SELF, &shell->debug));
@@ -1683,15 +1704,17 @@ class Schwarz : public Preconditioner<
                             PetscCall(PetscOptionsGetBool(nullptr, nullptr, "-ksp_woodbury", &flg, nullptr));
                             if (flg) {
                                 PC pc;
+                                Mat B;
                                 PetscCall(KSPCreate(PETSC_COMM_SELF, &shell->ksp_debug));
-                                PetscCall(KSPSetOperators(shell->ksp_debug, Amat, Amat));
+                                PetscCall(MatPtAP(tilde, mult[0], MAT_INITIAL_MATRIX, 1.0, &B));
+                                PetscCall(MatAXPY(B, 1.0, sum[0], DIFFERENT_NONZERO_PATTERN));
+                                PetscCall(KSPSetOperators(shell->ksp_debug, Amat, B));
+                                PetscCall(MatDestroy(&B));
                                 PetscCall(KSPSetOptionsPrefix(shell->ksp_debug, std::string("woodbury_").c_str()));
-                                PetscCall(KSPGetPC(shell->ksp_debug, &pc));
-                                PetscCall(PCSetType(pc, PCSHELL));
-                                PetscCall(PCShellSetContext(pc, shell));
-                                PetscCall(PCShellSetApply(pc, PCApply_LRC_minimal));
                                 PetscCall(KSPSetFromOptions(shell->ksp_debug));
                             }
+                            PetscCall(MatDestroy(&S));
+                            PetscCall(MatDestroy(&tilde));
                             PetscCall(MatDestroy(&Amat));
                         }
                         // PetscCall(MatDestroy_Sum(local));
@@ -2132,18 +2155,22 @@ static PetscErrorCode PCApply_LRC(PC pc, Vec x, Vec y) {
 #if DEBUG && !defined(PETSC_USE_REAL___FLOAT128)
   }
   if(ctx->debug) {
-      Vec z;
+      Vec z, w;
       PetscReal norm[2];
       PetscCall(VecDuplicate(y, &z));
+      PetscCall(VecDuplicate(y, &w));
       PetscCall(VecCopy(y, z));
+      PetscCall(VecCopy(y, w));
       PetscCall(PCApply(ctx->debug, x, y));
       PetscCall(VecAXPY(z, -1.0, y));
       PetscCall(VecNorm(y, NORM_2, norm));
       PetscCall(VecNorm(z, NORM_2, norm + 1));
       PetscReal alpha = static_cast<PetscReal>(0.1);
       PetscCall(PetscOptionsGetReal(nullptr, nullptr, "-woodbury_check", &alpha, nullptr));
-      if(norm[1] / norm[0] > alpha) std::cout << "Danger! Norm of difference between PCApply() and Woodbury formula: " << norm[1] << "/" << norm[0] << " = " << norm[1] / norm[0] << " > " << alpha << std::endl;
+      if(norm[1] / norm[0] > alpha) std::cout << "Danger! Norm of difference between PCApply() and Woodbury formula: " << norm[1] << "/" << norm[0] << " = " << norm[1] / norm[0] << " > " << alpha << " (on process #" << PetscGlobalRank << ")" << std::endl;
+      PetscCall(VecCopy(w, y));
       PetscCall(VecDestroy(&z));
+      PetscCall(VecDestroy(&w));
   }
 #endif
   PetscFunctionReturn(PETSC_SUCCESS);
