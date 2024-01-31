@@ -208,7 +208,7 @@ jobs:
                 if [ "$PRECISION" = "double" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool"
                   if [ "$TYPE" = "real" ]; then
-                    export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse"
+                    export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse --download-suitesparse-cmake-arguments=-DCMAKE_CXX_FLAGS_DEBUG:STRING=\"-Wno-error\""
                   fi
                 fi
                 if [ "${{ matrix.compiler }}" = "gcc" ] && [ "$TYPE" = "real" ]; then

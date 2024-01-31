@@ -1226,7 +1226,7 @@ class Schwarz : public Preconditioner<
                             Vec       v;
                             PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
                             PetscCall(SVDGetSingularTriplet(svd, n, &s, nullptr, v));
-                            values[n] = PetscReal(1.0) / s;
+                            values[n] = static_cast<PetscReal>(1.0) / s;
                             PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
                         }
                         PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
@@ -1733,14 +1733,14 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y) {
     PetscCall(MatShellGetContext(A, &aux));
     PetscCall(MatCreateVecs(aux->V, &right, &left));
     PetscCall(MatCreateVecs(aux->V, nullptr, &leftEcon));
-    PetscCall(VecZeroEntries(left));
+    PetscCall(VecSet(left, 0.0));
     PetscCall(VecISCopy(left, aux->is, SCATTER_FORWARD, x));
     PetscCall(MatMultTranspose(aux->V, left, right));
     PetscCall(MatMult(aux->V, right, leftEcon));
     PetscCall(VecAXPY(leftEcon, -1.0, left));
     PetscCall(VecPointwiseMult(y, aux->sigma, right));
     PetscCall(MatMult(aux->V, y, left));
-    PetscCall(VecAXPY(left, PetscReal(-1.0) / PETSC_SMALL, leftEcon));
+    PetscCall(VecAXPY(left, static_cast<PetscReal>(-1.0) / PETSC_SMALL, leftEcon));
     PetscCall(VecISCopy(left, aux->is, SCATTER_REVERSE, y));
     PetscCall(VecDestroy(&left));
     PetscCall(VecDestroy(&right));
