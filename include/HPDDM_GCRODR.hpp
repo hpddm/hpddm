@@ -1,4 +1,4 @@
- /*
+/*
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <pierre@joliv.et>

@@ -71,7 +71,7 @@
 # define HPDDM_PETSC                                    0
 #endif
 #ifndef HPDDM_NUMBERING
-# if HPDDM_PETSC || HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+# if HPDDM_PETSC || (defined(HPDDM_SCHWARZ) && HPDDM_SCHWARZ) || (defined(HPDDM_FETI) && HPDDM_FETI) || (defined(HPDDM_BDD) && HPDDM_BDD)
 #  pragma message("The numbering of user-supplied matrices has not been set, assuming 0-based indexing")
 # endif
 # define HPDDM_NUMBERING                               'C'
