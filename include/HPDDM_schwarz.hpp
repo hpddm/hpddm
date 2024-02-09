@@ -1513,19 +1513,15 @@ class Schwarz : public Preconditioner<
 #endif
                 }
                 if(ctx) {
+                    PetscReal      *ptr = nullptr;
                     PetscContainer container;
                     ctx->status = 'b';
                     while(!ctx->work->empty() || ctx->status != 'c')
                         PetscCall(MatMult_Sum<0>(local, nullptr, nullptr));
                     PetscCall(PetscObjectQuery((PetscObject)levels[0]->pc, "_PCHPDDM_LRC", (PetscObject*)&container));
                     if(container) {
-                        PetscReal *ptr;
                         PetscCall(PetscContainerGetPointer(container, (void**)&ptr));
                         PetscCall(PetscObjectCompose((PetscObject)levels[0]->pc, "_PCHPDDM_LRC", nullptr));
-                        PetscCall(MatAssemblyBegin(weighted, MAT_FINAL_ASSEMBLY));
-                        PetscCall(MatAssemblyEnd(weighted, MAT_FINAL_ASSEMBLY));
-                        PetscCall(MatDestroy(ctx->A + 1));
-                        PetscCall(MatDestroy(ctx->A + 2));
                         if(*ptr >= PetscReal()) {
                             PC          pc;
                             SVD         svd;
@@ -1660,6 +1656,19 @@ class Schwarz : public Preconditioner<
                             PetscCall(PetscObjectDereference((PetscObject)pc));
                         }
                         else {
+                            delete ptr;
+                            ptr = nullptr;
+                        }
+                    }
+                    PetscCall(MatAssemblyBegin(weighted, MAT_FINAL_ASSEMBLY));
+                    PetscCall(MatAssemblyEnd(weighted, MAT_FINAL_ASSEMBLY));
+                    PetscCall(MatDestroy(ctx->A + 1));
+                    PetscCall(MatDestroy(ctx->A + 2));
+                    if(!ptr) {
+                        PetscCall(PetscOptionsHasName(nullptr, ((PetscObject)levels[0]->pc)->prefix, "-pc_asm_type", &flg));
+                        if(!container && !flg)
+                            PetscCall(ISDestroy(&ctx->overlap));
+                        else {
                             PC                    pc;
                             Mat                   B, C, D, *sub, **nest;
                             IS                    sorted;
@@ -1734,6 +1743,7 @@ class Schwarz : public Preconditioner<
                             PetscCall(MatNestGetSubMats(B, nullptr, nullptr, &nest));
                             PetscCall(MatConvert(nest[1][1], MATAIJ, MAT_INITIAL_MATRIX, &D));
                             std::swap(nest[1][1], D);
+                            PetscCall(MatSetOption(nest[1][1], MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE));
                             for(unsigned short k = 0, size = Subdomain<K>::map_.size(); k < size; ++k) {
                                 const pairNeighbor& pair = Subdomain<K>::map_[k];
                                 for(unsigned int n = 0; n < pair.second.size(); ++n) {
@@ -1758,19 +1768,17 @@ class Schwarz : public Preconditioner<
                             PetscCall(PetscObjectDereference((PetscObject)C));
                             PetscCall(PetscObjectDereference((PetscObject)D));
                             PetscCall(PCSetUp(p->first));
+                            PetscCall(KSPSetOperators(ksp[0], weighted, weighted));
+                            PetscCall(KSPSetPreSolve(ksp[0], KSPPreSolve_Schur, ctx));
+                            PetscCall(KSPSetPostSolve(ksp[0], KSPPostSolve_Schur, ctx));
+                            if(set[0])
+                                PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + std::string(((PetscObject)ksp[0])->prefix) + "ksp_converged_reason").c_str(), value[0]));
+                            if(set[1])
+                                PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + std::string(((PetscObject)ksp[0])->prefix) + "ksp_type").c_str(), value[1]));
+                            PetscCall(KSPSetFromOptions(ksp[0]));
                         }
-                        delete ptr;
-                        PetscCall(KSPSetOperators(ksp[0], weighted, weighted));
-                        PetscCall(KSPSetPreSolve(ksp[0], KSPPreSolve_Schur, ctx));
-                        PetscCall(KSPSetPostSolve(ksp[0], KSPPostSolve_Schur, ctx));
-                        if(set[0])
-                            PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + std::string(((PetscObject)ksp[0])->prefix) + "ksp_converged_reason").c_str(), value[0]));
-                        if(set[1])
-                            PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + std::string(((PetscObject)ksp[0])->prefix) + "ksp_type").c_str(), value[1]));
-                        PetscCall(KSPSetFromOptions(ksp[0]));
                     }
-                    else
-                        PetscCall(ISDestroy(&ctx->overlap));
+                    delete ptr;
                     Subdomain<K>::clearBuffer(true);
                 }
                 PetscCall(VecDestroy(&vr));
