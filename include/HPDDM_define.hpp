@@ -155,6 +155,8 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #define HPDDM_KRYLOV_METHOD_BFBCG                       6
 #define HPDDM_KRYLOV_METHOD_RICHARDSON                  7
 #define HPDDM_KRYLOV_METHOD_NONE                        8
+#define HPDDM_KRYLOV_METHOD_ORTHODIR                    9
+#define HPDDM_KRYLOV_METHOD_BORTHODIR                   10
 
 #define HPDDM_VARIANT_LEFT                              0
 #define HPDDM_VARIANT_RIGHT                             1

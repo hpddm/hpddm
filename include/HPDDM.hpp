@@ -467,6 +467,7 @@ typedef int MPI_Request;
 #  if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
 #   include "HPDDM_GCRODR.hpp"
 #   include "HPDDM_CG.hpp"
+#   include "HPDDM_ORTHODIR.hpp"
 #  endif
 #  if !HPDDM_MPI
 #   undef MPI_COMM_SELF

@@ -91,7 +91,7 @@ class IterativeMethod {
                     conv[nu] = i;
 #if !HPDDM_PETSC || defined(PETSCSUB) || defined(MU_SLEPC)
             if(verbosity > 2) {
-                constexpr auto method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : "GMRES"));
+                constexpr auto method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : (T == 0 ? "GMRES" : "ORTHODIR")));
                 unsigned short tmp[2] { 0, 0 };
                 underlying_type<K> beta = std::abs(res[0]);
                 for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -150,7 +150,7 @@ class IterativeMethod {
             }
 #if !HPDDM_PETSC || defined(PETSCSUB) || defined(MU_SLEPC)
             if(verbosity > 2) {
-                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
+                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 1 ? "BGMRES" : "BORTHODIR"))));
                 underlying_type<K>* max;
                 if(tol > 0.0) {
                     unsigned short j = 0;
@@ -183,7 +183,7 @@ class IterativeMethod {
         template<char T>
         static void convergence(const char verbosity, const unsigned short i, const unsigned short m) {
             if(verbosity) {
-                constexpr auto method = (T == 1 ? "BGMRES" : (T == 2 ? "CG" : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 7 ? "PCG" : "GMRES")))))));
+                constexpr auto method = (T == 1 ? "BGMRES" : (T == 2 ? "CG" : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 7 ? "PCG" : (T == 9 ? "ORTHODIR" : (T == 10 ? "BORTHODIR" : "GMRES")))))))));
                 if(i != m + 1)
                     std::cout << method << " converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
                 else
@@ -638,7 +638,7 @@ class IterativeMethod {
         template<char T, class K>
         static void diagonal(const char verbosity, const K* const R, const int k, const underlying_type<K> tol = -1.0, const int* const piv = nullptr) {
             if(verbosity > 3) {
-                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
+                constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 1 ? "BGMRES" : "BORTHODIR"))));
                 if(tol < -0.9) {
                     std::cout << method << " diag(R), QR = block residual: ";
                     std::cout << *R;
@@ -894,7 +894,7 @@ class IterativeMethod {
                 opt.remove(prefix + "enlarge_krylov_subspace");
             else {
                 opt[prefix + "enlarge_krylov_subspace"] = k;
-                if(!opt.any_of(prefix + "krylov_method", { HPDDM_KRYLOV_METHOD_BGMRES, HPDDM_KRYLOV_METHOD_BCG, HPDDM_KRYLOV_METHOD_BGCRODR, HPDDM_KRYLOV_METHOD_BFBCG })) {
+                if(!opt.any_of(prefix + "krylov_method", { HPDDM_KRYLOV_METHOD_BGMRES, HPDDM_KRYLOV_METHOD_BCG, HPDDM_KRYLOV_METHOD_BGCRODR, HPDDM_KRYLOV_METHOD_BFBCG , HPDDM_KRYLOV_METHOD_BORTHODIR })) {
                     opt[prefix + "krylov_method"] = HPDDM_KRYLOV_METHOD_BGMRES;
                     if(opt.val<char>(prefix + "verbosity", 0))
                         std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
@@ -1024,6 +1024,10 @@ class IterativeMethod {
         static int GCRODR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         template<bool, class Operator, class K>
         static int BGCRODR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
+        template<bool, class Operator, class K>
+        static int ORTHODIR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
+        template<bool, class Operator, class K>
+        static int BORTHODIR(const Operator&, const K* const, K* const, const int&, const MPI_Comm&);
         /* Function: CG
          *
          *  Implements the CG method.
@@ -1151,6 +1155,8 @@ class IterativeMethod {
                 case HPDDM_KRYLOV_METHOD_BCG:        it = BCG<excluded>(A, sb, sx, k * mu, comm); break;
                 case HPDDM_KRYLOV_METHOD_CG:         it = CG<excluded>(A, sb, sx, k * mu, comm); break;
                 case HPDDM_KRYLOV_METHOD_BGMRES:     it = BGMRES<excluded>(A, sb, sx, k * mu, comm); break;
+                case HPDDM_KRYLOV_METHOD_ORTHODIR:   it = ORTHODIR<excluded>(A, sb, sx, k * mu, comm); break;
+                case HPDDM_KRYLOV_METHOD_BORTHODIR:  it = BORTHODIR<excluded>(A, sb, sx, k * mu, comm); break;
                 default:                             it = GMRES<excluded>(A, sb, sx, k * mu, comm);
             }
             HPDDM_CALL(it);
