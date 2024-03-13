@@ -246,9 +246,9 @@ class Schur : public Preconditioner<
                         for(unsigned short i = 1; i < evp.nu_; ++i)
                             super::ev_[i] = *super::ev_ + i * Subdomain<K>::dof_;
                         int* ifailv = new int[evp.nu_];
-                        Lapack<K>::stein(&(Subdomain<K>::dof_), d, e, &(evp.nu_), evr, iblock, isplit, *super::ev_, &(Subdomain<K>::dof_), reinterpret_cast<underlying_type<K>*>(work), iwork, ifailv, &info);
+                        Lapack<K>::stein(&(Subdomain<K>::dof_), d, e, &evp.nu_, evr, iblock, isplit, *super::ev_, &(Subdomain<K>::dof_), reinterpret_cast<underlying_type<K>*>(work), iwork, ifailv, &info);
                         delete [] ifailv;
-                        Lapack<K>::mtr("L", "L", "N", &(Subdomain<K>::dof_), &(evp.nu_), A, &(Subdomain<K>::dof_), tau, *super::ev_, &(Subdomain<K>::dof_), work, &lwork, &info);
+                        Lapack<K>::mtr("L", "L", "N", &(Subdomain<K>::dof_), &evp.nu_, A, &(Subdomain<K>::dof_), tau, *super::ev_, &(Subdomain<K>::dof_), work, &lwork, &info);
                         if(!Wrapper<K>::is_complex)
                             lwork += 3 * Subdomain<K>::dof_ - 1;
                         else
@@ -263,7 +263,7 @@ class Schur : public Preconditioner<
                         while(deficiency_ < evp.nu_ && std::abs(*(reinterpret_cast<underlying_type<K>*>(work) + lwork + deficiency_) / relative) * std::cbrt(evp.getTol()) < 1)
                             ++deficiency_;
                     }
-                    Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::dof_), &(evp.nu_), res, &(Subdomain<K>::dof_), *super::ev_, &(Subdomain<K>::dof_), &info);
+                    Lapack<K>::trtrs("L", "T", "N", &(Subdomain<K>::dof_), &evp.nu_, res, &(Subdomain<K>::dof_), *super::ev_, &(Subdomain<K>::dof_), &info);
                 }
                 else if(super::ev_) {
                     delete [] *super::ev_;

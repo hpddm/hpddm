@@ -1,4 +1,4 @@
- /*
+/*
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <pierre@joliv.et>
@@ -35,9 +35,9 @@
 #define HPDDM_RET(i)         i
 #else
 #define HPDDM_CALL(arg)      PetscCall(PetscErrorCode(arg))
-#define HPDDM_TOL(tol, A)    (static_cast<underlying_type<K>>((A.ksp_)->rtol))
-#define HPDDM_MAX_IT(max, A) ((A.ksp_)->max_it)
-#define HPDDM_IT(i, A)       ((A.ksp_)->its)
+#define HPDDM_TOL(tol, A)    (static_cast<underlying_type<K>>(A.ksp_->rtol))
+#define HPDDM_MAX_IT(max, A) (A.ksp_->max_it)
+#define HPDDM_IT(i, A)       (A.ksp_->its)
 #define HPDDM_RET(i)         0
 #endif
 

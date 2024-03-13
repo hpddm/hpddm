@@ -157,7 +157,7 @@ void matrixCSRDestroy(void** Mat) {
 }
 void csrmm(void* Mat, HPDDM::pod_type<K>* x, HPDDM::pod_type<K>* prod, int m) {
     HPDDM::MatrixCSR<K>* A = reinterpret_cast<HPDDM::MatrixCSR<K>*>(Mat);
-    HPDDM::Wrapper<K>::csrmm(A->sym_, &(A->n_), &m, A->a_, A->ia_, A->ja_, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
+    HPDDM::Wrapper<K>::csrmm(A->sym_, &A->n_, &m, A->a_, A->ia_, A->ja_, reinterpret_cast<K*>(x), reinterpret_cast<K*>(prod));
 }
 
 #if defined(SUBDOMAIN) && defined(COARSEOPERATOR)

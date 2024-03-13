@@ -131,7 +131,7 @@ class Eigensolver {
                         if(eigenvectors && *eigenvectors) {
                             std::copy_n(*eigenvectors, nu_ * n_, *basis);
                             std::pair<K*, K*> result = std::minmax_element(*eigenvectors, *eigenvectors + nu_ * n_, [](const K& lhs, const K& rhs) { return std::real(lhs) < std::real(rhs); });
-                            uniform = std::uniform_real_distribution<underlying_type<K>>(std::real(*(result.first)), std::real(*(result.second)));
+                            uniform = std::uniform_real_distribution<underlying_type<K>>(std::real(*result.first), std::real(*result.second));
                             delete [] *eigenvectors;
                         }
                         else
