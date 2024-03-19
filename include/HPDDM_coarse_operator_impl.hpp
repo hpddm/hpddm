@@ -1325,12 +1325,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 PC pc;
                 PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
                 PetscCall(KSPGetPC(v.level_->ksp, &pc));
-                if(blocked) {
 #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
-                    if(p == 1)
+                if(p == 1)
 #endif
-                        PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
-                }
+                    PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
             }
             PetscCall(KSPSetFromOptions(v.level_->ksp));
             PetscCall(MatDestroy(&E));
