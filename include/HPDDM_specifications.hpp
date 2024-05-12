@@ -46,7 +46,7 @@ public:
 #if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
 # include <quadmath.h>
 namespace std {
-# if defined(PETSC_PCHPDDM_MAXLEVELS) && !defined(__MINGW32__)
+# if defined(PETSC_PCHPDDM_MAXLEVELS) && !defined(__MINGW32__) && (!defined(__GNUC__) || __GNUC__ < 14)
 template<>
 class numeric_limits<__float128> {
 public:
