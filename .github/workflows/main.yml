@@ -351,15 +351,20 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/download-artifact@v4
-      - name: Merge and upload coverage reports
+      - name: Merge coverage reports
         run: |
           if [ -d $PWD/artifact ]; then
             sudo apt-get install -yq lcov
             find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
             lcov --remove coverage.info '/usr/*' --output-file coverage.info > /dev/null
-            if [ "${{ github.event.repository.name }}" = "hpddm" ]; then
-              bash <(curl -s https://codecov.io/bash) -f coverage.info
-            fi
           elif [ "${{ github.event.repository.name }}" = "hpddm" ]; then
             exit 1
           fi
+      - name: Upload merged coverage report
+        uses: codecov/codecov-action@v4
+        if: github.repository_owner == 'hpddm' && github.event.pull_request.head.repo.full_name == github.repository
+        with:
+          file: ./coverage.info
+          disable_search: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: false
