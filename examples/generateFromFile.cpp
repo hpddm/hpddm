@@ -39,7 +39,7 @@ void assign(std::mt19937& gen, std::uniform_real_distribution<HPDDM::underlying_
     x = K(dis(gen), dis(gen));
 }
 
-void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::vector<int>>& mapping, int& ndof, HPDDM::MatrixCSR<K>*& Mat, HPDDM::MatrixCSR<K>*& MatNeumann, HPDDM::underlying_type<K>*& d, K*& f, K*& sol) {
+void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::vector<int>>& mapping, int& ndof, HPDDM::MatrixCSR<K>*& Mat, HPDDM::MatrixCSR<K>*&, HPDDM::underlying_type<K>*& d, K*& f, K*& sol) {
     HPDDM::Option& opt = *HPDDM::Option::get();
     std::vector<unsigned int> idx;
     Mat = nullptr;
@@ -168,6 +168,13 @@ void generate(int rankWorld, int sizeWorld, std::list<int>& o, std::vector<std::
                 iss >> val;
                 f[j++] = val;
             }
+        }
+        if(rankWorld == 0) {
+            std::ifstream empty("foobar.txt");
+            HPDDM::MatrixCSR<K> A(empty);
+            std::cout << A;
+            A.nnz_ = 1;
+            std::cout << A;
         }
     }
     else {
