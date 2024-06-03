@@ -407,12 +407,15 @@ class MatrixCSR : public MatrixBase<K> {
 };
 template<class K>
 inline std::ostream& operator <<(std::ostream& f, const MatrixCSR<K>& m) {
-    if(m.ia_[m.n_] == m.nnz_)
+    if(!m.ia_) {
+        if(m.nnz_ == 0)
+            return f << "Empty CSR matrix" << std::endl;
+    }
+    else if(m.ia_[m.n_] == m.nnz_)
         return m.template dump<'C'>(f);
     else if(m.ia_[m.n_] == m.nnz_ + 1)
         return m.template dump<'F'>(f);
-    else
-        return f << "Malformed CSR matrix" << std::endl;
+    return f << "Malformed CSR matrix" << std::endl;
 }
 } // HPDDM
 #endif // HPDDM_MATRIX_HPP_
