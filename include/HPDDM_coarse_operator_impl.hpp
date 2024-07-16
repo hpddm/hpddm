@@ -1648,6 +1648,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
         PetscCall(MatSetOptionsPrefix(P, v.prefix_.c_str()));
         PetscCall(MatSetFromOptions(P));
+        PetscCall(MatViewFromOptions(P, NULL, "-mat_view"));
         PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
         PetscCall(MatPropagateSymmetryOptions(A, P));
         PetscCall(KSPCreate(DMatrix::communicator_, &v.level_->ksp));
