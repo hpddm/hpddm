@@ -54,7 +54,11 @@ static PetscErrorCode MatDestroy_Harmonic(Mat);
 # endif
 # if defined(PETSC_HAVE_HTOOL) && HPDDM_SLEPC
 #  include <petscmathtool.h>
-#  include <htool/solvers/coarse_space.hpp>
+#  if PETSC_PKG_HTOOL_VERSION_LT(0, 9, 0)
+#   include <htool/solvers/coarse_space.hpp>
+#  else
+#   include <htool/solvers/geneo/coarse_operator_builder.hpp>
+#  endif
 # endif
 #endif
 
@@ -1040,10 +1044,17 @@ class Schwarz : public Preconditioner<
                     const K* const* getVectors() const { return A_->getVectors(); }
                     const K* getOperator() const { return E_; }
                 };
+#if PETSC_PKG_HTOOL_VERSION_LT(0, 9, 0)
                 const htool::VirtualHMatrix<PetscScalar>* hmatrix;
                 PetscCall(MatHtoolGetHierarchicalMat(A, &hmatrix));
                 std::vector<PetscScalar> E;
                 htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::getDof(), super::getVectors(), E);
+#else
+                const htool::DistributedOperator<PetscScalar>* distributed_operator;
+                PetscCall(MatHtoolGetHierarchicalMat(A, &distributed_operator));
+                htool::Matrix<PetscScalar> E;
+                htool::build_geneo_coarse_operator(*distributed_operator, levels[n]->nu, super::getDof(), super::getVectors(), E);
+#endif
                 ClassWithPtr Op(levels[n]->P, E.data());
                 PetscCall(super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels));
             }
