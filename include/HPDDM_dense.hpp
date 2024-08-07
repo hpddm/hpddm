@@ -49,7 +49,7 @@ class Dense : public Schwarz<
             S, K> super;
         template<class Neighbor, class Mapping>
         void initialize(const int& n, const bool sym, K* const& p, const Neighbor& o, const Mapping& r, MPI_Comm* const& comm = nullptr) {
-            MatrixCSR<K>* A = new MatrixCSR<K>(n, n, n * n, p, nullptr, nullptr, sym);
+            MatrixCSR<K>* A = new MatrixCSR<K>(n, n, p ? n * n : 0, p, nullptr, nullptr, sym);
             Subdomain<K>::initialize(A, o, r, comm);
         }
         void setMatrix(MatrixCSR<K>* const& A) {
@@ -63,6 +63,7 @@ class Dense : public Schwarz<
             if(resetPrefix)
                 opt.setPrefix("");
         }
+        Solver<K>& getSolver() { return super::s_; }
         void setMatrix(const int& n, const bool sym, K* const& p) {
             MatrixCSR<K>* A = new MatrixCSR<K>(n, n, n * n, p, nullptr, nullptr, sym);
             setMatrix(A);
