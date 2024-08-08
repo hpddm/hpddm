@@ -362,7 +362,7 @@ jobs:
           fi
       - name: Upload merged coverage report
         uses: codecov/codecov-action@v4
-        if: github.repository_owner == 'hpddm' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.repository_owner == 'hpddm'
         with:
           file: ./coverage.info
           disable_search: true
