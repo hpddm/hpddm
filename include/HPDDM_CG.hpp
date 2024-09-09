@@ -67,13 +67,13 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
     Wrapper<K>::diag(n, d, z, trash, mu);
     for(unsigned short nu = 0; nu < mu; ++nu)
         norm[nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+    ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     std::for_each(norm, norm + mu, [](underlying_type<K>& y) { y = HPDDM::sqrt(y); });
 #endif
     Wrapper<K>::diag(n, d, p, trash, mu);
     for(unsigned short nu = 0; nu < mu; ++nu)
         dir[nu] = HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + n * nu, &i__1));
-    MPI_Allreduce(MPI_IN_PLACE, dir, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+    ignore(MPI_Allreduce(MPI_IN_PLACE, dir, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     std::transform(dir, dir + mu, res, [](const underlying_type<K>& d) { return HPDDM::sqrt(d); });
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
     if(A.ksp_->guess_zero) {
@@ -109,7 +109,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                 Wrapper<K>::diag(n, d, p, trash, mu);
             for(unsigned short nu = 0; nu < mu; ++nu)
                 dir[mu + nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
-            MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
             if(id[1] == HPDDM_VARIANT_FLEXIBLE) {
                 std::copy_n(p, dim, p + (i + 1) * dim);
                 std::copy_n(dir + mu, mu, dir + (HPDDM_MAX_IT(it, A) + i + 2) * mu);
@@ -132,7 +132,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                 dir[nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i__1, trash + n * nu, &i__1));
             }
             if(id[1] != HPDDM_VARIANT_FLEXIBLE) {
-                MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+                ignore(MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
             }
@@ -140,7 +140,7 @@ inline int IterativeMethod::CG(const Operator& A, const K* const b, K* const x, 
                 for(unsigned short k = 0; k < i; ++k)
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         dir[2 * mu + k * mu + nu] = -HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i__1, p + (HPDDM_MAX_IT(it, A) + k + 1) * dim + n * nu, &i__1)) / dir[(HPDDM_MAX_IT(it, A) + k + 2) * mu + nu];
-                MPI_Allreduce(MPI_IN_PLACE, dir, (i + 2) * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+                ignore(MPI_Allreduce(MPI_IN_PLACE, dir, (i + 2) * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
                 if(!excluded && n) {
                     std::copy_n(z, dim, p);
                     for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -228,7 +228,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
     }
     else
         std::fill_n(rho, (mu * (mu + 1)) / 2, K());
-    MPI_Allreduce(MPI_IN_PLACE, rho, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+    ignore(MPI_Allreduce(MPI_IN_PLACE, rho, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
     for(unsigned short nu = mu; nu > 0; --nu)
         std::copy_backward(rho + (nu * (nu - 1)) / 2, rho + (nu * (nu + 1)) / 2, rho + nu * mu - (mu - nu));
     for(unsigned short i = 0; i < mu; ++i)
@@ -288,7 +288,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         }
         else
             std::fill_n(rhs, (mu * (mu + 1)) / 2, K());
-        MPI_Allreduce(MPI_IN_PLACE, rhs, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+        ignore(MPI_Allreduce(MPI_IN_PLACE, rhs, (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         Lapack<K>::ppsv("U", &mu, &mu, rhs, rho + mu * mu, &mu, &info);
         if(info) {
             delete [] norm;
@@ -323,7 +323,7 @@ inline int IterativeMethod::BCG(const Operator& A, const K* const b, K* const x,
         }
         else
             std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
-        MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+        ignore(MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0, trash, (m[0] <= 1 ? mu : 1)));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
         A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(reinterpret_cast<underlying_type<K>*>(trash), reinterpret_cast<underlying_type<K>*>(trash) + (m[0] <= 1 ? mu : 1)));
@@ -471,7 +471,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
         }
         else
             std::fill_n(gamma, (deflated * (deflated + 1)) / 2 + deflated * mu, K());
-        MPI_Allreduce(MPI_IN_PLACE, gamma, (deflated * (deflated + 1)) / 2 + deflated * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+        ignore(MPI_Allreduce(MPI_IN_PLACE, gamma, (deflated * (deflated + 1)) / 2 + deflated * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         Lapack<K>::pptrf("U", &deflated, gamma, &info);
         Lapack<K>::pptrs("U", &deflated, &mu, gamma, alpha, &deflated, &info);
         if(!excluded && n) {
@@ -497,7 +497,7 @@ inline int IterativeMethod::BFBCG(const Operator& A, const K* const b, K* const 
         }
         else
              std::fill_n(alpha, deflated * mu + mu / m[0], K());
-        MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + mu / m[0], Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+        ignore(MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + mu / m[0], Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         bool converged = (mu == checkBlockConvergence<6>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, res, 0, trash, m[0]));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
         A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(reinterpret_cast<underlying_type<K>*>(trash), reinterpret_cast<underlying_type<K>*>(trash) + deflated));

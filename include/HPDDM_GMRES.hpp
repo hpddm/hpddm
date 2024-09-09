@@ -73,7 +73,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             for(unsigned short nu = 0; nu < mu; ++nu)
                 sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
         if(HPDDM_IT(j, A) == 1) {
-            MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 norm[nu] = HPDDM::sqrt(norm[nu]);
                 if(norm[nu] < underlying_type<K>(HPDDM_EPS))
@@ -85,7 +85,7 @@ inline int IterativeMethod::GMRES(const Operator& A, const K* const b, K* const 
             }
         }
         else
-            MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
         if(HPDDM_IT(j, A) == 0) {
 #if HPDDM_PETSC
             PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
@@ -196,7 +196,7 @@ inline int IterativeMethod::BGMRES(const Operator& A, const K* const b, K* const
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(Ax + lwork);
     bool allocate;
     HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[1], allocate));
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+    ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     for(unsigned short nu = 0; nu < mu / m[1]; ++nu) {
         norm[nu] = HPDDM::sqrt(norm[nu]);
         if(norm[nu] < underlying_type<K>(HPDDM_EPS))
