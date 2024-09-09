@@ -378,7 +378,7 @@ class IterativeMethod {
                         }
                         else
                             std::fill_n(s, shift * mu, K());
-                        MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     }
                     if(!excluded && n)
                         for(unsigned short nu = 0; nu < mu; ++nu) {
@@ -402,7 +402,7 @@ class IterativeMethod {
                         }
                         else
                             std::fill_n(work, bK * deflated, K());
-                        MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                         for(unsigned short i = 0; i < deflated; ++i)
                             std::copy_n(work + i * bK, bK, s + i * ldh);
                         beta = Wrapper<K>::d__1;
@@ -514,9 +514,9 @@ class IterativeMethod {
                 std::fill_n(H, k * mu, K());
                 if(id == 1)
                     for(unsigned short i = 0; i < k; ++i)
-                        MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                 else
-                    MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                    ignore(MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
             }
             else {
                 if(id == 1) {
@@ -530,7 +530,7 @@ class IterativeMethod {
                         else
                             for(unsigned short nu = 0; nu < mu; ++nu)
                                 H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
-                        MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                         for(unsigned short nu = 0; nu < mu; ++nu) {
                             K alpha = -H[i * mu + nu];
                             Blas<K>::axpy(&n, &alpha, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
@@ -544,7 +544,7 @@ class IterativeMethod {
                         Wrapper<K>::diag(n, d, v, work, mu);
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d__1), B + nu * n, &ldb, pt + nu * n, &i__1, &(Wrapper<K>::d__0), H + nu, &mu);
-                    MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                    ignore(MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     for(unsigned short nu = 0; nu < mu; ++nu)
                         Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d__1), v + nu * n, &i__1);
                 }
@@ -556,11 +556,11 @@ class IterativeMethod {
                 std::fill_n(work, k * mu * mu, K());
                 if(id == 1)
                     for(unsigned short i = 0; i < k; ++i) {
-                        MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                         Wrapper<K>::template omatcopy<'N'>(mu, mu, work, mu, H + mu * i, ldh);
                     }
                 else {
-                    MPI_Allreduce(MPI_IN_PLACE, work, k * mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                    ignore(MPI_Allreduce(MPI_IN_PLACE, work, k * mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     Wrapper<K>::template omatcopy<'N'>(mu, k * mu, work, k * mu, H, ldh);
                 }
             }
@@ -571,7 +571,7 @@ class IterativeMethod {
                         if(d)
                             Wrapper<K>::diag(n, d, v, pt, mu);
                         Blas<K>::gemm(&(Wrapper<K>::transc), "N", &mu, &mu, &n, &(Wrapper<K>::d__1), B + i * mu * n, &n, pt, &n, &(Wrapper<K>::d__0), work, &mu);
-                        MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                         Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__2), B + i * mu * n, &n, work, &mu, &(Wrapper<K>::d__1), v, &n);
                         Wrapper<K>::template omatcopy<'N'>(mu, mu, work, mu, H + mu * i, ldh);
                     }
@@ -581,7 +581,7 @@ class IterativeMethod {
                         Wrapper<K>::diag(n, d, v, pt, mu);
                     const int tmp = k * mu;
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &tmp, &mu, &n, &(Wrapper<K>::d__1), B, &n, pt, &n, &(Wrapper<K>::d__0), work, &tmp);
-                    MPI_Allreduce(MPI_IN_PLACE, work, mu * tmp, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                    ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * tmp, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     Blas<K>::gemm("N", "N", &n, &mu, &tmp, &(Wrapper<K>::d__2), B, &n, work, &tmp, &(Wrapper<K>::d__1), v, &n);
                     Wrapper<K>::template omatcopy<'N'>(mu, tmp, work, tmp, H, ldh);
                 }
@@ -615,7 +615,7 @@ class IterativeMethod {
                 }
             else
                 std::fill_n(work, mu * (k * (k + 1)) / 2, K());
-            MPI_Allreduce(MPI_IN_PLACE, work, mu * (k * (k + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * (k * (k + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
             for(unsigned short nu = mu; nu-- > 0; )
                 for(unsigned short xi = k; xi > 0; --xi)
                     std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + nu * k * k + xi * ldr - (ldr - xi));
@@ -695,7 +695,7 @@ class IterativeMethod {
                     else
                         for(unsigned short nu = 0; nu < mu; ++nu)
                             work[xi * (k + 1) * mu + nu] = Blas<K>::dot(&n, Q + xi * ldv + nu * n, &i__1, Q + xi * ldv + nu * n, &i__1);
-                    MPI_Allreduce(MPI_IN_PLACE, work + xi * (k + 1) * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                    ignore(MPI_Allreduce(MPI_IN_PLACE, work + xi * (k + 1) * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     for(unsigned short nu = 0; nu < mu; ++nu) {
                         work[xi * (k + 1) * mu + nu] = HPDDM::sqrt(work[xi * (k + 1) * mu + nu]);
                         if(HPDDM::real(work[xi * (k + 1) * mu + nu]) < underlying_type<K>(HPDDM_EPS))
@@ -735,7 +735,7 @@ class IterativeMethod {
             else
                 for(unsigned short nu = 0; nu < mu; ++nu)
                     sn[i * mu + nu] = HPDDM::real(Blas<K>::dot(&n, v[i + 1] + nu * n, &i__1, v[i + 1] + nu * n, &i__1));
-            MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 H[i][(i + 1) * mu + nu] = HPDDM::sqrt(sn[i * mu + nu]);
                 if(!excluded && i < m - 1)
@@ -824,7 +824,7 @@ class IterativeMethod {
                             pt = global + k;
                     }
                 }
-                MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm);
+                ignore(MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm));
             }
         }
         template<bool, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type* = nullptr>
@@ -855,7 +855,7 @@ class IterativeMethod {
                                 break;
                         }
                     }
-                    MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm);
+                    ignore(MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm));
                 };
                 check_size();
                 {

@@ -151,7 +151,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             for(unsigned short nu = 0; nu < mu; ++nu)
                 sn[nu] = HPDDM::real(Blas<K>::dot(&n, v[i] + nu * n, &i__1, v[i] + nu * n, &i__1));
         if(HPDDM_IT(j, A) == 1) {
-            MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
             for(unsigned short nu = 0; nu < mu; ++nu) {
                 norm[nu] = HPDDM::sqrt(norm[nu]);
                 if(norm[nu] < underlying_type<K>(HPDDM_EPS))
@@ -172,7 +172,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
             }
         }
         else
-            MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+            ignore(MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
         for(unsigned short nu = 0; nu < mu; ++nu) {
             if(hasConverged[nu] > 0)
                 hasConverged[nu] = 0;
@@ -354,7 +354,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                 if(excluded || !n) {
                     if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         std::fill_n(prod, k * active * (m[0] + 2), K());
-                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
                     }
                 }
                 else {
@@ -377,7 +377,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
                                     prod[k * active * info + k * nu + i] = Blas<K>::dot(&n, U + activeSet[nu] * n + i * ldv, &i__1, U + activeSet[nu] * n + i * ldv, &i__1);
                             }
                         }
-                        MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                         std::for_each(prod + k * active * (m[0] + 1), prod + k * active * (m[0] + 2), [](K& u) { u = underlying_type<K>(1.0) / HPDDM::sqrt(HPDDM::real(u)); });
                     }
                     for(unsigned short nu = 0; nu < active; ++nu) {
@@ -545,7 +545,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
     underlying_type<K>* const norm = reinterpret_cast<underlying_type<K>*>(tau + m[0] * N);
     bool allocate;
     HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[1], allocate));
-    MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm);
+    ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     for(unsigned short nu = 0; nu < mu / m[1]; ++nu) {
         norm[nu] = HPDDM::sqrt(norm[nu]);
         if(norm[nu] < underlying_type<K>(HPDDM_EPS))
@@ -844,11 +844,11 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                 if(excluded || !n) {
                     if(symmetric) {
                         prod = new K[bK * bK]();
-                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * bK, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, prod, bK * bK, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     }
                     else if(id[4] % 4 != HPDDM_RECYCLE_STRATEGY_B) {
                         std::fill_n(prod, bK * (dim + deflated + 1), K());
-                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                     }
                 }
                 else {
@@ -872,7 +872,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                             for(unsigned short nu = 0; nu < bK; ++nu)
                                 prod[bK * (dim + deflated) + nu] = Blas<K>::dot(&n, U + nu * n, &i__1, U + nu * n, &i__1);
                         }
-                        MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                        ignore(MPI_Allreduce(MPI_IN_PLACE, prod, bK * (dim + deflated + 1), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                         for(unsigned short nu = 0; nu < bK; ++nu) {
                             prod[bK * (dim + deflated) + nu] = underlying_type<K>(1.0) / HPDDM::sqrt(HPDDM::real(prod[bK * (dim + deflated) + nu]));
                             Blas<K>::scal(&n, prod + bK * (dim + deflated) + nu, U + nu * n, &i__1);
@@ -918,7 +918,7 @@ inline int IterativeMethod::BGCRODR(const Operator& A, const K* const b, K* cons
                             else {
                                 Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &bK, &n, &(Wrapper<K>::d__1), U, &n, U, &n, &(Wrapper<K>::d__0), B, &bK);
                             }
-                            MPI_Allreduce(MPI_IN_PLACE, B, bK * bK, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm);
+                            ignore(MPI_Allreduce(MPI_IN_PLACE, B, bK * bK, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
                             Wrapper<K>::template imatcopy<'N'>(bK, bK, B, bK, dim);
                             for(i = 0; i < bK; ++i)
                                 std::fill(B + bK + i * dim, B + (i + 1) * dim, K());

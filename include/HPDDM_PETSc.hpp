@@ -250,11 +250,10 @@ class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
                     PetscCall(MatProductSymbolic(X_[0]));
                     if(flg) {
                         reset = true;
-                        if(!container) {
-                            PetscCall(PetscContainerCreate(PetscObjectComm((PetscObject)A), &container));
-                            PetscCall(PetscObjectCompose((PetscObject)A, "_HPDDM_MatProduct", (PetscObject)container));
-                        }
-                        PetscCall(PetscContainerSetPointer(container, x));
+                        if(!container)
+                            PetscCall(PetscObjectContainerCompose((PetscObject)A, "_HPDDM_MatProduct", x, nullptr));
+                        else
+                            PetscCall(PetscContainerSetPointer(container, x));
                     }
                 }
                 else {
