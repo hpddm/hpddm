@@ -229,7 +229,7 @@ template<class T>
 using pod_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, T, void*>::type;
 }
 
-#if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
+#if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
 namespace HPDDM {
 template<class T>
 inline underlying_type<T> norm(const T& v) { return std::norm(v); }
@@ -241,12 +241,12 @@ template<class T>
 inline underlying_type<T> imag(const T& v) { return std::imag(v); }
 }
 #endif
-#if defined(PETSC_HAVE_REAL___FP16)
+#if defined(PETSC_HAVE_REAL___FP16) && !defined(PETSC_SKIP_REAL___FP16)
 namespace HPDDM {
 template<class T>
 using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, float>::value, __fp16, T>::type>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<float>>::value, std::complex<__fp16>, T>::type>::type>::type;
 }
-# if !defined(PETSC_HAVE_REAL___FLOAT128)
+# if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128)
 #  include "HPDDM_specifications.hpp"
 # endif
 #else
@@ -255,7 +255,7 @@ template<class T>
 using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, T>::type>::type;
 }
 #endif
-#if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
+#if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
 namespace HPDDM {
 template<class T>
 using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double, std::complex<double>>::type;
