@@ -237,7 +237,7 @@ template<>
 inline MPI_Datatype Wrapper<std::complex<double>>::mpi_type() { return MPI_C_DOUBLE_COMPLEX; }
 template<class K>
 inline MPI_Datatype Wrapper<K>::mpi_type() { static_assert(std::is_integral<K>::value, "Wrong type"); return sizeof(K) == sizeof(int) ? MPI_INT : sizeof(K) == sizeof(long long) ? MPI_LONG_LONG : MPI_BYTE; }
-# if defined(PETSC_HAVE_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
+# if defined(PETSC_HAVE_REAL___FLOAT128) && !defined(PETSC_SKIP_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
 template<>
 inline MPI_Datatype Wrapper<__float128>::mpi_type() { return MPIU___FLOAT128; }
 template<>
@@ -247,7 +247,7 @@ inline MPI_Op Wrapper<__float128>::mpi_op(const MPI_Op& op) { return op == MPI_S
 template<>
 inline MPI_Op Wrapper<__complex128>::mpi_op(const MPI_Op& op) { return op == MPI_SUM ? (!PetscDefined(USE_REAL___FLOAT128) ? MPIU_SUM___FP16___FLOAT128 : MPIU_SUM) : op; }
 # endif
-# if defined(PETSC_HAVE_REAL___FP16)
+# if defined(PETSC_HAVE_REAL___FP16) && !defined(PETSC_SKIP_REAL___FP16)
 template<>
 inline MPI_Datatype Wrapper<__fp16>::mpi_type() { return MPIU___FP16; }
 #  if defined(PETSC_HAVE_CXX_DIALECT_CXX14)
