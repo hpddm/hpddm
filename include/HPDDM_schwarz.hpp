@@ -513,7 +513,7 @@ class Schwarz : public Preconditioner<
         template<bool excluded = false>
         int apply(const K* const in, K* const out, const unsigned short& mu = 1, K* work = nullptr) const {
             const char correction = Option::get()->val<char>(super::prefix("schwarz_coarse_correction"), -1);
-            if((!super::co_ && !super::cc_) || correction == -1) {
+            if((!super::co_ && !super::cc_) || correction == static_cast<char>(-1)) {
                 if(type_ == Prcndtnr::NO)
                     std::copy_n(in, mu * Subdomain<K>::dof_, out);
                 else if(type_ == Prcndtnr::GE || type_ == Prcndtnr::OG) {
