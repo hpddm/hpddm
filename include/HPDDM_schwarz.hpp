@@ -1511,7 +1511,7 @@ class Schwarz : public Preconditioner<
                     PetscCall(VecDestroy(&vreduced));
             }
             else {
-                PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, Subdomain<K>::dof_, levels[0]->nu, *super::ev_, &local));
+                PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, Subdomain<K>::dof_, levels[0]->nu, levels[0]->nu ? *super::ev_ : nullptr, &local));
                 PetscCall(MatCopy(weighted, local, SAME_NONZERO_PATTERN));
                 PetscCall(MatDestroy(&local));
             }
