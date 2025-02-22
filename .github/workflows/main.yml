@@ -108,7 +108,7 @@ jobs:
                   dpkg -L $dep | while IFS= read -r f; do if test -f $f; then echo $f; fi; done | xargs cp --parents --target-directory ~/.cache/
               done
           done
-          pip install --user mpi4py numpy scipy
+          pip install --user mpi4py numpy==2.1.3 scipy
           rm -rf ~/.cache/pip
           cp -R ~/.local/lib ~/.cache
           find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" -o -wholename "*/share/perl5/auto/*" -o -wholename "*/tests/__pycache__/*" -o -wholename "*/tests/test_*.pyc" \) -prune -exec rm -rf "{}" \;
