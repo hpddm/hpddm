@@ -1376,7 +1376,10 @@ class Schwarz : public Preconditioner<
                         if(str != SAME_NONZERO_PATTERN)
                             PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
                     }
-                    PetscCall(EPSSolve(eps));
+                    PetscErrorCode ierr = EPSSolve(eps);
+                    int conversion = ierr;
+                    PetscCallMPI(MPI_Allreduce(MPI_IN_PLACE, &conversion, 1, MPI_INT, MPI_LOR, PetscObjectComm((PetscObject)levels[0]->pc)));
+                    PetscCheck(!conversion, PetscObjectComm((PetscObject)levels[0]->pc), PETSC_ERR_LIB, "At least one process failed in EPSSolve()");
                     PetscCall(EPSGetConverged(eps, &nconv));
                 }
                 if(ctx) {
