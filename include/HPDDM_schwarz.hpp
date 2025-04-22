@@ -40,6 +40,7 @@ struct _n_Aux {
     Vec sigma;
     IS  is;
 };
+bool cond=PETSC_FALSE;
 static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
 typedef struct _n_Sum *Sum;
 struct _n_Sum {
@@ -1377,10 +1378,12 @@ class Schwarz : public Preconditioner<
                             PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
                     }
                     PetscErrorCode ierr = EPSSolve(eps);
-                    if(ierr==PETSC_SUCCESS) {
+                    if(ierr==PETSC_SUCCESS){
                         PetscCall(EPSGetConverged(eps, &nconv));
-                    } else {
+                    }
+                    else {
                         nconv = 0;
+                        cond = PETSC_TRUE;
                     }
                 }
                 if(ctx) {
@@ -1488,7 +1491,7 @@ class Schwarz : public Preconditioner<
                     Subdomain<K>::clearBuffer(true);
                 }
                 PetscCall(VecDestroy(&vr));
-                if(empty) {
+                if(empty && !cond) {
                     PetscCall(STSetKSP(st, empty));
                     PetscCall(PetscObjectDereference((PetscObject)empty));
                 }
