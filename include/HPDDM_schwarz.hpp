@@ -1377,10 +1377,11 @@ class Schwarz : public Preconditioner<
                             PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
                     }
                     PetscErrorCode ierr = EPSSolve(eps);
-                    if(ierr==PETSC_SUCCESS):
+                    if(ierr==PETSC_SUCCESS) {
                         PetscCall(EPSGetConverged(eps, &nconv));
-                    else:
+                    } else {
                         nconv = 0;
+                    }
                 }
                 if(ctx) {
                     ctx->status = 'b';
