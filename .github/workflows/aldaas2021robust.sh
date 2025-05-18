@@ -35,7 +35,7 @@ cat << EOF >> ../aldaas2021robust/sparse_ls.c
       requires: hpddm double !complex !defined(PETSC_USE_64BIT_INDICES)
       nsize: 4
       args: -ksp_view -pc_type hpddm
-      filter: egrep -v "[0-9]+ KSP " | grep -v "rows=" | grep -v "total: nonzeros=" | grep -v " I-node " | sed -e "s/CONVERGED_RTOL iterations 6/CONVERGED_RTOL iterations 7/g" -e "s/CONVERGED_RTOL iterations 21/CONVERGED_RTOL iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL iterations 8/CONVERGED_RTOL_NORMAL iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL iterations 12/CONVERGED_RTOL_NORMAL iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL iterations 28/CONVERGED_RTOL_NORMAL iterations 32/g" -e "s/CONVERGED_RTOL_NORMAL iterations 43/CONVERGED_RTOL_NORMAL iterations 32/g"
+      filter: egrep -v "[0-9]+ KSP " | grep -v "rows=" | grep -v "total: nonzeros=" | grep -v " I-node " | sed -e "s/CONVERGED_RTOL iterations 6/CONVERGED_RTOL iterations 7/g" -e "s/CONVERGED_RTOL iterations 21/CONVERGED_RTOL iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 8/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 12/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 13/g" -e "s/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 28/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 32/g" -e "s/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 43/CONVERGED_RTOL_NORMAL_EQUATIONS iterations 32/g"
       test:
         suffix: 1
         args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat -pc_hidden_setup {{true false}shared output}

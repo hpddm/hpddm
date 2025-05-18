@@ -1076,7 +1076,14 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #endif
             unsigned int** offsetArray = new unsigned int*[info[0]];
             if(info[0]) {
+#if !defined(__clang__) && defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Walloc-size"
+#endif
                 *offsetArray = new unsigned int[info[0] * ((Operator::pattern_ == 's') + (U != 1))];
+#if !defined(__clang__) && defined(__GNUC__)
+# pragma GCC diagnostic pop
+#endif
                 if(Operator::pattern_ == 's') {
                     if(S != 'S') {
                         offsetArray[0][0] = sparsity[0] > rankWorld_ ? local_ : 0;
