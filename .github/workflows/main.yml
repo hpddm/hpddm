@@ -113,18 +113,18 @@ jobs:
           cp -R ~/.local/lib ~/.cache
           find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" -o -wholename "*/share/perl5/auto/*" -o -wholename "*/tests/__pycache__/*" -o -wholename "*/tests/test_*.pyc" \) -prune -exec rm -rf "{}" \;
         fi
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 0
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 0
-        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-13 0
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 0
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 0
+        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-14 0
         sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-18/bin/clang++ 0
         sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-18/bin/clang 0
-        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-13 0
-        sudo update-alternatives --set g++ /usr/bin/g++-13
-        sudo update-alternatives --set gcc /usr/bin/gcc-13
-        sudo update-alternatives --set gcov /usr/bin/gcov-13
+        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-14 0
+        sudo update-alternatives --set g++ /usr/bin/g++-14
+        sudo update-alternatives --set gcc /usr/bin/gcc-14
+        sudo update-alternatives --set gcov /usr/bin/gcov-14
         sudo update-alternatives --set clang++ /usr/lib/llvm-18/bin/clang++
         sudo update-alternatives --set clang /usr/lib/llvm-18/bin/clang
-        sudo update-alternatives --set gfortran /usr/bin/gfortran-13
+        sudo update-alternatives --set gfortran /usr/bin/gfortran-14
         if [ "${{ matrix.compiler }}" = "clang" ]; then
           echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
         else
@@ -223,7 +223,7 @@ jobs:
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wextra-semi-stmt -Wdouble-promotion"
               fi
               if [ "$PRECISION" != "__float128" ]; then
-                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/13/libgomp.so]"
+                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/14/libgomp.so]"
                 if [ "${{ matrix.compiler }}" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -DPETSC_SKIP_ATTRIBUTE_MAY_ALIAS -Werror"
               fi
@@ -331,8 +331,8 @@ jobs:
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
         make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
         cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
-        export LD_PRELOAD="/software/gcc/13/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
-        export LD_LIBRARY_PATH=/software/gcc/13/lib:/software/gcc/13/lib64:/software/cuda/12.5/lib64
+        export LD_PRELOAD="/software/gcc/14/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
+        export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/12.9/lib64
         make check
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
         config/report_tests.py -t 5 -s
