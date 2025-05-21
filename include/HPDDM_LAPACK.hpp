@@ -29,8 +29,6 @@
 void HPDDM_F77(C ## lapmt)(const int*, const int*, const int*, T*, const int*, int*);                        \
 U    HPDDM_F77(C ## lange)(const char*, const int*, const int*, const T*, const int*, U*);                   \
 U    HPDDM_F77(C ## lan ## SYM)(const char*, const char*, const int*, const T*, const int*, U*);             \
-void HPDDM_F77(C ## SYM ## gst)(const int*, const char*, const int*, T*, const int*,                         \
-                                const T*, const int*, int*);                                                 \
 void HPDDM_F77(C ## SYM ## trd)(const char*, const int*, T*, const int*, U*, U*, T*, T*, const int*, int*);  \
 void HPDDM_F77(C ## stein)(const int*, const U*, const U*, const int*, const U*, const int*,                 \
                            const int*, T*, const int*, U*, int*, int*, int*);                                \
@@ -43,10 +41,10 @@ void HPDDM_F77(C ## getrf)(const int*, const int*, T*, const int*, int*, int*); 
 void HPDDM_F77(C ## getrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
                            const int*, int*);                                                                \
 void HPDDM_F77(C ## getri)(const int*, T*, const int*, const int*, T*, const int*, int*);                    \
-void HPDDM_F77(C ## sytrf)(const char*, const int*, T*, const int*, int*, T*, int*, int*);                   \
+void HPDDM_F77(C ## sytrf)(const char*, const int*, T*, const int*, int*, T*, const int*, int*);             \
 void HPDDM_F77(C ## sytrs)(const char*, const int*, const int*, const T*, const int*, const int*, T*,        \
                            const int*, int*);                                                                \
-void HPDDM_F77(C ## sytri)(const char*, const int*, T*, const int*, int*, T*, int*);                         \
+void HPDDM_F77(C ## sytri)(const char*, const int*, T*, const int*, const int*, T*, int*);                   \
 void HPDDM_F77(C ## potrf)(const char*, const int*, T*, const int*, int*);                                   \
 void HPDDM_F77(C ## potrs)(const char*, const int*, const int*, const T*, const int*, T*, const int*, int*); \
 void HPDDM_F77(C ## potri)(const char*, const int*, T*, const int*, int*);                                   \
@@ -55,10 +53,10 @@ void HPDDM_F77(C ## trtrs)(const char*, const char*, const char*, const int*, co
                            const int*, T*, const int*, int*);                                                \
 void HPDDM_F77(C ## posv)(const char*, const int*, const int*, T*, const int*, T*, const int*, int*);        \
 void HPDDM_F77(C ## pptrf)(const char*, const int*, T*, int*);                                               \
-void HPDDM_F77(C ## pptrs)(const char*, const int*, const int*, T*, T*, const int*, int*);                   \
+void HPDDM_F77(C ## pptrs)(const char*, const int*, const int*, const T*, T*, const int*, int*);             \
 void HPDDM_F77(C ## ppsv)(const char*, const int*, const int*, T*, T*, const int*, int*);                    \
 void HPDDM_F77(C ## SYM ## sv)(const char*, const int*, const int*, T*, const int*, int*, T*, const int*,    \
-                               T*, int*, int*);                                                              \
+                               T*, const int*, int*);                                                        \
 void HPDDM_F77(C ## geqrf)(const int*, const int*, T*, const int*, T*, T*, const int*, int*);                \
 void HPDDM_F77(C ## geqrt)(const int*, const int*, const int*, T*, const int*, T*, const int*, T*, int*);    \
 void HPDDM_F77(C ## gemqrt)(const char*, const char*, const int*, const int*, const int*, const int*,        \
@@ -68,10 +66,12 @@ HPDDM_GENERATE_EXTERN_LAPACK(B, U, U, sy, or)                                   
 HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, he, un)                                                                \
 void HPDDM_F77(B ## stebz)(const char*, const char*, const int*, const U*, const U*, const int*, const int*, \
                            const U*, const U*, const U*, int*, int*, U*, int*, int*, U*, int*, int*);        \
-void HPDDM_F77(B ## pocon)(const char*, const int*, const U*, const int*, U*, U*, U*, int*, int*);           \
-void HPDDM_F77(C ## pocon)(const char*, const int*, const T*, const int*, U*, U*, T*, U*, int*);             \
-void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, const int*, U*, U*, const int*, int*);    \
-void HPDDM_F77(C ## geqp3)(const int*, const int*, T*, const int*, const int*, T*, T*, const int*, U*, int*);\
+void HPDDM_F77(B ## pocon)(const char*, const int*, const U*, const int*, const U*, U*, U*, int*, int*);     \
+void HPDDM_F77(C ## pocon)(const char*, const int*, const T*, const int*, const U*, U*, T*, U*, int*);       \
+void HPDDM_F77(B ## sygst)(const int*, const char*, const int*, U*, const int*, const U*, const int*, int*); \
+void HPDDM_F77(C ## hegst)(const int*, const char*, const int*, T*, const int*, T*, const int*, int*);       \
+void HPDDM_F77(B ## geqp3)(const int*, const int*, U*, const int*, int*, U*, U*, const int*, int*);          \
+void HPDDM_F77(C ## geqp3)(const int*, const int*, T*, const int*, int*, T*, T*, const int*, U*, int*);      \
 void HPDDM_F77(B ## ormqr)(const char*, const char*, const int*, const int*, const int*, const U*,           \
                            const int*, const U*, U*, const int*, U*, const int*, int*);                      \
 void HPDDM_F77(C ## unmqr)(const char*, const char*, const int*, const int*, const int*, const T*,           \
@@ -80,10 +80,11 @@ void HPDDM_F77(B ## hseqr)(const char*, const char*, const int*, const int*, con
                            U*, U*, const int*, U*, const int*, int*);                                        \
 void HPDDM_F77(C ## hseqr)(const char*, const char*, const int*, const int*, const int*, T*, const int*, T*, \
                            T*, const int*, T*, const int*, int*);                                            \
-void HPDDM_F77(B ## hsein)(const char*, const char*, const char*, int*, const int*, U*, const int*, U*,      \
+void HPDDM_F77(B ## hsein)(const char*, const char*, const char*, int*, const int*, const U*, const int*, U*,\
                            const U*, U*, const int*, U*, const int*, const int*, int*, U*, int*, int*, int*);\
-void HPDDM_F77(C ## hsein)(const char*, const char*, const char*, int*, const int*, T*, const int*, T*, T*,  \
-                           const int*, T*, const int*, const int*, int*, T*, U*, int*, int*, int*);          \
+void HPDDM_F77(C ## hsein)(const char*, const char*, const char*, const int*, const int*, const T*,          \
+                           const int*, T*, T*, const int*, T*, const int*, const int*, int*, T*, U*, int*,   \
+                           int*, int*);                                                                      \
 void HPDDM_F77(B ## geev)(const char*, const char*, const int*, U*, const int*, U*, U*, U*, const int*, U*,  \
                           const int*, U*, const int*, int*);                                                 \
 void HPDDM_F77(C ## geev)(const char*, const char*, const int*, T*, const int*, T*, T*, const int*, T*,      \
