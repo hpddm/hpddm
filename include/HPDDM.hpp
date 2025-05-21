@@ -99,8 +99,14 @@
 # define MKL_INT int
 #endif
 #if HPDDM_MKL
+# if defined(__cplusplus) && (!defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION >= 20200004)
+#  define HPDDM_NOEXCEPT noexcept
+# endif
 # define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
 #endif // HPDDM_MKL
+#if !HPDDM_MKL || !defined(__cplusplus) || (defined(INTEL_MKL_VERSION) && INTEL_MKL_VERSION < 20200004)
+# define HPDDM_NOEXCEPT
+#endif
 
 #include "HPDDM_preprocessor_check.hpp"
 #ifdef __cplusplus

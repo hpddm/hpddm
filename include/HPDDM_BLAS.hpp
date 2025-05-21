@@ -24,66 +24,66 @@
 #ifndef HPDDM_BLAS_HPP_
 #define HPDDM_BLAS_HPP_
 
-#define HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                     \
-void    HPDDM_F77(C ## axpy)(const int*, const T*, const T*, const int*, T*, const int*);                    \
-void    HPDDM_F77(C ## scal)(const int*, const T*, T*, const int*);                                          \
-void    HPDDM_F77(C ## lacpy)(const char*, const int*, const int*, const T*, const int*, T*, const int*);    \
-void    HPDDM_F77(C ## gemv)(const char*, const int*, const int*, const T*,                                  \
-                             const T*, const int*, const T*, const int*,                                     \
-                             const T*, T*, const int*);                                                      \
-void    HPDDM_F77(C ## symv)(const char*, const int*, const T*, const T*, const int*,                        \
-                             const T*, const int*, const T*, T*, const int*);                                \
-void    HPDDM_F77(C ## trsv)(const char*, const char*, const char*, const int*, const T*, const int*,        \
-                             T*, const int*);                                                                \
-void    HPDDM_F77(C ## gemm)(const char*, const char*, const int*, const int*, const int*,                   \
-                             const T*, const T*, const int*, const T*, const int*,                           \
-                             const T*, T*, const int*);                                                      \
-void    HPDDM_F77(C ## symm)(const char*, const char*, const int*, const int*,                               \
-                             const T*, const T*, const int*, const T*, const int*,                           \
-                             const T*, T*, const int*);                                                      \
-void    HPDDM_F77(C ## trmm)(const char*, const char*, const char*, const char*, const int*, const int*,     \
-                             const T*, const T*, const int*, T*, const int*);                                \
-void    HPDDM_F77(C ## trsm)(const char*, const char*, const char*, const char*, const int*, const int*,     \
-                             const T*, const T*, const int*, T*, const int*);
-#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U)                                                  \
-HPDDM_GENERATE_EXTERN_BLAS(B, U)                                                                             \
-HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                             \
-void HPDDM_F77(B ## syr)(const char* const, const int* const, const U* const, const U* const,                \
-                         const int* const, U* const, const int* const);                                      \
-void HPDDM_F77(C ## her)(const char* const, const int* const, const U* const, const T* const,                \
-                         const int* const, T* const, const int* const);                                      \
-void HPDDM_F77(B ## syr2)(const char* const, const int* const, const U* const, const U* const,               \
-                          const int* const, const U* const, const int* const, U* const, const int* const);   \
-void HPDDM_F77(C ## her2)(const char* const, const int* const, const T* const, const T* const,               \
-                          const int* const, const T* const, const int* const, T* const, const int* const);   \
-void HPDDM_F77(B ## syrk)(const char* const, const char* const, const int* const, const int* const,          \
-                          const U* const, const U* const, const int* const, const U* const, U* const,        \
-                          const int* const);                                                                 \
-void HPDDM_F77(C ## herk)(const char* const, const char* const, const int* const, const int* const,          \
-                          const U* const, const T* const, const int* const, const U* const, T* const,        \
-                          const int* const);
-#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                       \
-U HPDDM_F77(B ## nrm2)(const int*, const U*, const int*);                                                    \
-U HPDDM_F77(B ## C ## nrm2)(const int*, const T*, const int*);                                               \
-U HPDDM_F77(B ## dot)(const int*, const U*, const int*, const U*, const int*);                               \
+#define HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                                  \
+void    HPDDM_F77(C ## axpy)(const int*, const T*, const T*, const int*, T*, const int*) HPDDM_NOEXCEPT;                  \
+void    HPDDM_F77(C ## scal)(const int*, const T*, T*, const int*) HPDDM_NOEXCEPT;                                        \
+void    HPDDM_F77(C ## lacpy)(const char*, const int*, const int*, const T*, const int*, T*, const int*) HPDDM_NOEXCEPT;  \
+void    HPDDM_F77(C ## gemv)(const char*, const int*, const int*, const T*,                                               \
+                             const T*, const int*, const T*, const int*,                                                  \
+                             const T*, T*, const int*) HPDDM_NOEXCEPT;                                                    \
+void    HPDDM_F77(C ## symv)(const char*, const int*, const T*, const T*, const int*,                                     \
+                             const T*, const int*, const T*, T*, const int*) HPDDM_NOEXCEPT;                              \
+void    HPDDM_F77(C ## trsv)(const char*, const char*, const char*, const int*, const T*, const int*,                     \
+                             T*, const int*) HPDDM_NOEXCEPT;                                                              \
+void    HPDDM_F77(C ## gemm)(const char*, const char*, const int*, const int*, const int*,                                \
+                             const T*, const T*, const int*, const T*, const int*,                                        \
+                             const T*, T*, const int*) HPDDM_NOEXCEPT;                                                    \
+void    HPDDM_F77(C ## symm)(const char*, const char*, const int*, const int*,                                            \
+                             const T*, const T*, const int*, const T*, const int*,                                        \
+                             const T*, T*, const int*) HPDDM_NOEXCEPT;                                                    \
+void    HPDDM_F77(C ## trmm)(const char*, const char*, const char*, const char*, const int*, const int*,                  \
+                             const T*, const T*, const int*, T*, const int*) HPDDM_NOEXCEPT;                              \
+void    HPDDM_F77(C ## trsm)(const char*, const char*, const char*, const char*, const int*, const int*,                  \
+                             const T*, const T*, const int*, T*, const int*) HPDDM_NOEXCEPT;
+#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U)                                                               \
+HPDDM_GENERATE_EXTERN_BLAS(B, U)                                                                                          \
+HPDDM_GENERATE_EXTERN_BLAS(C, T)                                                                                          \
+void HPDDM_F77(B ## syr)(const char* const, const int* const, const U* const, const U* const,                             \
+                         const int* const, U* const, const int* const) HPDDM_NOEXCEPT;                                    \
+void HPDDM_F77(C ## her)(const char* const, const int* const, const U* const, const T* const,                             \
+                         const int* const, T* const, const int* const) HPDDM_NOEXCEPT;                                    \
+void HPDDM_F77(B ## syr2)(const char* const, const int* const, const U* const, const U* const,                            \
+                          const int* const, const U* const, const int* const, U* const, const int* const) HPDDM_NOEXCEPT; \
+void HPDDM_F77(C ## her2)(const char* const, const int* const, const T* const, const T* const,                            \
+                          const int* const, const T* const, const int* const, T* const, const int* const) HPDDM_NOEXCEPT; \
+void HPDDM_F77(B ## syrk)(const char* const, const char* const, const int* const, const int* const,                       \
+                          const U* const, const U* const, const int* const, const U* const, U* const,                     \
+                          const int* const) HPDDM_NOEXCEPT;                                                               \
+void HPDDM_F77(C ## herk)(const char* const, const char* const, const int* const, const int* const,                       \
+                          const U* const, const T* const, const int* const, const U* const, T* const,                     \
+                          const int* const) HPDDM_NOEXCEPT;
+#define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                                    \
+U HPDDM_F77(B ## nrm2)(const int*, const U*, const int*) HPDDM_NOEXCEPT;                                                  \
+U HPDDM_F77(B ## C ## nrm2)(const int*, const T*, const int*) HPDDM_NOEXCEPT;                                             \
+U HPDDM_F77(B ## dot)(const int*, const U*, const int*, const U*, const int*) HPDDM_NOEXCEPT;                             \
 HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U)
 
 #if HPDDM_MKL
-# define HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                  \
-void HPDDM_F77(C ## gemm3m)(const char*, const char*, const int*, const int*, const int*,                    \
-                            const T*, const T*, const int*, const T*, const int*,                            \
-                            const T*, T*, const int*);
+# define HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                               \
+void HPDDM_F77(C ## gemm3m)(const char*, const char*, const int*, const int*, const int*,                                 \
+                            const T*, const T*, const int*, const T*, const int*,                                         \
+                            const T*, T*, const int*) HPDDM_NOEXCEPT;
 # if !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300
 #  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)
 # else
-#  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)                                                                  \
-void HPDDM_F77(C ## gemmt)(const char*, const char*, const char*, const int*, const int*,                    \
-                           const T*, const T*, const int*, const T*, const int*,                             \
-                           const T*, T*, const int*);
+#  define HPDDM_GENERATE_EXTERN_GEMMT(C, T)                                                                               \
+void HPDDM_F77(C ## gemmt)(const char*, const char*, const char*, const int*, const int*,                                 \
+                           const T*, const T*, const int*, const T*, const int*,                                          \
+                           const T*, T*, const int*) HPDDM_NOEXCEPT;
 # endif
-# define HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(C, T, B, U)                                                    \
-HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                           \
-HPDDM_GENERATE_EXTERN_GEMMT(B, U)                                                                            \
+# define HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(C, T, B, U)                                                                 \
+HPDDM_GENERATE_EXTERN_GEMM3M(C, T)                                                                                        \
+HPDDM_GENERATE_EXTERN_GEMMT(B, U)                                                                                         \
 HPDDM_GENERATE_EXTERN_GEMMT(C, T)
 #endif
 
@@ -108,11 +108,11 @@ HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(z, std::complex<double>, d, double)
 #   endif
 #   ifndef CBLAS_H
-#    define HPDDM_GENERATE_EXTERN_AXPBY(C, T, B, U)                                                          \
-void HPDDM_PREFIX_AXPBY(B ## axpby)(const int, const U, const U*,                                            \
-                                    const int, const U, U*, const int);                                      \
-void HPDDM_PREFIX_AXPBY(C ## axpby)(const int, const T*, const T*,                                           \
-                                    const int, const T*, T*, const int);
+#    define HPDDM_GENERATE_EXTERN_AXPBY(C, T, B, U)                                                                       \
+void HPDDM_PREFIX_AXPBY(B ## axpby)(const int, const U, const U*,                                                         \
+                                    const int, const U, U*, const int) HPDDM_NOEXCEPT;                                    \
+void HPDDM_PREFIX_AXPBY(C ## axpby)(const int, const T*, const T*,                                                        \
+                                    const int, const T*, T*, const int) HPDDM_NOEXCEPT;
 #    if !HPDDM_MKL
 HPDDM_GENERATE_EXTERN_AXPBY(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_AXPBY(z, std::complex<double>, d, double)
