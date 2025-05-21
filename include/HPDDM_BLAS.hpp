@@ -113,8 +113,13 @@ void HPDDM_PREFIX_AXPBY(B ## axpby)(const int, const U, const U*,               
                                     const int, const U, U*, const int);                                      \
 void HPDDM_PREFIX_AXPBY(C ## axpby)(const int, const T*, const T*,                                           \
                                     const int, const T*, T*, const int);
+#    if !HPDDM_MKL
 HPDDM_GENERATE_EXTERN_AXPBY(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_AXPBY(z, std::complex<double>, d, double)
+#    else
+HPDDM_GENERATE_EXTERN_AXPBY(c, void, s, float)
+HPDDM_GENERATE_EXTERN_AXPBY(z, void, d, double)
+#    endif
 #   endif
 #  endif
 }

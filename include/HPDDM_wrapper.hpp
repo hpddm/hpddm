@@ -66,8 +66,8 @@ inline void Wrapper<K>::csrcsc(const int* const n, const K* const a, const int* 
 extern "C" {
 HPDDM_GENERATE_EXTERN_MKL(s, float)
 HPDDM_GENERATE_EXTERN_MKL(d, double)
-HPDDM_GENERATE_EXTERN_MKL(c, std::complex<float>)
-HPDDM_GENERATE_EXTERN_MKL(z, std::complex<double>)
+HPDDM_GENERATE_EXTERN_MKL(c, void)
+HPDDM_GENERATE_EXTERN_MKL(z, void)
 }
 #   include <mkl_service.h>
 #   if !defined(MKL_ENABLE_AVX512_MIC) || MKL_ENABLE_AVX512_MIC == 3
