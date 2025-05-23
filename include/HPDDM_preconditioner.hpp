@@ -123,7 +123,7 @@ class Preconditioner : public Subdomain<K> {
             static_assert(std::is_same<typename Prcndtnr::super&, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super&, decltype(*this)>::value, "Wrong preconditioner");
             typename CoarseOperator::return_type ret { };
             CoarseOperator*& co = front(args...);
-            constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value ? 3 : 4;
+            constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3 : 4;
             unsigned short allUniform[N + 1];
             allUniform[0] = Subdomain<K>::map_.size();
 #if !HPDDM_PETSC
