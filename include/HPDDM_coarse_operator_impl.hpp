@@ -50,7 +50,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
     unsigned short p;
     {
         PetscInt n = 1;
-        PetscCallVoid(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
+        PetscCallAbort(comm, PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
         p = n;
     }
 #endif
@@ -278,14 +278,16 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         default: return constructionMatrix<0, U, excluded, Operator>(v);
     }
 #else
-    const char *deft = MATSBAIJ;
     char type[256];
     char S;
     PetscBool flg;
     PetscOptionsBegin(v.p_.getCommunicator(), v.prefix_.c_str(), "", "");
-    PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, deft, type, 256, &flg));
-    if(!flg)
-        S = 'S';
+    PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, MATSBAIJ, type, 256, &flg));
+    if(!flg) {
+        PetscCall(PetscOptionsFList("-pc_type", "Preconditioner", "PCSetType", PCList, PCLU, type, 256, &flg));
+        PetscCall(PetscStrcmp(type, PCLU, &flg));
+        S = (flg ? 'G' : 'S');
+    }
     else {
         PetscCall(PetscStrcmp(type, MATSBAIJ, &flg));
         S = (flg ? 'S' : 'G');
@@ -1829,9 +1831,9 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
 #endif
 }
 
-#ifndef PetscCallVoid
-#define HPDDM_PETSC_CALL_VOID
-#define PetscCallVoid(arg) arg
+#ifndef PetscCallAbort
+#define HPDDM_PETSC_CALL_ABORT
+#define PetscCallAbort(comm, arg) arg
 #endif
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)
@@ -1925,14 +1927,14 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
             if(DMatrix::displs_) {
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     transfer<false>(DMatrix::gatherSplitCounts_, sizeSplit_, mu, rhs);
-                    PetscCallVoid(super::solve(rhs, mu));
+                    PetscCallAbort(DMatrix::communicator_, super::solve(rhs, mu));
                     transfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs);
                 }
                 else {
                     MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
 #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
                     if(super::s_)
-                        PetscCallVoid(super::solve(nullptr, mu));
+                        PetscCallAbort(DMatrix::communicator_, super::solve(nullptr, mu));
 #endif
                     MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
                 }
@@ -1941,7 +1943,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                 if(DMatrix::communicator_ != MPI_COMM_NULL) {
                     MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeSplit_ - (offset_ || excluded), mu, rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
-                    PetscCallVoid(super::solve(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu));
+                    PetscCallAbort(DMatrix::communicator_, super::solve(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu));
                     Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
                     MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
                 }
@@ -1949,7 +1951,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
                     MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
 #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
                     if(super::s_)
-                        PetscCallVoid(super::solve(nullptr, mu));
+                        PetscCallAbort(DMatrix::communicator_, super::solve(nullptr, mu));
 #endif
                     MPI_Scatter(nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
                 }
@@ -1963,7 +1965,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
         else
             super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
 #else
-            PetscCallVoid(super::solve(rhs, mu));
+            PetscCallAbort(DMatrix::communicator_, super::solve(rhs, mu));
 #endif
     }
     if(!std::is_same<downscaled_type<K>, K>::value)
@@ -1971,9 +1973,9 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
             pt[i] = static_cast<K>(rhs[i]);
 }
 
-#ifdef HPDDM_PETSC_CALL_VOID
-#undef PetscCallVoid
-#undef HPDDM_PETSC_CALL_VOID
+#ifdef HPDDM_PETSC_CALL_ABORT
+#undef PetscCallAbort
+#undef HPDDM_PETSC_CALL_ABORT
 #endif
 
 #if HPDDM_ICOLLECTIVE
