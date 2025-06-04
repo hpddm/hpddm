@@ -409,6 +409,7 @@ class LapackTRSub {
         template<char = HPDDM_NUMBERING>
         int inertia(MatrixCSR<K>* const&) { return 0; }
         unsigned short deficiency() const { return 0; }
+        template<bool = false>
         void solve(K* const x, const unsigned short& n = 1) const {
             int nrhs = n, info;
             if(type_ == 1)

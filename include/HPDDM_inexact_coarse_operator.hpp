@@ -32,6 +32,8 @@ class Mat;
 # if HPDDM_SLEPC
 #  include <slepc.h>
 # endif
+template<bool>
+static PetscErrorCode PCHPDDMSolve_Private(const PC_HPDDM_Level*, PetscScalar*, const unsigned short&);
 #endif
 
 namespace HPDDM {
@@ -751,6 +753,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             vectorNeighbor().swap(recv_);
         }
         constexpr int getDof() const { return dof_ * bs_; }
+        template<bool transpose>
         return_type solve(K* rhs, const unsigned short& mu) {
 #if !HPDDM_PETSC
             if(s_) {
@@ -786,7 +789,7 @@ class InexactCoarseOperator : public OptionsPrefix<K>, public Solver
             }
 #else
             PetscFunctionBeginUser;
-            PetscCall(PCHPDDMSolve_Private(s_, rhs, mu));
+            PetscCall(PCHPDDMSolve_Private<transpose>(s_, rhs, mu));
             PetscFunctionReturn(PETSC_SUCCESS);
 #endif
         }
