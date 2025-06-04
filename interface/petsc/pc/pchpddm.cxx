@@ -84,7 +84,7 @@ static inline PetscErrorCode PCHPDDMSetAuxiliaryMat_Private(PC pc, IS is, Mat A,
     if (data->is) { /* new overlap definition resets the PC */
       PetscCall(PCReset_HPDDM(pc));
       pc->setfromoptionscalled = 0;
-      pc->setupcalled          = 0;
+      pc->setupcalled          = PETSC_FALSE;
       data->correction         = type;
     }
     PetscCall(ISDestroy(&data->is));
@@ -430,6 +430,7 @@ static PetscErrorCode PCSetFromOptions_HPDDM(PC pc, PetscOptionItems PetscOption
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+template <bool transpose>
 static PetscErrorCode PCApply_HPDDM(PC pc, Vec x, Vec y)
 {
   PC_HPDDM *data = (PC_HPDDM *)pc->data;
@@ -438,7 +439,8 @@ static PetscErrorCode PCApply_HPDDM(PC pc, Vec x, Vec y)
   PetscCall(PetscCitationsRegister(HPDDMCitation, &HPDDMCite));
   PetscCheck(data->levels[0]->ksp, PETSC_COMM_SELF, PETSC_ERR_PLIB, "No KSP attached to PCHPDDM");
   if (data->log_separate) PetscCall(PetscLogEventBegin(PC_HPDDM_Solve[0], data->levels[0]->ksp, nullptr, nullptr, nullptr)); /* coarser-level events are directly triggered in HPDDM */
-  PetscCall(KSPSolve(data->levels[0]->ksp, x, y));
+  if (!transpose) PetscCall(KSPSolve(data->levels[0]->ksp, x, y));
+  else PetscCall(KSPSolveTranspose(data->levels[0]->ksp, x, y));
   if (data->log_separate) PetscCall(PetscLogEventEnd(PC_HPDDM_Solve[0], data->levels[0]->ksp, nullptr, nullptr, nullptr));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -720,7 +722,7 @@ static PetscErrorCode PCSetUp_HPDDMShell(PC pc)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-template <class Type, typename std::enable_if<std::is_same<Type, Vec>::value>::type * = nullptr>
+template <bool transpose = false, class Type = Vec, typename std::enable_if<std::is_same<Type, Vec>::value>::type * = nullptr>
 static inline PetscErrorCode PCHPDDMDeflate_Private(PC pc, Type x, Type y)
 {
   PC_HPDDM_Level *ctx;
@@ -732,7 +734,7 @@ static inline PetscErrorCode PCHPDDMDeflate_Private(PC pc, Type x, Type y)
   PetscCall(VecScatterBegin(ctx->scatter, x, ctx->v[0][0], INSERT_VALUES, SCATTER_FORWARD));
   PetscCall(VecScatterEnd(ctx->scatter, x, ctx->v[0][0], INSERT_VALUES, SCATTER_FORWARD));
   PetscCall(VecGetArrayWrite(ctx->v[0][0], &out));
-  ctx->P->deflation<false>(nullptr, out, 1); /* y = Q x */
+  ctx->P->deflation<false, transpose>(nullptr, out, 1); /* y = Q x */
   PetscCall(VecRestoreArrayWrite(ctx->v[0][0], &out));
   /* going from HPDDM to PETSc numbering */
   PetscCall(VecScatterBegin(ctx->scatter, ctx->v[0][0], y, INSERT_VALUES, SCATTER_REVERSE));
@@ -830,7 +832,7 @@ static PetscErrorCode PCApply_HPDDMShell(PC pc, Vec x, Vec y)
           PetscCall(MatMult(A, ctx->v[1][0], ctx->parent->normal));
           PetscCall(MatMultHermitianTranspose(A, ctx->parent->normal, ctx->v[1][1])); /* z = A^T A y           */
         }
-        PetscCall(PCHPDDMDeflate_Private(pc, ctx->v[1][1], ctx->v[1][1]));
+        PetscCall(PCHPDDMDeflate_Private(pc, ctx->v[1][1], ctx->v[1][1]));     /* z = Q z                      */
         PetscCall(VecAXPBYPCZ(y, -1.0, 1.0, 1.0, ctx->v[1][1], ctx->v[1][0])); /* y = (I - Q A^T) y + Q x      */
       } else PetscCall(VecAXPY(y, 1.0, ctx->v[1][0]));                         /* y = Q M^-1 (I - A Q) x + Q x */
     } else {
@@ -943,6 +945,68 @@ static PetscErrorCode PCMatApply_HPDDMShell(PC pc, Mat X, Mat Y)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+/*
+     PCApplyTranspose_HPDDMShell - Applies the transpose of a (2) deflated, (1) additive, (3) balanced, or (4) no coarse correction. In what follows, E = Z Pmat Z^T and Q = Z^T E^-1 Z.
+
+.vb
+   (1) y =                  Pmat^-T                x + Q^T x,
+   (2) y = (I - Q^T Amat^T) Pmat^-T                x + Q^T x (default),
+   (3) y = (I - Q^T Amat^T) Pmat^-T (I - Amat Q^T) x + Q^T x,
+   (4) y =                  Pmat^-T                x        .
+.ve
+
+   Input Parameters:
++     pc - preconditioner context
+-     x - input vector
+
+   Output Parameter:
+.     y - output vector
+
+   Level: advanced
+
+   Developer Note:
+   Since this is not an actual manual page the material below should be moved to an appropriate manual page with the appropriate context, i.e. explaining when it is used and how
+   to trigger it. Likely the manual page is `PCHPDDM`
+
+.seealso: [](ch_ksp), `PCHPDDM`, `PCApply_HPDDMShell()`, `PCHPDDMCoarseCorrectionType`
+*/
+static PetscErrorCode PCApplyTranspose_HPDDMShell(PC pc, Vec x, Vec y)
+{
+  PC_HPDDM_Level *ctx;
+  Mat             A;
+
+  PetscFunctionBegin;
+  PetscCall(PCShellGetContext(pc, &ctx));
+  PetscCheck(ctx->P, PETSC_COMM_SELF, PETSC_ERR_PLIB, "PCSHELL from PCHPDDM called with no HPDDM object");
+  PetscCall(KSPGetOperators(ctx->ksp, &A, nullptr));
+  if (ctx->parent->correction == PC_HPDDM_COARSE_CORRECTION_NONE) PetscCall(PCApplyTranspose(ctx->pc, x, y)); /* y = M^-T x */ // LCOV_EXCL_LINE
+  else {
+    PetscCall(PCHPDDMDeflate_Private<true>(pc, x, y)); /* y = Q^T x */
+    if (ctx->parent->correction == PC_HPDDM_COARSE_CORRECTION_DEFLATED || ctx->parent->correction == PC_HPDDM_COARSE_CORRECTION_BALANCED) {
+      if (ctx->parent->correction == PC_HPDDM_COARSE_CORRECTION_BALANCED) {
+        if (!ctx->parent->normal || ctx != ctx->parent->levels[0]) PetscCall(MatMult(A, y, ctx->v[1][0])); /* y = A Q^T x     */
+        else { /* KSPLSQR and finest level */ PetscCall(MatMult(A, y, ctx->parent->normal));               /* y = A Q^T x     */
+          PetscCall(MatMultHermitianTranspose(A, ctx->parent->normal, ctx->v[1][0]));                      /* y = A^T A Q^T x */
+        }
+        PetscCall(VecWAXPY(ctx->v[1][1], -1.0, ctx->v[1][0], x));                                                                     /* y = (I - A Q^T) x      */
+        PetscCall(PCApplyTranspose(ctx->pc, ctx->v[1][1], ctx->v[1][0]));                                                             /* y = M^-T (I - A Q^T) x */
+      } else PetscCall(PCApplyTranspose(ctx->pc, x, ctx->v[1][0]));                                                                   /* y = M^-T x             */
+      if (!ctx->parent->normal || ctx != ctx->parent->levels[0]) PetscCall(MatMultHermitianTranspose(A, ctx->v[1][0], ctx->v[1][1])); /* z = A^T y              */
+      else {
+        PetscCall(MatMult(A, ctx->v[1][0], ctx->parent->normal));
+        PetscCall(MatMultHermitianTranspose(A, ctx->parent->normal, ctx->v[1][1])); /* z = A^T A y          */
+      }
+      PetscCall(PCHPDDMDeflate_Private<true>(pc, ctx->v[1][1], ctx->v[1][1])); /* z = Q^T z                 */
+      PetscCall(VecAXPBYPCZ(y, -1.0, 1.0, 1.0, ctx->v[1][1], ctx->v[1][0])); /* y = (I - Q^T A^T) y + Q^T x */
+    } else {
+      PetscCheck(ctx->parent->correction == PC_HPDDM_COARSE_CORRECTION_ADDITIVE, PetscObjectComm((PetscObject)pc), PETSC_ERR_PLIB, "PCSHELL from PCHPDDM called with an unknown PCHPDDMCoarseCorrectionType %d", ctx->parent->correction);
+      PetscCall(PCApplyTranspose(ctx->pc, x, ctx->v[1][0]));
+      PetscCall(VecAXPY(y, 1.0, ctx->v[1][0])); /* y = M^-T x + Q^T x */
+    }
+  }
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
 static PetscErrorCode PCDestroy_HPDDMShell(PC pc)
 {
   PC_HPDDM_Level *ctx;
@@ -1019,9 +1083,7 @@ static PetscErrorCode PCApply_Schur(PC pc, Type x, Type y)
   PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
   if (flg) {
     PetscCheck(PetscDefined(HAVE_MUMPS), PETSC_COMM_SELF, PETSC_ERR_PLIB, "Inconsistent MatSolverType"); // LCOV_EXCL_LINE
-#if PetscDefined(HAVE_MUMPS)
     PetscCall(MatMumpsSetIcntl(A, 26, 0));
-#endif
   } else {
     PetscCall(PetscStrcmp(type, MATSOLVERMKL_PARDISO, &flg));
     PetscCheck(flg && PetscDefined(HAVE_MKL_PARDISO), PETSC_COMM_SELF, PETSC_ERR_PLIB, "Inconsistent MatSolverType");
@@ -1032,9 +1094,7 @@ static PetscErrorCode PCApply_Schur(PC pc, Type x, Type y)
   }
   PetscCall(PCApply_Schur_Private<Type, T>(p, factor, x, y));
   if (flg) {
-#if PetscDefined(HAVE_MUMPS)
     PetscCall(MatMumpsSetIcntl(A, 26, -1));
-#endif
   } else {
 #if PetscDefined(HAVE_MKL_PARDISO)
     PetscCall(MatMkl_PardisoSetCntl(A, 70, 0));
@@ -1056,6 +1116,7 @@ static PetscErrorCode PCDestroy_Schur(PC pc)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+template <bool transpose>
 static PetscErrorCode PCHPDDMSolve_Private(const PC_HPDDM_Level *ctx, PetscScalar *rhs, const unsigned short &mu)
 {
   Mat      B, X;
@@ -1075,7 +1136,8 @@ static PetscErrorCode PCHPDDMSolve_Private(const PC_HPDDM_Level *ctx, PetscScala
       PetscCall(VecCreateMPI(PetscObjectComm((PetscObject)ctx->ksp), n, N, &ctx->ksp->vec_sol));
     }
     PetscCall(VecPlaceArray(ctx->ksp->vec_rhs, rhs));
-    PetscCall(KSPSolve(ctx->ksp, nullptr, nullptr));
+    if (!transpose) PetscCall(KSPSolve(ctx->ksp, nullptr, nullptr));
+    else PetscCall(KSPSolveTranspose(ctx->ksp, nullptr, nullptr));
     PetscCall(VecCopy(ctx->ksp->vec_sol, ctx->ksp->vec_rhs));
     PetscCall(VecResetArray(ctx->ksp->vec_rhs));
   } else {
@@ -1422,17 +1484,13 @@ static PetscErrorCode PCApply_Nest(PC pc, Vec x, Vec y)
       PetscCall(PCFactorGetMatrix(p->first, &A));
       if (A->schur) {
         PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
-#if PetscDefined(HAVE_MUMPS)
         if (flg) PetscCall(MatMumpsSetIcntl(A, 26, 1)); /* reduction/condensation phase followed by Schur complement solve */
-#endif
       } else flg = PETSC_FALSE;
     }
     PetscCall(VecISCopy(p->second[0], is[1], SCATTER_FORWARD, x)); /* assign the RHS associated to the Schur complement */
     PetscCall(PCApply(p->first, p->second[0], p->second[1]));
     PetscCall(VecISCopy(p->second[1], is[1], SCATTER_REVERSE, y)); /* retrieve the partial solution associated to the Schur complement */
-#if PetscDefined(HAVE_MUMPS)
-    if (flg) PetscCall(MatMumpsSetIcntl(A, 26, -1)); /* default ICNTL(26) value in PETSc */
-#endif
+    if (flg) PetscCall(MatMumpsSetIcntl(A, 26, -1));               /* default ICNTL(26) value in PETSc */
   }
   PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -1611,7 +1669,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
     PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%spc_hpddm_%s_", pcpre ? pcpre : "", data->N > 1 ? "levels_1" : "coarse"));
     PetscCall(KSPSetOptionsPrefix(data->levels[0]->ksp, prefix));
     PetscCall(KSPSetType(data->levels[0]->ksp, KSPPREONLY));
-  } else if (data->levels[0]->ksp->pc && data->levels[0]->ksp->pc->setupcalled == 1 && data->levels[0]->ksp->pc->reusepreconditioner) {
+  } else if (data->levels[0]->ksp->pc && data->levels[0]->ksp->pc->setupcalled && data->levels[0]->ksp->pc->reusepreconditioner) {
     /* if the fine-level PCSHELL exists, its setup has succeeded, and one wants to reuse it, */
     /* then just propagate the appropriate flag to the coarser levels                        */
     for (n = 0; n < PETSC_PCHPDDM_MAXLEVELS && data->levels[n]; ++n) {
@@ -1624,7 +1682,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
   } else {
     /* reset coarser levels */
     for (n = 1; n < PETSC_PCHPDDM_MAXLEVELS && data->levels[n]; ++n) {
-      if (data->levels[n]->ksp && data->levels[n]->ksp->pc && data->levels[n]->ksp->pc->setupcalled == 1 && data->levels[n]->ksp->pc->reusepreconditioner && n < data->N) {
+      if (data->levels[n]->ksp && data->levels[n]->ksp->pc && data->levels[n]->ksp->pc->setupcalled && data->levels[n]->ksp->pc->reusepreconditioner && n < data->N) {
         reused = data->N - n;
         break;
       }
@@ -2566,7 +2624,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
       }
       if (data->levels[0]->P) {
         /* if the pattern is the same and PCSetUp() has previously succeeded, reuse HPDDM buffers and connectivity */
-        PetscCall(HPDDM::Schwarz<PetscScalar>::destroy(data->levels[0], pc->setupcalled < 1 || pc->flag == DIFFERENT_NONZERO_PATTERN ? PETSC_TRUE : PETSC_FALSE));
+        PetscCall(HPDDM::Schwarz<PetscScalar>::destroy(data->levels[0], !pc->setupcalled || pc->flag == DIFFERENT_NONZERO_PATTERN ? PETSC_TRUE : PETSC_FALSE));
       }
       if (!data->levels[0]->P) data->levels[0]->P = new HPDDM::Schwarz<PetscScalar>();
       if (data->log_separate) PetscCall(PetscLogEventBegin(PC_HPDDM_SetUp[0], data->levels[0]->ksp, nullptr, nullptr, nullptr));
@@ -2634,6 +2692,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           PetscCall(PCShellSetSetUp(spc, PCSetUp_HPDDMShell));
           PetscCall(PCShellSetApply(spc, PCApply_HPDDMShell));
           PetscCall(PCShellSetMatApply(spc, PCMatApply_HPDDMShell));
+          PetscCall(PCShellSetApplyTranspose(spc, PCApplyTranspose_HPDDMShell));
           if (ctx && n == 0) {
             Mat                               Amat, Pmat;
             PetscInt                          m, M;
@@ -3043,8 +3102,9 @@ PETSC_EXTERN PetscErrorCode PCCreate_HPDDM(PC pc)
   pc->ops->destroy        = PCDestroy_HPDDM;
   pc->ops->setfromoptions = PCSetFromOptions_HPDDM;
   pc->ops->setup          = PCSetUp_HPDDM;
-  pc->ops->apply          = PCApply_HPDDM;
+  pc->ops->apply          = PCApply_HPDDM<false>;
   pc->ops->matapply       = PCMatApply_HPDDM;
+  pc->ops->applytranspose = PCApply_HPDDM<true>;
   pc->ops->view           = PCView_HPDDM;
   pc->ops->presolve       = PCPreSolve_HPDDM;
 
