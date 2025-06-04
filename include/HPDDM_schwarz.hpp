@@ -1692,7 +1692,7 @@ class Schwarz : public Preconditioner<
          *    in             - Input vectors.
          *    out            - Output vectors.
          *    mu             - Number of vectors. */
-        template<bool excluded>
+        template<bool excluded, bool transpose = false>
         void deflation(const K* const in, K* const out, const unsigned short& mu) const {
 #if HPDDM_PETSC
             PetscFunctionBeginUser;
@@ -1711,7 +1711,7 @@ class Schwarz : public Preconditioner<
                 int local = super::getLocal();
                 if(local)
                     Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d__0), super::uc_, &local); // uc_ = ev_^T D in
-                super::co_->template callSolver<excluded>(super::uc_, mu);                                                                                                                                                        // uc_ = E \ ev_^T D in
+                super::co_->template callSolver<excluded, transpose>(super::uc_, mu);                                                                                                                                             // uc_ = E \ ev_^T D in
                 if(local)
                     Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &tmp, &local, &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &local, &(Wrapper<K>::d__0), out, &(Subdomain<K>::dof_));                   // out = ev_ E \ ev_^T D in
                 else

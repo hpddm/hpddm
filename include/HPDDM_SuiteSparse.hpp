@@ -214,6 +214,7 @@ class SuiteSparse : public DMatrix {
             }
             delete [] I;
         }
+        template<bool>
         void solve(K* rhs, const unsigned short& n = 1) {
             for(unsigned short nu = 0; nu < n; ++nu) {
                 if(c_) {
