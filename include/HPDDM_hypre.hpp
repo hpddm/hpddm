@@ -179,6 +179,7 @@ class Hypre : public DMatrix {
          * Parameters:
          *    rhs            - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of right-hand sides. */
+        template<bool>
         void solve(K* rhs, const unsigned short& n) {
             HYPRE_ParVector par_b;
             HYPRE_IJVectorGetObject(b_, reinterpret_cast<void**>(&par_b));
