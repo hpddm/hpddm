@@ -278,7 +278,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         default: return constructionMatrix<0, U, excluded, Operator>(v);
     }
 #else
-    char type[256];
+    char type[256] = {};
     char S;
     PetscBool flg;
     PetscOptionsBegin(v.p_.getCommunicator(), v.prefix_.c_str(), "", "");
