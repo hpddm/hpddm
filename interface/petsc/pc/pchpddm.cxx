@@ -84,7 +84,7 @@ static inline PetscErrorCode PCHPDDMSetAuxiliaryMat_Private(PC pc, IS is, Mat A,
     if (data->is) { /* new overlap definition resets the PC */
       PetscCall(PCReset_HPDDM(pc));
       pc->setfromoptionscalled = 0;
-      pc->setupcalled          = 0;
+      pc->setupcalled          = PETSC_FALSE;
       data->correction         = type;
     }
     PetscCall(ISDestroy(&data->is));
@@ -1019,9 +1019,7 @@ static PetscErrorCode PCApply_Schur(PC pc, Type x, Type y)
   PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
   if (flg) {
     PetscCheck(PetscDefined(HAVE_MUMPS), PETSC_COMM_SELF, PETSC_ERR_PLIB, "Inconsistent MatSolverType"); // LCOV_EXCL_LINE
-#if PetscDefined(HAVE_MUMPS)
     PetscCall(MatMumpsSetIcntl(A, 26, 0));
-#endif
   } else {
     PetscCall(PetscStrcmp(type, MATSOLVERMKL_PARDISO, &flg));
     PetscCheck(flg && PetscDefined(HAVE_MKL_PARDISO), PETSC_COMM_SELF, PETSC_ERR_PLIB, "Inconsistent MatSolverType");
@@ -1031,11 +1029,8 @@ static PetscErrorCode PCApply_Schur(PC pc, Type x, Type y)
 #endif
   }
   PetscCall(PCApply_Schur_Private<Type, T>(p, factor, x, y));
-  if (flg) {
-#if PetscDefined(HAVE_MUMPS)
-    PetscCall(MatMumpsSetIcntl(A, 26, -1));
-#endif
-  } else {
+  if (flg) PetscCall(MatMumpsSetIcntl(A, 26, -1));
+  else {
 #if PetscDefined(HAVE_MKL_PARDISO)
     PetscCall(MatMkl_PardisoSetCntl(A, 70, 0));
 #endif
@@ -1421,20 +1416,12 @@ static PetscErrorCode PCApply_Nest(PC pc, Vec x, Vec y)
       PetscCall(PCFactorGetMatSolverType(p->first, &type));
       PetscCall(PCFactorGetMatrix(p->first, &A));
       PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
-      if (flg && A->schur) {
-#if PetscDefined(HAVE_MUMPS)
-        PetscCall(MatMumpsSetIcntl(A, 26, 1)); /* reduction/condensation phase followed by Schur complement solve */
-#endif
-      }
+      if (flg && A->schur) PetscCall(MatMumpsSetIcntl(A, 26, 1)); /* reduction/condensation phase followed by Schur complement solve */
     }
     PetscCall(VecISCopy(p->second[0], is[1], SCATTER_FORWARD, x)); /* assign the RHS associated to the Schur complement */
     PetscCall(PCApply(p->first, p->second[0], p->second[1]));
     PetscCall(VecISCopy(p->second[1], is[1], SCATTER_REVERSE, y)); /* retrieve the partial solution associated to the Schur complement */
-    if (flg) {
-#if PetscDefined(HAVE_MUMPS)
-      PetscCall(MatMumpsSetIcntl(A, 26, -1)); /* default ICNTL(26) value in PETSc */
-#endif
-    }
+    if (flg) PetscCall(MatMumpsSetIcntl(A, 26, -1));               /* default ICNTL(26) value in PETSc */
   }
   PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -1613,7 +1600,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
     PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%spc_hpddm_%s_", pcpre ? pcpre : "", data->N > 1 ? "levels_1" : "coarse"));
     PetscCall(KSPSetOptionsPrefix(data->levels[0]->ksp, prefix));
     PetscCall(KSPSetType(data->levels[0]->ksp, KSPPREONLY));
-  } else if (data->levels[0]->ksp->pc && data->levels[0]->ksp->pc->setupcalled == 1 && data->levels[0]->ksp->pc->reusepreconditioner) {
+  } else if (data->levels[0]->ksp->pc && data->levels[0]->ksp->pc->setupcalled && data->levels[0]->ksp->pc->reusepreconditioner) {
     /* if the fine-level PCSHELL exists, its setup has succeeded, and one wants to reuse it, */
     /* then just propagate the appropriate flag to the coarser levels                        */
     for (n = 0; n < PETSC_PCHPDDM_MAXLEVELS && data->levels[n]; ++n) {
@@ -1626,7 +1613,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
   } else {
     /* reset coarser levels */
     for (n = 1; n < PETSC_PCHPDDM_MAXLEVELS && data->levels[n]; ++n) {
-      if (data->levels[n]->ksp && data->levels[n]->ksp->pc && data->levels[n]->ksp->pc->setupcalled == 1 && data->levels[n]->ksp->pc->reusepreconditioner && n < data->N) {
+      if (data->levels[n]->ksp && data->levels[n]->ksp->pc && data->levels[n]->ksp->pc->setupcalled && data->levels[n]->ksp->pc->reusepreconditioner && n < data->N) {
         reused = data->N - n;
         break;
       }
@@ -2568,7 +2555,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
       }
       if (data->levels[0]->P) {
         /* if the pattern is the same and PCSetUp() has previously succeeded, reuse HPDDM buffers and connectivity */
-        PetscCall(HPDDM::Schwarz<PetscScalar>::destroy(data->levels[0], pc->setupcalled < 1 || pc->flag == DIFFERENT_NONZERO_PATTERN ? PETSC_TRUE : PETSC_FALSE));
+        PetscCall(HPDDM::Schwarz<PetscScalar>::destroy(data->levels[0], !pc->setupcalled || pc->flag == DIFFERENT_NONZERO_PATTERN ? PETSC_TRUE : PETSC_FALSE));
       }
       if (!data->levels[0]->P) data->levels[0]->P = new HPDDM::Schwarz<PetscScalar>();
       if (data->log_separate) PetscCall(PetscLogEventBegin(PC_HPDDM_SetUp[0], data->levels[0]->ksp, nullptr, nullptr, nullptr));
