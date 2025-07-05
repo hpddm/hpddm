@@ -1330,8 +1330,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                 PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
             PetscCall(KSPSetOperators(v.level_->ksp, E, E));
             PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
+            PC pc = nullptr;
             if(coarse) {
-                PC pc;
                 PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
                 PetscCall(KSPGetPC(v.level_->ksp, &pc));
 #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
@@ -1340,6 +1340,36 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                     PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
             }
             PetscCall(KSPSetFromOptions(v.level_->ksp));
+#if defined(PETSC_HAVE_MUMPS) && PETSC_VERSION_GE(3, 24, 0) && defined(PETSC_PKG_MUMPS_VERSION_GE)
+#if PETSC_PKG_MUMPS_VERSION_GE(5, 8, 1)
+            if(pc) {
+                PetscInt n = 0;
+                PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-mat_mumps_icntl_15", &n, nullptr));
+                if(n == 1) {
+                    PetscBool flg;
+                    PetscCall(PetscObjectTypeCompareAny((PetscObject)pc, &flg, PCLU, PCCHOLESKY, ""));
+                    if(flg) {
+                        MatSolverType type;
+                        PetscCall(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
+                        PetscCall(PCSetFromOptions(pc));
+                        PetscCall(PCFactorSetUpMatSolverType(pc));
+                        PetscCall(PCFactorGetMatSolverType(pc, &type));
+                        PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
+                        if(flg && DMatrix::rank_ == 0) {
+                            Mat A;
+                            PetscInt *blkptr;
+                            PetscCall(PCFactorGetMatrix(pc, &A));
+                            PetscCall(PetscMalloc1(sizeWorld_ + 1, &blkptr));
+                            blkptr[0] = 1;
+                            for(unsigned int i = 0; i < sizeWorld_; ++i) blkptr[i + 1] = blkptr[i] + infoWorld[i];
+                            PetscCall(MatMumpsSetBlk(A, sizeWorld_, nullptr, blkptr));
+                            PetscCall(PetscFree(blkptr));
+                        }
+                    }
+                }
+            }
+#endif
+#endif
             PetscCall(MatDestroy(&E));
             super::s_ = v.level_;
         }
