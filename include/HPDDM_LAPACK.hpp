@@ -406,7 +406,7 @@ class LapackTRSub {
                     Lapack<K>::potrf("L", &n_, a_, &n_, &info);
             }
         }
-        template<char N = HPDDM_NUMBERING>
+        template<char = HPDDM_NUMBERING>
         int inertia(MatrixCSR<K>* const&) { return 0; }
         unsigned short deficiency() const { return 0; }
         void solve(K* const x, const unsigned short& n = 1) const {
