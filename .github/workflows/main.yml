@@ -247,11 +247,11 @@ jobs:
               [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
               rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
               if [ "$INT64" = "0" ] && [ "$TYPE" = "real" ] && [ "$PRECISION" = "double" ] && [ "${{ matrix.compiler }}" = "gcc" ]; then
-                make all "CXX=mpicxx.openmpi ${COVERAGE_FLAGS} ${INCS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS} -fopenmp" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+                make all "CXX=mpicxx.openmpi ${COVERAGE_FLAGS} ${INCS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS} -fopenmp" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log 2> /dev/null; exit 1)
               else
-                make all "CXX=mpicxx.openmpi ${COVERAGE_FLAGS} ${INCS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log 2> /dev/null; exit 1)
+                make all "CXX=mpicxx.openmpi ${COVERAGE_FLAGS} ${INCS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" || (cat ${PETSC_ARCH}/externalpackages/git.slepc/${PETSC_ARCH}/lib/slepc/conf/configure.log 2> /dev/null; cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log 2> /dev/null; exit 1)
               fi
-              cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
+              cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log
               make -f gmakefile test 'query=requires' 'queryval=*hpddm*' 'PETSCMPIEXEC=mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0' "CC=mpicc.openmpi ${COVERAGE_FLAGS}" "CLINKER=mpicc.openmpi ${COVERAGE_FLAGS}" TIMEOUT=120 EXTRA_OPTIONS='-malloc_dump' check-test-errors
               config/report_tests.py -t 5 -s
               if [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ] && [ "$INT64" = "0" ]; then
@@ -330,7 +330,7 @@ jobs:
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
         make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
-        cat ${PETSC_ARCH}/lib/petsc/conf/hpddm.log
+        cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log
         export LD_PRELOAD="/software/gcc/14/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
         export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/12.9/lib64
         make check

@@ -87,7 +87,7 @@ int main(int argc,char **args)
       nsize: 4
       args: -pc_type hpddm -pc_hpddm_levels_1_eps_nev 80 -pc_hpddm_block_splitting -pc_hpddm_levels_1_sub_pc_type lu -pc_hpddm_levels_1_eps_gen_non_hermitian -pc_hpddm_levels_1_sub_pc_factor_mat_solver_type mumps -pc_hpddm_levels_1_sub_mat_mumps_icntl_24 1 -pc_hpddm_levels_1_st_share_sub_ksp {{true false}shared output} -pc_hpddm_coarse_mat_type baij -ksp_error_if_not_converged -ksp_pc_side right -ksp_max_it 20 -ksp_gmres_modifiedgramschmidt
       args: -mat_name \${DATAFILESPATH}/matrices/power
-      output_file: output/ex77_preonly.out
+      output_file: output/empty.out
 
 TEST*/
 EOF

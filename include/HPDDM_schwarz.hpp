@@ -1070,23 +1070,24 @@ class Schwarz : public Preconditioner<
             ISLocalToGlobalMapping l2g;
             IS                     sub[1] = { };
             PetscInt               nev, nconv = 0;
-            PetscBool              flg, ismatis, solve = PETSC_FALSE;
+            PetscBool              flg, ismatis;
             const char             *prefix;
+            unsigned char          solve;
             Aux                    aux = nullptr;
             Sum                    ctx = nullptr;
             Harmonic               h = nullptr;
 
             PetscFunctionBeginUser;
             if(!levels[0]->parent->deflation) {
-                for(int i = 0; i < Subdomain<K>::dof_ && !solve; ++i)
-                    if(HPDDM::abs(d_[i]) > underlying_type<K>(HPDDM_EPS))
-                        solve = PETSC_TRUE;
+                solve = Subdomain<K>::dof_ && !std::all_of(d_, d_ + Subdomain<K>::dof_, [&](const underlying_type<K>& x){ return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); }) ? 1 : (Subdomain<K>::dof_ && HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d__1) < underlying_type<K>(HPDDM_EPS) ? 2 : 0);
+                if(solve != 1)
+                    PetscCall(PetscInfo(nullptr, "Partition of unity is full of %ss, nothing to solve\n", solve == 0 ? "zero" : "one"));
                 PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
                 PetscCall(PetscObjectTypeCompare((PetscObject)N, MATSHELL, &flg));
                 if(flg && N == weighted && !rhs) {
                     std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
                     std::vector<Vec>().swap(initial);
-                    if(solve) {
+                    if(solve == 1) {
                         PetscCall(MatShellGetContext(N, &h));
                         if(h->A[1]) {
                             Mat  A;
@@ -1203,8 +1204,15 @@ class Schwarz : public Preconditioner<
                             PetscCall(SVDDestroy(&svd));
                         }
                     }
-                    if(!eps)
+                    if(!eps) {
+                        if(solve == 2) {
+                            levels[0]->nu = 1;
+                            super::ev_ = new K*[levels[0]->nu];
+                            *super::ev_ = new K[Subdomain<K>::dof_ * levels[0]->nu]();
+                            std::fill_n(*super::ev_, Subdomain<K>::dof_, Wrapper<K>::d__1);
+                        } else if (solve == 0) levels[0]->nu = 0;
                         PetscFunctionReturn(PETSC_SUCCESS);
+                    }
                 }
                 if(!eps)
                     PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
@@ -1215,7 +1223,7 @@ class Schwarz : public Preconditioner<
                     IS  is;
                     PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Embed", (PetscObject*)&is));
                     PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject*)&compact));
-                    if(compact && is && solve) {
+                    if(compact && is && solve == 1) {
                         SVD         svd;
                         PetscScalar *values;
                         PetscInt    m, p;
@@ -1340,7 +1348,7 @@ class Schwarz : public Preconditioner<
                                 PetscCall(EPSSetTarget(eps, target));
                             }
                             else {
-                                solve = PETSC_FALSE;
+                                solve = 0;
                                 nconv = 0;
                             }
                         }
@@ -1369,8 +1377,8 @@ class Schwarz : public Preconditioner<
                     PetscCall(STSetKSP(st, ksp[0]));
                 }
                 PetscCall(EPSGetDimensions(eps, &nev, nullptr, nullptr));
-                if(solve) {
-                    if(!ctx) {
+                if(solve == 1) {
+                    if(!ctx && !h) {
                         MatStructure str;
                         PetscCall(STGetMatStructure(st, &str));
                         if(str != SAME_NONZERO_PATTERN)
@@ -1419,18 +1427,22 @@ class Schwarz : public Preconditioner<
                                 PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(re)));
                         }
                     }
-                    if(levels[0]->nu == nconv)
+                    if(levels[0]->nu == nconv && solve == 1)
                         PetscCall(PetscInfo(eps, "HPDDM: Not enough converged eigenpairs to satisfy the threshold criterion\n"));
                 }
                 else
                     levels[0]->nu = std::min(nconv, nev);
-                PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " converged eigenvectors\n", levels[0]->nu, nconv));
+                if(solve == 1)
+                    PetscCall(PetscInfo(eps, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " converged eigenvectors\n", levels[0]->nu, nconv));
             }
             else {
                 PetscInt n;
+                solve = 1;
                 PetscCall(MatGetSize(weighted, nullptr, &n));
                 levels[0]->nu = n;
             }
+            if(solve == 2)
+                levels[0]->nu = 1;
             if(levels[0]->nu) {
                 super::ev_ = new K*[levels[0]->nu];
                 *super::ev_ = new K[Subdomain<K>::dof_ * levels[0]->nu]();
@@ -1438,6 +1450,10 @@ class Schwarz : public Preconditioner<
             for(unsigned short i = 1; i < levels[0]->nu; ++i)
                 super::ev_[i] = *super::ev_ + i * Subdomain<K>::dof_;
             if(!levels[0]->parent->deflation) {
+                if(solve == 2) {
+                    std::fill_n(*super::ev_, Subdomain<K>::dof_, Wrapper<K>::d__1);
+                    levels[0]->nu = 0;
+                }
                 PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, Subdomain<K>::dof_, levels[0]->nu ? super::ev_[0] : nullptr, &vr));
                 if(ismatis)
                     PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
@@ -1509,6 +1525,8 @@ class Schwarz : public Preconditioner<
                 }
                 else
                     PetscCall(VecDestroy(&vreduced));
+                if(solve == 2)
+                    levels[0]->nu = 1;
             }
             else {
                 PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, Subdomain<K>::dof_, levels[0]->nu, levels[0]->nu ? *super::ev_ : nullptr, &local));
