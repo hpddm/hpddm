@@ -1061,13 +1061,13 @@ static PetscErrorCode PCMatApplyTranspose_HPDDMShell(PC pc, Mat X, Mat Y)
       } else PetscCall(PCMatApplyTranspose(ctx->pc, X, ctx->V[2]));
       PetscCall(MatAXPY(Y, 1.0, ctx->V[2], SAME_NONZERO_PATTERN));
       PetscCall(MatProductNumeric(ctx->V[1]));
-      if (reset) { /* ctx->V[0] and ctx->V[1] memory regions overlap, so need to copy to ctx->V[2] and switch array */
-        PetscCall(MatCopy(ctx->V[1], ctx->V[2], SAME_NONZERO_PATTERN));
-        PetscCall(MatDenseResetArray(ctx->V[1]));
-        PetscCall(MatDenseGetArrayWrite(ctx->V[2], &array));
-        PetscCall(MatDensePlaceArray(ctx->V[1], array));
-        PetscCall(MatDenseRestoreArrayWrite(ctx->V[2], &array));
-      }
+      /* ctx->V[0] and ctx->V[1] memory regions overlap, so need to copy to ctx->V[2] and switch array */
+      PetscCall(MatCopy(ctx->V[1], ctx->V[2], SAME_NONZERO_PATTERN));
+      if (reset) PetscCall(MatDenseResetArray(ctx->V[1]));
+      PetscCall(MatDenseGetArrayWrite(ctx->V[2], &array));
+      PetscCall(MatDensePlaceArray(ctx->V[1], array));
+      PetscCall(MatDenseRestoreArrayWrite(ctx->V[2], &array));
+      reset = PETSC_TRUE;
       PetscCall(PCHPDDMDeflate_Private<true>(pc, ctx->V[1], ctx->V[1]));
       PetscCall(MatAXPY(Y, -1.0, ctx->V[1], SAME_NONZERO_PATTERN));
     } else {
@@ -1267,14 +1267,14 @@ static PetscErrorCode PCHPDDMCreateSubMatrices_Private(Mat mat, PetscInt n, cons
 
 static PetscErrorCode PCHPDDMCommunicationAvoidingPCASM_Private(PC pc, Mat C, PetscBool sorted)
 {
-  void (*op)(void);
+  PetscErrorCodeFn *op;
 
   PetscFunctionBegin;
   /* previously-composed Mat */
   PetscCall(PetscObjectCompose((PetscObject)pc->pmat, "_PCHPDDM_SubMatrices", (PetscObject)C));
   PetscCall(MatGetOperation(pc->pmat, MATOP_CREATE_SUBMATRICES, &op));
   /* trick suggested by Barry https://lists.mcs.anl.gov/pipermail/petsc-dev/2020-January/025491.html */
-  PetscCall(MatSetOperation(pc->pmat, MATOP_CREATE_SUBMATRICES, (void (*)(void))PCHPDDMCreateSubMatrices_Private));
+  PetscCall(MatSetOperation(pc->pmat, MATOP_CREATE_SUBMATRICES, (PetscErrorCodeFn *)PCHPDDMCreateSubMatrices_Private));
   if (sorted) PetscCall(PCASMSetSortIndices(pc, PETSC_FALSE)); /* everything is already sorted */
   PetscCall(PCSetFromOptions(pc));                             /* otherwise -pc_hpddm_levels_1_pc_asm_sub_mat_type is not used */
   PetscCall(PCSetUp(pc));
@@ -2034,9 +2034,9 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
               PetscCall(PetscObjectDereference((PetscObject)uis));
               PetscCall(PetscObjectDereference((PetscObject)uaux));
               PetscCall(MatCreateShell(PetscObjectComm((PetscObject)pc), inner->mat->rmap->n, inner->mat->cmap->n, inner->mat->rmap->N, inner->mat->cmap->N, ctx, &S)); /* MatShell computing the action of M^-1 A or A M^-1 */
-              PetscCall(MatShellSetOperation(S, MATOP_MULT, (void (*)(void))MatMult_SchurCorrection));
-              PetscCall(MatShellSetOperation(S, MATOP_VIEW, (void (*)(void))MatView_SchurCorrection));
-              PetscCall(MatShellSetOperation(S, MATOP_DESTROY, (void (*)(void))MatDestroy_SchurCorrection));
+              PetscCall(MatShellSetOperation(S, MATOP_MULT, (PetscErrorCodeFn *)MatMult_SchurCorrection));
+              PetscCall(MatShellSetOperation(S, MATOP_VIEW, (PetscErrorCodeFn *)MatView_SchurCorrection));
+              PetscCall(MatShellSetOperation(S, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_SchurCorrection));
               PetscCall(KSPGetPCSide(inner_ksp, &(std::get<2>(*ctx))));
               if (std::get<2>(*ctx) == PC_LEFT || std::get<2>(*ctx) == PC_SIDE_DEFAULT) {
                 PetscCall(KSPSetPreSolve(inner_ksp, KSPPreSolve_SchurCorrection, ctx));
@@ -2274,7 +2274,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
                 PetscCall(ISGetLocalSize(ov[0], n));
                 PetscCall(ISGetLocalSize(ov[1], n + 1));
                 flg = PetscBool(n[0] == n[1] && n[0] != P->rmap->n);
-                PetscCallMPI(MPIU_Allreduce(MPI_IN_PLACE, &flg, 1, MPIU_BOOL, MPI_LOR, PetscObjectComm((PetscObject)pc)));
+                PetscCallMPI(MPIU_Allreduce(MPI_IN_PLACE, &flg, 1, MPI_C_BOOL, MPI_LOR, PetscObjectComm((PetscObject)pc)));
                 if (flg) {
                   PetscCall(ISDestroy(ov));
                   PetscCall(ISDestroy(ov + 1));
@@ -2433,10 +2433,10 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
               PetscCall(MatCreateShell(PETSC_COMM_SELF, P->rmap->n, n[1] - n[0], P->rmap->n, n[1] - n[0], h, &data->aux));
               PetscCall(KSPSetErrorIfNotConverged(h->ksp, PETSC_TRUE)); /* bail out as early as possible to avoid (apparently) unrelated error messages */
               PetscCall(MatCreateVecs(h->ksp->pc->pmat, &h->v, nullptr));
-              PetscCall(MatShellSetOperation(data->aux, MATOP_MULT, (void (*)(void))MatMult_Harmonic));
-              PetscCall(MatShellSetOperation(data->aux, MATOP_MULT_TRANSPOSE, (void (*)(void))MatMultTranspose_Harmonic));
+              PetscCall(MatShellSetOperation(data->aux, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Harmonic));
+              PetscCall(MatShellSetOperation(data->aux, MATOP_MULT_TRANSPOSE, (PetscErrorCodeFn *)MatMultTranspose_Harmonic));
               PetscCall(MatShellSetMatProductOperation(data->aux, MATPRODUCT_AB, nullptr, MatProduct_AB_Harmonic, nullptr, MATDENSE, MATDENSE));
-              PetscCall(MatShellSetOperation(data->aux, MATOP_DESTROY, (void (*)(void))MatDestroy_Harmonic));
+              PetscCall(MatShellSetOperation(data->aux, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_Harmonic));
               PetscCall(MatDestroySubMatrices(1, &a));
             }
             if (overlap != 1 || !subdomains) {
@@ -2730,12 +2730,37 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           /* neither MatDuplicate() nor MatDiagonalScale() handles the symmetry options, so propagate the options explicitly */
           /* only useful for -mat_type baij -pc_hpddm_levels_1_st_pc_type cholesky (no problem with MATAIJ or MATSBAIJ)      */
           PetscCall(MatPropagateSymmetryOptions(sub[0], weighted));
+          if (PetscDefined(USE_DEBUG) && PetscBool3ToBool(data->Neumann)) {
+            Mat      *sub, A[3];
+            PetscReal norm[2];
+            PetscBool flg;
+
+            PetscCall(PetscObjectTypeCompare((PetscObject)P, MATMPISBAIJ, &flg)); /* MatCreateSubMatrices() does not work with MATSBAIJ and unsorted ISes, so convert to MPIAIJ */
+            if (flg) PetscCall(MatConvert(P, MATMPIAIJ, MAT_INITIAL_MATRIX, A));
+            else {
+              A[0] = P;
+              PetscCall(PetscObjectReference((PetscObject)P));
+            }
+            PetscCall(MatCreateSubMatrices(A[0], 1, &data->is, &data->is, MAT_INITIAL_MATRIX, &sub));
+            PetscCall(MatDiagonalScale(sub[0], data->levels[0]->D, data->levels[0]->D));
+            PetscCall(MatConvert(sub[0], MATSEQAIJ, MAT_INITIAL_MATRIX, A + 1)); /* too many corner cases to handle (MATNORMAL, MATNORMALHERMITIAN, MATBAIJ with different block sizes...), so just MatConvert() to MATSEQAIJ since this is just for debugging */
+            PetscCall(MatConvert(weighted, MATSEQAIJ, MAT_INITIAL_MATRIX, A + 2));
+            PetscCall(MatAXPY(A[1], -1.0, A[2], UNKNOWN_NONZERO_PATTERN));
+            PetscCall(MatNorm(A[1], NORM_FROBENIUS, norm));
+            if (norm[0]) {
+              PetscCall(MatNorm(A[2], NORM_FROBENIUS, norm + 1));
+              PetscCheck(PetscAbsReal(norm[0] / norm[1]) < PetscSqrtReal(PETSC_SMALL), PETSC_COMM_SELF, PETSC_ERR_USER_INPUT, "Auxiliary Mat is different from the (assembled) subdomain Mat for the interior unknowns, so it cannot be the Neumann matrix, remove -%spc_hpddm_has_neumann", pcpre ? pcpre : "");
+            }
+            PetscCall(MatDestroySubMatrices(1, &sub));
+            for (PetscInt i = 0; i < 3; ++i) PetscCall(MatDestroy(A + i));
+          }
         } else weighted = data->B;
       } else weighted = nullptr;
       /* SLEPc is used inside the loaded symbol */
       PetscCall((*loadedSym)(data->levels[0]->P, data->is, ismatis ? C : (algebraic && !block && overlap == -1 ? sub[0] : (!ctx ? data->aux : S)), weighted, data->B, initial, data->levels));
       if (!ctx && data->share && overlap == -1) {
         Mat st[2];
+
         PetscCall(KSPGetOperators(ksp[0], st, st + 1));
         PetscCall(MatCopy(subA[0], st[0], structure));
         if (subA[1] != subA[0] || st[1] != st[0]) PetscCall(MatCopy(subA[1], st[1], SAME_NONZERO_PATTERN));
@@ -2791,9 +2816,9 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
             std::get<0>(*ctx) = S;
             std::get<1>(*ctx) = data->levels[n]->scatter;
             PetscCall(MatCreateShell(PetscObjectComm((PetscObject)data->levels[n]->ksp), m, m, M, M, ctx, &Amat));
-            PetscCall(MatShellSetOperation(Amat, MATOP_MULT, (void (*)(void))MatMult_Schur<false>));
-            PetscCall(MatShellSetOperation(Amat, MATOP_MULT_TRANSPOSE, (void (*)(void))MatMult_Schur<true>));
-            PetscCall(MatShellSetOperation(Amat, MATOP_DESTROY, (void (*)(void))MatDestroy_Schur));
+            PetscCall(MatShellSetOperation(Amat, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Schur<false>));
+            PetscCall(MatShellSetOperation(Amat, MATOP_MULT_TRANSPOSE, (PetscErrorCodeFn *)MatMult_Schur<true>));
+            PetscCall(MatShellSetOperation(Amat, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_Schur));
             PetscCall(MatCreateVecs(S, std::get<2>(*ctx), std::get<2>(*ctx) + 1));
             PetscCall(KSPSetOperators(data->levels[n]->ksp, Amat, Pmat));
             PetscCall(PetscObjectDereference((PetscObject)Amat));

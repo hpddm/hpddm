@@ -186,8 +186,8 @@ jobs:
       run: |
         cd .. && git clone --depth=1 https://github.com/htool-ddm/htool.git && cd htool
         export OMPI_CXXFLAGS="-fprofile-arcs -ftest-coverage -DOMPI_SKIP_MPICXX"
-        mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=mpicxx.openmpi -DBLAS_LIBRARIES=/usr/lib/x86_64-linux-gnu/libblas.so '-DLAPACK_LIBRARIES=/usr/lib/x86_64-linux-gnu/liblapack.so;/usr/lib/x86_64-linux-gnu/libblas.so' -DHPDDM_INCLUDE_DIR=../../${{ github.event.repository.name }}/include && make Test_solver
-        mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0 -n 2 ./tests/functional_tests/solvers/Test_solver _deps/data_test_repository-src/data  --hpddm_verbosity 10 --hpddm_compute_residual l2
+        mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=mpicxx.openmpi -DBLAS_LIBRARIES=/usr/lib/x86_64-linux-gnu/libblas.so '-DLAPACK_LIBRARIES=/usr/lib/x86_64-linux-gnu/liblapack.so;/usr/lib/x86_64-linux-gnu/libblas.so' -DHPDDM_INCLUDE_DIR=../../${{ github.event.repository.name }}/include -DHTOOL_WITH_DOC=OFF && make Test_solver_double
+        mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0 -n 2 ./tests/functional_tests/solvers/Test_solver_double _deps/data_test_repository-src/data --hpddm_verbosity 10 --hpddm_compute_residual l2
         lcov --ignore-errors gcov --directory . --capture --output-file ../../${{ github.event.repository.name }}/coverage_htool.info
       if: matrix.compiler == 'clang'
     - name: Build and test with PETSc and SLEPc

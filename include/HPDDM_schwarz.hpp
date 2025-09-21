@@ -1140,8 +1140,8 @@ class Schwarz : public Preconditioner<
                                 PetscCall(MatCreateVecs(h->A[1], std::get<2>(*p) + 2, std::get<2>(*p) + 3));
                                 PetscCall(MatCreateVecs(N, std::get<2>(*p), std::get<2>(*p) + 1));
                                 PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, p, &A));
-                                PetscCall(MatShellSetOperation(A, MATOP_MULT, (void (*)(void))MatMult_Harmonic));
-                                PetscCall(MatShellSetOperation(A, MATOP_DESTROY, (void (*)(void))MatDestroy_Harmonic));
+                                PetscCall(MatShellSetOperation(A, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Harmonic));
+                                PetscCall(MatShellSetOperation(A, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_Harmonic));
                             }
                             PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
                             PetscCall(EPSSetOptionsPrefix(eps, prefix));
@@ -1158,11 +1158,11 @@ class Schwarz : public Preconditioner<
                             PetscCall(SVDSetOperators(svd, N, nullptr));
                             PetscCall(SVDSetFromOptions(svd));
                             PetscCall(SVDGetDimensions(svd, &nev, nullptr, nullptr));
-                            PetscCall(MatShellGetOperation(N, MATOP_DESTROY, &destroy));
+                            PetscCall(MatShellGetOperation(N, MATOP_DESTROY, (PetscErrorCodeFn **)&destroy));
                             PetscCall(MatShellSetOperation(N, MATOP_DESTROY, nullptr));
                             PetscCall(SVDSetUp(svd));
                             PetscCall(SVDSolve(svd));
-                            PetscCall(MatShellSetOperation(N, MATOP_DESTROY, destroy));
+                            PetscCall(MatShellSetOperation(N, MATOP_DESTROY, (PetscErrorCodeFn *)destroy));
                             PetscCall(SVDGetConverged(svd, &nconv));
                             if(levels[0]->threshold >= PetscReal()) {
                                 PetscReal theta;
@@ -1249,7 +1249,7 @@ class Schwarz : public Preconditioner<
                             PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
                         }
                         PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
-                        PetscCall(MatShellSetOperation(N, MATOP_MULT, (void (*)(void))MatMult_Aux));
+                        PetscCall(MatShellSetOperation(N, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Aux));
                         PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
                         PetscCall(SVDDestroy(&svd));
                     }
@@ -1367,7 +1367,7 @@ class Schwarz : public Preconditioner<
                         ctx->work->insert(i);
                     ctx->status = 'a';
                     PetscCall(MatCreateShell(PETSC_COMM_SELF, Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_, ctx, &weighted));
-                    PetscCall(MatShellSetOperation(weighted, MATOP_MULT, (void (*)(void))MatMult_Sum));
+                    PetscCall(MatShellSetOperation(weighted, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Sum));
                     Subdomain<K>::setBuffer();
                     PetscCall(EPSSetOperators(eps, ctx->A[0], weighted));
                     PetscCall(EPSGetTarget(eps, &target));
