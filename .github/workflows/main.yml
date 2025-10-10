@@ -12,7 +12,7 @@ jobs:
       hpddm-branch: ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: petsc-branch
         run: |
           export PETSC_BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
@@ -45,12 +45,12 @@ jobs:
     needs:
       - variables
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 0
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
-        python-version: '3.13'
+        python-version: '3.14'
     - uses: actions/cache@v4
       id: cache-dependencies
       with:
@@ -218,7 +218,7 @@ jobs:
               if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "${{ matrix.compiler }}" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wextra-semi -Wpedantic -Wno-sign-compare -Wno-cast-function-type"
+              export PETSC_CXXPPFLAGS="-Wall -Wextra -Wextra-semi -Wpedantic -Wno-sign-compare -DOMPI_SKIP_MPICXX"
               if [ "${{ matrix.compiler }}" = "clang" ]; then
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wextra-semi-stmt -Wdouble-promotion"
               fi
@@ -284,7 +284,7 @@ jobs:
             done
           done
         done
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: artifact-${{ matrix.compiler}}
         path: coverage*.info
@@ -310,7 +310,7 @@ jobs:
         export PETSC_DIR=`pwd`
         export PETSC_ARCH=arch-ci
         export DATAFILESPATH=`pwd`/../datafiles
-        export PETSC_CXXPPFLAGS="-Wall -Wextra -Wextra-semi -Wno-sign-compare -Wno-cast-function-type"
+        export PETSC_CXXPPFLAGS="-Wall -Wextra -Wextra-semi -Wno-sign-compare -DOMPI_SKIP_MPICXX"
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
         sed -i -e 's=$(PETSC_COMPILE.cxx) $(abspath $<) -o $@=$(PETSC_COMPILE.cxx) $(abspath $(filter-out %hpddm.cxx,$<))$(subst impls/hpddm/,,$(subst petsc/src/ksp,'"${REPOSITORY_NAME}"'/interface/petsc,$(abspath $(filter %hpddm.cxx,$<)))) -o $(filter-out %hpddm.o,$@)$(subst impls/hpddm/,,$(subst obj/src/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc,$(filter %hpddm.o,$@)))=;s=$(PETSC_COMPILE.cu) $(abspath $<) -o $@=$(PETSC_COMPILE.cu) $(subst impls/hpddm/,,$(subst petsc/src/ksp/ksp,'"${REPOSITORY_NAME}"'/interface/petsc/ksp,$(abspath $<))) -o $(subst impls/hpddm/,,$(subst obj/src/ksp/ksp,../../'"${REPOSITORY_NAME}"'/interface/petsc/ksp,$@))=;s=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)=$(call quiet,CLINKER) $(sl_linker_args) -o $@ $(filter-out %hpddm.o,$^) $(filter-out arch-ci/obj/src/ksp/%,$(filter %hpddm.o,$^)) $(subst impls/hpddm/,,$(patsubst arch-ci/obj/src/ksp/%,../'"${REPOSITORY_NAME}"'/interface/petsc/%,$(filter arch-ci/obj/src/ksp/%,$(filter %hpddm.o,$^)))) $(PETSC_EXTERNAL_LIB_BASIC)=;s=$(SHARED_RECIPE_ATFILE)=$(SHARED_RECIPE_DEFAULT)=' gmakefile
@@ -325,7 +325,7 @@ jobs:
                     --with-blaslapack-include=/local/${{ secrets.LOGIN }}/include --with-mkl_pardiso \
                     --with-c2html=0 --with-fc=0 --download-slepc \
                     --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS=--compiler-options -Wall,-Wno-psabi,-Werror,-Wno-implicit-fallthrough ${INCS}'
+                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS+=--compiler-options -Wall,-Wextra,-Werror,-Wno-psabi,-Wno-deprecated-declarations ${INCS}'
         [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
         rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
         rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
@@ -340,7 +340,7 @@ jobs:
         PERL5LIB="${HOME}/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
         ~/lcov-2.1/bin/lcov --ignore-errors inconsistent,usage --directory . --directory ../petsc/arch-ci/lib --exclude '/software/*' --exclude '*/petsc/include/*' --exclude '/tmp/*' --capture --output-file ../coverage_nvcc.info
       if: matrix.runs_on != 'ubuntu-24.04'
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: artifact-self-hosted
         path: coverage_nvcc.info
@@ -351,7 +351,7 @@ jobs:
     needs:
       - main
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.actions.cancelWorkflowRun({
@@ -365,7 +365,7 @@ jobs:
     needs:
       - nvcc
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |
             github.rest.actions.cancelWorkflowRun({
@@ -378,10 +378,10 @@ jobs:
     if: ${{ success() }}
     needs: [ main, nvcc ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
       - name: Merge coverage reports
         run: |
           if [ -d $PWD/artifact-gcc ]; then
