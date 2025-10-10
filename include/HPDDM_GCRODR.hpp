@@ -44,7 +44,7 @@ inline int IterativeMethod::GCRODR(const Operator& A, const K* const b, K* const
     int k = reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->icntl[0];
     unsigned short* m = reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->scntl;
     char* id = reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->cntl;
-    const unsigned short factor = (reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->precision > PETSC_KSPHPDDM_DEFAULT_PRECISION ? 2 : 1);
+    const unsigned short factor = (reinterpret_cast<KSP_HPDDM*>(A.ksp_->data)->precision > PETSC_SCALAR_PRECISION ? 2 : 1);
 #endif
     if(k <= 0) {
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
