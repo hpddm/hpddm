@@ -103,7 +103,7 @@ HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(k, std::complex<__fp16>, h, __fp16)
 #    define HPDDM_PREFIX_AXPBY(func) catlas_ ## func
 #   elif !HPDDM_MKL && HPDDM_OPENBLAS
 #    define HPDDM_PREFIX_AXPBY(func) cblas_ ## func
-#   else
+#   elif !defined(PETSC_USE_REAL___FLOAT128) && !defined(PETSC_USE_REAL___FP16)
 HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(c, std::complex<float>, s, float)
 HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(z, std::complex<double>, d, double)
 #   endif
@@ -253,7 +253,7 @@ inline void Blas<T>::gemm(const char* const transa, const char* const transb, co
                           T* const c, const int* const ldc) {                                                \
     HPDDM_F77(C ## gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                      \
 }
-# if !HPDDM_MKL || !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300
+# if !HPDDM_MKL || !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300 || defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_USE_REAL___FP16)
 #  define HPDDM_GENERATE_GEMMT(C, T)                                                                         \
 template<>                                                                                                   \
 inline void Blas<T>::gemmt(const char* const, const char* const transa, const char* const transb,            \
@@ -272,7 +272,7 @@ inline void Blas<T>::gemmt(const char* const uplo, const char* const transa, con
     HPDDM_F77(C ## gemmt)(uplo, transa, transb, n, k, alpha, a, lda, b, ldb, beta, c, ldc);                  \
 }
 # endif
-# if !HPDDM_MKL
+# if !HPDDM_MKL || defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_USE_REAL___FP16)
 #  define HPDDM_GENERATE_GEMM_COMPLEX(C, T) HPDDM_GENERATE_GEMM(C, T)
 # else
 #  define HPDDM_GENERATE_GEMM_COMPLEX(C, T)                                                                  \
