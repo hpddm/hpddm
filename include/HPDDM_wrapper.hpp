@@ -279,9 +279,78 @@ inline void Wrapper<K>::diag(const int& m, const underlying_type<K>* const d, K*
         diag(m, d, nullptr, in, n);
 }
 template<class K>
+inline void Wrapper<K>::gthr(const int& n, const K* const y, K* const x, const int* const indx) {
+    for(int i = 0; i < n; ++i)
+        x[i] = y[indx[i]];
+}
+template<class K>
 inline void Wrapper<K>::sctr(const int& n, const K* const x, const int* const indx, K* const y) {
     for(int i = 0; i < n; ++i)
         y[indx[i]] = x[i];
+}
+template<class K>
+template<char O>
+inline void Wrapper<K>::omatcopy(const int n, const int m, const K* const a, const int lda, K* const b, const int ldb) {
+    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
+    if(O == 'T' || O == 'C')
+        for(int i = 0; i < n; ++i)
+            for(int j = 0; j < m; ++j) {
+                if(O == 'T')
+                    b[j * ldb + i] = a[i * lda + j];
+                else
+                    b[j * ldb + i] = conj(a[i * lda + j]);
+            }
+    else if(O == 'R' && is_complex)
+        for(int i = 0; i < n; ++i)
+            std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const K& z) { return conj(z); });
+    else
+        for(int i = 0; i < n; ++i)
+            std::copy_n(a + i * lda, m, b + i * ldb);
+}
+template<class K>
+template<char O>
+inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const int lda, const int ldb) {
+    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
+    if(O == 'T' || O == 'C') {
+        if(n == m && lda == ldb) {
+            for(int i = 0; i < n - 1; ++i)
+                for(int j = i + 1; j < n; ++j) {
+                    if(O == 'C' && is_complex) {
+                        ab[i * lda + j] = conj(ab[i * lda + j]);
+                        ab[j * lda + i] = conj(ab[j * lda + i]);
+                        std::swap(ab[i * lda + j], ab[j * lda + i]);
+                    }
+                    else
+                        std::swap(ab[i * lda + j], ab[j * lda + i]);
+                }
+        }
+        else
+            cycle<O>(n, m, ab, 1, lda, ldb);
+    }
+    else if(O == 'R' && is_complex) {
+        if(lda == ldb) {
+            for(int i = 0; i < n; ++i)
+                std::for_each(ab + i * lda, ab + i * lda + m, [](K& z) { z = conj(z); });
+        }
+        else if (lda < ldb) {
+            for(int i = n; i-- > 0; )
+                for(int j = m; j-- > 0; )
+                    ab[i * ldb + j] = conj(ab[i * lda + j]);
+        }
+        else {
+            for(int i = 0; i < n; ++i)
+                for(int j = 0; j < m; ++j)
+                    ab[i * ldb + j] = conj(ab[i * lda + j]);
+        }
+    }
+    else {
+        if(lda < ldb)
+            for(int i = n; i > 0; --i)
+                std::copy_backward(ab + (i - 1) * lda, ab + (i - 1) * lda + m, ab + (i - 1) * ldb + m);
+        else if(lda > ldb)
+            for(int i = 1; i < n; ++i)
+                std::copy_n(ab + i * lda, m, ab + i * ldb);
+    }
 }
 
 #if HPDDM_MKL
@@ -802,75 +871,6 @@ inline void Wrapper<K>::bsrmm(const char* const trans, const int* const m, const
 }
 
 HPDDM_GENERATE_CSRCSC
-template<class K>
-inline void Wrapper<K>::gthr(const int& n, const K* const y, K* const x, const int* const indx) {
-    for(int i = 0; i < n; ++i)
-        x[i] = y[indx[i]];
-}
-template<class K>
-template<char O>
-inline void Wrapper<K>::omatcopy(const int n, const int m, const K* const a, const int lda, K* const b, const int ldb) {
-    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
-    if(O == 'T' || O == 'C')
-        for(int i = 0; i < n; ++i)
-            for(int j = 0; j < m; ++j) {
-                if(O == 'T')
-                    b[j * ldb + i] = a[i * lda + j];
-                else
-                    b[j * ldb + i] = conj(a[i * lda + j]);
-            }
-    else if(O == 'R' && is_complex)
-        for(int i = 0; i < n; ++i)
-            std::transform(a + i * lda, a + i * lda + m, b + i * ldb, [](const K& z) { return conj(z); });
-    else
-        for(int i = 0; i < n; ++i)
-            std::copy_n(a + i * lda, m, b + i * ldb);
-}
-template<class K>
-template<char O>
-inline void Wrapper<K>::imatcopy(const int n, const int m, K* const ab, const int lda, const int ldb) {
-    static_assert(O == 'N' || O == 'R' || O == 'T' || O == 'C', "Unknown operation");
-    if(O == 'T' || O == 'C') {
-        if(n == m && lda == ldb) {
-            for(int i = 0; i < n - 1; ++i)
-                for(int j = i + 1; j < n; ++j) {
-                    if(O == 'C' && is_complex) {
-                        ab[i * lda + j] = conj(ab[i * lda + j]);
-                        ab[j * lda + i] = conj(ab[j * lda + i]);
-                        std::swap(ab[i * lda + j], ab[j * lda + i]);
-                    }
-                    else
-                        std::swap(ab[i * lda + j], ab[j * lda + i]);
-                }
-        }
-        else
-            cycle<O>(n, m, ab, 1, lda, ldb);
-    }
-    else if(O == 'R' && is_complex) {
-        if(lda == ldb) {
-            for(int i = 0; i < n; ++i)
-                std::for_each(ab + i * lda, ab + i * lda + m, [](K& z) { z = conj(z); });
-        }
-        else if (lda < ldb) {
-            for(int i = n; i-- > 0; )
-                for(int j = m; j-- > 0; )
-                    ab[i * ldb + j] = conj(ab[i * lda + j]);
-        }
-        else {
-            for(int i = 0; i < n; ++i)
-                for(int j = 0; j < m; ++j)
-                    ab[i * ldb + j] = conj(ab[i * lda + j]);
-        }
-    }
-    else {
-        if(lda < ldb)
-            for(int i = n; i > 0; --i)
-                std::copy_backward(ab + (i - 1) * lda, ab + (i - 1) * lda + m, ab + (i - 1) * ldb + m);
-        else if(lda > ldb)
-            for(int i = 1; i < n; ++i)
-                std::copy_n(ab + i * lda, m, ab + i * ldb);
-    }
-}
 #endif // HPDDM_MKL
 
 template<class K>
