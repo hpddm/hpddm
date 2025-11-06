@@ -370,7 +370,6 @@ test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
 		done \
 	fi
 
-
 test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 	@if [ -f ./examples/data/40X.tar.gz ]; then \
 		mkdir -p ${TOP_DIR}/${TRASH_DIR}/data; \
@@ -388,6 +387,40 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 			done \
 		done \
 	fi
+
+CLANGFORMAT_VERSION = 21
+CLANGFORMAT ?= clang-format
+
+checkclangformatversion:
+	@version=`${CLANGFORMAT} --version | cut -d" " -f3 | cut -d"." -f 1`; \
+	if [ "$$version" = "version" ]; then \
+		version=`${CLANGFORMAT} --version | cut -d" " -f4 | cut -d"." -f 1`; \
+	fi; \
+	if [ "$$version" != "${CLANGFORMAT_VERSION}" ]; then \
+		if [ -z "$$version" ]; then \
+			echo "Could not determine clang-format version (attempted command: ${CLANGFORMAT} --version)"; \
+		else \
+			echo "Require clang-format version ${CLANGFORMAT_VERSION}! Currently used ${CLANGFORMAT} version is $$version"; \
+		fi; \
+		false; \
+	fi
+
+checkgitclean:
+	@if ! git diff --quiet; then \
+		echo "The repository has uncommitted files, cannot run checkclangformat"; \
+		git status -s --untracked-files=no; \
+		false; \
+	fi;
+
+clangformat: checkclangformatversion
+	-@git --no-pager ls-files "*.[ch]" "*.[ch]pp" "*.cu" | grep -v '\/petsc\/' | xargs ${CLANGFORMAT} -i
+
+checkclangformat: checkclangformatversion checkgitclean clangformat
+	@if ! git diff --quiet; then \
+		printf "The current commit has C/C++ source code formatting problems\n"; \
+		git --no-pager diff --stat; \
+		false; \
+	fi;
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 
