@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_OPERATOR_HPP_
-#define HPDDM_OPERATOR_HPP_
+#pragma once
 
 #include <queue>
 
@@ -1453,4 +1452,3 @@ public:
 };
 #endif // HPDDM_BDD || HPDDM_PETSC
 } // namespace HPDDM
-#endif // HPDDM_OPERATOR_HPP_

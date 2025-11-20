@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_DMATRIX_HPP_
-#define HPDDM_DMATRIX_HPP_
+#pragma once
 
 #include <map>
 
@@ -383,4 +382,3 @@ public:
   }
 };
 } // namespace HPDDM
-#endif // HPDDM_DMATRIX_HPP_

@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SINGLETON_HPP_
-#define HPDDM_SINGLETON_HPP_
+#pragma once
 
 namespace HPDDM
 {
@@ -41,4 +40,3 @@ protected:
   }
 };
 } // namespace HPDDM
-#endif // HPDDM_SINGLETON_HPP_

@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SUITESPARSE_HPP_
-#define HPDDM_SUITESPARSE_HPP_
+#pragma once
 
 #include <cholmod.h>
 #include <umfpack.h>
@@ -425,4 +424,3 @@ public:
 };
 #endif // SUITESPARSESUB
 } // namespace HPDDM
-#endif // HPDDM_SUITESPARSE_HPP_

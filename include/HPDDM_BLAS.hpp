@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_BLAS_HPP_
-#define HPDDM_BLAS_HPP_
+#pragma once
 
 #define HPDDM_GENERATE_EXTERN_BLAS(C, T) \
   void HPDDM_F77(C##axpy)(const int *, const T *, const T *, const int *, T *, const int *) HPDDM_NOEXCEPT; \
@@ -390,4 +389,3 @@ inline void Blas<K>::axpby(const int &n, const K &alpha, const K *const u, const
 }
 } // namespace HPDDM
 #endif // __cplusplus
-#endif // HPDDM_BLAS_HPP_

@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_ARPACK_HPP_
-#define HPDDM_ARPACK_HPP_
+#pragma once
 
 #define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U) \
   void HPDDM_F77(B##saupd)(int *, const char *, const int *, const char *, const int *, const U *, U *, int *, U *, const int *, int *, int *, U *, U *, int *, int *, int, int); \
@@ -204,4 +203,3 @@ public:
 HPDDM_GENERATE_ARPACK(c, std::complex<float>, s, float)
 HPDDM_GENERATE_ARPACK(z, std::complex<double>, d, double)
 } // namespace HPDDM
-#endif // HPDDM_ARPACK_HPP_

@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_COARSE_OPERATOR_HPP_
-#define HPDDM_COARSE_OPERATOR_HPP_
+#pragma once
 
 #if HPDDM_PETSC
   #define HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <class Solver, class K>
@@ -287,4 +286,3 @@ public:
   const MPI_Comm        &getCommunicator() const { return scatterComm_; }
 };
 } // namespace HPDDM
-#endif // HPDDM_COARSE_OPERATOR_HPP_

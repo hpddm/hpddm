@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_EIGENSOLVER_HPP_
-#define HPDDM_EIGENSOLVER_HPP_
+#pragma once
 
 #include <random>
 
@@ -164,4 +163,3 @@ public:
 };
 } // namespace HPDDM
 #endif
-#endif // HPDDM_EIGENSOLVER_HPP_

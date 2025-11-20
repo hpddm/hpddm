@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_OPTION_IMPL_HPP_
-#define HPDDM_OPTION_IMPL_HPP_
+#pragma once
 
 #ifndef HPDDM_NO_REGEX
   #define HPDDM_REGEX_LEVEL "level_([2-9]|[1-9]\\d+)_"
@@ -353,4 +352,3 @@ inline void Option::version() const
 }
 } // namespace HPDDM
 #endif
-#endif // HPDDM_OPTION_IMPL_HPP_

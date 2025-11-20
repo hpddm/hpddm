@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_BDD_HPP_
-#define HPDDM_BDD_HPP_
+#pragma once
 
 #include "HPDDM_schur.hpp"
 
@@ -333,4 +332,3 @@ struct hpddm_method_id<Bdd<Solver, CoarseSolver, S, K>> {
   static constexpr char value = 3;
 };
 } // namespace HPDDM
-#endif // HPDDM_BDD_HPP_

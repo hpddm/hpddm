@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCHWARZ_H_
-#define SCHWARZ_H_
+#pragma once
 
 #ifndef HPDDM_NUMBERING
   #define HPDDM_NUMBERING 'C'
@@ -38,5 +37,3 @@
 #endif
 
 void generate(int, int, int *, int *, int *, int **, int *, HpddmMatrixCSR **, HpddmMatrixCSR **, underlying_type **, K **, K **);
-
-#endif // SCHWARZ_H_

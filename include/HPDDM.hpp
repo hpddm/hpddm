@@ -23,8 +23,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_HPP_
-#define HPDDM_HPP_
+#pragma once
 
 /* Title: HPDDM */
 
@@ -649,5 +648,3 @@ using HpDense = HPDDM::Dense<SUBDOMAIN, COARSEOPERATOR, S, K>;
 #elif defined(__GNUC__)
   #pragma GCC diagnostic pop
 #endif
-
-#endif // HPDDM_HPP_

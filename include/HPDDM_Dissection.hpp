@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_DISSECTION_HPP_
-#define HPDDM_DISSECTION_HPP_
+#pragma once
 
 #ifndef INTEL_MKL_VERSION
   #define BLAS_GENERIC
@@ -90,4 +89,3 @@ public:
 };
 } // namespace HPDDM
 #endif // DISSECTIONSUB
-#endif // HPDDM_DISSECTION_HPP_

@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_ENUM_HPP_
-#define HPDDM_ENUM_HPP_
+#pragma once
 
 namespace HPDDM
 {
@@ -44,4 +43,3 @@ enum class FetiPrcndtnr : char {
   DIRICHLET
 };
 } // namespace HPDDM
-#endif // HPDDM_ENUM_HPP_

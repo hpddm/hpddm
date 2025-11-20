@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_GMRES_HPP_
-#define HPDDM_GMRES_HPP_
+#pragma once
 
 #include "HPDDM_iterative.hpp"
 
@@ -313,4 +312,3 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
   }
 }
 } // namespace HPDDM
-#endif // HPDDM_GMRES_HPP_

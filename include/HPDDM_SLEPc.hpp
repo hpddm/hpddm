@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SLEPC_HPP_
-#define HPDDM_SLEPC_HPP_
+#pragma once
 
 #include <slepc.h>
 
@@ -126,4 +125,3 @@ public:
 };
 #endif // MU_SLEPC
 } // namespace HPDDM
-#endif // HPDDM_SLEPC_HPP_

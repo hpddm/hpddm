@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_MUMPS_HPP_
-#define HPDDM_MUMPS_HPP_
+#pragma once
 
 #include <smumps_c.h>
 #include <dmumps_c.h>
@@ -137,7 +136,7 @@ public:
     id_->icntl[2] = 0;
     delete[] I;
   }
-    /* Function: solve
+  /* Function: solve
          *
          *  Solves the system in-place.
          *
@@ -319,4 +318,3 @@ public:
 };
 #endif // MUMPSSUB
 } // namespace HPDDM
-#endif // HPDDM_MUMPS_HPP_

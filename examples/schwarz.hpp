@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCHWARZ_HPP_
-#define SCHWARZ_HPP_
+#pragma once
 
 #if defined(HPDDM_MKL) && HPDDM_MKL
   #include <complex>
@@ -83,5 +82,3 @@ const char symCoarse = 'S';
 const HPDDM::underlying_type<K> pi = 3.141592653589793238463;
 
 void generate(int, int, std::list<int> &, std::vector<std::vector<int>> &, int &, HPDDM::MatrixCSR<K> *&, HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&, K *&, K *&);
-
-#endif // SCHWARZ_HPP_

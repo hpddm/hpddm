@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_INEXACT_COARSE_OPERATOR_HPP_
-#define HPDDM_INEXACT_COARSE_OPERATOR_HPP_
+#pragma once
 
 #if !HPDDM_PETSC
   #if !defined(PETSCSUB)
@@ -1701,4 +1700,3 @@ private:
 #endif
 };
 } // namespace HPDDM
-#endif // HPDDM_INEXACT_COARSE_OPERATOR_HPP_

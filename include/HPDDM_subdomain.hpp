@@ -23,8 +23,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SUBDOMAIN_HPP_
-#define HPDDM_SUBDOMAIN_HPP_
+#pragma once
 
 #include <unordered_set>
 #include <map>
@@ -755,4 +754,3 @@ struct hpddm_method_id<Subdomain<K>> {
   static constexpr char value = 10;
 };
 } // namespace HPDDM
-#endif // HPDDM_SUBDOMAIN_HPP_

@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_ELEMENTAL_HPP_
-#define HPDDM_ELEMENTAL_HPP_
+#pragma once
 
 #ifdef DELEMENTAL
   #include <El.hpp>
@@ -143,7 +142,7 @@ public:
       El::LU(*A_, *P_, *Q_);
     }
   }
-    /* Function: solve
+  /* Function: solve
          *
          *  Solves the system in-place.
          *
@@ -179,4 +178,3 @@ public:
 };
 #endif // DELEMENTAL
 } // namespace HPDDM
-#endif // HPDDM_ELEMENTAL_HPP_

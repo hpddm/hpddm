@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_FETI_HPP_
-#define HPDDM_FETI_HPP_
+#pragma once
 
 #include "HPDDM_schur.hpp"
 
@@ -474,4 +473,3 @@ struct hpddm_method_id<Feti<Solver, CoarseSolver, S, K, P>> {
   static constexpr char value = 2;
 };
 } // namespace HPDDM
-#endif // HPDDM_FETI_HPP_

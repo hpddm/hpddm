@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_DEFINE_HPP_
-#define HPDDM_DEFINE_HPP_
+#pragma once
 
 /* Constants: C-style preprocessor variables
  *
@@ -198,5 +197,3 @@ static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numberi
 #define HPDDM_HYPRE_SOLVER_FGMRES 0
 #define HPDDM_HYPRE_SOLVER_PCG    1
 #define HPDDM_HYPRE_SOLVER_AMG    2
-
-#endif // HPDDM_DEFINE_HPP_

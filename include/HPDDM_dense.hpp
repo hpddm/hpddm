@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_DENSE_HPP_
-#define HPDDM_DENSE_HPP_
+#pragma once
 
 #include "HPDDM_schwarz.hpp"
 
@@ -213,4 +212,3 @@ struct hpddm_method_id<Dense<
   static constexpr char value = 4;
 };
 } // namespace HPDDM
-#endif // HPDDM_DENSE_HPP_
