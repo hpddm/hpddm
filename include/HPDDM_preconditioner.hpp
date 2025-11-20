@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_PRECONDITIONER_HPP_
-#define HPDDM_PRECONDITIONER_HPP_
+#pragma once
 
 #define HPDDM_LAMBDA_F(in, input, inout, output, len, N) \
   if (len && *len) { \
@@ -107,7 +106,7 @@ protected:
   /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
   K *uc_;
-    /* Function: buildTwo
+  /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.
          *
@@ -393,4 +392,3 @@ public:
 #endif
 };
 } // namespace HPDDM
-#endif // HPDDM_PRECONDITIONER_HPP_

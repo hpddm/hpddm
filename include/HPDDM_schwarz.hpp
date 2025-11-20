@@ -23,8 +23,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SCHWARZ_HPP_
-#define HPDDM_SCHWARZ_HPP_
+#pragma once
 
 #if HPDDM_PETSC
   #include "HPDDM_dmatrix.hpp"
@@ -714,7 +713,7 @@ public:
     std::for_each(super::ev_, super::ev_ + evp.nu_, [&](K *const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
     if (resetPrefix) opt.setPrefix("");
   }
-    /* Function: GMV
+  /* Function: GMV
          *
          *  Computes a global sparse matrix-vector product.
          *
@@ -1802,4 +1801,3 @@ static PetscErrorCode MatDestroy_Harmonic(Mat A)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 #endif
-#endif // HPDDM_SCHWARZ_HPP_

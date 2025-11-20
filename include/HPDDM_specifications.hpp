@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SPECIFICATIONS_HPP_
-#define HPDDM_SPECIFICATIONS_HPP_
+#pragma once
 
 #if defined(__GNUC__)
   #pragma GCC system_header
@@ -123,5 +122,3 @@ inline void selectNu(unsigned short target, std::vector<std::pair<unsigned short
   }
 }
 } // namespace HPDDM
-
-#endif // HPDDM_SPECIFICATIONS_HPP_

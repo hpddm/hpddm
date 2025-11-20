@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_GCRODR_HPP_
-#define HPDDM_GCRODR_HPP_
+#pragma once
 
 #if defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
 static PetscErrorCode (*loadedKSPSym)(const char *, const MPI_Comm &, PetscMPIInt, PetscInt, PetscScalar *, int, PetscScalar *, int, PetscInt, PetscScalar *, const PetscBool) = nullptr;
@@ -906,4 +905,3 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
   }
 }
 } // namespace HPDDM
-#endif // HPDDM_GCRODR_HPP_

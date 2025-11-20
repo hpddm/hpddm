@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_COARSE_OPERATOR_IMPL_HPP_
-#define HPDDM_COARSE_OPERATOR_IMPL_HPP_
+#pragma once
 
 #include "HPDDM_coarse_operator.hpp"
 
@@ -1839,4 +1838,3 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K *const pt, const unsigne
 }
 #endif // HPDDM_ICOLLECTIVE
 } // namespace HPDDM
-#endif // HPDDM_COARSE_OPERATOR_IMPL_HPP_

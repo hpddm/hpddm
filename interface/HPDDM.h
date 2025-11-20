@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_H_
-#define HPDDM_H_
+#pragma once
 
 #ifndef MKL_Complex16
   #define MKL_Complex16 void *
@@ -122,5 +121,3 @@ void            axpy(const int *, const K *const, const K *const, const int *, K
   #include <petscsys.h>
 PetscErrorCode HpddmRegisterKSP(void);
 #endif
-
-#endif // HPDDM_H_

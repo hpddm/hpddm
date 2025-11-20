@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_SCHUR_HPP_
-#define HPDDM_SCHUR_HPP_
+#pragma once
 
 #include "HPDDM_preconditioner.hpp"
 #include "HPDDM_eigensolver.hpp"
@@ -811,4 +810,3 @@ public:
   }
 };
 } // namespace HPDDM
-#endif // HPDDM_SCHUR_HPP_

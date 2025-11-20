@@ -21,8 +21,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_HYPRE_HPP_
-#define HPDDM_HYPRE_HPP_
+#pragma once
 
 #include <HYPRE.h>
 #include <_hypre_parcsr_ls.h>
@@ -212,4 +211,3 @@ public:
 };
 #endif // DHYPRE
 } // namespace HPDDM
-#endif // HPDDM_HYPRE_HPP_

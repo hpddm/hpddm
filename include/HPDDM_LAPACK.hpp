@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_LAPACK_HPP_
-#define HPDDM_LAPACK_HPP_
+#pragma once
 
 #define HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, SYM, ORT) \
   void HPDDM_F77(C##lapmt)(const int *, const int *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
@@ -687,4 +686,3 @@ HPDDM_GENERATE_LAPACK_COMPLEX(k, std::complex<__fp16>, h, __fp16)
   #endif
 } // namespace HPDDM
 #endif // __cplusplus
-#endif // HPDDM_LAPACK_HPP_

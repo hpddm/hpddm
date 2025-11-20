@@ -20,8 +20,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_PETSC_HPP_
-#define HPDDM_PETSC_HPP_
+#pragma once
 
 #include <petscksp.h>
 
@@ -614,4 +613,3 @@ public:
 };
 #endif // PETSCSUB
 } // namespace HPDDM
-#endif // HPDDM_PETSC_HPP_

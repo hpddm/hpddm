@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_ITERATIVE_HPP_
-#define HPDDM_ITERATIVE_HPP_
+#pragma once
 
 #include "HPDDM_LAPACK.hpp"
 
@@ -1128,4 +1127,3 @@ static int solve(const Operator &A, const K *const b, K *const x, const int &, c
 #endif
 }; // namespace HPDDM
 } // namespace HPDDM
-#endif // HPDDM_ITERATIVE_HPP_

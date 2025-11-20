@@ -22,8 +22,7 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HPDDM_PASTIX_HPP_
-#define HPDDM_PASTIX_HPP_
+#pragma once
 
 #define HPDDM_GENERATE_PASTIX_EXTERN(C, T) \
   int C##_cscd_redispatch(pastix_int_t, pastix_int_t *, pastix_int_t *, T *, T *, pastix_int_t, pastix_int_t *, pastix_int_t, pastix_int_t **, pastix_int_t **, T **, T **, pastix_int_t *, MPI_Comm, pastix_int_t);
@@ -335,4 +334,3 @@ public:
 };
 #endif // PASTIXSUB
 } // namespace HPDDM
-#endif // HPDDM_PASTIX_HPP_
