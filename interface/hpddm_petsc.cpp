@@ -25,38 +25,38 @@
 #include <petsc/private/dmimpl.h>
 
 #ifdef PCHPDDM
-#if PETSC_HAVE_SLEPC
-#include <slepc.h>
-#endif
+  #if PETSC_HAVE_SLEPC
+    #include <slepc.h>
+  #endif
 
-#include <petsc/private/petschpddm.h>
+  #include <petsc/private/petschpddm.h>
 
-#if HPDDM_SLEPC
+  #if HPDDM_SLEPC
 static PetscBool SlepcInit = PETSC_TRUE;
-#endif
+  #endif
 
 PetscErrorCode PetscFinalize_HPDDM(void)
 {
   PetscFunctionBegin;
-#if HPDDM_SLEPC
+  #if HPDDM_SLEPC
   if (!SlepcInit) PetscCall(SlepcFinalize()); /* HPDDM initialized SLEPc, now shut it down */
-#endif
+  #endif
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
 PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
 {
   PetscFunctionBegin;
-#if HPDDM_SLEPC
+  #if HPDDM_SLEPC
   PetscCall(SlepcInitialized(&SlepcInit));
   PetscCall(SlepcInitializeNoArguments());
-#endif
+  #endif
   PetscCall(PetscRegisterFinalize(PetscFinalize_HPDDM));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 #endif
 
-PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm& comm, PetscMPIInt redistribute, PetscInt n, PetscScalar* a, int lda, PetscScalar* b, int ldb, PetscInt k, PetscScalar* vr, const PetscBool symmetric)
+PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm &comm, PetscMPIInt redistribute, PetscInt n, PetscScalar *a, int lda, PetscScalar *b, int ldb, PetscInt k, PetscScalar *vr, const PetscBool symmetric)
 {
   EPS          eps = nullptr;
   SVD          svd;
@@ -80,18 +80,18 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
     PetscCallMPI(MPI_Comm_rank(comm, &rank));
     PetscCallMPI(MPI_Comm_size(comm, &size));
     PetscCallMPI(MPI_Comm_group(comm, &world));
-    PetscMPIInt* ranks = new PetscMPIInt[redistribute];
+    PetscMPIInt *ranks = new PetscMPIInt[redistribute];
     std::iota(ranks, ranks + redistribute, 0);
     PetscCallMPI(MPI_Group_incl(world, redistribute, ranks, &worker));
-    delete [] ranks;
+    delete[] ranks;
     PetscCallMPI(MPI_Comm_create(comm, worker, &subcomm));
     PetscCallMPI(MPI_Group_free(&worker));
     PetscCallMPI(MPI_Group_free(&world));
     if (subcomm != MPI_COMM_NULL) {
-      IS             row, col;
-      PetscInt       ncol;
+      IS              row, col;
+      PetscInt        ncol;
       const PetscInt *ia, *ja;
-      char           type[256];
+      char            type[256];
       PetscCall(MatCreate(subcomm, &X));
       PetscCall(MatSetSizes(X, PETSC_DECIDE, PETSC_DECIDE, n, n));
       PetscCall(MatSetOptionsPrefix(X, prefix));
@@ -111,7 +111,7 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char* prefix, const MPI_Comm
         PetscCall(MatCreate(subcomm, &Y));
         PetscCall(MatSetSizes(Y, PETSC_DECIDE, PETSC_DECIDE, n, n));
       }
-      for (const Mat& m : { X, Y }) {
+      for (const Mat &m : {X, Y}) {
         if (m == Y && !b) continue;
         PetscCall(MatSetType(m, type));
         PetscCall(MatMPIAIJSetPreallocation(m, nrow, nullptr, n - nrow, nullptr));

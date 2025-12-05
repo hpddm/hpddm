@@ -44,159 +44,159 @@
  *    HPDDM_MIXED_PRECISION - Use mixed precision arithmetic for the assembly of coarse operators.
  *    HPDDM_INEXACT_COARSE_OPERATOR - Solve coarse systems using a Krylov method.
  *    HPDDM_LIBXSMM       - Block sparse matrices products are computed using LIBXSMM. */
-#define HPDDM_VERSION                                   "2.3.5"
-#define HPDDM_EPS                                       1.0e-12
-#define HPDDM_PEN                                       1.0e+30
-#define HPDDM_GRANULARITY                               50000
+#define HPDDM_VERSION     "2.3.5"
+#define HPDDM_EPS         1.0e-12
+#define HPDDM_PEN         1.0e+30
+#define HPDDM_GRANULARITY 50000
 #if !defined(HPDDM_PETSC) && defined(PETSC_PCHPDDM_MAXLEVELS)
-# define HPDDM_PETSC                                    1
+  #define HPDDM_PETSC 1
 #endif
 #if defined(PETSC_HAVE_MKL_LIBS) && !defined(HPDDM_MKL)
-# define HPDDM_MKL                                      1
+  #define HPDDM_MKL 1
 #endif
 #if defined(PETSC_HAVE_OPENBLAS) && !defined(HPDDM_OPENBLAS)
-# define HPDDM_OPENBLAS                                 1
+  #define HPDDM_OPENBLAS 1
 #endif
 #if defined(HPDDM_PETSC) && HPDDM_PETSC
-# ifndef HPDDM_NUMBERING
-#  define HPDDM_NUMBERING                              'C'
-# endif
-# define HPDDM_SCHWARZ                                  0
-# define HPDDM_BDD                                      0
-# define HPDDM_FETI                                     0
-# if defined(PETSC_PCHPDDM_MAXLEVELS)
-#  define HPDDM_INEXACT_COARSE_OPERATOR                 1
-# endif
+  #ifndef HPDDM_NUMBERING
+    #define HPDDM_NUMBERING 'C'
+  #endif
+  #define HPDDM_SCHWARZ 0
+  #define HPDDM_BDD     0
+  #define HPDDM_FETI    0
+  #if defined(PETSC_PCHPDDM_MAXLEVELS)
+    #define HPDDM_INEXACT_COARSE_OPERATOR 1
+  #endif
 #elif !defined(HPDDM_PETSC)
-# define HPDDM_PETSC                                    0
+  #define HPDDM_PETSC 0
 #endif
 #ifndef HPDDM_NUMBERING
-# if HPDDM_PETSC || (defined(HPDDM_SCHWARZ) && HPDDM_SCHWARZ) || (defined(HPDDM_FETI) && HPDDM_FETI) || (defined(HPDDM_BDD) && HPDDM_BDD)
-#  pragma message("The numbering of user-supplied matrices has not been set, assuming 0-based indexing")
-# endif
-# define HPDDM_NUMBERING                               'C'
+  #if HPDDM_PETSC || (defined(HPDDM_SCHWARZ) && HPDDM_SCHWARZ) || (defined(HPDDM_FETI) && HPDDM_FETI) || (defined(HPDDM_BDD) && HPDDM_BDD)
+    #pragma message("The numbering of user-supplied matrices has not been set, assuming 0-based indexing")
+  #endif
+  #define HPDDM_NUMBERING 'C'
 #elif defined(__cplusplus)
 static_assert(HPDDM_NUMBERING == 'C' || HPDDM_NUMBERING == 'F', "Unknown numbering");
 #endif
 #ifndef HPDDM_MPI
-# define HPDDM_MPI                                      1
+  #define HPDDM_MPI 1
 #elif !HPDDM_MPI && defined(MPI_VERSION)
-# pragma message("You cannot deactivate MPI support and still include MPI headers")
-# undef HPDDM_MPI
-# define HPDDM_MPI                                      1
+  #pragma message("You cannot deactivate MPI support and still include MPI headers")
+  #undef HPDDM_MPI
+  #define HPDDM_MPI 1
 #endif
 #ifndef HPDDM_MKL
-# ifdef INTEL_MKL_VERSION
-#  define HPDDM_MKL                                     1
-# else
-#  define HPDDM_MKL                                     0
-# endif
+  #ifdef INTEL_MKL_VERSION
+    #define HPDDM_MKL 1
+  #else
+    #define HPDDM_MKL 0
+  #endif
 #endif
 #ifndef HPDDM_OPENBLAS
-# define HPDDM_OPENBLAS                                 0
+  #define HPDDM_OPENBLAS 0
 #endif
 #ifndef HPDDM_SCHWARZ
-# define HPDDM_SCHWARZ                                  1
+  #define HPDDM_SCHWARZ 1
 #endif
 #ifndef HPDDM_FETI
-# define HPDDM_FETI                                     1
+  #define HPDDM_FETI 1
 #endif
 #ifndef HPDDM_BDD
-# define HPDDM_BDD                                      1
+  #define HPDDM_BDD 1
 #endif
 #ifndef HPDDM_DENSE
-# define HPDDM_DENSE                                    0
+  #define HPDDM_DENSE 0
 #elif HPDDM_DENSE
-# if defined(HPDDM_INEXACT_COARSE_OPERATOR) && HPDDM_INEXACT_COARSE_OPERATOR
-#  undef HPDDM_INEXACT_COARSE_OPERATOR
-#  pragma message("HPDDM_DENSE and HPDDM_INEXACT_COARSE_OPERATOR are mutually exclusive")
-# endif
-# if defined(HPDDM_SCHWARZ) && !HPDDM_SCHWARZ
-#  undef HPDDM_SCHWARZ
-# endif
-# ifndef HPDDM_SCHWARZ
-#  define HPDDM_SCHWARZ                                 1
-# endif
+  #if defined(HPDDM_INEXACT_COARSE_OPERATOR) && HPDDM_INEXACT_COARSE_OPERATOR
+    #undef HPDDM_INEXACT_COARSE_OPERATOR
+    #pragma message("HPDDM_DENSE and HPDDM_INEXACT_COARSE_OPERATOR are mutually exclusive")
+  #endif
+  #if defined(HPDDM_SCHWARZ) && !HPDDM_SCHWARZ
+    #undef HPDDM_SCHWARZ
+  #endif
+  #ifndef HPDDM_SCHWARZ
+    #define HPDDM_SCHWARZ 1
+  #endif
 #endif
 #ifndef HPDDM_SLEPC
-# if (defined(SLEPCVERSION_H) || (HPDDM_PETSC && defined(PETSC_HAVE_SLEPC))) && defined(DM_MAX_WORK_VECTORS)
-#  define HPDDM_SLEPC                                   1
-# else
-#  define HPDDM_SLEPC                                   0
+  #if (defined(SLEPCVERSION_H) || (HPDDM_PETSC && defined(PETSC_HAVE_SLEPC))) && defined(DM_MAX_WORK_VECTORS)
+    #define HPDDM_SLEPC 1
+  #else
+    #define HPDDM_SLEPC 0
+  #endif
 #endif
-#endif
-#define HPDDM_QR                                        2
+#define HPDDM_QR 2
 #ifndef HPDDM_ICOLLECTIVE
-# define HPDDM_ICOLLECTIVE                              0
+  #define HPDDM_ICOLLECTIVE 0
 #endif
 #ifndef HPDDM_MIXED_PRECISION
-# define HPDDM_MIXED_PRECISION                          0
+  #define HPDDM_MIXED_PRECISION 0
 #endif
 #ifndef HPDDM_INEXACT_COARSE_OPERATOR
-# define HPDDM_INEXACT_COARSE_OPERATOR                  0
+  #define HPDDM_INEXACT_COARSE_OPERATOR 0
 #endif
 #ifndef HPDDM_LIBXSMM
-# define HPDDM_LIBXSMM                                  0
+  #define HPDDM_LIBXSMM 0
 #endif
 
-#define HPDDM_COMPUTE_RESIDUAL_L2                       0
-#define HPDDM_COMPUTE_RESIDUAL_L1                       1
-#define HPDDM_COMPUTE_RESIDUAL_LINFTY                   2
+#define HPDDM_COMPUTE_RESIDUAL_L2     0
+#define HPDDM_COMPUTE_RESIDUAL_L1     1
+#define HPDDM_COMPUTE_RESIDUAL_LINFTY 2
 
-#define HPDDM_ORTHOGONALIZATION_CGS                     0
-#define HPDDM_ORTHOGONALIZATION_MGS                     1
+#define HPDDM_ORTHOGONALIZATION_CGS 0
+#define HPDDM_ORTHOGONALIZATION_MGS 1
 
-#define HPDDM_KRYLOV_METHOD_GMRES                       0
-#define HPDDM_KRYLOV_METHOD_BGMRES                      1
-#define HPDDM_KRYLOV_METHOD_CG                          2
-#define HPDDM_KRYLOV_METHOD_BCG                         3
-#define HPDDM_KRYLOV_METHOD_GCRODR                      4
-#define HPDDM_KRYLOV_METHOD_BGCRODR                     5
-#define HPDDM_KRYLOV_METHOD_BFBCG                       6
-#define HPDDM_KRYLOV_METHOD_RICHARDSON                  7
-#define HPDDM_KRYLOV_METHOD_NONE                        8
+#define HPDDM_KRYLOV_METHOD_GMRES      0
+#define HPDDM_KRYLOV_METHOD_BGMRES     1
+#define HPDDM_KRYLOV_METHOD_CG         2
+#define HPDDM_KRYLOV_METHOD_BCG        3
+#define HPDDM_KRYLOV_METHOD_GCRODR     4
+#define HPDDM_KRYLOV_METHOD_BGCRODR    5
+#define HPDDM_KRYLOV_METHOD_BFBCG      6
+#define HPDDM_KRYLOV_METHOD_RICHARDSON 7
+#define HPDDM_KRYLOV_METHOD_NONE       8
 
-#define HPDDM_VARIANT_LEFT                              0
-#define HPDDM_VARIANT_RIGHT                             1
-#define HPDDM_VARIANT_FLEXIBLE                          2
+#define HPDDM_VARIANT_LEFT     0
+#define HPDDM_VARIANT_RIGHT    1
+#define HPDDM_VARIANT_FLEXIBLE 2
 
-#define HPDDM_QR_CHOLQR                                 0
-#define HPDDM_QR_CGS                                    1
-#define HPDDM_QR_MGS                                    2
+#define HPDDM_QR_CHOLQR 0
+#define HPDDM_QR_CGS    1
+#define HPDDM_QR_MGS    2
 
-#define HPDDM_RECYCLE_STRATEGY_A                        0
-#define HPDDM_RECYCLE_STRATEGY_B                        1
+#define HPDDM_RECYCLE_STRATEGY_A 0
+#define HPDDM_RECYCLE_STRATEGY_B 1
 
-#define HPDDM_RECYCLE_TARGET_SM                         0
-#define HPDDM_RECYCLE_TARGET_LM                         1
-#define HPDDM_RECYCLE_TARGET_SR                         2
-#define HPDDM_RECYCLE_TARGET_LR                         3
-#define HPDDM_RECYCLE_TARGET_SI                         4
-#define HPDDM_RECYCLE_TARGET_LI                         5
+#define HPDDM_RECYCLE_TARGET_SM 0
+#define HPDDM_RECYCLE_TARGET_LM 1
+#define HPDDM_RECYCLE_TARGET_SR 2
+#define HPDDM_RECYCLE_TARGET_LR 3
+#define HPDDM_RECYCLE_TARGET_SI 4
+#define HPDDM_RECYCLE_TARGET_LI 5
 
-#define HPDDM_GENEO_FORCE_UNIFORMITY_MIN                0
-#define HPDDM_GENEO_FORCE_UNIFORMITY_MAX                1
+#define HPDDM_GENEO_FORCE_UNIFORMITY_MIN 0
+#define HPDDM_GENEO_FORCE_UNIFORMITY_MAX 1
 
-#define HPDDM_DISTRIBUTION_CENTRALIZED                  0
-#define HPDDM_DISTRIBUTION_SOL                          1
+#define HPDDM_DISTRIBUTION_CENTRALIZED 0
+#define HPDDM_DISTRIBUTION_SOL         1
 
-#define HPDDM_SCHWARZ_METHOD_RAS                        0
-#define HPDDM_SCHWARZ_METHOD_ORAS                       1
-#define HPDDM_SCHWARZ_METHOD_SORAS                      2
-#define HPDDM_SCHWARZ_METHOD_ASM                        3
-#define HPDDM_SCHWARZ_METHOD_OSM                        4
-#define HPDDM_SCHWARZ_METHOD_NONE                       5
+#define HPDDM_SCHWARZ_METHOD_RAS   0
+#define HPDDM_SCHWARZ_METHOD_ORAS  1
+#define HPDDM_SCHWARZ_METHOD_SORAS 2
+#define HPDDM_SCHWARZ_METHOD_ASM   3
+#define HPDDM_SCHWARZ_METHOD_OSM   4
+#define HPDDM_SCHWARZ_METHOD_NONE  5
 
-#define HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED        0
-#define HPDDM_SCHWARZ_COARSE_CORRECTION_ADDITIVE        1
-#define HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED        2
+#define HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED 0
+#define HPDDM_SCHWARZ_COARSE_CORRECTION_ADDITIVE 1
+#define HPDDM_SCHWARZ_COARSE_CORRECTION_BALANCED 2
 
-#define HPDDM_SUBSTRUCTURING_SCALING_MULTIPLICITY       0
-#define HPDDM_SUBSTRUCTURING_SCALING_STIFFNESS          1
-#define HPDDM_SUBSTRUCTURING_SCALING_COEFFICIENT        2
+#define HPDDM_SUBSTRUCTURING_SCALING_MULTIPLICITY 0
+#define HPDDM_SUBSTRUCTURING_SCALING_STIFFNESS    1
+#define HPDDM_SUBSTRUCTURING_SCALING_COEFFICIENT  2
 
-#define HPDDM_HYPRE_SOLVER_FGMRES                       0
-#define HPDDM_HYPRE_SOLVER_PCG                          1
-#define HPDDM_HYPRE_SOLVER_AMG                          2
+#define HPDDM_HYPRE_SOLVER_FGMRES 0
+#define HPDDM_HYPRE_SOLVER_PCG    1
+#define HPDDM_HYPRE_SOLVER_AMG    2
 
 #endif // HPDDM_DEFINE_HPP_

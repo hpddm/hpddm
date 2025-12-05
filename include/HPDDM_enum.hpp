@@ -25,7 +25,8 @@
 #ifndef HPDDM_ENUM_HPP_
 #define HPDDM_ENUM_HPP_
 
-namespace HPDDM {
+namespace HPDDM
+{
 /* Enum: FetiPrcndtnr
  *
  *  Defines the FETI preconditioner used in the projection.
@@ -37,7 +38,10 @@ namespace HPDDM {
  *
  * See also: <Feti>. */
 enum class FetiPrcndtnr : char {
-    NONE, SUPERLUMPED, LUMPED, DIRICHLET
+  NONE,
+  SUPERLUMPED,
+  LUMPED,
+  DIRICHLET
 };
-} // HPDDM
+} // namespace HPDDM
 #endif // HPDDM_ENUM_HPP_
