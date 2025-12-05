@@ -25,18 +25,18 @@
 #define SCHWARZ_H_
 
 #ifndef HPDDM_NUMBERING
-#define HPDDM_NUMBERING       'C'
+  #define HPDDM_NUMBERING 'C'
 #endif
 #include "HPDDM.h"
 #include <stdio.h>
 
 #ifndef MAX
-# define MAX(x, y) (((x) > (y)) ? (x) : (y))
+  #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #endif
 #ifndef MIN
-# define MIN(x, y) (((x) < (y)) ? (x) : (y))
+  #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #endif
 
-void generate(int, int, int*, int*, int*, int**, int*, HpddmMatrixCSR**, HpddmMatrixCSR**, underlying_type**, K**, K**);
+void generate(int, int, int *, int *, int *, int **, int *, HpddmMatrixCSR **, HpddmMatrixCSR **, underlying_type **, K **, K **);
 
 #endif // SCHWARZ_H_

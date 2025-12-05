@@ -21,26 +21,26 @@
  */
 
 #ifndef HPDDM_PREPROCESSOR_CHECK_HPP_
-# define HPDDM_PREPROCESSOR_CHECK_HPP_
-# define HPDDM_STR_HELPER(x) #x
-# define HPDDM_STR(x) HPDDM_STR_HELPER(x)
+#define HPDDM_PREPROCESSOR_CHECK_HPP_
+#define HPDDM_STR_HELPER(x) #x
+#define HPDDM_STR(x)        HPDDM_STR_HELPER(x)
 #endif // HPDDM_PREPROCESSOR_CHECK_HPP_
 
 #ifdef HPDDM_CHECK_COARSEOPERATOR
-# ifdef COARSEOPERATOR
-#  pragma message("COARSEOPERATOR macro already set to " HPDDM_STR(COARSEOPERATOR) ", it has now been reset")
-#  undef COARSEOPERATOR
-# endif
+#ifdef COARSEOPERATOR
+  #pragma message("COARSEOPERATOR macro already set to " HPDDM_STR(COARSEOPERATOR) ", it has now been reset")
+  #undef COARSEOPERATOR
+#endif
 #endif
 #ifdef HPDDM_CHECK_SUBDOMAIN
-# ifdef SUBDOMAIN
-#  pragma message("SUBDOMAIN macro already set to " HPDDM_STR(SUBDOMAIN) ", it has now been reset")
-#  undef SUBDOMAIN
-# endif
+#ifdef SUBDOMAIN
+  #pragma message("SUBDOMAIN macro already set to " HPDDM_STR(SUBDOMAIN) ", it has now been reset")
+  #undef SUBDOMAIN
+#endif
 #endif
 #ifdef HPDDM_CHECK_EIGENSOLVER
-# ifdef EIGENSOLVER
-#  pragma message("EIGENSOLVER macro already set to " HPDDM_STR(EIGENSOLVER) ", it has now been reset")
-#  undef EIGENSOLVER
-# endif
+#ifdef EIGENSOLVER
+  #pragma message("EIGENSOLVER macro already set to " HPDDM_STR(EIGENSOLVER) ", it has now been reset")
+  #undef EIGENSOLVER
+#endif
 #endif

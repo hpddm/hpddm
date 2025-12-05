@@ -25,53 +25,53 @@
 #define SCHWARZ_HPP_
 
 #if defined(HPDDM_MKL) && HPDDM_MKL
-#include <complex>
-#define MKL_Complex16         std::complex<double>
-#define MKL_Complex8          std::complex<float>
-#define MKL_INT               int
+  #include <complex>
+  #define MKL_Complex16 std::complex<double>
+  #define MKL_Complex8  std::complex<float>
+  #define MKL_INT       int
 #endif
 #ifndef HPDDM_NUMBERING
-#define HPDDM_NUMBERING       'C'
+  #define HPDDM_NUMBERING 'C'
 #endif
 #ifdef PETSCSUB
-#define HPDDM_BDD             0
-#define HPDDM_FETI            0
-#ifdef HPDDM_NUMBERING
-#undef HPDDM_NUMBERING
-#endif
-#define HPDDM_NUMBERING       'C'
+  #define HPDDM_BDD  0
+  #define HPDDM_FETI 0
+  #ifdef HPDDM_NUMBERING
+    #undef HPDDM_NUMBERING
+  #endif
+  #define HPDDM_NUMBERING 'C'
 #endif
 #include <HPDDM.hpp>
 #include <random>
 #include <list>
 
 #ifndef PETSCSUB
-#ifdef FORCE_SINGLE
-#ifdef FORCE_COMPLEX
+  #ifdef FORCE_SINGLE
+    #ifdef FORCE_COMPLEX
 typedef std::complex<float> K;
-#ifndef GENERAL_CO
-#define GENERAL_CO
-#endif
-#else
+      #ifndef GENERAL_CO
+        #define GENERAL_CO
+      #endif
+    #else
 typedef float K;
-#endif
-#else
-#ifdef FORCE_COMPLEX
+    #endif
+  #else
+    #ifdef FORCE_COMPLEX
 typedef std::complex<double> K;
-#ifndef GENERAL_CO
-#define GENERAL_CO
-#endif
-#else
+      #ifndef GENERAL_CO
+        #define GENERAL_CO
+      #endif
+    #else
 typedef double K;
-#endif
-#endif
+    #endif
+  #endif
 #else
 typedef PetscScalar K;
-#ifdef PETSC_USE_COMPLEX
-#ifndef GENERAL_CO
-#define GENERAL_CO
-#endif
-#endif
+  #ifdef PETSC_USE_COMPLEX
+    #ifndef GENERAL_CO
+      #define GENERAL_CO
+    #endif
+  #endif
 #endif
 
 #ifdef GENERAL_CO
@@ -82,6 +82,6 @@ const char symCoarse = 'S';
 
 const HPDDM::underlying_type<K> pi = 3.141592653589793238463;
 
-void generate(int, int, std::list<int>&, std::vector<std::vector<int>>&, int&, HPDDM::MatrixCSR<K>*&, HPDDM::MatrixCSR<K>*&, HPDDM::underlying_type<K>*&, K*&, K*&);
+void generate(int, int, std::list<int> &, std::vector<std::vector<int>> &, int &, HPDDM::MatrixCSR<K> *&, HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&, K *&, K *&);
 
 #endif // SCHWARZ_HPP_

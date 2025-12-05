@@ -25,66 +25,69 @@
 #define HPDDM_DISSECTION_HPP_
 
 #ifndef INTEL_MKL_VERSION
-# define BLAS_GENERIC
+  #define BLAS_GENERIC
 #else
-# define BLAS_MKL
+  #define BLAS_MKL
 #endif
 #define DD_REAL
 #include "HPDDM_Driver/DissectionSolver.hpp"
 
 #ifdef DISSECTIONSUB
-#undef HPDDM_CHECK_COARSEOPERATOR
-#define HPDDM_CHECK_SUBDOMAIN
-#include "HPDDM_preprocessor_check.hpp"
-#define SUBDOMAIN HPDDM::DissectionSub
-namespace HPDDM {
-template<class K>
+  #undef HPDDM_CHECK_COARSEOPERATOR
+  #define HPDDM_CHECK_SUBDOMAIN
+  #include "HPDDM_preprocessor_check.hpp"
+  #define SUBDOMAIN HPDDM::DissectionSub
+namespace HPDDM
+{
+template <class K>
 class DissectionSub {
-    private:
-        DissectionSolver<K, underlying_type<K>>* dslv_;
-    public:
-        DissectionSub() : dslv_() { }
-        DissectionSub(const DissectionSub&) = delete;
-        ~DissectionSub() { dtor(); }
-        static constexpr char numbering_ = 'C';
-        void dtor() {
-            delete dslv_;
-            dslv_ = nullptr;
-        }
-        template<char N = HPDDM_NUMBERING>
-        void numfact(MatrixCSR<K>* const& A, bool = false, K* const& = nullptr) {
-            static_assert(N == 'C' || N == 'F', "Unknown numbering");
-            static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
-            const MatrixCSR<K>* B = A->template symmetrizedStructure<N, 'C'>();
-            if(!dslv_) {
-#ifdef _OPENMP
-                int num_threads = omp_get_max_threads();
-#else
-                int num_threads = 1;
-#endif
-                dslv_ = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
-                dslv_->SymbolicFact(B->n_, B->ia_, B->ja_, B->sym_, false);
-                if(N == 'F' && B == A) {
-                    std::for_each(A->ja_, A->ja_ + A->nnz_, [](int& i) { ++i; });
-                    std::for_each(A->ia_, A->ia_ + A->n_ + 1, [](int& i) { ++i; });
-                }
-            }
-            dslv_->NumericFact(0, B->a_, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
-            if(B != A)
-                delete B;
-        }
-        unsigned short deficiency() const { return dslv_->kern_dimension(); }
-        void solve(K* const x, const unsigned short& n = 1) const {
-            if(n == 1)
-                dslv_->SolveSingle(x, false, false, true);
-            else
-                dslv_->SolveMulti(x, n, false, false, true);
-        }
-        void solve(const K* const b, K* const x, const unsigned short& n = 1) const {
-            std::copy_n(b, n * dslv_->dimension(), x);
-            solve(x, n);
-        }
+private:
+  DissectionSolver<K, underlying_type<K>> *dslv_;
+
+public:
+  DissectionSub() : dslv_() { }
+  DissectionSub(const DissectionSub &) = delete;
+  ~DissectionSub() { dtor(); }
+  static constexpr char numbering_ = 'C';
+  void                  dtor()
+  {
+    delete dslv_;
+    dslv_ = nullptr;
+  }
+  template <char N = HPDDM_NUMBERING>
+  void numfact(MatrixCSR<K> *const &A, bool = false, K *const & = nullptr)
+  {
+    static_assert(N == 'C' || N == 'F', "Unknown numbering");
+    static_assert(std::is_same<double, underlying_type<K>>::value, "Dissection only supports double-precision floating-point numbers");
+    const MatrixCSR<K> *B = A->template symmetrizedStructure<N, 'C'>();
+    if (!dslv_) {
+  #ifdef _OPENMP
+      int num_threads = omp_get_max_threads();
+  #else
+      int num_threads = 1;
+  #endif
+      dslv_ = new DissectionSolver<K, underlying_type<K>>(num_threads, false, 0, nullptr);
+      dslv_->SymbolicFact(B->n_, B->ia_, B->ja_, B->sym_, false);
+      if (N == 'F' && B == A) {
+        std::for_each(A->ja_, A->ja_ + A->nnz_, [](int &i) { ++i; });
+        std::for_each(A->ia_, A->ia_ + A->n_ + 1, [](int &i) { ++i; });
+      }
+    }
+    dslv_->NumericFact(0, B->a_, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
+    if (B != A) delete B;
+  }
+  unsigned short deficiency() const { return dslv_->kern_dimension(); }
+  void           solve(K *const x, const unsigned short &n = 1) const
+  {
+    if (n == 1) dslv_->SolveSingle(x, false, false, true);
+    else dslv_->SolveMulti(x, n, false, false, true);
+  }
+  void solve(const K *const b, K *const x, const unsigned short &n = 1) const
+  {
+    std::copy_n(b, n * dslv_->dimension(), x);
+    solve(x, n);
+  }
 };
-} // HPDDM
+} // namespace HPDDM
 #endif // DISSECTIONSUB
 #endif // HPDDM_DISSECTION_HPP_

@@ -23,20 +23,22 @@
 #ifndef HPDDM_SINGLETON_HPP_
 #define HPDDM_SINGLETON_HPP_
 
-namespace HPDDM {
+namespace HPDDM
+{
 /* Class: Singleton
  *  A base class for creating singletons. */
 class Singleton {
-    protected:
-        template<int N>
-        class construct_key { };
-        Singleton() { }
-        Singleton(const Singleton&) = delete;
-        template<class T, int N, class... Args>
-        static std::shared_ptr<T> get(const Args&... arguments) {
-            static std::shared_ptr<T> instance = std::make_shared<T>(construct_key<N>(), arguments...);
-            return instance;
-        }
+protected:
+  template <int N>
+  class construct_key { };
+  Singleton() { }
+  Singleton(const Singleton &) = delete;
+  template <class T, int N, class... Args>
+  static std::shared_ptr<T> get(const Args &...arguments)
+  {
+    static std::shared_ptr<T> instance = std::make_shared<T>(construct_key<N>(), arguments...);
+    return instance;
+  }
 };
-} // HPDDM
+} // namespace HPDDM
 #endif // HPDDM_SINGLETON_HPP_

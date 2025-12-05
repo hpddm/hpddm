@@ -25,31 +25,31 @@
 #ifndef HPDDM_PRECONDITIONER_HPP_
 #define HPDDM_PRECONDITIONER_HPP_
 
-#define HPDDM_LAMBDA_F(in, input, inout, output, len, N)                                                     \
-    if(len && *len) {                                                                                        \
-        unsigned short* input = static_cast<unsigned short*>(in);                                            \
-        unsigned short* output = static_cast<unsigned short*>(inout);                                        \
-        output[0] = std::max(output[0], input[0]);                                                           \
-        if(*len > 1) {                                                                                       \
-            output[1] = std::max(output[1], input[1]);                                                       \
-            if(*len > 2) {                                                                                   \
-                output[2] = output[2] & input[2];                                                            \
-                if(*len > 3) {                                                                               \
-                    output[3] = output[3] & input[3];                                                        \
-                    if(N == 4 && *len > 4)                                                                   \
-                        output[4] = output[4] & input[4];                                                    \
-                }                                                                                            \
-            }                                                                                                \
-        }                                                                                                    \
-    }
+#define HPDDM_LAMBDA_F(in, input, inout, output, len, N) \
+  if (len && *len) { \
+    unsigned short *input  = static_cast<unsigned short *>(in); \
+    unsigned short *output = static_cast<unsigned short *>(inout); \
+    output[0]              = std::max(output[0], input[0]); \
+    if (*len > 1) { \
+      output[1] = std::max(output[1], input[1]); \
+      if (*len > 2) { \
+        output[2] = output[2] & input[2]; \
+        if (*len > 3) { \
+          output[3] = output[3] & input[3]; \
+          if (N == 4 && *len > 4) output[4] = output[4] & input[4]; \
+        } \
+      } \
+    } \
+  }
 
 #include "HPDDM_subdomain.hpp"
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
-#include "HPDDM_coarse_operator_impl.hpp"
-#include "HPDDM_operator.hpp"
+  #include "HPDDM_coarse_operator_impl.hpp"
+  #include "HPDDM_operator.hpp"
 #endif
 
-namespace HPDDM {
+namespace HPDDM
+{
 /* Class: Preconditioner
  *
  *  A base class from which <Schwarz> and <Schur> inherit.
@@ -58,52 +58,56 @@ namespace HPDDM {
  *    Solver         - Solver used for the factorization of local matrices.
  *    CoarseOperator - Class of the coarse operator.
  *    K              - Scalar type. */
-template<
+template <
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
-#if !HPDDM_PETSC
-    template<class> class Solver,
+  #if !HPDDM_PETSC
+  template <class> class Solver,
+  #endif
+  class CoarseOperator,
 #endif
-                                  class CoarseOperator,
-#endif
-    class K>
+  class K>
 class Preconditioner : public Subdomain<K> {
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
-    private:
-#if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
-        template<unsigned short N>
-        static void
-#ifdef __MINGW32__
-                    __stdcall
-#endif
-                              f(void* in, void* inout, int* len, MPI_Datatype*) {
-            HPDDM_LAMBDA_F(in, input, inout, output, len, N)
-        }
-#endif
-        template<typename... Types>
-        CoarseOperator*& front(Types&&...) {
-            return co_;
-        }
-        template<typename Type, typename... Types>
-        CoarseOperator*& front(Type&& arg, Types&&...) {
-            return std::forward<Type>(arg);
-        }
-    protected:
-        typedef CoarseOperator co_type;
-#if !HPDDM_PETSC
-        /* Variable: s
+private:
+  #if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
+  template <unsigned short N>
+  static void
+    #ifdef __MINGW32__
+    __stdcall
+    #endif
+    f(void *in, void *inout, int *len, MPI_Datatype *)
+  {
+    HPDDM_LAMBDA_F(in, input, inout, output, len, N)
+  }
+  #endif
+  template <typename... Types>
+  CoarseOperator *&front(Types &&...)
+  {
+    return co_;
+  }
+  template <typename Type, typename... Types>
+  CoarseOperator *&front(Type &&arg, Types &&...)
+  {
+    return std::forward<Type>(arg);
+  }
+
+protected:
+  typedef CoarseOperator co_type;
+  #if !HPDDM_PETSC
+  /* Variable: s
          *  Solver used in <Schwarz::callNumfact> and <Schur::callNumfactPreconditioner> or <Schur::computeSchurComplement>. */
-        Solver<K>           s_;
-#endif
-        /* Variable: co
+  Solver<K> s_;
+  #endif
+  /* Variable: co
          *  Pointer to a <Coarse operator>. */
-        CoarseOperator*    co_;
-        /* Variable: ev
+  CoarseOperator *co_;
+  /* Variable: ev
          *  Array of deflation vectors as needed by <Preconditioner::co>. */
-        K**                ev_;
-        /* Variable: uc
+  K **ev_;
+  /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
-        K*                 uc_;
-        /* Function: buildTwo
+  K *uc_;
+    /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.
          *
@@ -113,273 +117,280 @@ class Preconditioner : public Subdomain<K> {
          * Parameters:
          *    A              - Operator used in the definition of the Galerkin matrix.
          *    comm           - Global MPI communicator. */
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_SLEPC
-        template<unsigned short excluded, class Operator, class Prcndtnr, typename... Types>
-        typename CoarseOperator::return_type buildTwo(Prcndtnr* B, const MPI_Comm& comm,
-#if HPDDM_SLEPC
-                Mat A, PetscInt n, PetscInt M, PC_HPDDM_Level** const levels,
-#endif
-                    Types&... args) {
-            static_assert(std::is_same<typename Prcndtnr::super&, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super&, decltype(*this)>::value, "Wrong preconditioner");
-            typename CoarseOperator::return_type ret { };
-            CoarseOperator*& co = front(args...);
-            constexpr unsigned short N = std::is_same<typename Prcndtnr::super&, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3 : 4;
-            unsigned short allUniform[N + 1];
-            allUniform[0] = Subdomain<K>::map_.size();
-#if !HPDDM_PETSC
-            Option& opt = *Option::get();
-            const std::string prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
-            const unsigned short nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co ? co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", opt.set(prefix + "geneo_threshold") ? 0 : 20));
-#else
-            unsigned short nu;
-            std::string prefixC;
-#if HPDDM_SLEPC
-            {
-                const char* prefix;
-                PetscCallContinue(KSPGetOptionsPrefix(levels[n]->ksp, &prefix));
-                std::string prefixF(prefix);
-                unsigned int pos = prefixF.rfind("levels_", prefixF.size() - 1);
-                unsigned short levelF = std::stoi(prefixF.substr(pos + 7, prefixF.size() - 1));
-                if(levelF + 1 == M)
-                    prefixC = prefixF.substr(0, pos) + "coarse_";
-                else
-                    prefixC = prefixF.substr(0, pos + 7) + std::to_string(levelF + 1) + "_";
-                nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co ? co->getLocal() : levels[n]->nu);
-            }
-#endif
-#endif
-            allUniform[3] = static_cast<unsigned short>(~nu);
-            if(N == 4)
-                allUniform[4] = nu > 0 ? nu : std::numeric_limits<unsigned short>::max();
-            {
-                MPI_Op op;
-#if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
-                MPI_Op_create(&f<N>, 1, &op);
-#else
-                auto f = [](void* in, void* inout, int* len, MPI_Datatype*) -> void {
-                    HPDDM_LAMBDA_F(in, input, inout, output, len, N)
-                };
-                MPI_Op_create(f, 1, &op);
-#endif
-                MPI_Allreduce(MPI_IN_PLACE, allUniform, N + 1, MPI_UNSIGNED_SHORT, op, comm);
-                MPI_Op_free(&op);
-            }
-            if(nu > 0 || allUniform[2] != 0 || allUniform[3] != std::numeric_limits<unsigned short>::max()) {
-#if !HPDDM_PETSC
-                const bool uniformity = (N == 3 && opt.set(prefix + "geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
-#else
-                bool uniformity = false;
-                {
-                    PetscBool flg;
-                    PetscBool uniform;
-                    PetscCallContinue(PetscOptionsGetBool(nullptr, prefixC.c_str(), "-force_uniformity", &uniform, &flg));
-                    if(flg)
-                        uniformity = uniform;
-                }
-#endif
-                if(sizeof...(Types) == 0) {
-                    delete co;
-                    co = new CoarseOperator;
-                }
-                co->setLocal(uniformity ? allUniform[1] : nu);
-#if !HPDDM_PETSC
-                double construction = MPI_Wtime();
-                const std::string prev = opt.getPrefix();
-                std::string level;
-                if(prev.size() == 0) {
-                    std::string sub;
-                    if(prefix.size() >= 8) {
-                        sub = prefix.substr(prefix.size() - 8, std::string::npos);
-                        const std::size_t find = sub.find("level_", 0);
-                        if(find == std::string::npos)
-                            level = prefix + "level_2_";
-                        else {
-                            sub = sub.substr(6, 1);
-                            level = prefix.substr(0, prefix.size() - 2) + std::to_string(std::stoi(sub) + 1) + "_";
-                        }
-                    }
-                    else
-                        level = prefix + "level_2_";
-                }
-                else {
-                    std::string sub = prev.substr(6, std::string::npos);
-                    const std::size_t find = sub.find("_", 0);
-                    sub = sub.substr(0, find);
-                    level = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(std::stoi(sub) + 1) + "_";
-                }
-                {
-                    const unsigned short verbosity = opt.val<unsigned short>(prefix + "verbosity");
-                    opt.setPrefix(level);
-                    if(!opt.set("verbosity") && verbosity) {
-                        opt["verbosity"] = verbosity;
-                    }
-                }
-#endif
-                if((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
-                    ret = co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
-#if HPDDM_SLEPC
-                        A, levels[n + 1], prefixC,
-#endif
-                        args...), comm);
-                else if(N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))
-                    ret = co->template construction<2, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
-#if HPDDM_SLEPC
-                        A, levels[n + 1], prefixC,
-#endif
-                        args...), comm);
-                else
-                    ret = co->template construction<0, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
-#if HPDDM_SLEPC
-                        A, levels[n + 1], prefixC,
-#endif
-                        args...), comm);
-#if !HPDDM_PETSC
-                if(co->getRank() == 0 && opt.val<char>("verbosity", 0) > 1) {
-                    std::stringstream ss;
-                    construction = MPI_Wtime() - construction;
-                    ss << std::setprecision(3) << construction;
-                    const unsigned short p = opt.val<unsigned short>("p", 1);
-                    const std::string line = " --- coarse operator transferred " + std::string(Operator::factorize_ ? "and factorized " : "") + std::string("by ") + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
-                    std::cout << line << std::endl;
-                    std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -co->getLocal() : (uniformity ? allUniform[1] : 0))) + ")" << std::endl;
-                    std::cout.unsetf(std::ios_base::adjustfield);
-                }
-                opt.setPrefix(prev);
-#endif
-            }
-            else {
-                delete co;
-                co = nullptr;
-#if HPDDM_SLEPC
-                ret = PETSC_ERR_ARG_WRONG;
-#endif
-            }
-            return ret;
-        }
-#endif
-#if !HPDDM_PETSC
-        void destroySolver() {
-            s_.dtor();
-            Option& opt = *Option::get();
-            if(opt.val<unsigned short>("reuse_preconditioner") >= 1)
-                opt["reuse_preconditioner"] = 1;
-        }
-#endif
-    public:
-        /* Function: start
+  #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_SLEPC
+  template <unsigned short excluded, class Operator, class Prcndtnr, typename... Types>
+  typename CoarseOperator::return_type buildTwo(Prcndtnr *B, const MPI_Comm &comm,
+    #if HPDDM_SLEPC
+                                                Mat A, PetscInt n, PetscInt M, PC_HPDDM_Level **const levels,
+    #endif
+                                                Types &...args)
+  {
+    static_assert(std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super &, decltype(*this)>::value, "Wrong preconditioner");
+    typename CoarseOperator::return_type ret{};
+    CoarseOperator                     *&co = front(args...);
+    constexpr unsigned short             N  = std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3 : 4;
+    unsigned short                       allUniform[N + 1];
+    allUniform[0] = Subdomain<K>::map_.size();
+    #if !HPDDM_PETSC
+    Option              &opt    = *Option::get();
+    const std::string    prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
+    const unsigned short nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co ? co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", opt.set(prefix + "geneo_threshold") ? 0 : 20));
+    #else
+    unsigned short nu;
+    std::string    prefixC;
+      #if HPDDM_SLEPC
+    {
+      const char *prefix;
+      PetscCallContinue(KSPGetOptionsPrefix(levels[n]->ksp, &prefix));
+      std::string    prefixF(prefix);
+      unsigned int   pos    = prefixF.rfind("levels_", prefixF.size() - 1);
+      unsigned short levelF = std::stoi(prefixF.substr(pos + 7, prefixF.size() - 1));
+      if (levelF + 1 == M) prefixC = prefixF.substr(0, pos) + "coarse_";
+      else prefixC = prefixF.substr(0, pos + 7) + std::to_string(levelF + 1) + "_";
+      nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co ? co->getLocal() : levels[n]->nu);
+    }
+      #endif
+    #endif
+    allUniform[3] = static_cast<unsigned short>(~nu);
+    if (N == 4) allUniform[4] = nu > 0 ? nu : std::numeric_limits<unsigned short>::max();
+    {
+      MPI_Op op;
+    #if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
+      MPI_Op_create(&f<N>, 1, &op);
+    #else
+      auto f = [](void *in, void *inout, int *len, MPI_Datatype *) -> void{
+                    HPDDM_LAMBDA_F(in, input, inout, output, len, N) };
+      MPI_Op_create(f, 1, &op);
+    #endif
+      MPI_Allreduce(MPI_IN_PLACE, allUniform, N + 1, MPI_UNSIGNED_SHORT, op, comm);
+      MPI_Op_free(&op);
+    }
+    if (nu > 0 || allUniform[2] != 0 || allUniform[3] != std::numeric_limits<unsigned short>::max()) {
+    #if !HPDDM_PETSC
+      const bool uniformity = (N == 3 && opt.set(prefix + "geneo_force_uniformity") && allUniform[1] == static_cast<unsigned short>(~allUniform[3]));
+    #else
+      bool uniformity = false;
+      {
+        PetscBool flg;
+        PetscBool uniform;
+        PetscCallContinue(PetscOptionsGetBool(nullptr, prefixC.c_str(), "-force_uniformity", &uniform, &flg));
+        if (flg) uniformity = uniform;
+      }
+    #endif
+      if (sizeof...(Types) == 0) {
+        delete co;
+        co = new CoarseOperator;
+      }
+      co->setLocal(uniformity ? allUniform[1] : nu);
+    #if !HPDDM_PETSC
+      double            construction = MPI_Wtime();
+      const std::string prev         = opt.getPrefix();
+      std::string       level;
+      if (prev.size() == 0) {
+        std::string sub;
+        if (prefix.size() >= 8) {
+          sub                    = prefix.substr(prefix.size() - 8, std::string::npos);
+          const std::size_t find = sub.find("level_", 0);
+          if (find == std::string::npos) level = prefix + "level_2_";
+          else {
+            sub   = sub.substr(6, 1);
+            level = prefix.substr(0, prefix.size() - 2) + std::to_string(std::stoi(sub) + 1) + "_";
+          }
+        } else level = prefix + "level_2_";
+      } else {
+        std::string       sub  = prev.substr(6, std::string::npos);
+        const std::size_t find = sub.find("_", 0);
+        sub                    = sub.substr(0, find);
+        level                  = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(std::stoi(sub) + 1) + "_";
+      }
+      {
+        const unsigned short verbosity = opt.val<unsigned short>(prefix + "verbosity");
+        opt.setPrefix(level);
+        if (!opt.set("verbosity") && verbosity) opt["verbosity"] = verbosity;
+      }
+    #endif
+      if ((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
+        ret = co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
+    #if HPDDM_SLEPC
+                                                              A, levels[n + 1], prefixC,
+    #endif
+                                                              args...),
+                                                     comm);
+      else if (N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))
+        ret = co->template construction<2, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
+    #if HPDDM_SLEPC
+                                                              A, levels[n + 1], prefixC,
+    #endif
+                                                              args...),
+                                                     comm);
+      else
+        ret = co->template construction<0, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
+    #if HPDDM_SLEPC
+                                                              A, levels[n + 1], prefixC,
+    #endif
+                                                              args...),
+                                                     comm);
+    #if !HPDDM_PETSC
+      if (co->getRank() == 0 && opt.val<char>("verbosity", 0) > 1) {
+        std::stringstream ss;
+        construction = MPI_Wtime() - construction;
+        ss << std::setprecision(3) << construction;
+        const unsigned short p    = opt.val<unsigned short>("p", 1);
+        const std::string    line = " --- coarse operator transferred " + std::string(Operator::factorize_ ? "and factorized " : "") + std::string("by ") + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
+        std::cout << line << std::endl;
+        std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -co->getLocal() : (uniformity ? allUniform[1] : 0))) + ")" << std::endl;
+        std::cout.unsetf(std::ios_base::adjustfield);
+      }
+      opt.setPrefix(prev);
+    #endif
+    } else {
+      delete co;
+      co = nullptr;
+    #if HPDDM_SLEPC
+      ret = PETSC_ERR_ARG_WRONG;
+    #endif
+    }
+    return ret;
+  }
+  #endif
+  #if !HPDDM_PETSC
+  void destroySolver()
+  {
+    s_.dtor();
+    Option &opt = *Option::get();
+    if (opt.val<unsigned short>("reuse_preconditioner") >= 1) opt["reuse_preconditioner"] = 1;
+  }
+  #endif
+public:
+  /* Function: start
          *
          *  Allocates the array <Preconditioner::uc> depending on the number of right-hand sides to be solved by an <Iterative method>.
          *
          * Parameter:
          *    mu             - Number of right-hand sides. */
-        void start(const unsigned short& mu = 1) const {
-            delete [] uc_;
-            K** ptr = const_cast<K**>(&uc_);
-            *ptr = new K[mu * co_->getSizeRHS()];
-        }
-#if HPDDM_SCHWARZ
-        struct CoarseCorrection {
-            virtual void operator()(const K* const in, K* const out) = 0;
-            virtual void operator()(const K* const in, K* const out, int n, unsigned short mu) {
-                for(unsigned short nu = 0; nu < mu; ++nu)
-                    operator()(in + nu * n, out + nu * n);
-            }
-            virtual ~CoarseCorrection() { }
-        };
-        CoarseCorrection*  cc_;
-#endif
-        Preconditioner() : co_(), ev_(), uc_()
-#if HPDDM_SCHWARZ
-                                              , cc_()
-#endif
-                                                      { }
-        Preconditioner(const Preconditioner&) = delete;
-        ~Preconditioner() {
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
-            dtor();
-#endif
-        }
-        /* Function: initialize
+  void start(const unsigned short &mu = 1) const
+  {
+    delete[] uc_;
+    K **ptr = const_cast<K **>(&uc_);
+    *ptr    = new K[mu * co_->getSizeRHS()];
+  }
+  #if HPDDM_SCHWARZ
+  struct CoarseCorrection {
+    virtual void operator()(const K *const in, K *const out) = 0;
+    virtual void operator()(const K *const in, K *const out, int n, unsigned short mu)
+    {
+      for (unsigned short nu = 0; nu < mu; ++nu) operator()(in + nu * n, out + nu * n);
+    }
+    virtual ~CoarseCorrection() { }
+  };
+  CoarseCorrection *cc_;
+  #endif
+  Preconditioner() :
+    co_(),
+    ev_(),
+    uc_()
+  #if HPDDM_SCHWARZ
+    ,
+    cc_()
+  #endif
+  {
+  }
+  Preconditioner(const Preconditioner &) = delete;
+  ~Preconditioner()
+  {
+  #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
+    dtor();
+  #endif
+  }
+  /* Function: initialize
          *
          *  Initializes a two-level preconditioner.
          *
          * Parameter:
          *    deflation      - Number of local deflation vectors. */
-        void initialize(const unsigned short& deflation) {
-            if(!co_) {
-                co_ = new CoarseOperator;
-                co_->setLocal(deflation);
-            }
-        }
-#if !HPDDM_PETSC
-        /* Function: callSolve
+  void initialize(const unsigned short &deflation)
+  {
+    if (!co_) {
+      co_ = new CoarseOperator;
+      co_->setLocal(deflation);
+    }
+  }
+  #if !HPDDM_PETSC
+  /* Function: callSolve
          *
          *  Applies <Preconditioner::s> to multiple right-hand sides in-place.
          *
          * Parameters:
          *    x              - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of input right-hand sides. */
-        void callSolve(K* const x, const unsigned short& n = 1) const { s_.solve(x, n); }
-#endif
-        /* Function: getVectors
+  void callSolve(K *const x, const unsigned short &n = 1) const { s_.solve(x, n); }
+  #endif
+  /* Function: getVectors
          *  Returns a constant pointer to <Preconditioner::ev>. */
-        const K* const* getVectors() const { return ev_; }
-        /* Function: setVectors
+  const K *const *getVectors() const { return ev_; }
+  /* Function: setVectors
          *  Sets the pointer <Preconditioner::ev>. */
-        void setVectors(K** const& ev) { ev_ = ev; }
-        /* Function: destroyVectors
+  void setVectors(K **const &ev) { ev_ = ev; }
+  /* Function: destroyVectors
          *  Destroys the pointer <Preconditioner::ev> using a custom deallocator. */
-        void destroyVectors(void (*dtor)(void*)) {
-            if(ev_)
-                dtor(*ev_);
-            dtor(ev_);
-            ev_ = nullptr;
-        }
-        /* Function: getLocal
+  void destroyVectors(void (*dtor)(void *))
+  {
+    if (ev_) dtor(*ev_);
+    dtor(ev_);
+    ev_ = nullptr;
+  }
+  /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
-        constexpr unsigned short getLocal() const { return co_ ? co_->getLocal() : 0; }
-        /* Function: getAddrLocal
+  constexpr unsigned short getLocal() const { return co_ ? co_->getLocal() : 0; }
+  /* Function: getAddrLocal
          *  Returns the address of <Coarse operator::local> or <i__0> if <Preconditioner::co> is not allocated. */
-        const int* getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i__0; }
+  const int *getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i__0; }
 #else
-    protected:
-        Preconditioner() { }
+protected:
+  Preconditioner() { }
 #endif
-    protected:
-        explicit Preconditioner(const Subdomain<K>& s) : super(s)
+protected:
+  explicit Preconditioner(const Subdomain<K> &s) :
+    super(s)
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
-                                                                 , co_(), ev_(), uc_()
-#if HPDDM_SCHWARZ
-                                                                                      , cc_()
+    ,
+    co_(),
+    ev_(),
+    uc_()
+  #if HPDDM_SCHWARZ
+    ,
+    cc_()
+  #endif
 #endif
-#endif
-                                                                                              { }
+  {
+  }
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
-        void dtor() {
-#if !HPDDM_PETSC
-            s_.dtor();
+  void dtor()
+  {
+  #if !HPDDM_PETSC
+    s_.dtor();
+  #endif
+    delete co_;
+    co_ = nullptr;
+    if (ev_) delete[] *ev_;
+    delete[] ev_;
+    ev_ = nullptr;
+    delete[] uc_;
+    uc_ = nullptr;
+  #if HPDDM_SCHWARZ
+    delete cc_;
+    cc_ = nullptr;
+  #endif
+  }
 #endif
-            delete co_;
-            co_ = nullptr;
-            if(ev_)
-                delete [] *ev_;
-            delete [] ev_;
-            ev_ = nullptr;
-            delete [] uc_;
-            uc_ = nullptr;
-#if HPDDM_SCHWARZ
-            delete cc_;
-            cc_ = nullptr;
-#endif
-        }
-#endif
-    public:
-        /* Typedef: super
+public:
+  /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */
-        typedef Subdomain<K> super;
+  typedef Subdomain<K> super;
 #if HPDDM_INEXACT_COARSE_OPERATOR
-        template<class Preconditioner, class T> friend class MatrixAccumulation;
+  template <class Preconditioner, class T>
+  friend class MatrixAccumulation;
 #endif
 };
-} // HPDDM
+} // namespace HPDDM
 #endif // HPDDM_PRECONDITIONER_HPP_
