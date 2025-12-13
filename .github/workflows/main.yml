@@ -341,7 +341,7 @@ jobs:
         make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
         cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log
         export LD_PRELOAD="/software/gcc/14/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
-        export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/12.9/lib64
+        export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/13.1/lib64
         make check
         make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
         config/report_tests.py -t 5 -s

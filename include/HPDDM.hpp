@@ -2,7 +2,7 @@
    This file is part of HPDDM.
 
    Author(s): Pierre Jolivet <pierre@joliv.et>
-              Frédéric Nataf <nataf@ann.jussieu.fr>
+              Frédéric Nataf <frederic.nataf@sorbonne-universite.fr>
         Date: 2013-07-14
 
    Copyright (C) 2011-2014 Université de Grenoble
