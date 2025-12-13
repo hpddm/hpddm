@@ -22,8 +22,8 @@ HPDDM is a library written in C++11 with MPI and OpenMP for parallelism. It is a
 * [MEF++](https://giref.ulaval.ca/chaire-du-crsng-en-calcul-scientifique-de-haute-performance/), through PETSc interface
 * [Gridap.jl](https://github.com/gridap/Gridap.jl), through `GridapSolvers.jl` and `GridapPETSc.jl`
 
-While its interface relies on plain old data objects, it requires a modern C++ compiler: g++ 4.7.2 and above, clang++ 3.3 and above, icpc 15.0.0.090 and above&#185;, or pgc++ 15.1 and above&#185;. HPDDM has to be linked against BLAS and LAPACK (as found in [OpenBLAS](http://www.openblas.net/), in the [Accelerate framework](https://developer.apple.com/library/ios/documentation/Accelerate/Reference/AccelerateFWRef/_index.html) on macOS, in [IBM ESSL](http://www-03.ibm.com/systems/power/software/essl/), or in [Intel MKL](https://software.intel.com/en-us/intel-mkl)) as well as a direct solver like [MUMPS](http://mumps-solver.org/), [SuiteSparse](http://faculty.cse.tamu.edu/davis/suitesparse.html), [MKL PARDISO](https://software.intel.com/en-us/articles/intel-mkl-pardiso), or [PaStiX](http://pastix.gforge.inria.fr/). Additionally, an eigenvalue solver is recommended. There are existing interfaces to [ARPACK](http://www.caam.rice.edu/software/ARPACK/) and [SLEPc](http://slepc.upv.es/). Other (eigen)solvers can be easily added using the existing interfaces.  
-For building robust two-level methods, an interface with a discretization kernel like PETSc [DMPlex](https://www.mcs.anl.gov/petsc/petsc-current/docs/manualpages/DMPLEX/index.html), [FreeFEM](https://freefem.org/) or [Feel++](http://www.feelpp.org/) is also needed. It can then be used to provide, for example, elementary matrices, that the GenEO approach requires. As such, preconditioners assembled by HPDDM are not algebraic, unless only looking at one-level methods. Note that for substructuring methods, this is more of a limitation of the mathematical approach than of HPDDM itself.  
+While its interface relies on plain old data objects, it requires a modern C++ compiler: g++ 4.7.2 and above, clang++ 3.3 and above, icpc 15.0.0.090 and above&#185;, or pgc++ 15.1 and above&#185;. HPDDM has to be linked against BLAS and LAPACK (as found in [OpenBLAS](http://www.openblas.net/), in the [Accelerate framework](https://developer.apple.com/library/ios/documentation/Accelerate/Reference/AccelerateFWRef/_index.html) on macOS, in [IBM ESSL](http://www-03.ibm.com/systems/power/software/essl/), or in [Intel MKL](https://software.intel.com/en-us/intel-mkl)) as well as a direct solver like [MUMPS](http://mumps-solver.org/), [SuiteSparse](http://faculty.cse.tamu.edu/davis/suitesparse.html), [MKL PARDISO](https://software.intel.com/en-us/articles/intel-mkl-pardiso), or [PaStiX](https://solverstack.gitlabpages.inria.fr/pastix/). Additionally, an eigenvalue solver is recommended. There are existing interfaces to [ARPACK](http://www.caam.rice.edu/software/ARPACK/) and [SLEPc](http://slepc.upv.es/). Other (eigen)solvers can be easily added using the existing interfaces.  
+For building robust two-level methods, an interface with a discretization kernel like PETSc [DMPlex](https://petsc.org/release/manualpages/DMPlex/index.html), [FreeFEM](https://freefem.org/) or [Feel++](http://www.feelpp.org/) is also needed. It can then be used to provide, for example, elementary matrices, that the GenEO approach requires. As such, preconditioners assembled by HPDDM are not algebraic, unless only looking at one-level methods. Note that for substructuring methods, this is more of a limitation of the mathematical approach than of HPDDM itself.  
 The list of available options can be found in this [cheat sheet](https://github.com/hpddm/hpddm/raw/main/doc/cheatsheet.pdf). There is also a [tutorial](https://joliv.et/FreeFem-tutorial/) explaining how HPDDM is integrated in FreeFEM.
 
 &#185;The latest versions of ~~icpc and~~ (this has been fixed since version 16.0.2.181) ~~pgc++~~ (since version 18.7) are not able to compile C++11 properly, if you want to use these compilers, please apply the following patch to the headers of HPDDM `sed -i\ '' 's/type\* = nullptr/type* = (void*)0/g; s/static constexpr const char/const char/g' include/*.hpp examples/*.cpp`.  
@@ -32,10 +32,10 @@ The list of available options can be found in this [cheat sheet](https://github.
 Create a `./Makefile.inc` by copying one from the folder `./Make.inc` and adapt it to your platform. Type `make test` to run C++, C, Python, and Fortran examples (just type `make test_language` with `language = [cpp|c|python|fortran]` if you want to try only one set of examples).
 
 #### May HPDDM be embedded inside C, Python, or Fortran codes?
-Yes, as long as you have a modern C++ compiler, cf. the previous paragraph. With Python, [NumPy](http://www.numpy.org/) and [mpi4py](https://bitbucket.org/mpi4py/) must also be available.
+Yes, as long as you have a modern C++ compiler, cf. the previous paragraph. With Python, [NumPy](http://www.numpy.org/) and [mpi4py](https://github.com/mpi4py/mpi4py) must also be available.
 
 #### Who is behind HPDDM?
-This project was initiated by [Pierre Jolivet](https://joliv.et/) and [Frédéric Nataf](https://www.ljll.math.upmc.fr/nataf/). [Stefano Zampini](https://www.researchgate.net/profile/Stefano_Zampini) later played an integral role in the development of the PETSc interface.
+This project was initiated by [Pierre Jolivet](https://joliv.et/) and [Frédéric Nataf](https://www.ljll.fr/nataf/). [Stefano Zampini](https://www.researchgate.net/profile/Stefano_Zampini) later played an integral role in the development of the PETSc interface.
 
 #### How to cite HPDDM?
 If you use this software, please cite the appropriate references from the list below, thank you.
@@ -56,12 +56,12 @@ If you use this software, please cite the appropriate references from the list b
 [Fondation Sciences Mathématiques de Paris](http://www.sciencesmaths-paris.fr/en/), France
 
 ###### Collaborators/contributors (by alphabetical order)
-[Hussam Al Daas](https://www.numerical.rl.ac.uk/people/h_aldaas/)  
+[Hussam Al Daas](https://www.numerical.rl.ac.uk/people/hussam-al-daas/)  
 [Lea Conen](https://de.linkedin.com/in/lea-conen)  
-[Victorita Dolean](http://www.victoritadolean.com/)  
+[Victorita Dolean](https://www.tue.nl/en/research/researchers/victorita-dolean-maini)  
 Ryadh Haferssas  
-[Frédéric Hecht](https://www.ljll.math.upmc.fr/hecht/)  
-[Pierre Marchand](https://pierremarchand.netlify.app)  
+[Frédéric Hecht](https://www.ljll.fr/hecht/)  
+[Pierre Marchand](https://pmarchand.pages.math.cnrs.fr)  
 [Christophe Prud'homme](https://prudhomm.github.io)  
 [Nicole Spillane](http://www.cmap.polytechnique.fr/~spillane/)  
 [Pierre-Henri Tournier](https://www.researchgate.net/profile/Pierre-Henri_Tournier)

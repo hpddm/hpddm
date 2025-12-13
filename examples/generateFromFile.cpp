@@ -1,7 +1,7 @@
 /*
    This file is part of HPDDM.
 
-   Author(s): Frédéric Nataf <nataf@ann.jussieu.fr>
+   Author(s): Frédéric Nataf <frederic.nataf@sorbonne-universite.fr>
               Pierre Jolivet <pierre@joliv.et>
         Date: 2016-05-18
 
