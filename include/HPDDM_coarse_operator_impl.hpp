@@ -1175,15 +1175,18 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
             PetscCall(PCFactorSetUpMatSolverType(pc));
             PetscCall(PCFactorGetMatSolverType(pc, &type));
             PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
-            if (flg && DMatrix::rank_ == 0) {
+            if (flg) {
               Mat       A;
               PetscInt *blkptr;
               PetscCall(PCFactorGetMatrix(pc, &A));
-              PetscCall(PetscMalloc1(sizeWorld_ + 1, &blkptr));
-              blkptr[0] = 1;
-              for (unsigned int i = 0; i < sizeWorld_; ++i) blkptr[i + 1] = blkptr[i] + infoWorld[i];
-              PetscCall(MatMumpsSetBlk(A, sizeWorld_, nullptr, blkptr));
-              PetscCall(PetscFree(blkptr));
+              if (U) PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + v.prefix_ + "mat_mumps_icntl_15").c_str(), std::to_string(-super::bs_).c_str()));
+              else if (DMatrix::rank_ == 0) {
+                PetscCall(PetscMalloc1(sizeWorld_ + 1, &blkptr));
+                blkptr[0] = 1;
+                for (unsigned int i = 0; i < sizeWorld_; ++i) blkptr[i + 1] = blkptr[i] + infoWorld[i];
+                PetscCall(MatMumpsSetBlk(A, sizeWorld_, nullptr, blkptr));
+                PetscCall(PetscFree(blkptr));
+              }
             }
           }
         }
