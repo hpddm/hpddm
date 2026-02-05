@@ -1108,19 +1108,19 @@ public:
             PetscCall(MatDestroy(&A));
             PetscCall(MatCreateVecs(h->A[1], nullptr, &vreduced));
           } else {
-            SVD svd;
-            void (*destroy)(void);
+            SVD               svd;
+            PetscErrorCodeFn *destroy;
             PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
             PetscCall(SVDSetOptionsPrefix(svd, prefix));
             PetscCall(SVDSetType(svd, SVDLANCZOS));
             PetscCall(SVDSetOperators(svd, N, nullptr));
             PetscCall(SVDSetFromOptions(svd));
             PetscCall(SVDGetDimensions(svd, &nev, nullptr, nullptr));
-            PetscCall(MatShellGetOperation(N, MATOP_DESTROY, (PetscErrorCodeFn **)&destroy));
+            PetscCall(MatShellGetOperation(N, MATOP_DESTROY, &destroy));
             PetscCall(MatShellSetOperation(N, MATOP_DESTROY, nullptr));
             PetscCall(SVDSetUp(svd));
             PetscCall(SVDSolve(svd));
-            PetscCall(MatShellSetOperation(N, MATOP_DESTROY, (PetscErrorCodeFn *)destroy));
+            PetscCall(MatShellSetOperation(N, MATOP_DESTROY, destroy));
             PetscCall(SVDGetConverged(svd, &nconv));
             if (levels[0]->threshold >= PetscReal()) {
               PetscReal theta;
