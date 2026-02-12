@@ -212,10 +212,21 @@ public:
         PetscCall(MatDestroy(x + 1));
         if (flg) {
 #if defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
-          PCHPDDMCoarseCorrectionType type;
-          PetscCall(PCHPDDMGetCoarseCorrectionType(pc, &type));
-          PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x + 1));
-          PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, (!std::is_same<PetscScalar, K>::value || type == PC_HPDDM_COARSE_CORRECTION_BALANCED) ? nullptr : reinterpret_cast<PetscScalar *>(out), x));
+  #if PetscDefined(HAVE_CUDA)
+          VecType type;
+          PetscCall(MatGetVecType(A, &type));
+          if (std::find(list.begin(), list.end(), std::string(type)) != list.end()) {
+            PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x + 1));
+            PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x));
+          } else {
+  #endif
+            PCHPDDMCoarseCorrectionType type;
+            PetscCall(PCHPDDMGetCoarseCorrectionType(pc, &type));
+            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x + 1));
+            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, (!std::is_same<PetscScalar, K>::value || type == PC_HPDDM_COARSE_CORRECTION_BALANCED) ? nullptr : reinterpret_cast<PetscScalar *>(out), x));
+  #if PetscDefined(HAVE_CUDA)
+          }
+  #endif
 #endif
         } else {
 #if PetscDefined(HAVE_CUDA)
@@ -280,8 +291,8 @@ public:
 #if PetscDefined(HAVE_CUDA)
         if (it != list.end()) {
           const PetscScalar *work;
-          PetscCall(MatDenseCUDAGetArrayRead(X_[1], &work));
-          PetscCall(MatDenseCUDARestoreArrayRead(X_[1], &work));
+          PetscCall(MatDenseGetArrayReadAndMemType(X_[1], &work, nullptr));
+          PetscCall(MatDenseRestoreArrayReadAndMemType(X_[1], &work));
         }
 #endif
       }
