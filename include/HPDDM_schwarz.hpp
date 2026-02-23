@@ -1051,17 +1051,20 @@ public:
         if (solve == 1) {
           PetscCall(MatShellGetContext(N, &h));
           if (h->A[1]) {
-            Mat  A;
-            char type[256] = {MATAIJ};
-            PetscCall(PetscOptionsGetString(nullptr, prefix, "-eps_mat_type", type, sizeof(type), nullptr));
-            PetscCall(PetscStrcmp(type, MATSHELL, &flg));
+            Mat     A;
+            VecType type;
+            char    buffer[256];
+            PetscCall(PetscStrncpy(buffer, ((PetscObject)h->A[1])->type_name, sizeof(buffer)));
+            PetscCall(PetscOptionsGetString(nullptr, prefix, "-eps_mat_type", buffer, sizeof(buffer), &flg));
+            PetscCall(PetscStrcmp(buffer, MATSHELL, &flg));
+            PetscCall(MatGetVecType(h->A[1], &type));
             if (!flg) {
               Mat                B, C;
               const PetscScalar *vals;
               const PetscInt    *rows;
               PetscInt           m, n;
               PetscCall(MatGetLocalSize(N, nullptr, &n));
-              PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, n, n, nullptr, &A));
+              PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, PETSC_DECIDE, PETSC_DECIDE, n, n, PETSC_DECIDE, nullptr, &A));
               PetscCall(MatShift(A, 1.0));
               PetscCall(MatMatMult(N, A, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &B));
               PetscCall(MatDestroy(&A));
@@ -1071,7 +1074,7 @@ public:
               PetscCall(MatDestroy(&local));
               PetscCall(MatDestroy(&B));
               PetscCall(MatCreate(PETSC_COMM_SELF, &A));
-              PetscCall(MatSetType(A, type));
+              PetscCall(MatSetType(A, buffer));
               PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
               PetscCall(MatSetSizes(A, m, m, m, m));
               PetscCall(ISBlockGetIndices(h->is[4], &rows));
@@ -1102,6 +1105,7 @@ public:
               PetscCall(MatShellSetOperation(A, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Harmonic));
               PetscCall(MatShellSetOperation(A, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_Harmonic));
             }
+            PetscCall(MatSetVecType(A, type));
             PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
             PetscCall(EPSSetOptionsPrefix(eps, prefix));
             PetscCall(EPSSetOperators(eps, h->A[1], A));
