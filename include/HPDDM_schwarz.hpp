@@ -1612,7 +1612,7 @@ public:
       exchange(out, mu);
     }
 #if HPDDM_PETSC
-    PetscCallVoid(PetscLogFlops(mu * (super::getLocal() * (2 * Subdomain<K>::dof_ - 1) + Subdomain<K>::dof_ * (2 * super::getLocal() - 1) + Subdomain<K>::dof_)));
+    PetscCallVoid(PetscLogFlops(static_cast<PetscLogDouble>(mu) * static_cast<PetscLogDouble>(super::getLocal()) * (4.0 * static_cast<PetscLogDouble>(Subdomain<K>::dof_) - 1.0)));
     PetscFunctionReturnVoid();
 #endif
   }
