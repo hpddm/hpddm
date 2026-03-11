@@ -60,16 +60,16 @@ public:
   template <class K>
   PetscErrorCode GMV(const K *const in, K *const out, const int &mu = 1) const
   {
-    Mat       A, *x = const_cast<Mat *>(X_);
-    PetscBool flg;
+    Mat          A, *x = const_cast<Mat *>(X_);
+    PetscBool    flg;
+    PetscMemType mtype = PETSC_MEMTYPE_HOST;
 
     PetscFunctionBeginUser;
     PetscCall(KSPGetOperators(ksp_, &A, nullptr));
     PetscCall(PetscObjectTypeCompareAny((PetscObject)A, &flg, MATSEQKAIJ, MATMPIKAIJ, ""));
     if (flg) {
-      PetscBool id;
-      PetscCall(MatKAIJGetScaledIdentity(A, &id));
-      if (id) {
+      PetscCall(MatKAIJGetScaledIdentity(A, &flg));
+      if (flg) {
         Mat                a;
         const PetscScalar *S, *T;
         PetscInt           bs, n, N;
@@ -120,21 +120,23 @@ public:
         PetscFunctionReturn(PETSC_SUCCESS);
       }
     }
-#if PetscDefined(HAVE_CUDA)
-    VecType vtype;
-    PetscCall(MatGetVecType(A, &vtype));
-    std::initializer_list<std::string>                 list = {VECCUDA, VECSEQCUDA, VECMPICUDA};
-    std::initializer_list<std::string>::const_iterator it   = std::find(list.begin(), list.end(), std::string(vtype));
-#endif
+    if (PetscDefined(HAVE_CUPM)) {
+      VecType type;
+      PetscCall(MatGetVecType(A, &type));
+      PetscCall(PetscStrcmpAny(type, &flg, VECCUDA, VECMPICUDA, VECSEQCUDA, ""));
+      if (flg) mtype = PETSC_MEMTYPE_CUDA;
+      else {
+        PetscCall(PetscStrcmp(type, VECSTANDARD, &flg));
+        PetscCheck(flg, PetscObjectComm((PetscObject)ksp_), PETSC_ERR_SUP, "VecType %s", type);
+      }
+    }
     if (mu == 1) {
       const PetscScalar *read;
       PetscScalar       *write;
       if (!b_) {
         PetscInt N;
         PetscCall(MatGetSize(A, &N, nullptr));
-#if PetscDefined(HAVE_CUDA)
-        if (it == list.end()) {
-#endif
+        if (PetscMemTypeHost(mtype) || !PetscDefined(HAVE_CUDA)) {
           if (std::is_same<PetscScalar, K>::value) {
             PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)ksp_), 1, super::n_, N, nullptr, const_cast<Vec *>(&b_)));
             PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)ksp_), 1, super::n_, N, nullptr, const_cast<Vec *>(&x_)));
@@ -142,41 +144,28 @@ public:
             PetscCall(VecCreateMPI(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&b_)));
             PetscCall(VecCreateMPI(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&x_)));
           }
+        }
 #if PetscDefined(HAVE_CUDA)
-        } else {
+        else {
           PetscCall(VecCreateMPICUDA(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&b_)));
           PetscCall(VecCreateMPICUDA(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&x_)));
         }
 #endif
       }
-      if (std::is_same<PetscScalar, K>::value
-#if PetscDefined(HAVE_CUDA)
-          && it == list.end()
-#endif
-      ) {
+      if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         PetscCall(VecPlaceArray(b_, reinterpret_cast<const PetscScalar *>(in)));
         PetscCall(VecPlaceArray(x_, reinterpret_cast<PetscScalar *>(out)));
       } else {
         PetscCall(VecGetArrayWrite(b_, &write));
         std::copy_n(in, super::n_, write);
         PetscCall(VecRestoreArrayWrite(b_, &write));
-#if PetscDefined(HAVE_CUDA)
-        if (it != list.end()) {
-          PetscCall(VecCUDAGetArrayRead(b_, &read));
-          PetscCall(VecCUDARestoreArrayRead(b_, &read));
-        }
-#endif
       }
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
       PetscCall(KSP_MatMult(ksp_, A, b_, x_));
 #else
       PetscCall(MatMult(A, b_, x_));
 #endif
-      if (std::is_same<PetscScalar, K>::value
-#if PetscDefined(HAVE_CUDA)
-          && it == list.end()
-#endif
-      ) {
+      if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         PetscCall(VecResetArray(x_));
         PetscCall(VecResetArray(b_));
       } else {
@@ -212,34 +201,14 @@ public:
         PetscCall(MatDestroy(x + 1));
         if (flg) {
 #if defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
-  #if PetscDefined(HAVE_CUDA)
-          VecType type;
-          PetscCall(MatGetVecType(A, &type));
-          if (std::find(list.begin(), list.end(), std::string(type)) != list.end()) {
-            PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x + 1));
-            PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x));
-          } else {
-  #endif
-            PCHPDDMCoarseCorrectionType type;
-            PetscCall(PCHPDDMGetCoarseCorrectionType(pc, &type));
-            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x + 1));
-            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, (!std::is_same<PetscScalar, K>::value || type == PC_HPDDM_COARSE_CORRECTION_BALANCED) ? nullptr : reinterpret_cast<PetscScalar *>(out), x));
-  #if PetscDefined(HAVE_CUDA)
-          }
-  #endif
+          PCHPDDMCoarseCorrectionType type;
+          PetscCall(PCHPDDMGetCoarseCorrectionType(pc, &type));
+          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, nullptr, x + 1));
+          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, !std::is_same<PetscScalar, K>::value || PetscMemTypeDevice(mtype) || type == PC_HPDDM_COARSE_CORRECTION_BALANCED ? nullptr : reinterpret_cast<PetscScalar *>(out), x));
 #endif
         } else {
-#if PetscDefined(HAVE_CUDA)
-          if (it == list.end()) {
-#endif
-            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar *>(const_cast<K *>(in)) : nullptr, x + 1));
-            PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar *>(out) : nullptr, x));
-#if PetscDefined(HAVE_CUDA)
-          } else {
-            PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x + 1));
-            PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, x));
-          }
-#endif
+          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype) ? reinterpret_cast<PetscScalar *>(const_cast<K *>(in)) : nullptr, x + 1));
+          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype) ? reinterpret_cast<PetscScalar *>(out) : nullptr, x));
         }
         PetscCall(MatProductCreateWithMat(A, X_[1], nullptr, X_[0]));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -274,11 +243,7 @@ public:
         reset = true;
         if (container) PetscCall(MatProductReplaceMats(nullptr, X_[1], nullptr, X_[0]));
       }
-      if (std::is_same<PetscScalar, K>::value
-#if PetscDefined(HAVE_CUDA)
-          && it == list.end()
-#endif
-      ) {
+      if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         if (reset) {
           PetscCall(MatDensePlaceArray(X_[1], reinterpret_cast<PetscScalar *>(const_cast<K *>(in))));
           PetscCall(MatDensePlaceArray(X_[0], reinterpret_cast<PetscScalar *>(out)));
@@ -288,20 +253,9 @@ public:
         PetscCall(MatDenseGetArrayWrite(X_[1], &work));
         std::copy_n(in, mu * super::n_, work);
         PetscCall(MatDenseRestoreArrayWrite(X_[1], &work));
-#if PetscDefined(HAVE_CUDA)
-        if (it != list.end()) {
-          const PetscScalar *work;
-          PetscCall(MatDenseGetArrayReadAndMemType(X_[1], &work, nullptr));
-          PetscCall(MatDenseRestoreArrayReadAndMemType(X_[1], &work));
-        }
-#endif
       }
       PetscCall(MatProductNumeric(X_[0]));
-      if (std::is_same<PetscScalar, K>::value
-#if PetscDefined(HAVE_CUDA)
-          && it == list.end()
-#endif
-      ) {
+      if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         if (reset) {
           PetscCall(MatDenseResetArray(X_[0]));
           PetscCall(MatDenseResetArray(X_[1]));
@@ -324,21 +278,21 @@ public:
     const PetscScalar *read;
     PetscScalar       *write;
     PetscInt           N;
-    PetscBool          match;
+    PetscBool          flg;
+    PetscMemType       mtype = PETSC_MEMTYPE_HOST;
 
     PetscFunctionBeginUser;
     PetscCall(KSPGetPC(ksp_, &pc));
     PetscCall(KSPGetOperators(ksp_, &A, nullptr));
     PetscCall(MatGetSize(A, &N, nullptr));
-    PetscCall(PetscObjectTypeCompareAny((PetscObject)A, &match, MATSEQKAIJ, MATMPIKAIJ, ""));
-    if (match) {
-      PetscInt  bs, n;
-      PetscBool id;
+    PetscCall(PetscObjectTypeCompareAny((PetscObject)A, &flg, MATSEQKAIJ, MATMPIKAIJ, ""));
+    if (flg) {
+      PetscInt bs, n;
       PetscCall(MatGetLocalSize(A, &n, nullptr));
       PetscCall(MatGetBlockSize(A, &bs));
-      PetscCall(MatKAIJGetScaledIdentity(A, &id));
-      const unsigned short eta = (id == PETSC_TRUE ? mu / bs : mu);
-      PetscCheck(id != PETSC_TRUE || eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu));
+      PetscCall(MatKAIJGetScaledIdentity(A, &flg));
+      const unsigned short eta = (flg == PETSC_TRUE ? mu / bs : mu);
+      PetscCheck(flg != PETSC_TRUE || eta * bs == mu, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Unhandled case %d != %d", static_cast<int>(eta * bs), static_cast<int>(mu));
       if (!b_) {
         if (std::is_same<PetscScalar, K>::value) {
           PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)ksp_), 1, n, N, nullptr, const_cast<Vec *>(&b_)));
@@ -353,7 +307,7 @@ public:
         PetscCall(VecGetArrayRead(x_, &read));
       }
       for (unsigned short nu = 0; nu < eta; ++nu) {
-        if (id) Wrapper<K>::template imatcopy<'T'>(bs, super::n_, const_cast<K *>(in + nu * n), super::n_, bs);
+        if (flg) Wrapper<K>::template imatcopy<'T'>(bs, super::n_, const_cast<K *>(in + nu * n), super::n_, bs);
         if (std::is_same<PetscScalar, K>::value) {
           PetscCall(VecPlaceArray(b_, reinterpret_cast<const PetscScalar *>(in + nu * n)));
           PetscCall(VecPlaceArray(x_, reinterpret_cast<PetscScalar *>(out + nu * n)));
@@ -367,7 +321,7 @@ public:
           PetscCall(VecResetArray(x_));
           PetscCall(VecResetArray(b_));
         } else HPDDM::copy_n(read, n, out + nu * n);
-        if (id) {
+        if (flg) {
           Wrapper<K>::template imatcopy<'T'>(super::n_, bs, const_cast<K *>(in + nu * n), bs, super::n_);
           Wrapper<K>::template imatcopy<'T'>(super::n_, bs, out + nu * n, bs, super::n_);
         }
@@ -378,12 +332,16 @@ public:
       }
       PetscFunctionReturn(PETSC_SUCCESS);
     }
-  #if PetscDefined(HAVE_CUDA)
-    VecType vtype;
-    PetscCall(MatGetVecType(A, &vtype));
-    std::initializer_list<std::string>                 list = {VECCUDA, VECSEQCUDA, VECMPICUDA};
-    std::initializer_list<std::string>::const_iterator it   = std::find(list.begin(), list.end(), std::string(vtype));
-  #endif
+    if (PetscDefined(HAVE_CUPM)) {
+      VecType type;
+      PetscCall(MatGetVecType(A, &type));
+      PetscCall(PetscStrcmpAny(type, &flg, VECCUDA, VECMPICUDA, VECSEQCUDA, ""));
+      if (flg) mtype = PETSC_MEMTYPE_CUDA;
+      else {
+        PetscCall(PetscStrcmp(type, VECSTANDARD, &flg));
+        PetscCheck(flg, PetscObjectComm((PetscObject)ksp_), PETSC_ERR_SUP, "VecType %s", type);
+      }
+    }
     if (mu > 1) {
       PetscInt M     = 0;
       bool     reset = false;
@@ -391,41 +349,18 @@ public:
       if (M != mu) {
         PetscCall(MatDestroy(const_cast<Mat *>(&Y_)));
         PetscCall(MatDestroy(const_cast<Mat *>(&C_)));
-  #if PetscDefined(HAVE_CUDA)
-        if (it == list.end()) {
-  #endif
-          PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar *>(const_cast<K *>(in)) : nullptr, const_cast<Mat *>(&C_)));
-          PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar *>(out) : nullptr, const_cast<Mat *>(&Y_)));
-  #if PetscDefined(HAVE_CUDA)
-        } else {
-          PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, const_cast<Mat *>(&C_)));
-          PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), super::n_, PETSC_DECIDE, N, mu, nullptr, const_cast<Mat *>(&Y_)));
-        }
-  #endif
-      } else if (std::is_same<PetscScalar, K>::value
-  #if PetscDefined(HAVE_CUDA)
-                 && it == list.end()
-  #endif
-      ) {
+        PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype) ? reinterpret_cast<PetscScalar *>(const_cast<K *>(in)) : nullptr, const_cast<Mat *>(&C_)));
+        PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype) ? reinterpret_cast<PetscScalar *>(out) : nullptr, const_cast<Mat *>(&Y_)));
+      } else if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         PetscCall(MatDensePlaceArray(C_, reinterpret_cast<PetscScalar *>(const_cast<K *>(in))));
         PetscCall(MatDensePlaceArray(Y_, reinterpret_cast<PetscScalar *>(out)));
         reset = true;
       }
-      if (!std::is_same<PetscScalar, K>::value
-  #if PetscDefined(HAVE_CUDA)
-          || it != list.end()
-  #endif
-      ) {
+      if (!std::is_same<PetscScalar, K>::value || PetscMemTypeDevice(mtype)) {
         PetscScalar *work;
         PetscCall(MatDenseGetArrayWrite(C_, &work));
         std::copy_n(in, mu * super::n_, work);
         PetscCall(MatDenseRestoreArrayWrite(C_, &work));
-  #if PetscDefined(HAVE_CUDA)
-        if (it != list.end()) {
-          PetscCall(MatDenseCUDAGetArrayRead(C_, &read));
-          PetscCall(MatDenseCUDARestoreArrayRead(C_, &read));
-        }
-  #endif
       }
   #if defined(PETSC_PCHPDDM_MAXLEVELS)
       PetscCall(KSP_PCMatApply(ksp_, C_, Y_));
@@ -435,11 +370,7 @@ public:
       if (reset) {
         PetscCall(MatDenseResetArray(Y_));
         PetscCall(MatDenseResetArray(C_));
-      } else if (!std::is_same<PetscScalar, K>::value
-  #if PetscDefined(HAVE_CUDA)
-                 || it != list.end()
-  #endif
-      ) {
+      } else if (!std::is_same<PetscScalar, K>::value || PetscMemTypeDevice(mtype)) {
         const PetscScalar *work;
         PetscCall(MatDenseGetArrayRead(Y_, &work));
         HPDDM::copy_n(work, mu * super::n_, out);
@@ -447,9 +378,7 @@ public:
       }
     } else {
       if (!b_) {
-  #if PetscDefined(HAVE_CUDA)
-        if (it == list.end()) {
-  #endif
+        if (PetscMemTypeHost(mtype)) {
           if (std::is_same<PetscScalar, K>::value) {
             PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)ksp_), 1, super::n_, N, nullptr, const_cast<Vec *>(&b_)));
             PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)ksp_), 1, super::n_, N, nullptr, const_cast<Vec *>(&x_)));
@@ -457,41 +386,28 @@ public:
             PetscCall(VecCreateMPI(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&b_)));
             PetscCall(VecCreateMPI(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&x_)));
           }
+        }
   #if PetscDefined(HAVE_CUDA)
-        } else {
+        else {
           PetscCall(VecCreateMPICUDA(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&b_)));
           PetscCall(VecCreateMPICUDA(PetscObjectComm((PetscObject)ksp_), super::n_, N, const_cast<Vec *>(&x_)));
         }
   #endif
       }
-      if (std::is_same<PetscScalar, K>::value
-  #if PetscDefined(HAVE_CUDA)
-          && it == list.end()
-  #endif
-      ) {
+      if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         PetscCall(VecPlaceArray(b_, reinterpret_cast<const PetscScalar *>(in)));
         PetscCall(VecPlaceArray(x_, reinterpret_cast<PetscScalar *>(out)));
       } else {
         PetscCall(VecGetArrayWrite(b_, &write));
         std::copy_n(in, super::n_, write);
         PetscCall(VecRestoreArrayWrite(b_, &write));
-  #if PetscDefined(HAVE_CUDA)
-        if (it != list.end()) {
-          PetscCall(VecCUDAGetArrayRead(b_, &read));
-          PetscCall(VecCUDARestoreArrayRead(b_, &read));
-        }
-  #endif
       }
   #if defined(PETSC_PCHPDDM_MAXLEVELS)
       PetscCall(KSP_PCApply(ksp_, b_, x_));
   #else
       PetscCall(PCApply(pc, b_, x_));
   #endif
-      if (std::is_same<PetscScalar, K>::value
-  #if PetscDefined(HAVE_CUDA)
-          && it == list.end()
-  #endif
-      ) {
+      if (std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)) {
         PetscCall(VecResetArray(x_));
         PetscCall(VecResetArray(b_));
       } else {
