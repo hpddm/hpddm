@@ -158,7 +158,7 @@ protected:
       MPI_Op_create(&f<N>, 1, &op);
     #else
       auto f = [](void *in, void *inout, int *len, MPI_Datatype *) -> void{
-                    HPDDM_LAMBDA_F(in, input, inout, output, len, N) };
+                    HPDDM_LAMBDA_F(in, input, inout, output, len, N)};
       MPI_Op_create(f, 1, &op);
     #endif
       MPI_Allreduce(MPI_IN_PLACE, allUniform, N + 1, MPI_UNSIGNED_SHORT, op, comm);

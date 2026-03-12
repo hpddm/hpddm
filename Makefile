@@ -388,7 +388,7 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 		done \
 	fi
 
-CLANGFORMAT_VERSION = 21
+CLANGFORMAT_VERSION = 22
 CLANGFORMAT ?= clang-format
 
 checkclangformatversion:
