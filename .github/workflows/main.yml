@@ -12,12 +12,12 @@ jobs:
       hpddm-branch: ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Get clang-format version
         id: clangformat-version
         run: |
           echo "var=$(sed -n 's/CLANGFORMAT_VERSION = //p' Makefile)" >> $GITHUB_OUTPUT
-      - uses: jidicula/clang-format-action@v4.16.0
+      - uses: jidicula/clang-format-action@v4.17.0
         with:
           clang-format-version: ${{ steps.clangformat-version.outputs.var }}
           check-path: '.'
@@ -54,13 +54,13 @@ jobs:
     needs:
       - variables
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
     - uses: actions/setup-python@v6
       with:
         python-version: '3.14'
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       id: cache-dependencies
       with:
         path: "~/.cache"
@@ -293,7 +293,7 @@ jobs:
             done
           done
         done
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v7
       with:
         name: artifact-${{ matrix.compiler}}
         path: coverage*.info
@@ -349,7 +349,7 @@ jobs:
         PERL5LIB="${HOME}/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
         ~/lcov-2.1/bin/lcov --ignore-errors inconsistent,usage --directory . --directory ../petsc/arch-ci/lib --exclude '/software/*' --exclude '*/petsc/include/*' --exclude '/tmp/*' --capture --output-file ../coverage_nvcc.info
       if: matrix.runs_on != 'ubuntu-24.04'
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v7
       with:
         name: artifact-self-hosted
         path: coverage_nvcc.info
@@ -387,10 +387,10 @@ jobs:
     if: ${{ success() }}
     needs: [ main, nvcc ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
       - name: Merge coverage reports
         run: |
           if [ -d $PWD/artifact-gcc ]; then

@@ -760,7 +760,7 @@ public:
     }
     K **tmp = new K *[2 * super::map_.size()];
     *tmp    = new K[omap.size() * (U == 1 ? super::map_.size() * super::local_ : std::max(super::local_, std::accumulate(info, info + super::map_.size(), 0))) +
-                 std::max(static_cast<int>(omap.size() * (U == 1 ? super::map_.size() * super::local_ : std::max(super::local_, std::accumulate(info, info + super::map_.size(), 0)))), super::n_ * super::local_)]();
+                    std::max(static_cast<int>(omap.size() * (U == 1 ? super::map_.size() * super::local_ : std::max(super::local_, std::accumulate(info, info + super::map_.size(), 0)))), super::n_ * super::local_)]();
     for (unsigned short i = 1; i < super::map_.size(); ++i) tmp[i] = tmp[i - 1] + omap.size() * (U == 1 ? super::local_ : info[i - 1]);
     if (super::map_.size()) {
       tmp[super::map_.size()] = tmp[super::map_.size() - 1] + omap.size() * (U == 1 ? super::local_ : info[super::map_.size() - 1]);
