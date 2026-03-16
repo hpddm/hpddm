@@ -66,14 +66,15 @@ protected:
   unsigned short              signed_;
   unsigned short              connectivity_;
   template <char Q = P, typename std::enable_if<Q == 's' || Q == 'u'>::type * = nullptr>
-  OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) : p_(p), deflation_(p.getVectors()), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
+  OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) : p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
   {
     static_assert(Q == P, "Wrong sparsity pattern");
     sparsity_.reserve(map_.size());
     std::transform(map_.cbegin(), map_.cend(), std::back_inserter(sparsity_), [](const pairNeighbor &n) { return n.first; });
   }
   template <char Q = P, typename std::enable_if<Q != 's' && Q != 'u'>::type * = nullptr>
-  OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) : p_(p), deflation_(p.getVectors()), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max + std::max(1, (c - 1)) * (max & 4095)), connectivity_(c)
+  OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
+    p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max + std::max(1, (c - 1)) * (max & 4095)), connectivity_(c)
   {
 #if HPDDM_BDD
     Members<true>::rank_      = p_.getRank();
@@ -152,7 +153,37 @@ protected:
       }
     }
   }
-  ~OperatorBase() { offsetDeflation(); }
+  ~OperatorBase()
+  {
+    offsetDeflation();
+    if (!has_getVectors<typename std::remove_reference<Preconditioner>::type>::value) delete[] deflation_;
+  }
+  HPDDM_HAS_MEMBER(getVectors)
+  template <class Q = Preconditioner, typename std::enable_if<has_getVectors<typename std::remove_reference<Q>::type>::value>::type * = nullptr>
+  static const K *const *buildDeflation(const Preconditioner &p)
+  {
+    return p.getVectors();
+  }
+#if HPDDM_PETSC
+  template <class Q = Preconditioner, typename std::enable_if<!has_getVectors<typename std::remove_reference<Q>::type>::value>::type * = nullptr>
+  static const K *const *buildDeflation(const Preconditioner &p)
+  {
+    const Mat           Z         = p.getMat();
+    const PetscScalar **deflation = nullptr;
+
+    PetscFunctionBeginUser;
+    if (Z) {
+      PetscInt n, lda;
+      PetscCallAbort(PETSC_COMM_WORLD, MatGetSize(Z, nullptr, &n));
+      deflation = new const K *[n];
+      PetscCallAbort(PETSC_COMM_WORLD, MatDenseGetArrayRead(Z, deflation));
+      PetscCallAbort(PETSC_COMM_WORLD, MatDenseGetLDA(Z, &lda));
+      for (PetscInt i = 1; i < n; ++i) deflation[i] = deflation[i - 1] + lda;
+      PetscCallAbort(PETSC_COMM_WORLD, MatDenseRestoreArrayRead(Z, nullptr));
+    }
+    PetscFunctionReturn(deflation);
+  }
+#endif
   template <char S, bool U, class T>
   void initialize(T &in, const unsigned short *info, T const &out, MPI_Request *const &rqRecv, unsigned short *&infoNeighbor)
   {
@@ -331,6 +362,8 @@ protected:
 public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
 #if HPDDM_PETSC
+  template <class T>
+  friend class Schwarz;
   template <typename... Types>
   UserCoarseOperator(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) : super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix)
   {
@@ -478,12 +511,10 @@ public:
     delete C_;
   #else
     {
-      Mat Z, P;
-      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, const_cast<PetscScalar *>(*super::deflation_), &Z));
+      Mat P;
       PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, work_, &P));
-      PetscCallVoid(MatMatMult(C_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
+      PetscCallVoid(MatMatMult(C_, super::p_.getMat(), MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
       PetscCallVoid(MatDestroy(&P));
-      PetscCallVoid(MatDestroy(&Z));
     }
     PetscCallVoid(MatDestroy(&C_));
   #endif

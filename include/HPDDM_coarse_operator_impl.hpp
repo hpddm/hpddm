@@ -585,7 +585,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       }
     } else std::fill_n(rqRecv, info[0], MPI_REQUEST_NULL);
     if (excluded < 2) {
-      const K *const *const &EV = v.p_.getVectors();
+      const K *const *const &EV = v.deflation_;
       const int              n  = v.p_.getDof();
       v.initialize(n * (U == 1 || info[0] == 0 ? local_ : std::max(static_cast<unsigned short>(local_), *std::max_element(infoNeighbor + first, infoNeighbor + sparsity.size()))), work, S != 'S' ? info[0] : first);
       v.template applyToNeighbor<S, U == 1>(sendNeighbor, work, rqSend, infoNeighbor);
