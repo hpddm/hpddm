@@ -1599,17 +1599,16 @@ public:
             level->nu = i;
           }
           if (level->nu) {
-            K **ev = new K *[level->nu];
-            *ev    = new K[m * level->nu];
-            for (unsigned short i = 1; i < level->nu; ++i) ev[i] = *ev + i * m;
-            Vec vr;
-            PetscCall(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, m, ev[0], &vr));
+            Mat     ev;
+            Vec     col;
+            VecType type;
+            PetscCall(MatGetVecType(weighted, &type));
+            PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, m, level->nu, m, level->nu, PETSC_DECIDE, nullptr, &ev));
             for (int i = 0; i < level->nu; ++i) {
-              PetscCall(VecPlaceArray(vr, ev[i]));
-              PetscCall(EPSGetEigenvector(eps, i, vr, nullptr));
-              PetscCall(VecResetArray(vr));
+              PetscCall(MatDenseGetColumnVecWrite(ev, i, &col));
+              PetscCall(EPSGetEigenvector(eps, i, col, nullptr));
+              PetscCall(MatDenseRestoreColumnVecWrite(ev, i, &col));
             }
-            PetscCall(VecDestroy(&vr));
             s->setVectors(ev);
           }
           PetscCall(EPSDestroy(&eps));

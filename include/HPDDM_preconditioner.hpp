@@ -100,12 +100,16 @@ protected:
   /* Variable: co
          *  Pointer to a <Coarse operator>. */
   CoarseOperator *co_;
+  #if !HPDDM_PETSC
   /* Variable: ev
          *  Array of deflation vectors as needed by <Preconditioner::co>. */
   K **ev_;
   /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
   K *uc_;
+  #else
+  Mat ev_, uc_;
+  #endif
   /* Function: buildTwo
          *
          *  Assembles and factorizes the coarse operator.
@@ -269,9 +273,23 @@ public:
          *    mu             - Number of right-hand sides. */
   void start(const unsigned short &mu = 1) const
   {
+  #if !HPDDM_PETSC
     delete[] uc_;
     K **ptr = const_cast<K **>(&uc_);
     *ptr    = new K[mu * co_->getSizeRHS()];
+  #else
+    const PetscInt n = getLocal(), p = co_->getSizeRHS();
+
+    PetscFunctionBeginUser;
+    PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(const_cast<Mat *>(&uc_)));
+    if (n) {
+      const PetscInt m = (mu * p + n - 1) / n;
+      VecType        type;
+      PetscCallAbort(PETSC_COMM_WORLD, MatGetVecType(ev_, &type));
+      PetscCallAbort(PETSC_COMM_WORLD, MatCreateDenseFromVecType(PETSC_COMM_SELF, type, n, m, n, m, PETSC_DECIDE, nullptr, const_cast<Mat *>(&uc_)));
+    } else PetscCallAbort(PETSC_COMM_WORLD, MatCreateSeqDense(PETSC_COMM_SELF, p, mu, nullptr, const_cast<Mat *>(&uc_)));
+    PetscFunctionReturnVoid();
+  #endif
   }
   #if HPDDM_SCHWARZ
   struct CoarseCorrection {
@@ -323,13 +341,9 @@ public:
          *    x              - Input right-hand sides, solution vectors are stored in-place.
          *    n              - Number of input right-hand sides. */
   void callSolve(K *const x, const unsigned short &n = 1) const { s_.solve(x, n); }
-  #endif
   /* Function: getVectors
          *  Returns a constant pointer to <Preconditioner::ev>. */
   const K *const *getVectors() const { return ev_; }
-  /* Function: setVectors
-         *  Sets the pointer <Preconditioner::ev>. */
-  void setVectors(K **const &ev) { ev_ = ev; }
   /* Function: destroyVectors
          *  Destroys the pointer <Preconditioner::ev> using a custom deallocator. */
   void destroyVectors(void (*dtor)(void *))
@@ -337,6 +351,14 @@ public:
     if (ev_) dtor(*ev_);
     dtor(ev_);
     ev_ = nullptr;
+  }
+  #else
+  Mat getMat() const { return ev_; }
+  #endif
+  template <class T>
+  void setVectors(T const &ev)
+  {
+    ev_ = ev;
   }
   /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
@@ -368,17 +390,24 @@ protected:
   {
   #if !HPDDM_PETSC
     s_.dtor();
-  #endif
-    delete co_;
-    co_ = nullptr;
     if (ev_) delete[] *ev_;
     delete[] ev_;
     ev_ = nullptr;
     delete[] uc_;
     uc_ = nullptr;
+  #else
+    PetscFunctionBeginUser;
+    PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(&ev_));
+    PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(&uc_));
+  #endif
+    delete co_;
+    co_ = nullptr;
   #if HPDDM_SCHWARZ
     delete cc_;
     cc_ = nullptr;
+  #endif
+  #if HPDDM_PETSC
+    PetscFunctionReturnVoid();
   #endif
   }
 #endif
