@@ -240,6 +240,12 @@ template <class T>
 struct underlying_type_spec<std::complex<T>> {
   typedef T type;
 };
+  #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
+template <class T>
+struct underlying_type_spec<thrust::complex<T>> {
+  typedef T type;
+};
+  #endif
 template <class T>
 using underlying_type = typename underlying_type_spec<T>::type;
 template <class T>
@@ -281,7 +287,15 @@ inline underlying_type<T> imag(const T &v)
 namespace HPDDM
 {
 template <class T>
-using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, float>::value, __fp16, T>::type>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<float>>::value, std::complex<__fp16>, T>::type>::type>::type;
+using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, float>::value, __fp16, T>::type>::type,
+                                                  typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>,
+                                                                            typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<float>>::value, std::complex<__fp16>,
+    #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
+                                                                                                      typename std::conditional<std::is_same<T, thrust::complex<double>>::value, thrust::complex<float>, T>::type
+    #else
+                                                                                                      T
+    #endif
+                                                                                                      >::type>::type>::type;
 } // namespace HPDDM
     #if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128)
       #include "HPDDM_specifications.hpp"
@@ -290,14 +304,27 @@ using downscaled_type = typename std::conditional<std::is_same<underlying_type<T
 namespace HPDDM
 {
 template <class T>
-using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>, T>::type>::type;
+using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type,
+                                                  typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>,
+    #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
+                                                                            typename std::conditional<std::is_same<T, thrust::complex<double>>::value, thrust::complex<float>, T>::type
+    #else
+                                                                            T
+    #endif
+                                                                            >::type>::type;
 } // namespace HPDDM
   #endif
   #if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
 namespace HPDDM
 {
 template <class T>
-using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double, std::complex<double>>::type;
+using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double,
+    #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
+                                                typename std::conditional<std::is_same<T, std::complex<underlying_type<T>>>::value, std::complex<double>, thrust::complex<double>>::type
+    #else
+                                                std::complex<double>
+    #endif
+                                                >::type;
 template <class T>
 inline T sqrt(const T &v)
 {
@@ -323,6 +350,14 @@ inline OutputIt copy_n(InputIt in, Size n, OutputIt out)
 {
   return std::copy_n(in, n, out);
 }
+    #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
+template <template <class> class InputType, class T, template <class> class OutputType, class U, class Size>
+inline OutputType<U> *copy_n(const InputType<T> *in, Size n, OutputType<U> *out)
+{
+  for (Size i = 0; i < n; ++i) out[i] = OutputType<U>(in[i].real(), in[i].imag());
+  return out + n;
+}
+    #endif
 } // namespace HPDDM
   #else
     #include <quadmath.h>
