@@ -39,8 +39,14 @@ jobs:
       - name: Set matrix
         id: set-matrix
         run: |
-          git fetch origin ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
-          worker=`git show -s -b origin/${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }} --format=%B | grep '\[runs-on: ' | sed 's/\[runs-on: \(.*\)\]/\1/g'`
+          owner=${{ github.event.pull_request.head.repo.owner.login }}
+          if [ "$owner" = "${{ github.event.pull_request.base.repo.owner.login }}" ]; then
+            owner=origin
+          else
+            git remote add $owner https://github.com/${{ github.event.pull_request.head.repo.full_name }}
+          fi
+          git fetch $owner ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
+          worker=`git show -s -b $owner/${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }} --format=%B | grep '\[runs-on: ' | sed 's/\[runs-on: \(.*\)\]/\1/g'`
           if [ "$worker" = "" ]; then
             worker=ubuntu-24.04
           fi
@@ -141,7 +147,7 @@ jobs:
         fi
     - name: Fetch PETSc and data files
       run: |
-        cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc
+        cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc || exit 1
         OUTPUT=$(for SRC in ksp/impls/hpddm/hpddm.cxx ksp/impls/hpddm/cuda/hpddm.cu pc/impls/hpddm/pchpddm.cxx;
         do
           diff --suppress-common-lines -y -W 900 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
@@ -247,6 +253,8 @@ jobs:
                   if [ "$TYPE" = "real" ]; then
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse --download-suitesparse-cmake-arguments=-DCMAKE_CXX_FLAGS_DEBUG:STRING=\"-Wno-error\""
                   fi
+                else
+                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-cxx-dialect=11"
                 fi
                 if [ "${{ matrix.compiler }}" = "gcc" ] && [ "$TYPE" = "real" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"

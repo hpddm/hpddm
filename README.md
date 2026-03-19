@@ -55,7 +55,7 @@ If you use this software, please cite the appropriate references from the list b
 [Grand Equipement National de Calcul Intensif](http://www.genci.fr/en), France  
 [Fondation Sciences Mathématiques de Paris](http://www.sciencesmaths-paris.fr/en/), France
 
-###### Collaborators/contributors (by alphabetical order)
+###### Collaborators/contributors (by alphabetical order, excluding individuals already listed by [GitHub](https://github.com/hpddm/hpddm/graphs/contributors))
 [Hussam Al Daas](https://www.numerical.rl.ac.uk/people/hussam-al-daas/)  
 [Lea Conen](https://de.linkedin.com/in/lea-conen)  
 [Victorita Dolean](https://www.tue.nl/en/research/researchers/victorita-dolean-maini)  
