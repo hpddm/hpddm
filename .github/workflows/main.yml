@@ -119,9 +119,9 @@ jobs:
           sudo apt-get update && sudo apt-get install -yq `echo $PKGS`
           mkdir -p ~/.cache
           for pkg in `echo $PKGS`; do
-              for dep in $pkg; do
-                  dpkg -L $dep | while IFS= read -r f; do if test -f $f; then echo $f; fi; done | xargs cp --parents --target-directory ~/.cache/
-              done
+            for dep in $pkg; do
+              dpkg -L $dep | while IFS= read -r f; do if test -f $f; then echo $f; fi; done | xargs cp --parents --target-directory ~/.cache/
+            done
           done
           pip install --user mpi4py numpy==2.1.3 scipy
           rm -rf ~/.cache/pip
@@ -315,12 +315,14 @@ jobs:
     steps:
     - name: Fetch PETSc and data files
       run: |
-        rm -rf petsc ${{ github.event.repository.name }} petsc_datafiles.tar.xz coverage_nvcc.info
+        rm -rf petsc ${{ github.event.repository.name }} petsc_datafiles.tar.xz coverage_nvcc.info coverage_nvcc_complex.info
         git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} https://gitlab.com/petsc/petsc.git
-        git clone --depth=1 -b ${{ needs.variables.outputs.hpddm-branch }} git@github.com:${{ github.repository }}
+        git clone --depth=1 -b ${{ needs.variables.outputs.hpddm-branch }} git@github.com:${{ github.event.pull_request.head.repo.full_name || github.repository }}
         wget -nv https://joliv.et/petsc_datafiles.tar.xz && tar xJf petsc_datafiles.tar.xz || exit 1
       if: matrix.runs_on != 'ubuntu-24.04'
     - name: Build and test with PETSc and SLEPc
+      env:
+        HOSTNAME: ${{ secrets.HOSTNAME }}
       run: |
         cd petsc
         export COVERAGE_FLAGS="-fprofile-arcs -ftest-coverage"
@@ -334,34 +336,50 @@ jobs:
         sed -i -e 's=starttime: pre-clean $(libpetscall)=starttime: pre-clean=;s=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^ $(libpetscall)=$(testexe.c) $(testexe.cu) : $(TESTDIR)/% : $(TESTDIR)/%.o $$^=;s=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(PETSC_TEST_LIB=$(call quiet,CLINKER) $(EXEFLAGS) -o $@ $^ $(libpetscall) $(PETSC_TEST_LIB=g' gmakefile.test
         echo ::add-mask::${{ secrets.HOSTNAME }}
         echo ::add-mask::${{ secrets.LOGIN }}
-        echo ::add-mask::${{ secrets.GROUP }}
         export INCS="-I`pwd`/../${REPOSITORY_NAME}/include"
-        ./configure --with-strict-petscerrorcode --with-mpi-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
-                    --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
-                    --with-blaslapack-lib=[/local/${{ secrets.LOGIN }}/lib/libmkl_core.so,/local/${{ secrets.LOGIN }}/lib/libmkl_intel_lp64.so,/local/${{ secrets.LOGIN }}/lib/libmkl_sequential.so] \
-                    --with-blaslapack-include=/local/${{ secrets.LOGIN }}/include --with-mkl_pardiso \
-                    --with-c2html=0 --with-hipc=0 --with-x=0 --with-fc=0 --download-slepc \
-                    --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                    --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS+=--compiler-options -Wall,-Wextra,-Werror,-Wno-psabi,-Wno-deprecated-declarations ${INCS}'
-        [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
-        rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
-        rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
-        make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
-        cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log
-        export LD_PRELOAD="/software/gcc/14/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
-        export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/13.1/lib64
-        make check
-        make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
-        config/report_tests.py -t 5 -s
-        cd ../${REPOSITORY_NAME}
         PERL5LIB="${HOME}/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
-        ~/lcov-2.1/bin/lcov --ignore-errors inconsistent,usage --directory . --directory ../petsc/arch-ci/lib --exclude '/software/*' --exclude '*/petsc/include/*' --exclude '/tmp/*' --capture --output-file ../coverage_nvcc.info
-      if: matrix.runs_on != 'ubuntu-24.04'
+        for TYPE in complex real
+        do
+          unset EXTERNALPACKAGES
+          unset COVERAGE_EXTENSION
+          if [ "$TYPE" = "complex" ]; then
+            export EXTERNALPACKAGES="--with-scalar-type=complex --with-precision=single" COVERAGE_EXTENSION="_complex"
+          fi
+          ./configure --with-strict-petscerrorcode --with-mpi-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
+                      --with-hwloc-dir=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt \
+                      --with-blaslapack-lib=[/local/${{ secrets.LOGIN }}/lib/libmkl_core.so,/local/${{ secrets.LOGIN }}/lib/libmkl_intel_lp64.so,/local/${{ secrets.LOGIN }}/lib/libmkl_sequential.so] \
+                      --with-blaslapack-include=/local/${{ secrets.LOGIN }}/include --with-mkl_pardiso \
+                      --with-c2html=0 --with-hipc=0 --with-x=0 --with-fc=0 --download-slepc \
+                      --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
+                      --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS+=--compiler-options -Wall,-Wextra,-Werror,-Wno-psabi,-Wno-deprecated-declarations ${INCS}' \
+                      ${EXTERNALPACKAGES}
+          [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
+          rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
+          rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
+          make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
+          cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log
+          export LD_PRELOAD="/software/gcc/14/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
+          export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/13.1/lib64
+          make check
+          make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
+          config/report_tests.py -t 5 -s
+          unset LD_PRELOAD
+          unset LD_LIBRARY_PATH
+          cd ../${REPOSITORY_NAME}
+          ~/lcov-2.1/bin/lcov --ignore-errors inconsistent,usage --directory . --directory ../petsc/arch-ci/lib --exclude '/software/*' --exclude '*/petsc/include/*' --exclude '/tmp/*' --capture --output-file ../coverage_nvcc${COVERAGE_EXTENSION}.info
+          find .. -name '*.gcda' -delete
+          cd -
+        done
+      if: matrix.runs_on != 'ubuntu-24.04' && env.HOSTNAME != ''
     - uses: actions/upload-artifact@v7
+      env:
+        HOSTNAME: ${{ secrets.HOSTNAME }}
       with:
         name: artifact-self-hosted
-        path: coverage_nvcc.info
-      if: matrix.runs_on != 'ubuntu-24.04'
+        path: |
+          coverage_nvcc.info
+          coverage_nvcc_complex.info
+      if: matrix.runs_on != 'ubuntu-24.04' && env.HOSTNAME != ''
   post-main:
     runs-on: ubuntu-24.04
     if: ${{ failure() }}
