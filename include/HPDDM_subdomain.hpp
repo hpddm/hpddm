@@ -217,7 +217,7 @@ public:
       send -= space;
       recv -= space;
       for (unsigned short i = 0; i < size; ++i) {
-        std::pair<unsigned short, typename decltype(map_)::value_type::second_type> c(map_[i].first, typename decltype(map_)::value_type::second_type());
+        vectorNeighbor::value_type c(map_[i].first, vectorNeighbor::value_type::second_type());
         for (unsigned int j = 0; j < map_[i].second.size(); ++j) {
           if (recv[j] == 'a' && send[j] == 'a') c.second.emplace_back(perm[map_[i].second[j]] - 1);
         }
