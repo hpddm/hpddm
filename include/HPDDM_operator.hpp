@@ -412,18 +412,23 @@ public:
   }
   void initialize(unsigned int k, K *&work, unsigned short s)
   {
-    PetscBool sym;
-    PetscCallVoid(PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &sym));
-    PetscCallVoid(MatConvert(A_, sym ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
+    PetscBool flg;
+    PetscCallVoid(PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &flg));
+    PetscCallVoid(MatConvert(A_, flg ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
     Vec          D;
+    VecType      type;
     PetscScalar *d;
+    PetscCallVoid(MatGetVecType(A_, &type));
+    PetscCallVoid(PetscStrcmp(type, VECSTANDARD, &flg));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
       d = new PetscScalar[super::p_.getDof()];
       std::copy_n(D_, super::p_.getDof(), d);
-      PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), d, &D));
+      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), d, &D));
+      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::p_.getDof(), d, nullptr, &D));
     } else {
       d = nullptr;
-      PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar *>(D_), &D));
+      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar *>(D_), &D));
+      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar *>(D_), nullptr, &D));
     }
     PetscCallVoid(MatDiagonalScale(C_, nullptr, D));
     delete[] d;
