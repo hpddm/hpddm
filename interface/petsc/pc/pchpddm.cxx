@@ -1169,9 +1169,8 @@ static PetscErrorCode PCApply_Schur(PC pc, Type x, Type y)
 #endif
   }
   PetscCall(PCApply_Schur_Private<Type, T>(p, factor, x, y));
-  if (flg) {
-    PetscCall(MatMumpsSetIcntl(A, 26, -1));
-  } else {
+  if (flg) PetscCall(MatMumpsSetIcntl(A, 26, -1));
+  else {
 #if PetscDefined(HAVE_MKL_PARDISO)
     PetscCall(MatMkl_PardisoSetCntl(A, 70, 0));
 #endif
@@ -1300,27 +1299,27 @@ static PetscErrorCode PCHPDDMPermute_Private(IS is, IS in_is, IS *out_is, Mat in
 {
   IS                           perm;
   const PetscInt              *ptr;
-  PetscInt                    *concatenate, size, bs;
+  PetscInt                    *compressed, size, bs;
   std::map<PetscInt, PetscInt> order;
-  PetscBool                    sorted;
+  PetscBool                    flg;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(is, IS_CLASSID, 1);
   PetscValidHeaderSpecific(in_C, MAT_CLASSID, 4);
-  PetscCall(ISSorted(is, &sorted));
-  if (!sorted) {
-    PetscCall(ISGetLocalSize(is, &size));
+  PetscCall(ISGetLocalSize(is, &size));
+  PetscCall(ISGetBlockSize(is, &bs));
+  PetscCall(ISSorted(is, &flg));
+  if (!flg) {
     PetscCall(ISGetIndices(is, &ptr));
-    PetscCall(ISGetBlockSize(is, &bs));
     /* MatCreateSubMatrices(), called by PCASM, follows the global numbering of Pmat */
     for (PetscInt n = 0; n < size; n += bs) order.insert(std::make_pair(ptr[n] / bs, n / bs));
     PetscCall(ISRestoreIndices(is, &ptr));
     size /= bs;
     if (out_C) {
-      PetscCall(PetscMalloc1(size, &concatenate));
-      for (const std::pair<const PetscInt, PetscInt> &i : order) *concatenate++ = i.second;
-      concatenate -= size;
-      PetscCall(ISCreateBlock(PetscObjectComm((PetscObject)in_C), bs, size, concatenate, PETSC_OWN_POINTER, &perm));
+      PetscCall(PetscMalloc1(size, &compressed));
+      for (const std::pair<const PetscInt, PetscInt> &i : order) *compressed++ = i.second;
+      compressed -= size;
+      PetscCall(ISCreateBlock(PetscObjectComm((PetscObject)in_C), bs, size, compressed, PETSC_OWN_POINTER, &perm));
       PetscCall(ISSetPermutation(perm));
       /* permute user-provided Mat so that it matches with MatCreateSubMatrices() numbering */
       PetscCall(MatPermute(in_C, perm, perm, out_C));
@@ -1328,15 +1327,29 @@ static PetscErrorCode PCHPDDMPermute_Private(IS is, IS in_is, IS *out_is, Mat in
       else PetscCall(ISDestroy(&perm)); /* no need to save the permutation */
     }
     if (out_is) {
-      PetscCall(PetscMalloc1(size, &concatenate));
-      for (const std::pair<const PetscInt, PetscInt> &i : order) *concatenate++ = i.first;
-      concatenate -= size;
+      PetscCall(PetscMalloc1(size, &compressed));
+      for (const std::pair<const PetscInt, PetscInt> &i : order) *compressed++ = i.first;
+      compressed -= size;
       /* permute user-provided IS so that it matches with MatCreateSubMatrices() numbering */
-      PetscCall(ISCreateBlock(PetscObjectComm((PetscObject)in_is), bs, size, concatenate, PETSC_OWN_POINTER, out_is));
+      PetscCall(ISCreateBlock(PetscObjectComm((PetscObject)in_is), bs, size, compressed, PETSC_OWN_POINTER, out_is));
     }
   } else { /* input IS is sorted, nothing to permute, simply duplicate inputs when needed */
     if (out_C) PetscCall(MatDuplicate(in_C, MAT_COPY_VALUES, out_C));
-    if (out_is) PetscCall(ISDuplicate(in_is, out_is));
+    if (out_is) {
+      PetscCall(PetscObjectTypeCompare((PetscObject)in_is, ISBLOCK, &flg));
+      if (flg) PetscCall(ISDuplicate(in_is, out_is));
+      else {
+        PetscCall(ISGetIndices(is, &ptr));
+        if (bs > 1) {
+          size /= bs;
+          PetscCall(PetscMalloc1(size, &compressed));
+          for (PetscInt n = 0; n < size; ++n) compressed[n] = ptr[n * bs] / bs;
+          PetscCall(ISCreateBlock(PetscObjectComm((PetscObject)in_is), bs, size, compressed, PETSC_OWN_POINTER, out_is));
+        } else PetscCall(ISCreateBlock(PetscObjectComm((PetscObject)in_is), 1, size, ptr, PETSC_COPY_VALUES, out_is));
+        PetscCall(ISRestoreIndices(is, &ptr));
+        PetscCall(ISSetInfo(*out_is, IS_SORTED, IS_GLOBAL, PETSC_TRUE, PETSC_TRUE));
+      }
+    }
   }
   PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -1945,8 +1958,8 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
                 PetscCall(ISCreateStride(PETSC_COMM_SELF, B->rmap->N, 0, 1, &uis));
                 PetscCall(ISSetIdentity(uis));
                 if (!data->is) {
-                  if (C) PetscCall(PetscObjectReference((PetscObject)C));
-                  else PetscCall(MatTranspose(B, MAT_INITIAL_MATRIX, &C));
+                  if (!C) PetscCall(MatTranspose(B, MAT_INITIAL_MATRIX, &C));
+                  else PetscCall(PetscObjectReference((PetscObject)C));
                   PetscCall(ISDuplicate(data_00->is, is));
                   PetscCall(MatIncreaseOverlap(A, 1, is, 1));
                   PetscCall(MatSetOption(C, MAT_SUBMAT_SINGLEIS, PETSC_TRUE));
@@ -2508,7 +2521,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
               if (overlap == 1 && subdomains && flg) {
                 *subA = A0;
                 sub   = subA;
-                if (uaux) PetscCall(MatDestroy(&uaux));
+                PetscCall(MatDestroy(&uaux));
               } else PetscCall(MatDestroy(&A0));
               PetscCall(MatCreateShell(PETSC_COMM_SELF, P->rmap->n, n[1] - n[0], P->rmap->n, n[1] - n[0], h, &data->aux));
               PetscCall(MatSetVecType(data->aux, h->A[0]->defaultvectype));
@@ -3247,23 +3260,23 @@ PetscErrorCode HPDDMLoadDL_Private(PetscBool *found)
       -pc_hpddm_coarse_mat_filter
 .ve
 
-   E.g., -pc_hpddm_levels_1_sub_pc_type lu -pc_hpddm_levels_1_eps_nev 10 -pc_hpddm_levels_2_p 4 -pc_hpddm_levels_2_sub_pc_type lu -pc_hpddm_levels_2_eps_nev 10
-    -pc_hpddm_coarse_p 2 -pc_hpddm_coarse_mat_type baij will use 10 deflation vectors per subdomain on the fine "level 1",
+   E.g., `-pc_hpddm_levels_1_sub_pc_type lu -pc_hpddm_levels_1_eps_nev 10 -pc_hpddm_levels_2_p 4 -pc_hpddm_levels_2_sub_pc_type lu -pc_hpddm_levels_2_eps_nev 10
+    -pc_hpddm_coarse_p 2 -pc_hpddm_coarse_mat_type baij` will use 10 deflation vectors per subdomain on the fine "level 1",
     aggregate the fine subdomains into 4 "level 2" subdomains, then use 10 deflation vectors per subdomain on "level 2",
     and assemble the coarse matrix (of dimension 4 x 10 = 40) on two processes as a `MATBAIJ` (default is `MATSBAIJ`).
 
-   In order to activate a "level N+1" coarse correction, it is mandatory to call -pc_hpddm_levels_N_eps_nev <nu> or -pc_hpddm_levels_N_eps_threshold_absolute <val>. The default -pc_hpddm_coarse_p value is 1, meaning that the coarse operator is aggregated on a single process.
+   In order to activate a "level N+1" coarse correction, it is mandatory to call `-pc_hpddm_levels_N_eps_nev nu` or `-pc_hpddm_levels_N_eps_threshold_absolute val`. The default `-pc_hpddm_coarse_p value` is 1, meaning that the coarse operator is aggregated on a single process.
 
    Level: intermediate
 
    Notes:
-   This preconditioner requires that PETSc is built with SLEPc (``--download-slepc``).
+   This preconditioner requires that PETSc is built with SLEPc (`--download-slepc`).
 
    By default, the underlying concurrent eigenproblems
    are solved using SLEPc shift-and-invert spectral transformation. This is usually what gives the best performance for GenEO, cf.
    {cite}`spillane2011robust` {cite}`jolivet2013scalabledd`. As
-   stated above, SLEPc options are available through -pc_hpddm_levels_%d_, e.g., -pc_hpddm_levels_1_eps_type arpack -pc_hpddm_levels_1_eps_nev 10
-   -pc_hpddm_levels_1_st_type sinvert. There are furthermore three options related to the (subdomain-wise local) eigensolver that are not described in
+   stated above, SLEPc options are available through `-pc_hpddm_levels_%d_`, e.g., `-pc_hpddm_levels_1_eps_type arpack -pc_hpddm_levels_1_eps_nev 10
+   -pc_hpddm_levels_1_st_type sinvert`. There are furthermore three options related to the (subdomain-wise local) eigensolver that are not described in
    SLEPc documentation since they are specific to `PCHPDDM`.
 .vb
       -pc_hpddm_levels_1_st_share_sub_ksp
@@ -3273,10 +3286,10 @@ PetscErrorCode HPDDMLoadDL_Private(PetscBool *found)
 
    The first option from the list only applies to the fine-level eigensolver, see `PCHPDDMSetSTShareSubKSP()`. The second option from the list is
    used to filter eigenmodes retrieved after convergence of `EPSSolve()` at "level N" such that eigenvectors used to define a "level N+1" coarse
-   correction are associated to eigenvalues whose magnitude are lower or equal than -pc_hpddm_levels_N_eps_threshold_absolute. When using an `EPS` which cannot
-   determine a priori the proper -pc_hpddm_levels_N_eps_nev such that all wanted eigenmodes are retrieved, it is possible to get an estimation of the
-   correct value using the third option from the list, -pc_hpddm_levels_1_eps_use_inertia, see `MatGetInertia()`. In that case, there is no need
-   to supply -pc_hpddm_levels_1_eps_nev. This last option also only applies to the fine-level (N = 1) eigensolver.
+   correction are associated to eigenvalues whose magnitude are lower or equal than `-pc_hpddm_levels_N_eps_threshold_absolute`. When using an `EPS` which cannot
+   determine a priori the proper `-pc_hpddm_levels_N_eps_nev` such that all wanted eigenmodes are retrieved, it is possible to get an estimation of the
+   correct value using the third option from the list, `-pc_hpddm_levels_1_eps_use_inertia`, see `MatGetInertia()`. In that case, there is no need
+   to supply `-pc_hpddm_levels_1_eps_nev`. This last option also only applies to the fine-level (N = 1) eigensolver.
 
    See also {cite}`dolean2015introduction`, {cite}`al2022robust`, {cite}`al2022robustpd`, and {cite}`nataf2022recent`
 
