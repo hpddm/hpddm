@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [ main ]
 env:
-  UBUNTU_RUNNER: &ubuntu-runner ubuntu-24.04
+  UBUNTU_RUNNER: &ubuntu-runner ubuntu-26.04
   OMP_NUM_THREADS: 1
 jobs:
   variables:
@@ -76,42 +76,46 @@ jobs:
         key: dependencies-v0
     - name: Install dependencies
       env:
-        PKGS: "lcov libalgorithm-c3-perl libamd-comgr2 libamdhip64-5 libarpack2-dev            \
+        PKGS: "lcov libalgorithm-c3-perl libamd-comgr3 libamdhip64-7 libarpack2-dev            \
                libarpack2t64 libb-hooks-endofscope-perl libb-hooks-op-check-perl               \
                libblas-dev libblas3 libcaf-openmpi-3t64 libcapture-tiny-perl libtry-tiny-perl  \
                libclass-c3-perl libclass-c3-xs-perl libclass-data-inheritable-perl             \
                libclass-inspector-perl libclass-method-modifiers-perl                          \
-               libclass-singleton-perl libclass-xsaccessor-perl libcoarrays-dev                \
-               libcoarrays-openmpi-dev libcombblas2.0.0t64 libdata-optlist-perl                \
+               libclass-singleton-perl libclass-xsaccessor-perl libclone-pp-perl               \
+               libcoarrays-dev libcoarrays-openmpi-dev libcombblas2.0.0t64                     \
                libdatetime-locale-perl libdatetime-perl libdatetime-timezone-perl              \
                libdevel-callchecker-perl libdevel-caller-perl libdevel-lexalias-perl           \
-               libdevel-stacktrace-perl libdynaloader-functions-perl libeval-closure-perl      \
-               libevent-2.1-7t64 libevent-dev libevent-extra-2.1-7t64 openmpi-common           \
+               libdevel-stacktrace-perl libdynaloader-functions-perl libdata-optlist-perl      \
+               libevent-dev libevent-extra-2.1-7t64 openmpi-common                             \
                libevent-openssl-2.1-7t64 libexception-class-perl libfabric1                    \
-               libfile-sharedir-perl libgd-perl libhsa-runtime64-1 libhsakmt1 libhwloc-dev     \
-               libhwloc-plugins libhwloc15 libhypre-2.28.0 libhypre-dev libibverbs-dev         \
-               libjs-jquery-ui liblapack-dev liblapack3 libltdl-dev libmetis-dev libmetis5     \
+               libfile-sharedir-perl libgd-perl libhsa-runtime64-1 libhsakmt1                  \
+               libhwloc-dev libhwloc-plugins libhwloc15 libhypre-3.0.0 libhypre-dev            \
+               libibmad5 libibumad3 libibverbs-dev libeval-closure-perl libevent-2.1-7t64      \
+               libjs-jquery-ui liblapack-dev liblapack3                                        \
+               libltdl-dev libmetis-dev libmetis5 libopenmpi-dev libopenmpi40                  \
                libmodule-implementation-perl libmodule-runtime-perl libmro-compat-perl         \
-               libmunge2 libnamespace-autoclean-perl libnamespace-clean-perl libnl-3-dev       \
-               libnl-route-3-dev libnuma-dev libopenmpi-dev libopenmpi3t64                     \
+               libmunge2 libnamespace-autoclean-perl libnamespace-clean-perl                   \
+               libnl-3-dev libnl-route-3-dev libnuma-dev                                       \
                libpackage-stash-perl libpackage-stash-xs-perl libpadwalker-perl                \
                libparams-classify-perl libparams-util-perl                                     \
-               libparams-validationcompiler-perl libparmetis-dev libparmetis4.0                \
-               libperlio-gzip-perl libpmix-dev libpmix2t64 libpsm-infinipath1 libpsm2-2        \
-               libptscotch-7.0 librdmacm1t64 libreadonly-perl libref-util-perl                 \
-               libref-util-xs-perl librole-tiny-perl libscalapack-openmpi-dev                  \
+               libparams-validationcompiler-perl libperlio-gzip-perl                           \
+               libpmix-dev libpmix2t64 libprrte-bin libprrte-dev libprrte3 libpsm2-2           \
+               libptscotch-7.0c libptscotch-dev libptscotcherr-7.0 libptscotcherr-dev          \
+               librdmacm1t64 libreadonly-perl libref-util-perl libref-util-xs-perl             \
+               librole-tiny-perl libscalar-list-utils-perl libscalapack-openmpi-dev            \
                libscalapack-openmpi2.2 libspecio-perl libsub-exporter-perl                     \
+               libscotch-7.0c libscotch-dev libscotcherr-7.0 libscotcherr-dev                  \
                libsub-exporter-progressive-perl libsub-identify-perl libsub-install-perl       \
-               libsub-name-perl libsub-quote-perl libsuperlu-dev libsuperlu-dist8              \
-               libsuperlu6 libucx0 libvariable-magic-perl libxnvctrl0 libxstring-perl          \
+               libsub-name-perl libsub-quote-perl libsuperlu-dev libsuperlu-dist9              \
+               libsuperlu7 libucc1 libucx0 libevent-pthreads-2.1-7t64                          \
+               libvariable-magic-perl libxnvctrl0 libxstring-perl libze1                       \
                mpi-default-bin mpi-default-dev ocl-icd-libopencl1 openmpi-bin"
       run: |
         if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
           mkdir -p ~/.local/lib
           mv ~/.cache/lib/python3* ~/.local/lib
           rm -rf ~/.cache/lib
-          sudo cp --force --recursive ~/.cache/* /
-          sudo update-alternatives --install /usr/lib/x86_64-linux-gnu/libpsm_infinipath.so.1 libpsm_infinipath.so.1 /usr/lib/libpsm1/libpsm_infinipath.so.1.16 0
+          sudo cp --force -R ~/.cache/* /
           sudo mkdir -p /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran
           sudo ln -s /usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/fortran/gfortran
           sudo update-alternatives --install /usr/lib/x86_64-linux-gnu/libblas.so.3 libblas.so.3-x86_64-linux-gnu /usr/lib/x86_64-linux-gnu/blas/libblas.so.3 0
@@ -121,28 +125,32 @@ jobs:
         else
           sudo apt-get update && sudo apt-get install -yq `echo $PKGS`
           mkdir -p ~/.cache
-          for pkg in `echo $PKGS`; do
-            for dep in $pkg; do
-              dpkg -L $dep | while IFS= read -r f; do if test -f $f; then echo $f; fi; done | xargs cp --parents --target-directory ~/.cache/
-            done
+          for pkg in $PKGS; do
+            dpkg -L "$pkg" | while IFS= read -r f; do
+              if [ -f "$f" ]; then
+                printf '%s\0' "$f"
+              elif [ -L "$f" ]; then
+                cp -P --parents --target-directory ~/.cache/ -- "$f"
+              fi
+            done | xargs -0 -r cp --parents --target-directory ~/.cache/ --
           done
           pip install --user mpi4py numpy scipy
           rm -rf ~/.cache/pip
           cp -R ~/.local/lib ~/.cache
           find ~/.cache -type d \( -wholename "*/share/doc/*" -o -wholename "*/share/man/*" -o -wholename "*/tests" -o -wholename "*/javascript" -o -wholename "*/share/perl5/auto/*" -o -wholename "*/tests/__pycache__/*" -o -wholename "*/tests/test_*.pyc" \) -prune -exec rm -rf "{}" \;
         fi
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 0
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 0
-        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-14 0
-        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-18/bin/clang++ 0
-        sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-18/bin/clang 0
-        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-14 0
-        sudo update-alternatives --set g++ /usr/bin/g++-14
-        sudo update-alternatives --set gcc /usr/bin/gcc-14
-        sudo update-alternatives --set gcov /usr/bin/gcov-14
-        sudo update-alternatives --set clang++ /usr/lib/llvm-18/bin/clang++
-        sudo update-alternatives --set clang /usr/lib/llvm-18/bin/clang
-        sudo update-alternatives --set gfortran /usr/bin/gfortran-14
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 0
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 0
+        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-15 0
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-22/bin/clang++ 0
+        sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-22/bin/clang 0
+        sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-15 0
+        sudo update-alternatives --set g++ /usr/bin/g++-15
+        sudo update-alternatives --set gcc /usr/bin/gcc-15
+        sudo update-alternatives --set gcov /usr/bin/gcov-15
+        sudo update-alternatives --set clang++ /usr/lib/llvm-22/bin/clang++
+        sudo update-alternatives --set clang /usr/lib/llvm-22/bin/clang
+        sudo update-alternatives --set gfortran /usr/bin/gfortran-15
         if [ "${{ matrix.compiler }}" = "clang" ]; then
           echo -e "MPICXX ?= mpicxx.openmpi \nMPICC ?= mpicc.openmpi\nMPIF90 ?= mpif90.openmpi\n" | cat - Make.inc/Makefile.Actions > Makefile.inc
         else
@@ -167,15 +175,15 @@ jobs:
           echo "source=git" >> "$GITHUB_OUTPUT"
         fi
         if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
-          cp -r ~/.cache/arch-packages .
+          cp -R ~/.cache/arch-packages .
         else
           mkdir -p ~/.cache/arch-packages
         fi
     - name: Configure vanilla PETSc with external packages
       run: |
         cd ../petsc
-        ./configure --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-fortran-bindings=0 --with-c2html=0 --with-hipc=0 --with-cudac=0 --with-x=0 --with-python=0 --with-bison=0 --with-cmake=0 --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages || (cat arch-packages/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
-        cp -r arch-packages/lib arch-packages/include ~/.cache/arch-packages
+        ./configure --with-cc=mpicc.openmpi --with-cxx=0 --with-fc=mpif90.openmpi --download-f2cblaslapack --with-f2cblaslapack-float128-bindings --with-fortran-bindings=0 --with-c2html=0 --with-hipc=0 --with-cudac=0 --with-x=0 --with-python=0 --with-bison=0 --with-cmake=0 --with-debugging=0 --with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --download-mumps --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp FOPTFLAGS="-g0 -O3" COPTFLAGS="-g0 -O3" PETSC_ARCH=arch-packages || (cat arch-packages/lib/petsc/conf/configure.log 2> /dev/null; exit 1)
+        cp -R arch-packages/lib arch-packages/include ~/.cache/arch-packages
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
     - name: Build and test with MUMPS and single-precision complex scalars
       run: |
@@ -184,7 +192,7 @@ jobs:
         make python
         make test_c test_cpp test_python
         if [ "${{ matrix.compiler }}" = "gcc" ]; then
-          lcov --ignore-errors gcov --directory . --capture --output-file coverage1.info
+          lcov --directory . --exclude '/usr/*' --capture --output-file coverage1.info
         fi
         make clean
     - name: Build and test with BoomerAMG
@@ -199,14 +207,14 @@ jobs:
           make test_fortran
         fi
         if [ "${{ matrix.compiler }}" = "gcc" ]; then
-          lcov --ignore-errors gcov --directory . --capture --output-file coverage2.info
+          lcov --directory . --exclude '/usr/*' --capture --output-file coverage2.info
         fi
         make clean
     - name: Build and test with mixed-precision arithmetic
       run: |
         export HPDDMFLAGS="-DHPDDM_NUMBERING=\'F\' -DHPDDM_MIXED_PRECISION=1"
         make test_cpp
-        lcov --ignore-errors gcov --directory . --capture --output-file coverage3.info
+        lcov --directory . --exclude '/usr/*' --capture --output-file coverage3.info
         make clean
       if: matrix.compiler == 'gcc'
     - name: Build and test with Htool
@@ -215,7 +223,7 @@ jobs:
         export OMPI_CXXFLAGS="-fprofile-arcs -ftest-coverage -DOMPI_SKIP_MPICXX"
         mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=mpicxx.openmpi -DBLAS_LIBRARIES=/usr/lib/x86_64-linux-gnu/libblas.so '-DLAPACK_LIBRARIES=/usr/lib/x86_64-linux-gnu/liblapack.so;/usr/lib/x86_64-linux-gnu/libblas.so' -DHPDDM_INCLUDE_DIR=../../${{ github.event.repository.name }}/include -DHTOOL_WITH_DOC=OFF && make Test_solver_double
         mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0 -n 2 ./tests/functional_tests/solvers/Test_solver_double _deps/data_test_repository-src/data --hpddm_verbosity 10 --hpddm_compute_residual l2
-        lcov --ignore-errors gcov --directory . --capture --output-file ../../${{ github.event.repository.name }}/coverage_htool.info
+        lcov --directory . --exclude '/usr/*' --exclude '*/htool/include/htool/*' --capture --output-file ../../${{ github.event.repository.name }}/coverage_htool.info
       if: matrix.compiler == 'clang'
     - name: Build and test with PETSc and SLEPc
       run: |
@@ -252,7 +260,7 @@ jobs:
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wextra-semi-stmt -Wdouble-promotion"
               fi
               if [ "$PRECISION" != "__float128" ]; then
-                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/libparmetis.so,/usr/lib/gcc/x86_64-linux-gnu/14/libgomp.so]"
+                export EXTERNALPACKAGES="--with-scalapack-lib=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so --with-mumps-include=arch-packages/include --with-mumps-lib=[${PETSC_DIR}/arch-packages/lib/libcmumps.a,libdmumps.a,libzmumps.a,libsmumps.a,libmumps_common.a,libpord.a,/usr/lib/x86_64-linux-gnu/libmetis.so,/usr/lib/gcc/x86_64-linux-gnu/15/libgomp.so]"
                 if [ "${{ matrix.compiler }}" = "gcc" ]; then export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-hwloc-include=/usr/include --with-hwloc-lib=/usr/lib/x86_64-linux-gnu/libhwloc.so --with-openmp"; fi
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -DPETSC_SKIP_ATTRIBUTE_MAY_ALIAS -Werror"
               fi
@@ -263,7 +271,7 @@ jobs:
               fi
               if [ "$INT64" = "0" ]; then
                 if [ "$PRECISION" = "double" ]; then
-                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-parmetis-include=/usr/include --with-parmetis-lib=/usr/lib/libparmetis.so --download-htool"
+                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-metis-include=/usr/include --with-metis-lib=/usr/lib/x86_64-linux-gnu/libmetis.so --with-ptscotch-include=/usr/include/scotch --with-ptscotch-lib=[/usr/lib/x86_64-linux-gnu/libptscotch.so,/usr/lib/x86_64-linux-gnu/libptscotcherr.so,/usr/lib/x86_64-linux-gnu/libscotch.so,/usr/lib/x86_64-linux-gnu/libscotcherr.so] --download-htool"
                   if [ "$TYPE" = "real" ]; then
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse --download-suitesparse-cmake-arguments=-DCMAKE_CXX_FLAGS_DEBUG:STRING=\"-Wno-error\""
                   fi
@@ -308,7 +316,7 @@ jobs:
               if [ "$PRECISION" != "__float128" ]; then make cpp; fi
               if [ "${{ matrix.compiler }}" = "gcc" ]; then
                 if [ "$PRECISION" != "__float128" ]; then make test_cpp; fi
-                lcov --ignore-errors gcov --directory . --directory ../petsc/arch-ci/lib --exclude '/usr/*' --exclude '*/petsc/include/*' --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
+                lcov --directory . --directory ../petsc/arch-ci/lib --exclude '/usr/*' --exclude '*/petsc/include/*' --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
               fi
               make clean
               cd ../petsc && rm -rf ${PETSC_ARCH}
@@ -365,22 +373,22 @@ jobs:
                       --with-blaslapack-include=/local/${{ secrets.LOGIN }}/include --with-mkl_pardiso \
                       --with-c2html=0 --with-hipc=0 --with-x=0 --with-fc=0 --download-slepc \
                       --download-hpddm=../${{ github.event.repository.name }} --download-hpddm-commit=HEAD \
-                      --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS+=--compiler-options -Wall,-Wextra,-Werror,-Wno-psabi,-Wno-deprecated-declarations ${INCS}' \
+                      --with-cuda --download-thrust 'CXXPPFLAGS=${PETSC_CXXPPFLAGS}' 'CUDAFLAGS+=--compiler-options -Wall,-Wextra,-Werror,-Wno-error=extra-semi,-Wno-psabi,-Wno-deprecated-declarations ${INCS}' \
                       ${EXTERNALPACKAGES}
           [ -z "`diff -rq ${PETSC_ARCH}/include ../${REPOSITORY_NAME}/include | grep -v Only`" ] || exit 1
           rm -rf ${PETSC_ARCH}/include/HPDDM* && sed -i -e 's@petsc/arch-ci/externalpackages/git.hpddm@${REPOSITORY_NAME}@g' -e 's@hpddm_petsc.cpp@hpddm_petsc.cpp ${COVERAGE_FLAGS} -I`pwd`/../`echo ${REPOSITORY_NAME}`/include@' ${PETSC_ARCH}/lib/petsc/conf/petscrules
           rm -rf /local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/include/HPDDM*
           make all "CXX=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicxx ${COVERAGE_FLAGS} ${INCS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS} -fopenmp" "CUDA_CXXFLAGS=${COVERAGE_FLAGS} ${INCS} -fvisibility=hidden"
           cat ${PETSC_ARCH}/lib/petsc/conf/hpddm*.log
-          export LD_PRELOAD="/software/gcc/14/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
-          export LD_LIBRARY_PATH=/software/gcc/14/lib:/software/gcc/14/lib64:/software/cuda/13.3/lib64
+          export LD_PRELOAD="/software/gcc/15/lib64/libstdc++.so.6 `pwd`/arch-ci/lib/libpetsc.so `pwd`/arch-ci/lib/libslepc.so"
+          export LD_LIBRARY_PATH=/software/gcc/15/lib:/software/gcc/15/lib64:/software/cuda/13.4/lib64
           make check
           make -f gmakefile test 'query=requires' 'queryval=*hpddm*' "CC=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" "CLINKER=/local/${{ secrets.LOGIN }}/petsc/arch-linux-c-opt/bin/mpicc ${COVERAGE_FLAGS}" EXTRA_OPTIONS='-malloc_dump' check-test-errors || exit 1
           config/report_tests.py -t 5 -s
           unset LD_PRELOAD
           unset LD_LIBRARY_PATH
           cd ../${REPOSITORY_NAME}
-          ~/lcov-2.1/bin/lcov --ignore-errors inconsistent,usage --directory . --directory ../petsc/arch-ci/lib --exclude '/software/*' --exclude '*/petsc/include/*' --exclude '/tmp/*' --capture --output-file ../coverage_nvcc${COVERAGE_EXTENSION}.info
+          ~/lcov-2.5/bin/lcov --ignore-errors inconsistent --directory . --directory ../petsc/arch-ci/lib --exclude '/software/*' --exclude '*/petsc/include/*' --exclude '/tmp/*' --capture --output-file ../coverage_nvcc${COVERAGE_EXTENSION}.info
           find .. -name '*.gcda' -delete
           cd -
         done
@@ -435,8 +443,7 @@ jobs:
         run: |
           if [ -d $PWD/artifact-gcc ]; then
             sudo apt-get install -yq lcov
-            find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov -o coverage.info
-            lcov --remove coverage.info '/usr/*' --output-file coverage.info > /dev/null
+            find . -name "coverage*.info" -exec echo -a {} \; | xargs lcov --demangle-cpp --rc check_data_consistency=0 -o coverage.info
           elif [ "${{ github.event.repository.name }}" = "hpddm" ]; then
             exit 1
           fi
