@@ -1485,26 +1485,15 @@ static PetscErrorCode PCHPDDMDestroySubMatrices_Private(PetscBool flg, PetscBool
 static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat P, IS *is, Mat *sub[], PetscBool block)
 {
   IS         icol[3], irow[2];
-  Mat       *M, Q;
+  Mat       *M;
   PetscReal *ptr;
   PetscInt  *idx, p = 0, bs = P->cmap->bs;
-  PetscBool  flg;
 
   PetscFunctionBegin;
   PetscCall(ISCreateStride(PETSC_COMM_SELF, P->cmap->N, 0, 1, icol + 2));
   PetscCall(ISSetBlockSize(icol[2], bs));
   PetscCall(ISSetIdentity(icol[2]));
-  PetscCall(PetscObjectTypeCompare((PetscObject)P, MATMPISBAIJ, &flg));
-  if (flg) {
-    /* MatCreateSubMatrices() does not handle MATMPISBAIJ properly when iscol != isrow, so convert first to MATMPIBAIJ */
-    PetscCall(MatConvert(P, MATMPIBAIJ, MAT_INITIAL_MATRIX, &Q));
-    std::swap(P, Q);
-  }
   PetscCall(MatCreateSubMatrices(P, 1, is, icol + 2, MAT_INITIAL_MATRIX, &M));
-  if (flg) {
-    std::swap(P, Q);
-    PetscCall(MatDestroy(&Q));
-  }
   PetscCall(ISDestroy(icol + 2));
   PetscCall(ISCreateStride(PETSC_COMM_SELF, M[0]->rmap->N, 0, 1, irow));
   PetscCall(ISSetBlockSize(irow[0], bs));
@@ -1781,11 +1770,9 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
   MatStructure                               structure  = UNKNOWN_NONZERO_PATTERN;
   PetscBool                                  subdomains = PETSC_FALSE, flg = PETSC_FALSE, ismatis, swap = PETSC_FALSE, algebraic = PETSC_FALSE, block = PETSC_FALSE;
   DM                                         dm;
-  std::tuple<PC[2], Mat[2], PCSide, Vec[3]> *ctx = nullptr;
-#if PetscDefined(USE_DEBUG)
-  IS  dis  = nullptr;
-  Mat daux = nullptr;
-#endif
+  std::tuple<PC[2], Mat[2], PCSide, Vec[3]> *ctx  = nullptr;
+  IS                                         dis  = nullptr;
+  Mat                                        daux = nullptr;
 
   PetscFunctionBegin;
   PetscCheck(data->levels && data->levels[0], PETSC_COMM_SELF, PETSC_ERR_PLIB, "Not a single level allocated");
@@ -2248,27 +2235,16 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
       }
     }
   }
-#if PetscDefined(USE_DEBUG)
-  if (data->is) PetscCall(ISDuplicate(data->is, &dis));
-  if (data->aux) PetscCall(MatDuplicate(data->aux, MAT_COPY_VALUES, &daux));
-#endif
+  if (PetscDefined(USE_DEBUG)) {
+    if (data->is) PetscCall(ISDuplicate(data->is, &dis));
+    if (data->aux) PetscCall(MatDuplicate(data->aux, MAT_COPY_VALUES, &daux));
+  }
   if (data->is || (ismatis && data->N > 1)) {
     if (ismatis) {
-      std::initializer_list<std::string> list = {MATSEQBAIJ, MATSEQSBAIJ};
       PetscCall(MatISGetLocalMat(P, &N));
-      std::initializer_list<std::string>::const_iterator it = std::find(list.begin(), list.end(), ((PetscObject)N)->type_name);
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)N, &flg, MATSEQBAIJ, MATSEQSBAIJ, ""));
       PetscCall(MatISRestoreLocalMat(P, &N));
-      switch (std::distance(list.begin(), it)) {
-      case 0:
-        PetscCall(MatConvert(P, MATMPIBAIJ, MAT_INITIAL_MATRIX, &C));
-        break;
-      case 1:
-        /* MatCreateSubMatrices() does not work with MATSBAIJ and unsorted ISes, so convert to MPIBAIJ */
-        PetscCall(MatConvert(P, MATMPIBAIJ, MAT_INITIAL_MATRIX, &C));
-        break;
-      default:
-        PetscCall(MatConvert(P, MATMPIAIJ, MAT_INITIAL_MATRIX, &C));
-      }
+      PetscCall(MatConvert(P, flg ? MATMPIBAIJ : MATMPIAIJ, MAT_INITIAL_MATRIX, &C));
       PetscCall(MatISGetLocalToGlobalMapping(P, &l2g, nullptr));
       PetscCall(PetscObjectReference((PetscObject)P));
       PetscCall(KSPSetOperators(data->levels[0]->ksp, A, C));
@@ -2308,7 +2284,11 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
       else if (ismatis) PetscCall(PetscInfo(pc, "Cannot share subdomain KSP between SLEPc and PETSc with a Pmat of type MATIS\n"));
       else if (!algebraic && structure != SAME_NONZERO_PATTERN)
         PetscCall(PetscInfo(pc, "Cannot share subdomain KSP between SLEPc and PETSc since -%spc_hpddm_levels_1_st_matstructure %s (!= %s)\n", pcpre ? pcpre : "", MatStructures[structure], MatStructures[SAME_NONZERO_PATTERN]));
-      else data->share = PETSC_TRUE;
+      else {
+        PetscCall(PetscObjectTypeCompare((PetscObject)P, MATHTOOL, &flg));
+        if (flg) PetscCall(PetscInfo(pc, "Cannot share subdomain KSP between SLEPc and PETSc since Pmat is of type MATHTOOL\n"));
+        else data->share = PETSC_TRUE;
+      }
       if (!data->share) {
         PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "-%spc_hpddm_levels_1_st_share_sub_ksp", pcpre ? pcpre : ""));
         PetscCall(PetscOptionsClearValue(((PetscObject)pc)->options, prefix));
@@ -2329,15 +2309,6 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
       } else {
         if (PetscDefined(USE_DEBUG)) PetscCall(PCHPDDMCheckInclusion_Private(pc, data->is, loc, PETSC_TRUE));
         if (!ctx && overlap == -1) PetscCall(PetscObjectComposeFunction((PetscObject)pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", PCHPDDMAlgebraicAuxiliaryMat_Private));
-        if (!PetscBool3ToBool(data->Neumann) && (!algebraic || overlap != -1)) {
-          PetscCall(PetscObjectTypeCompare((PetscObject)P, MATMPISBAIJ, &flg));
-          if (flg) {
-            /* maybe better to ISSort(is[0]), MatCreateSubMatrices(), and then MatPermute() */
-            /* but there is no MatPermute_SeqSBAIJ(), so as before, just use MATMPIBAIJ     */
-            PetscCall(MatConvert(P, MATMPIBAIJ, MAT_INITIAL_MATRIX, &uaux));
-            flg = PETSC_FALSE;
-          }
-        }
       }
       if (algebraic && overlap == -1) {
         PetscUseMethod(pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS *, Mat *[], PetscBool), (P, is, &sub, block));
@@ -2794,10 +2765,10 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           PetscCall(MatDestroy(&C));
           PetscCall(ISDestroy(&uis));
           PetscCall(PetscFree(ctx));
-#if PetscDefined(USE_DEBUG)
-          PetscCall(ISDestroy(&dis));
-          PetscCall(MatDestroy(&daux));
-#endif
+          if (PetscDefined(USE_DEBUG)) {
+            PetscCall(ISDestroy(&dis));
+            PetscCall(MatDestroy(&daux));
+          }
           PetscFunctionReturn(PETSC_SUCCESS);
         }
       }
@@ -2831,28 +2802,21 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
           /* only useful for -mat_type baij -pc_hpddm_levels_1_st_pc_type cholesky (no problem with MATAIJ or MATSBAIJ)      */
           PetscCall(MatPropagateSymmetryOptions(sub[0], weighted));
           if (PetscDefined(USE_DEBUG) && PetscBool3ToBool(data->Neumann)) {
-            Mat      *sub, A[3];
+            Mat      *sub, A[2];
             PetscReal norm[2];
-            PetscBool flg;
 
-            PetscCall(PetscObjectTypeCompare((PetscObject)P, MATMPISBAIJ, &flg)); /* MatCreateSubMatrices() does not work with MATSBAIJ and unsorted ISes, so convert to MPIAIJ */
-            if (flg) PetscCall(MatConvert(P, MATMPIAIJ, MAT_INITIAL_MATRIX, A));
-            else {
-              A[0] = P;
-              PetscCall(PetscObjectReference((PetscObject)P));
-            }
-            PetscCall(MatCreateSubMatrices(A[0], 1, &data->is, &data->is, MAT_INITIAL_MATRIX, &sub));
+            PetscCall(MatCreateSubMatrices(P, 1, &data->is, &data->is, MAT_INITIAL_MATRIX, &sub));
             PetscCall(MatDiagonalScale(sub[0], data->levels[0]->D, data->levels[0]->D));
-            PetscCall(MatConvert(sub[0], MATSEQAIJ, MAT_INITIAL_MATRIX, A + 1)); /* too many corner cases to handle (MATNORMAL, MATNORMALHERMITIAN, MATBAIJ with different block sizes...), so just MatConvert() to MATSEQAIJ since this is just for debugging */
-            PetscCall(MatConvert(weighted, MATSEQAIJ, MAT_INITIAL_MATRIX, A + 2));
-            PetscCall(MatAXPY(A[1], -1.0, A[2], UNKNOWN_NONZERO_PATTERN));
-            PetscCall(MatNorm(A[1], NORM_FROBENIUS, norm));
+            PetscCall(MatConvert(sub[0], MATSEQAIJ, MAT_INITIAL_MATRIX, A)); /* too many corner cases to handle (MATNORMAL, MATNORMALHERMITIAN, MATBAIJ with different block sizes...), so just MatConvert() to MATSEQAIJ since this is just for debugging */
+            PetscCall(MatConvert(weighted, MATSEQAIJ, MAT_INITIAL_MATRIX, A + 1));
+            PetscCall(MatAXPY(A[0], -1.0, A[1], UNKNOWN_NONZERO_PATTERN));
+            PetscCall(MatNorm(A[0], NORM_FROBENIUS, norm));
             if (norm[0]) {
-              PetscCall(MatNorm(A[2], NORM_FROBENIUS, norm + 1));
+              PetscCall(MatNorm(A[1], NORM_FROBENIUS, norm + 1));
               PetscCheck(PetscAbsReal(norm[0] / norm[1]) < PetscSqrtReal(PETSC_SMALL), PETSC_COMM_SELF, PETSC_ERR_USER_INPUT, "Auxiliary Mat is different from the (assembled) subdomain Mat for the interior unknowns, so it cannot be the Neumann matrix, remove -%spc_hpddm_has_neumann", pcpre ? pcpre : "");
             }
             PetscCall(MatDestroySubMatrices(1, &sub));
-            for (PetscInt i = 0; i < 3; ++i) PetscCall(MatDestroy(A + i));
+            for (PetscInt i = 0; i < 2; ++i) PetscCall(MatDestroy(A + i));
           }
         } else weighted = data->B;
       } else weighted = nullptr;
@@ -3013,20 +2977,20 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
     PetscCall(ISCopy(unsorted, data->is));
     PetscCall(ISDestroy(&unsorted));
   }
-#if PetscDefined(USE_DEBUG)
-  PetscCheck((data->is && dis) || (!data->is && !dis), PETSC_COMM_SELF, PETSC_ERR_PLIB, "An IS pointer is NULL but not the other: input IS pointer (%p) v. output IS pointer (%p)", (void *)dis, (void *)data->is);
-  if (data->is) {
-    PetscCall(ISEqualUnsorted(data->is, dis, &flg));
-    PetscCall(ISDestroy(&dis));
-    PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Input IS and output IS are not equal");
+  if (PetscDefined(USE_DEBUG)) {
+    PetscCheck((data->is && dis) || (!data->is && !dis), PETSC_COMM_SELF, PETSC_ERR_PLIB, "An IS pointer is NULL but not the other: input IS pointer (%p) v. output IS pointer (%p)", (void *)dis, (void *)data->is);
+    if (data->is) {
+      PetscCall(ISEqualUnsorted(data->is, dis, &flg));
+      PetscCall(ISDestroy(&dis));
+      PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Input IS and output IS are not equal");
+    }
+    PetscCheck((data->aux && daux) || (!data->aux && !daux), PETSC_COMM_SELF, PETSC_ERR_PLIB, "A Mat pointer is NULL but not the other: input Mat pointer (%p) v. output Mat pointer (%p)", (void *)daux, (void *)data->aux);
+    if (data->aux) {
+      PetscCall(MatMultEqual(data->aux, daux, 20, &flg));
+      PetscCall(MatDestroy(&daux));
+      PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Input Mat and output Mat are not equal");
+    }
   }
-  PetscCheck((data->aux && daux) || (!data->aux && !daux), PETSC_COMM_SELF, PETSC_ERR_PLIB, "A Mat pointer is NULL but not the other: input Mat pointer (%p) v. output Mat pointer (%p)", (void *)daux, (void *)data->aux);
-  if (data->aux) {
-    PetscCall(MatMultEqual(data->aux, daux, 20, &flg));
-    PetscCall(MatDestroy(&daux));
-    PetscCheck(flg, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Input Mat and output Mat are not equal");
-  }
-#endif
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
