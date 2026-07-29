@@ -412,12 +412,11 @@ public:
   }
   void initialize(unsigned int k, K *&work, unsigned short s)
   {
-    PetscBool flg;
-    PetscCallVoid(PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &flg));
-    PetscCallVoid(MatConvert(A_, flg ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
+    PetscCallVoid(MatDuplicate(A_, MAT_COPY_VALUES, &C_));
     Vec          D;
     VecType      type;
     PetscScalar *d;
+    PetscBool    flg;
     PetscCallVoid(MatGetVecType(A_, &type));
     PetscCallVoid(PetscStrcmp(type, VECSTANDARD, &flg));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
