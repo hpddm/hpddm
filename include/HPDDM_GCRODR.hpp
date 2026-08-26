@@ -110,11 +110,11 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
         }
       }
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-      PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+      PetscCall(PetscLogEventBegin(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i], H[i], d, Ax, comm);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-      PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+      PetscCall(PetscLogEventEnd(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       if (id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
         if (!excluded && n)
@@ -186,11 +186,11 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
       }
       if (U) {
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-        PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+        PetscCall(PetscLogEventBegin(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
         orthogonalization<excluded>(id[2] & 3, n, k, mu, C, v[i + 1], H[i], d, Ax, comm);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-        PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+        PetscCall(PetscLogEventEnd(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       }
       Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0);
@@ -528,11 +528,11 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
         std::fill_n(*save, bK * bK, K());
       }
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-      PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+      PetscCall(PetscLogEventBegin(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       blockOrthogonalization<excluded>(id[2] & 3, n, k, mu, C, *v, *H, ldh, d, Ax, comm);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-      PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+      PetscCall(PetscLogEventEnd(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       if (id[1] != HPDDM_VARIANT_RIGHT || id[4] / 4 == 0) {
         if (!excluded && n) Blas<K>::gemm("N", "N", &n, &mu, &bK, &(Wrapper<K>::d__1), pt, &n, *H, &ldh, &(Wrapper<K>::d__1), x, &n);
@@ -609,11 +609,11 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
       }
       if (U) {
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-        PetscCall(PetscLogEventBegin(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+        PetscCall(PetscLogEventBegin(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
         blockOrthogonalization<excluded>(id[2] & 3, n, k, deflated, C, v[i + 1], H[i], ldh, d, Ax, comm);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
-        PetscCall(PetscLogEventEnd(KSP_GMRESOrthogonalization, A.ksp_, nullptr, nullptr, nullptr));
+        PetscCall(PetscLogEventEnd(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       }
       if (BlockArnoldi<excluded>(id[2], m[0], H, v, tau, s, lwork, n, i++, deflated, d, Ax, comm, save, U ? k : 0)) {

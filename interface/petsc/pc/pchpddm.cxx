@@ -20,6 +20,18 @@ PetscLogEvent PC_HPDDM_Solve[PETSC_PCHPDDM_MAXLEVELS];
 const char *const PCHPDDMCoarseCorrectionTypes[] = {"DEFLATED", "ADDITIVE", "BALANCED", "NONE", "PCHPDDMCoarseCorrectionType", "PC_HPDDM_COARSE_CORRECTION_", nullptr};
 const char *const PCHPDDMSchurPreTypes[]         = {"LEAST_SQUARES", "GENEO", "PCHPDDMSchurPreType", "PC_HPDDM_SCHUR_PRE", nullptr};
 
+static PetscErrorCode PCHPDDMInitializeLevels_Private(PC_HPDDM *data)
+{
+  PetscFunctionBegin;
+  if (!data->levels) { /* usually allocated in PCSetFromOptions_HPDDM(), but PCSetUp_HPDDM() may be called without a prior PCSetFromOptions() */
+    PetscCall(PetscCalloc1(PETSC_PCHPDDM_MAXLEVELS, &data->levels));
+    PetscCall(PetscNew(data->levels));
+    data->levels[0]->parent = data;
+    data->N                 = 1;
+  }
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
 static PetscErrorCode PCReset_HPDDM(PC pc)
 {
   PC_HPDDM *data = (PC_HPDDM *)pc->data;
@@ -32,6 +44,7 @@ static PetscErrorCode PCReset_HPDDM(PC pc)
       PetscCall(PetscFree(data->levels[i]));
     }
     PetscCall(PetscFree(data->levels));
+    data->N = 0;
   }
   PetscCall(ISDestroy(&data->is));
   PetscCall(MatDestroy(&data->aux));
@@ -212,7 +225,7 @@ static PetscErrorCode PCHPDDMSetAuxiliaryMat_HPDDM(PC pc, IS is, Mat A, PetscErr
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-/*@C
+/*@
   PCHPDDMSetAuxiliaryMat - Sets the auxiliary matrix used by `PCHPDDM` for the concurrent GenEO problems at the finest level.
 
   Input Parameters:
@@ -325,8 +338,7 @@ PetscErrorCode PCHPDDMSetRHSMat(PC pc, Mat B)
 
 static PetscErrorCode PCSetFromOptions_HPDDM(PC pc, PetscOptionItems PetscOptionsObject)
 {
-  PC_HPDDM                   *data   = (PC_HPDDM *)pc->data;
-  PC_HPDDM_Level            **levels = data->levels;
+  PC_HPDDM                   *data = (PC_HPDDM *)pc->data;
   char                        prefix[256], deprecated[256];
   int                         i = 1;
   PetscMPIInt                 size, previous;
@@ -335,10 +347,7 @@ static PetscErrorCode PCSetFromOptions_HPDDM(PC pc, PetscOptionItems PetscOption
   PetscBool                   flg = PETSC_TRUE, set;
 
   PetscFunctionBegin;
-  if (!data->levels) {
-    PetscCall(PetscCalloc1(PETSC_PCHPDDM_MAXLEVELS, &levels));
-    data->levels = levels;
-  }
+  PetscCall(PCHPDDMInitializeLevels_Private(data));
   PetscOptionsHeadBegin(PetscOptionsObject, "PCHPDDM options");
   PetscCall(PetscOptionsBoundedInt("-pc_hpddm_harmonic_overlap", "Overlap prior to computing local harmonic extensions", "PCHPDDM", overlap, &overlap, &set, 1));
   if (!set) overlap = -1;
@@ -452,7 +461,15 @@ static PetscErrorCode PCSetFromOptions_HPDDM(PC pc, PetscOptionItems PetscOption
     }
   }
   PetscOptionsHeadEnd();
-  while (i < PETSC_PCHPDDM_MAXLEVELS && data->levels[i]) PetscCall(PetscFree(data->levels[i++]));
+  for (; i < PETSC_PCHPDDM_MAXLEVELS && data->levels[i]; ++i) {
+    PetscCall(KSPDestroy(&data->levels[i]->ksp));
+    PetscCall(PCDestroy(&data->levels[i]->pc));
+    PetscCall(PetscFree(data->levels[i]));
+  }
+  if (data->levels[0]->ksp) { /* PCSetUp_HPDDM() may have created this KSP initially as a single-level solver before PCSetFromOptions() enabled multiple levels */
+    PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%spc_hpddm_%s_", ((PetscObject)pc)->prefix ? ((PetscObject)pc)->prefix : "", data->N > 1 ? "levels_1" : "coarse"));
+    PetscCall(KSPSetOptionsPrefix(data->levels[0]->ksp, prefix));
+  }
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
@@ -589,7 +606,7 @@ static PetscErrorCode PCView_HPDDM(PC pc, PetscViewer viewer)
     }
     PetscCall(PetscViewerASCIIPrintf(viewer, "grid and operator complexities: %g %g\n", (double)gc, (double)oc));
     PetscCallMPI(MPI_Comm_size(PetscObjectComm((PetscObject)pc), &size));
-    if (data->levels[0]->ksp) {
+    if (data->levels && data->levels[0]->ksp) {
       PetscCall(KSPView(data->levels[0]->ksp, viewer));
       if (data->levels[0]->pc) PetscCall(PCView(data->levels[0]->pc, viewer));
       PetscCallMPI(MPI_Comm_rank(PetscObjectComm((PetscObject)pc), &rank));
@@ -1284,7 +1301,7 @@ static PetscErrorCode PCHPDDMCommunicationAvoidingPCASM_Private(PC pc, Mat C, Pe
   /* previously-composed Mat */
   PetscCall(PetscObjectCompose((PetscObject)pc->pmat, "_PCHPDDM_SubMatrices", (PetscObject)C));
   PetscCall(MatGetOperation(pc->pmat, MATOP_CREATE_SUBMATRICES, &op));
-  /* trick suggested by Barry https://lists.mcs.anl.gov/pipermail/petsc-dev/2020-January/025491.html */
+  /* see https://mailman.cels.anl.gov/archives/list/petsc-dev@lists.mcs.anl.gov/message/22HXNMER6OU7N7CXWA2LJAY6RZPGQYXT/ */
   PetscCall(MatSetOperation(pc->pmat, MATOP_CREATE_SUBMATRICES, (PetscErrorCodeFn *)PCHPDDMCreateSubMatrices_Private));
   if (sorted) PetscCall(PCASMSetSortIndices(pc, PETSC_FALSE)); /* everything is already sorted */
   PetscCall(PCSetFromOptions(pc));                             /* otherwise -pc_hpddm_levels_1_pc_asm_sub_mat_type is not used */
@@ -1482,18 +1499,28 @@ static PetscErrorCode PCHPDDMDestroySubMatrices_Private(PetscBool flg, PetscBool
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat P, IS *is, Mat *sub[], PetscBool block)
+static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat Q, IS *is, Mat *sub[], PetscBool block)
 {
   IS         icol[3], irow[2];
   Mat       *M;
+  Mat        P = Q;
   PetscReal *ptr;
   PetscInt  *idx, p = 0, bs = P->cmap->bs;
+  PetscBool  flg;
 
   PetscFunctionBegin;
+  /* MatCreateSubMatrices_MPISBAIJ() may return a rectangular MATSEQSBAIJ containing only the explicitly stored upper-triangular entries */
+  /* of the selected rows. But the missing lower-triangular entries are needed by MatGetColumnNorms(), MatGetRowSum(), and MatMatMult()  */
+  PetscCall(PetscObjectTypeCompare((PetscObject)Q, MATMPISBAIJ, &flg));
+  if (flg) PetscCall(MatConvert(Q, MATBAIJ, MAT_INITIAL_MATRIX, &P));
   PetscCall(ISCreateStride(PETSC_COMM_SELF, P->cmap->N, 0, 1, icol + 2));
   PetscCall(ISSetBlockSize(icol[2], bs));
   PetscCall(ISSetIdentity(icol[2]));
   PetscCall(MatCreateSubMatrices(P, 1, is, icol + 2, MAT_INITIAL_MATRIX, &M));
+  if (flg) {
+    PetscCall(MatDestroy(&P));
+    P = Q; /* continue using the caller-owned (MATMPISBAIJ) matrix */
+  }
   PetscCall(ISDestroy(icol + 2));
   PetscCall(ISCreateStride(PETSC_COMM_SELF, M[0]->rmap->N, 0, 1, irow));
   PetscCall(ISSetBlockSize(irow[0], bs));
@@ -1514,6 +1541,8 @@ static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat P, IS *is, Mat *s
     PetscCall(MatCreateSubMatrices(M[0], 2, irow, icol, MAT_INITIAL_MATRIX, sub));
     PetscCall(ISDestroy(icol + 1));
     PetscCall(PetscFree2(ptr, idx));
+    PetscCall(MatPropagateSymmetryOptions(P, (*sub)[0]));
+    if (flg) PetscCall(MatConvert((*sub)[0], MATSBAIJ, MAT_INPLACE_MATRIX, sub[0]));
     /* IS used to go back and forth between the augmented and the original local linear system, see eq. (3.4) of [2022b] */
     PetscCall(PetscObjectCompose((PetscObject)(*sub)[0], "_PCHPDDM_Embed", (PetscObject)icol[2]));
     /* Mat used in eq. (3.1) of [2022b] */
@@ -1524,7 +1553,10 @@ static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat P, IS *is, Mat *s
     PetscCall(MatSetOption(M[0], MAT_SUBMAT_SINGLEIS, PETSC_TRUE));
     /* diagonal block of the overlapping rows */
     PetscCall(MatCreateSubMatrices(M[0], 1, irow, is, MAT_INITIAL_MATRIX, sub));
+    PetscCall(MatPropagateSymmetryOptions(P, (*sub)[0]));
+    if (flg && bs == 1) PetscCall(MatConvert((*sub)[0], MATSBAIJ, MAT_INPLACE_MATRIX, sub[0]));
     PetscCall(MatDuplicate((*sub)[0], MAT_COPY_VALUES, &aux));
+    aux->spd = PETSC_BOOL3_UNKNOWN; /* the auxiliary Mat need not be SPD */
     PetscCall(MatSetOption(aux, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE));
     if (bs == 1) { /* scalar case */
       Vec sum[2];
@@ -1545,6 +1577,9 @@ static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat P, IS *is, Mat *s
       Mat          sum[2], ones;
       PetscScalar *ptr;
 
+      aux->symmetry_eternal = PETSC_FALSE;
+      aux->symmetric        = PETSC_BOOL3_UNKNOWN;
+      aux->hermitian        = PETSC_BOOL3_UNKNOWN;
       PetscCall(PetscCalloc1(M[0]->cmap->n * bs, &ptr));
       PetscCall(MatCreateDense(PETSC_COMM_SELF, M[0]->cmap->n, bs, M[0]->cmap->n, bs, ptr, &ones));
       for (PetscInt n = 0; n < M[0]->cmap->n; n += bs) {
@@ -1573,7 +1608,7 @@ static PetscErrorCode PCHPDDMAlgebraicAuxiliaryMat_Private(Mat P, IS *is, Mat *s
       PetscCall(MatDestroy(sum));
     }
     PetscCall(MatSetOption(aux, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE));
-    /* left-hand side of GenEO, with the same sparsity pattern as PCASM subdomain solvers  */
+    /* left-hand side of GenEO, with the same sparsity pattern as PCASM subdomain solvers */
     PetscCall(PetscObjectCompose((PetscObject)(*sub)[0], "_PCHPDDM_Neumann_Mat", (PetscObject)aux));
   }
   PetscCall(ISDestroy(irow));
@@ -1766,7 +1801,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
   char                                       prefix[256];
   const char                                *pcpre;
   Mat                                        ev;
-  PetscInt                                   n, requested = data->N, reused = 0, overlap = -1;
+  PetscInt                                   n, requested, reused = 0, overlap = -1;
   MatStructure                               structure  = UNKNOWN_NONZERO_PATTERN;
   PetscBool                                  subdomains = PETSC_FALSE, flg = PETSC_FALSE, ismatis, swap = PETSC_FALSE, algebraic = PETSC_FALSE, block = PETSC_FALSE;
   DM                                         dm;
@@ -1775,7 +1810,9 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
   Mat                                        daux = nullptr;
 
   PetscFunctionBegin;
-  PetscCheck(data->levels && data->levels[0], PETSC_COMM_SELF, PETSC_ERR_PLIB, "Not a single level allocated");
+  if (!data->levels) PetscCall(PetscInfo(pc, "No level allocated, defaulting to a single level, PCSetFromOptions() should be called before PCSetUp() to avoid this\n"));
+  PetscCall(PCHPDDMInitializeLevels_Private(data));
+  requested = data->N;
   PetscCall(PCGetOptionsPrefix(pc, &pcpre));
   PetscCall(PCGetOperators(pc, &A, &P));
   if (!data->levels[0]->ksp) {
@@ -3288,7 +3325,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_HPDDM(PC pc)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-/*@C
+/*@
   PCHPDDMInitializePackage - This function initializes everything in the `PCHPDDM` package. It is called from `PCInitializePackage()`.
 
   Level: developer
@@ -3330,7 +3367,7 @@ PetscErrorCode PCHPDDMInitializePackage(void)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-/*@C
+/*@
   PCHPDDMFinalizePackage - This function frees everything from the `PCHPDDM` package. It is called from `PetscFinalize()`.
 
   Level: developer
