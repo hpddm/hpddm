@@ -38,9 +38,11 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
   #if !defined(DSUITESPARSE) && !defined(DLAPACK)
   unsigned short p = opt.val<unsigned short>("p", 1);
   if (p > sizeWorld_ / 2 && sizeWorld_ > 1) {
-    p = opt["p"] = sizeWorld_ / 2;
+    p        = sizeWorld_ / 2;
+    opt["p"] = p;
     if (rankWorld_ == 0) std::cout << "WARNING -- the number of main processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
   }
+  if (!p) p = opt["p"] = 1;
   #else
   const unsigned short p = opt["p"] = 1;
   #endif
@@ -73,14 +75,14 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
 #endif
     if (T == 2) {
       // Here, it is assumed that all subdomains have the same number of coarse degrees of freedom as the rank 0 ! (only true when the distribution is uniform)
-      float area               = sizeWorld_ * sizeWorld_ / (2.0 * p);
-      *DMatrix::ldistribution_ = 0;
+      float area = sizeWorld_ * sizeWorld_ / (2.0 * p);
       for (unsigned short i = 1; i < p; ++i)
-        DMatrix::ldistribution_[i] = static_cast<int>(sizeWorld_ - std::sqrt(std::max(sizeWorld_ * sizeWorld_ - 2 * sizeWorld_ * DMatrix::ldistribution_[i - 1] - 2 * area + DMatrix::ldistribution_[i - 1] * DMatrix::ldistribution_[i - 1], 1.0f)) + 0.5f);
-      int           *idx = std::upper_bound(DMatrix::ldistribution_, DMatrix::ldistribution_ + p, rankWorld_);
+        DMatrix::ldistribution_[i] = std::lround(sizeWorld_ - std::sqrt(std::max(sizeWorld_ * sizeWorld_ - 2 * sizeWorld_ * DMatrix::ldistribution_[i - 1] - 2 * area + DMatrix::ldistribution_[i - 1] * DMatrix::ldistribution_[i - 1], 1.0f)));
+      int           *idx = std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + p, rankWorld_);
       unsigned short i   = idx - DMatrix::ldistribution_;
-      tmp                = (i == p) ? sizeWorld_ - DMatrix::ldistribution_[i - 1] : DMatrix::ldistribution_[i] - DMatrix::ldistribution_[i - 1];
-      ps                 = new int[tmp];
+      // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+      tmp = (i == p) ? sizeWorld_ - DMatrix::ldistribution_[i - 1] : DMatrix::ldistribution_[i] - DMatrix::ldistribution_[i - 1];
+      ps  = new int[tmp];
       for (unsigned int j = 0; j < tmp; ++j) ps[j] = DMatrix::ldistribution_[i - 1] + j;
     }
 #ifndef HPDDM_CONTIGUOUS
@@ -593,7 +595,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         unsigned short before = 0;
         for (unsigned short j = 0; j < info[0] && sparsity[j] < rank; ++j) before += (U == 1 ? (!blocked ? local_ : 1) : infoNeighbor[j]);
         if (local_) {
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d__1), work, &n, *EV, &n, &(Wrapper<K>::d__0), C + before * (!blocked ? 1 : local_ * local_), !blocked ? &coefficients : &local_);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d_1), work, &n, *EV, &n, &(Wrapper<K>::d_0), C + before * (!blocked ? 1 : local_ * local_), !blocked ? &coefficients : &local_);
           Wrapper<K>::template imatcopy<super::numbering_ == 'F' && blocked ? 'C' : 'R'>(local_, local_, C + before * (!blocked ? 1 : local_ * local_), !blocked ? coefficients : local_, !blocked ? coefficients : local_);
         }
         if (rankSplit == 0) {
@@ -616,13 +618,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         }
       } else {
         if (blocked || (coefficients >= local_ && local_)) {
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d__1), *EV, &n, work, &n, &(Wrapper<K>::d__0), C, &local_);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d_1), *EV, &n, work, &n, &(Wrapper<K>::d_0), C, &local_);
           if (!blocked)
             for (unsigned short j = local_; j-- > 0;) std::copy_backward(C + j * (local_ + 1), C + (j + 1) * local_, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * local_);
         } else
           for (unsigned short j = 0; j < local_; ++j) {
             int local = local_ - j;
-            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d__1), EV[j], &n, work + n * j, &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + local_), &i__1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d_1), EV[j], &n, work + n * j, &i_1, &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + local_), &i_1);
           }
         if (rankSplit == 0) {
           if (!blocked)
@@ -1604,8 +1606,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
     delete[] infoSplit;
     if (excluded == 2) {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
-      if (DMatrix::distribution_ == DMatrix::CENTRALIZED && rankWorld_ == 0) sizeRHS_ += local_;
-      else if (DMatrix::distribution_ == DMatrix::DISTRIBUTED_SOL)
+      if ((DMatrix::distribution_ == DMatrix::CENTRALIZED && rankWorld_ == 0) || DMatrix::distribution_ == DMatrix::DISTRIBUTED_SOL)
 #endif
         sizeRHS_ += local_;
     }

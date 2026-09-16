@@ -251,7 +251,7 @@ private:
     Lapack<K>::geqrf(&n_, &n_, nullptr, &n_, nullptr, &wkopt, lwork, &info);
   #endif
     lwork[0] = static_cast<int>(std::real(wkopt));
-    Lapack<K>::mqr("L", "T", &n_, &i__1, &n_, nullptr, &n_, nullptr, nullptr, &n_, &wkopt, lwork + 1, &info);
+    Lapack<K>::mqr("L", "T", &n_, &i_1, &n_, nullptr, &n_, nullptr, nullptr, &n_, &wkopt, lwork + 1, &info);
     lwork[1] = static_cast<int>(std::real(wkopt));
     return *std::max_element(lwork, lwork + 1);
   }
@@ -297,7 +297,7 @@ public:
     }
     std::for_each(jpvt.cbegin(), jpvt.cend(), [&](const int i) {
       std::fill_n(a_ + n_ * i, i, K());
-      a_[(n_ + 1) * i] = Wrapper<K>::d__1;
+      a_[(n_ + 1) * i] = Wrapper<K>::d_1;
     });
   #endif
   }
@@ -306,12 +306,12 @@ public:
   void solve(K *const x) const
   {
     int info;
-    Lapack<K>::mqr("L", "T", &n_, &i__1, &n_, a_, &n_, tau_, x, &n_, work_, &lwork_, &info);
+    Lapack<K>::mqr("L", "T", &n_, &i_1, &n_, a_, &n_, tau_, x, &n_, work_, &lwork_, &info);
   #if HPDDM_QR == 1
-    Lapack<K>::trtrs("U", "N", "N", &rank_, &i__1, a_, &n_, x, &n_, &info);
-    Lapack<K>::lapmt(&i__0, &i__1, &n_, x, &i__1, const_cast<int *>(jpvt_.data()));
+    Lapack<K>::trtrs("U", "N", "N", &rank_, &i_1, a_, &n_, x, &n_, &info);
+    Lapack<K>::lapmt(&i_0, &i_1, &n_, x, &i_1, const_cast<int *>(jpvt_.data()));
   #else
-    Lapack<K>::trtrs("U", "N", "N", &n_, &i__1, a_, &n_, x, &n_, &info);
+    Lapack<K>::trtrs("U", "N", "N", &n_, &i_1, a_, &n_, x, &n_, &info);
   #endif
   }
 };

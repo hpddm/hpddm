@@ -22,7 +22,6 @@
  */
 
 extern "C" {
-#define __parmetis_h__
 typedef int idxtype;
 #include <metis.h>
 }
@@ -61,9 +60,9 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       std::for_each(Mat->ja_, Mat->ja_ + Mat->nnz_, [](int &i) { --i; });
     }
 #if METIS_VER_MAJOR >= 5
-    METIS_PartGraphKway(&Mat->n_, const_cast<int *>(&(HPDDM::i__1)), Mat->ia_, Mat->ja_, nullptr, nullptr, nullptr, &sizeWorld, nullptr, nullptr, nullptr, &overlap, part);
+    METIS_PartGraphKway(&Mat->n_, const_cast<int *>(&(HPDDM::i_1)), Mat->ia_, Mat->ja_, nullptr, nullptr, nullptr, &sizeWorld, nullptr, nullptr, nullptr, &overlap, part);
 #else
-    METIS_PartGraphKway(&Mat->n_, Mat->ia_, Mat->ja_, nullptr, nullptr, const_cast<int *>(&(HPDDM::i__0)), const_cast<int *>(&(HPDDM::i__0)), &sizeWorld, const_cast<int *>(&(HPDDM::i__0)), &overlap, part);
+    METIS_PartGraphKway(&Mat->n_, Mat->ia_, Mat->ja_, nullptr, nullptr, const_cast<int *>(&(HPDDM::i_0)), const_cast<int *>(&(HPDDM::i_0)), &sizeWorld, const_cast<int *>(&(HPDDM::i_0)), &overlap, part);
 #endif
     if (HPDDM_NUMBERING == 'F') {
       std::for_each(Mat->ja_, Mat->ja_ + Mat->nnz_, [](int &i) { ++i; });
@@ -81,7 +80,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       std::transform(indicator, indicator + sizeWorld * Mat->n_, z, z, [](const K &a, const K &b) { return (b > 0.5) - (a > 0.5); });
       K alpha = i + 2;
       n       = Mat->n_ * sizeWorld;
-      HPDDM::Blas<K>::axpy(&n, &alpha, z, &(HPDDM::i__1), indicator, &(HPDDM::i__1));
+      HPDDM::Blas<K>::axpy(&n, &alpha, z, &(HPDDM::i_1), indicator, &(HPDDM::i_1));
     }
     delete[] z;
     delete[] val;
@@ -111,28 +110,31 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
         }
       }
     int nnz = 0;
-    d       = new HPDDM::underlying_type<K>[ndof];
-    for (unsigned int k = 0, j = 0; k < Mat->n_; ++k)
-      if (indicator[rankWorld * Mat->n_ + k] > 0.0) {
-        if (std::abs(indicator[rankWorld * Mat->n_ + k] - (1.0 + overlap)) < 0.5) d[j++] = 0.0;
-        else d[j++] = 1.0 - (indicator[rankWorld * Mat->n_ + k] - 1.0) / static_cast<double>(overlap);
-        for (unsigned int i = Mat->ia_[k] - (HPDDM_NUMBERING == 'F'); i < Mat->ia_[k + 1] - (HPDDM_NUMBERING == 'F'); ++i) {
-          if (indicator[rankWorld * Mat->n_ + Mat->ja_[i] - (HPDDM_NUMBERING == 'F')] > 0.0) ++nnz;
-        }
+    d       = new HPDDM::underlying_type<K>[idx.size()];
+    for (std::size_t j = 0; j < idx.size(); ++j) {
+      const unsigned int k = idx[j];
+      if (std::abs(indicator[rankWorld * Mat->n_ + k] - (1.0 + overlap)) < 0.5) d[j] = 0.0;
+      else d[j] = 1.0 - (indicator[rankWorld * Mat->n_ + k] - 1.0) / static_cast<double>(overlap);
+      for (unsigned int i = Mat->ia_[k] - (HPDDM_NUMBERING == 'F'); i < Mat->ia_[k + 1] - (HPDDM_NUMBERING == 'F'); ++i) {
+        if (indicator[rankWorld * Mat->n_ + Mat->ja_[i] - (HPDDM_NUMBERING == 'F')] > 0.0) ++nnz;
       }
+    }
     HPDDM::MatrixCSR<K> *locMat = new HPDDM::MatrixCSR<K>(ndof, ndof, nnz, Mat->sym_);
     locMat->ia_[0]              = (HPDDM_NUMBERING == 'F');
     std::fill_n(locMat->ia_ + 1, locMat->n_, 0);
-    for (unsigned int k = 0, nnz = 0; k < Mat->n_; ++k)
-      if (indicator[rankWorld * Mat->n_ + k] > 0.0) {
+    if (nnz) {
+      nnz = 0;
+      for (unsigned int k : idx) {
         for (unsigned int i = Mat->ia_[k] - (HPDDM_NUMBERING == 'F'); i < Mat->ia_[k + 1] - (HPDDM_NUMBERING == 'F'); ++i) {
           if (indicator[rankWorld * Mat->n_ + Mat->ja_[i] - (HPDDM_NUMBERING == 'F')] > 0.0) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             locMat->ia_[g2l.at(k) + 1]++;
             locMat->ja_[nnz]  = g2l.at(Mat->ja_[i] - (HPDDM_NUMBERING == 'F')) + (HPDDM_NUMBERING == 'F');
             locMat->a_[nnz++] = Mat->a_[i];
           }
         }
       }
+    }
     std::partial_sum(locMat->ia_, locMat->ia_ + locMat->n_ + 1, locMat->ia_);
     delete[] indicator;
 

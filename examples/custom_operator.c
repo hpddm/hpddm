@@ -80,6 +80,7 @@ int main(int argc, char **argv)
   MPI_Get_processor_name(name, &length);
   srand((unsigned)time(NULL) + rank * size + length);
   double *in = malloc(sizeof(double) * mu * op->n);
+  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.rand)
   for (int i = 0; i < mu * op->n; ++i) in[i] = (rand() % 10000) / 100.0;
   double *out = (double *)calloc(mu * op->n, sizeof(double));
   HpddmCustomOperatorSolve(op, op->n, &mv, &apply, in, out, mu, &op->comm);

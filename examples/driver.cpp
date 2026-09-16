@@ -123,15 +123,15 @@ int main(int argc, char **argv)
     it += HPDDM::IterativeMethod::solve(*A, rhs, x, mu, MPI_COMM_SELF);
     HPDDM::underlying_type<K> *nrmb = new HPDDM::underlying_type<K>[2 * mu];
     int                        n    = Mat->n_;
-    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&n, rhs + nu * n, &(HPDDM::i__1));
+    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&n, rhs + nu * n, &(HPDDM::i_1));
     K *tmp = new K[mu * n];
     HPDDM::Wrapper<K>::csrmm(Mat->sym_, &n, &mu, Mat->a_, Mat->ia_, Mat->ja_, x, tmp);
     n *= mu;
-    HPDDM::Blas<K>::axpy(&n, &(HPDDM::Wrapper<K>::d__2), rhs, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
+    HPDDM::Blas<K>::axpy(&n, &(HPDDM::Wrapper<K>::d_2), rhs, &(HPDDM::i_1), tmp, &(HPDDM::i_1));
     n /= mu;
     HPDDM::underlying_type<K> *nrmAx = nrmb + mu;
     for (unsigned short nu = 0; nu < mu; ++nu) {
-      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&n, tmp + nu * n, &(HPDDM::i__1));
+      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&n, tmp + nu * n, &(HPDDM::i_1));
       if (nu == 0) std::cout << " --- residual = ";
       else std::cout << "                ";
       std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];

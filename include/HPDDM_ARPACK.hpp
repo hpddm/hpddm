@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U) \
   void HPDDM_F77(B##saupd)(int *, const char *, const int *, const char *, const int *, const U *, U *, int *, U *, const int *, int *, int *, U *, U *, int *, int *, int, int); \
   void HPDDM_F77(B##seupd)(const int *, const char *, int *, U *, U *, const int *, const U *, const char *, const int *, const char *, const int *, const U *, U *, int *, U *, const int *, int *, int *, U *, U *, int *, int *, int, int, int); \
@@ -59,7 +61,7 @@ private:
   unsigned short it_;
   /* Variable: which
          *  Eigenpairs to retrieve. */
-  static constexpr const char *const which_ = Wrapper<K>::is_complex ? "LM" : "LM";
+  static constexpr const char *const which_ = "LM";
   /* Function: aupd
          *  Iterates the implicitly restarted Arnoldi method. */
   static void aupd(int *, const char *, const int *, const char *, const int *, const underlying_type<K> *, K *, int *, K *, int *, int *, K *, K *, int *, underlying_type<K> *, int *);
@@ -117,22 +119,26 @@ public:
           int ido = info = 0;
           while (ido != 99) {
             aupd(&ido, "G", n, which_, nu, tol, vresid, &ncv, vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
+            if (ido == -1 || ido == 1 || ido == 2) {
+              assert(ipntr[1] >= 1 && ipntr[1] <= 2 * *n + 1);
+              assert(ipntr[ido == 1 ? 2 : 0] >= 1 && ipntr[ido == 1 ? 2 : 0] <= 2 * *n + 1);
+            }
             if (ido == -1) {
               if (B) {
                 if (B->ia_ && B->ja_) Wrapper<K>::csrmv(B->sym_, n, B->a_, B->ia_, B->ja_, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                 else {
-                  if (B->sym_) Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
-                  else Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                  if (B->sym_) Blas<K>::symv("L", n, &(Wrapper<K>::d_1), B->a_, n, workd + ipntr[0] - 1, &i_1, &(Wrapper<K>::d_0), workd + ipntr[1] - 1, &i_1);
+                  else Blas<K>::gemv("N", n, n, &(Wrapper<K>::d_1), B->a_, n, workd + ipntr[0] - 1, &i_1, &(Wrapper<K>::d_0), workd + ipntr[1] - 1, &i_1);
                 }
               } else std::copy_n(workd + ipntr[0] - 1, *n, workd + ipntr[1] - 1);
               prec->solve(workd + ipntr[1] - 1);
             } else if (ido == 1) prec->solve(workd + ipntr[2] - 1, workd + ipntr[1] - 1);
-            else {
+            else if (ido == 2) {
               if (B) {
                 if (B->ia_ && B->ja_) Wrapper<K>::csrmv(B->sym_, n, B->a_, B->ia_, B->ja_, workd + ipntr[0] - 1, workd + ipntr[1] - 1);
                 else {
-                  if (B->sym_) Blas<K>::symv("L", n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
-                  else Blas<K>::gemv("N", n, n, &(Wrapper<K>::d__1), B->a_, n, workd + ipntr[0] - 1, &i__1, &(Wrapper<K>::d__0), workd + ipntr[1] - 1, &i__1);
+                  if (B->sym_) Blas<K>::symv("L", n, &(Wrapper<K>::d_1), B->a_, n, workd + ipntr[0] - 1, &i_1, &(Wrapper<K>::d_0), workd + ipntr[1] - 1, &i_1);
+                  else Blas<K>::gemv("N", n, n, &(Wrapper<K>::d_1), B->a_, n, workd + ipntr[0] - 1, &i_1, &(Wrapper<K>::d_0), workd + ipntr[1] - 1, &i_1);
                 }
               } else std::copy_n(workd + ipntr[0] - 1, *n, workd + ipntr[1] - 1);
             }
@@ -152,10 +158,10 @@ public:
     if (Eigensolver<K>::nu_) {
       evr = new K[Eigensolver<K>::nu_];
       ev  = new K *[Eigensolver<K>::nu_];
-      *ev = new K[Eigensolver<K>::n_ * Eigensolver<K>::nu_];
+      *ev = new K[static_cast<std::size_t>(Eigensolver<K>::n_) * Eigensolver<K>::nu_];
       for (unsigned short i = 1; i < Eigensolver<K>::nu_; ++i) ev[i] = *ev + i * Eigensolver<K>::n_;
       int *select = new int[ncv];
-      eupd(&i__1, "A", select, evr, *ev, &(Eigensolver<K>::n_), &(Wrapper<K>::d__0), workev, "G", which_, &(Eigensolver<K>::nu_), &(Eigensolver<K>::tol_), vresid, &ncv, vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
+      eupd(&i_1, "A", select, evr, *ev, &(Eigensolver<K>::n_), &(Wrapper<K>::d_0), workev, "G", which_, &(Eigensolver<K>::nu_), &(Eigensolver<K>::tol_), vresid, &ncv, vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
       delete[] select;
       std::string name = Eigensolver<K>::dump(evr, ev, communicator, mode);
       if (!name.empty()) {

@@ -79,7 +79,7 @@ int main(int argc, char **argv)
         nu = HpddmOptionVal(opt, "geneo_nu");
       } else {
         nu            = 1;
-        K **deflation = malloc(sizeof(K *));
+        K **deflation = (K **)malloc(sizeof(K *));
         *deflation    = malloc(sizeof(K) * ndof);
         for (int i = 0; i < ndof; ++i) deflation[0][i] = 1.0;
         HpddmSetVectors(HpddmSchwarzPreconditioner(A), deflation);
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
         if (mu > 1) printf(" (rhs #%d)", nu + 1);
         printf("\n");
       }
-    if (it > ((int)HpddmOptionVal(opt, "krylov_method") == 6 ? 60 : 45)) status = 1;
+    if (it > (HpddmOptionVal(opt, "krylov_method") == 6 ? 60 : 45)) status = 1;
     else {
       for (unsigned short nu = 0; nu < mu; ++nu)
         if (storage[1 + 2 * nu] / storage[2 * nu] > 1.0e-2) status = 1;
