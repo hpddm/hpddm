@@ -67,9 +67,16 @@ public:
   int nu_;
   explicit Eigensolver(int n) : tol_(), threshold_(), n_(n), nu_() { }
   Eigensolver(int n, int nu) : tol_(Option::get()->val("eigensolver_tol", 1.0e-6)), threshold_(), n_(n), nu_(std::min(nu, n)) { }
-  Eigensolver(underlying_type<K> threshold, int n, int nu) : tol_(threshold > 0.0 ? HPDDM_EPS : Option::get()->val("eigensolver_tol", 1.0e-6)), threshold_(threshold), n_(n), nu_(std::min(nu, n)) { }
-  Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : tol_(threshold > 0.0 ? HPDDM_EPS : tol), threshold_(threshold), n_(n), nu_(std::min(nu, n)) { }
-  std::string dump(const K *const eigenvalues, const K *const *const eigenvectors, const MPI_Comm &communicator, std::ios_base::openmode mode = std::ios_base::out) const
+  Eigensolver(underlying_type<K> threshold, int n, int nu) :
+    tol_(threshold > 0.0 ? HPDDM_EPS : Option::get()->val("eigensolver_tol", 1.0e-6)), threshold_(threshold), n_(n), nu_(std::min(nu, n))
+  {
+  }
+  Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) :
+    tol_(threshold > 0.0 ? HPDDM_EPS : tol), threshold_(threshold), n_(n), nu_(std::min(nu, n))
+  {
+  }
+  std::string dump(const K *const eigenvalues, const K *const *const eigenvectors, const MPI_Comm &communicator,
+                   std::ios_base::openmode mode = std::ios_base::out) const
   {
     if (n_ <= 0 || nu_ <= 0) return std::string();
     int rankWorld;
@@ -108,8 +115,13 @@ public:
   void selectNu(const T *const eigenvalues, K **&eigenvectors, const MPI_Comm &communicator, unsigned short m = 0)
   {
     static_assert(std::is_same<T, K>::value || std::is_same<T, underlying_type<K>>::value, "Wrong types");
-    const Option &opt = *Option::get();
-    unsigned short nev = nu_ ? std::min(static_cast<int>(std::distance(eigenvalues, std::upper_bound(eigenvalues + 1, eigenvalues + nu_, threshold_, [](const T &lhs, const T &rhs) { return std::real(lhs) < std::real(rhs); }))), nu_) : (min ? std::numeric_limits<unsigned short>::max() : 0);
+    const Option  &opt = *Option::get();
+    unsigned short nev = nu_
+                         ? std::min(static_cast<int>(
+                                      std::distance(eigenvalues, std::upper_bound(eigenvalues + 1, eigenvalues + nu_, threshold_,
+                                                                                  [](const T &lhs, const T &rhs) { return std::real(lhs) < std::real(rhs); }))),
+                                    nu_)
+                         : (min ? std::numeric_limits<unsigned short>::max() : 0);
     switch (opt.val<char>("geneo_force_uniformity")) {
     case HPDDM_GENEO_FORCE_UNIFORMITY_MIN:
       if (!min) MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MIN, communicator);
@@ -131,7 +143,8 @@ public:
         std::uniform_real_distribution<underlying_type<K>> uniform;
         if (eigenvectors && *eigenvectors) {
           std::copy_n(*eigenvectors, nu_ * n_, *basis);
-          std::pair<K *, K *> result = std::minmax_element(*eigenvectors, *eigenvectors + nu_ * n_, [](const K &lhs, const K &rhs) { return std::real(lhs) < std::real(rhs); });
+          std::pair<K *, K *> result = std::minmax_element(*eigenvectors, *eigenvectors + nu_ * n_,
+                                                           [](const K &lhs, const K &rhs) { return std::real(lhs) < std::real(rhs); });
           uniform                    = std::uniform_real_distribution<underlying_type<K>>(std::real(*result.first), std::real(*result.second));
           delete[] *eigenvectors;
         } else uniform = std::uniform_real_distribution<underlying_type<K>>(0.0, 1.0);

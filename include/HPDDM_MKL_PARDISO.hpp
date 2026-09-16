@@ -113,7 +113,8 @@ public:
     if (comm_ != -1) {
       int i_0 = 0;
       int i_1 = 1;
-      CLUSTER_SPARSE_SOLVER(pt_, &i_1, &i_1, &mtype_, &phase, &(DMatrix::n_), &ddum, &idum, &idum, &i_1, &i_1, iparm_, &i_0, &ddum, &ddum, const_cast<int *>(&comm_), &error);
+      CLUSTER_SPARSE_SOLVER(pt_, &i_1, &i_1, &mtype_, &phase, &(DMatrix::n_), &ddum, &idum, &idum, &i_1, &i_1, iparm_, &i_0, &ddum, &ddum,
+                            const_cast<int *>(&comm_), &error);
       comm_ = -1;
     }
     delete[] I_;
@@ -167,7 +168,8 @@ public:
 
     int i_0 = 0;
     int i_1 = 1;
-    CLUSTER_SPARSE_SOLVER(pt_, &i_1, &i_1, &mtype_, &phase, loc2glob, C, I_, J_, &i_1, &i_1, iparm_, opt.val<char>("verbosity", 0) < 3 ? &i_0 : &i_1, &ddum, &ddum, const_cast<int *>(&comm_), &error);
+    CLUSTER_SPARSE_SOLVER(pt_, &i_1, &i_1, &mtype_, &phase, loc2glob, C, I_, J_, &i_1, &i_1, iparm_, opt.val<char>("verbosity", 0) < 3 ? &i_0 : &i_1, &ddum,
+                          &ddum, const_cast<int *>(&comm_), &error);
   #if !HPDDM_INEXACT_COARSE_OPERATOR
     w_ = new K[(iparm_[41] - iparm_[40] + 1) * bs];
   #endif
@@ -198,9 +200,11 @@ public:
     K **ptr = const_cast<K **>(&w_);
     *ptr    = new K[(iparm_[41] - iparm_[40] + 1) * iparm_[36] * n];
   }
-  CLUSTER_SPARSE_SOLVER(const_cast<void **>(pt_), &i_1, &i_1, &mtype_, &phase, &(DMatrix::n_), C_, I_, J_, &i_1, &nrhs, iparm_, &i_0, rhs, w_, const_cast<int *>(&comm_), &error);
+  CLUSTER_SPARSE_SOLVER(const_cast<void **>(pt_), &i_1, &i_1, &mtype_, &phase, &(DMatrix::n_), C_, I_, J_, &i_1, &nrhs, iparm_, &i_0, rhs, w_,
+                        const_cast<int *>(&comm_), &error);
   #else
-    CLUSTER_SPARSE_SOLVER(const_cast<void **>(pt_), &i_1, &i_1, &mtype_, &phase, &(DMatrix::n_), C_, I_, J_, &i_1, &nrhs, iparm_, &i_0, const_cast<K *>(rhs), x, const_cast<int *>(&comm_), &error);
+    CLUSTER_SPARSE_SOLVER(const_cast<void **>(pt_), &i_1, &i_1, &mtype_, &phase, &(DMatrix::n_), C_, I_, J_, &i_1, &nrhs, iparm_, &i_0, const_cast<K *>(rhs), x,
+                          const_cast<int *>(&comm_), &error);
   #endif
 }
 };
@@ -238,7 +242,8 @@ public:
     int idum;
     K   ddum;
     n_ = 1;
-    PARDISO(pt_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), &mtype_, &phase, &n_, &ddum, &idum, &idum, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), &ddum, &ddum, &error);
+    PARDISO(pt_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), &mtype_, &phase, &n_, &ddum, &idum, &idum, const_cast<int *>(&i_1), const_cast<int *>(&i_1),
+            iparm_, const_cast<int *>(&i_0), &ddum, &ddum, &error);
     if (mtype_ == prds<K>::SPD || mtype_ == prds<K>::SYM) {
       delete[] I_;
       delete[] J_;
@@ -299,7 +304,8 @@ public:
       J_ = A->ja_;
       C_ = A->a_;
     }
-    PARDISO(pt_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), &mtype_, &phase, const_cast<int *>(&n_), C_, I_, J_, perm, const_cast<int *>(&i_1), iparm_, opt.val<char>("verbosity", 0) >= 4 ? const_cast<int *>(&i_1) : const_cast<int *>(&i_0), &ddum, schur, &error);
+    PARDISO(pt_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), &mtype_, &phase, const_cast<int *>(&n_), C_, I_, J_, perm, const_cast<int *>(&i_1), iparm_,
+            opt.val<char>("verbosity", 0) >= 4 ? const_cast<int *>(&i_1) : const_cast<int *>(&i_0), &ddum, schur, &error);
     delete[] perm;
     if (mtype_ == prds<K>::SPD) delete[] C_;
   }
@@ -315,13 +321,16 @@ public:
     iparm_[5] = 1;
     if (!partial_) {
       int phase = 33;
-      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
+      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_,
+              J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
     } else {
       int phase = 331;
-      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
+      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_,
+              J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
       std::fill(x + partial_, x + n_, K());
       phase = 333;
-      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
+      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_,
+              J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
     }
   }
   void solve(const K *const b, K *const x) const
@@ -330,15 +339,18 @@ public:
     if (!partial_) {
       iparm_[5] = 0;
       int phase = 33;
-      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), const_cast<K *>(b), x, &error);
+      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_,
+              J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), const_cast<K *>(b), x, &error);
     } else {
       iparm_[5] = 1;
       int phase = 331;
       std::copy_n(b, partial_, x);
-      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
+      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_,
+              J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
       std::fill(x + partial_, x + n_, K());
       phase = 333;
-      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
+      PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_,
+              J_, const_cast<int *>(&i_1), const_cast<int *>(&i_1), iparm_, const_cast<int *>(&i_0), x, const_cast<K *>(w_), &error);
     }
   }
   void solve(K *const x, const unsigned short &n) const
@@ -348,7 +360,8 @@ public:
     int nrhs  = n;
     iparm_[5] = 1;
     K *w      = new K[n_ * n];
-    PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), &nrhs, iparm_, const_cast<int *>(&i_0), x, w, &error);
+    PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_,
+            const_cast<int *>(&i_1), &nrhs, iparm_, const_cast<int *>(&i_0), x, w, &error);
     delete[] w;
   }
   void solve(const K *const b, K *const x, const unsigned short &n) const
@@ -357,7 +370,8 @@ public:
     int phase = 33;
     int nrhs  = n;
     iparm_[5] = 0;
-    PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_, const_cast<int *>(&i_1), &nrhs, iparm_, const_cast<int *>(&i_0), const_cast<K *>(b), x, &error);
+    PARDISO(const_cast<void **>(pt_), const_cast<int *>(&i_1), const_cast<int *>(&i_1), const_cast<int *>(&mtype_), &phase, const_cast<int *>(&n_), C_, I_, J_,
+            const_cast<int *>(&i_1), &nrhs, iparm_, const_cast<int *>(&i_0), const_cast<K *>(b), x, &error);
   }
 };
 #endif // MKL_PARDISOSUB

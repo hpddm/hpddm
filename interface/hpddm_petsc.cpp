@@ -56,7 +56,8 @@ PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
 }
 #endif
 
-PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm &comm, PetscMPIInt redistribute, PetscInt n, PetscScalar *a, int lda, PetscScalar *b, int ldb, PetscInt k, PetscScalar *vr, const PetscBool symmetric)
+PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm &comm, PetscMPIInt redistribute, PetscInt n, PetscScalar *a, int lda,
+                                              PetscScalar *b, int ldb, PetscInt k, PetscScalar *vr, const PetscBool symmetric)
 {
   EPS          eps = nullptr;
   SVD          svd;
@@ -128,8 +129,10 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm
         PetscCall(ISGetIndices(col, &ja));
         for (PetscInt j = 0; j < ncol; ++j) {
           for (PetscInt i = 0; i < nrow; ++i) {
-            if (HPDDM::abs(a[ia[i] + ja[j] * lda]) > std::numeric_limits<HPDDM::underlying_type<PetscScalar>>::epsilon()) PetscCall(MatSetValues(X, 1, ia + i, 1, ja + j, a + ia[i] + ja[j] * lda, INSERT_VALUES));
-            if (b && HPDDM::abs(b[ia[i] + ja[j] * ldb]) > std::numeric_limits<HPDDM::underlying_type<PetscScalar>>::epsilon()) PetscCall(MatSetValues(Y, 1, ia + i, 1, ja + j, b + ia[i] + ja[j] * ldb, INSERT_VALUES));
+            if (HPDDM::abs(a[ia[i] + ja[j] * lda]) > std::numeric_limits<HPDDM::underlying_type<PetscScalar>>::epsilon())
+              PetscCall(MatSetValues(X, 1, ia + i, 1, ja + j, a + ia[i] + ja[j] * lda, INSERT_VALUES));
+            if (b && HPDDM::abs(b[ia[i] + ja[j] * ldb]) > std::numeric_limits<HPDDM::underlying_type<PetscScalar>>::epsilon())
+              PetscCall(MatSetValues(Y, 1, ia + i, 1, ja + j, b + ia[i] + ja[j] * ldb, INSERT_VALUES));
           }
         }
         PetscCall(ISRestoreIndices(col, &ja));
@@ -192,7 +195,8 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm
       PetscCall(VecPlaceArray(Vr, vr + i * n + rbegin));
       if (eps) {
         if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) PetscCall(VecPlaceArray(Vi, vr + (i + 1) * n + rbegin));
-        PetscCall(EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr));
+        PetscCall(EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr,
+                                  std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr));
         if (HPDDM::abs(eigi) > 100 * PETSC_MACHINE_EPSILON) {
           ++i;
           ++info;

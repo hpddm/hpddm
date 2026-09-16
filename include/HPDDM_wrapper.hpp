@@ -129,9 +129,11 @@ struct Wrapper {
   /* Function: csrmv
      *  Computes a scalar-sparse matrix-vector product. */
   template <char N = HPDDM_NUMBERING>
-  static void csrmv(const char *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const, const int *const, const K *const, const K *const, K *const);
+  static void csrmv(const char *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const, const int *const,
+                    const K *const, const K *const, K *const);
   template <char N = HPDDM_NUMBERING>
-  static void bsrmv(const char *const, const int *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const, const int *const, const K *const, const K *const, K *const);
+  static void bsrmv(const char *const, const int *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const,
+                    const int *const, const K *const, const K *const, K *const);
   /* Function: csrmm(square)
      *  Computes a sparse square matrix-matrix product. */
   template <char N = HPDDM_NUMBERING>
@@ -141,9 +143,11 @@ struct Wrapper {
   /* Function: csrmm
      *  Computes a scalar-sparse matrix-matrix product. */
   template <char N = HPDDM_NUMBERING>
-  static void csrmm(const char *const, const int *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const, const int *const, const K *const, const K *const, K *const);
+  static void csrmm(const char *const, const int *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const,
+                    const int *const, const K *const, const K *const, K *const);
   template <char N = HPDDM_NUMBERING>
-  static void bsrmm(const char *const, const int *const, const int *const, const int *const, const int *const, const K *const, bool, const K *const, const int *const, const int *const, const K *const, const K *const, K *const);
+  static void bsrmm(const char *const, const int *const, const int *const, const int *const, const int *const, const K *const, bool, const K *const,
+                    const int *const, const int *const, const K *const, const K *const, K *const);
 
   /* Function: csrcsc
      *  Converts a matrix stored in Compressed Sparse Row format into Compressed Sparse Column format. */
@@ -393,17 +397,20 @@ const char matdescr<N, M>::b[4]{'S', M, 'N', N};
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::bsrmv(bool sym, const int *const n, const int *const bs, const T *const a, const int *const ia, const int *const ja, const T *const x, T *const y) \
+      inline void Wrapper<T>::bsrmv(bool sym, const int *const n, const int *const bs, const T *const a, const int *const ia, const int *const ja, \
+                                    const T *const x, T *const y) \
       { \
         bsrmv<N>("N", n, n, bs, &d_1, sym, a, ia, ja, x, &d_0, y); \
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::csrmv(const char *const trans, const int *const m, const int *const k, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::csrmv(const char *const trans, const int *const m, const int *const k, const T *const alpha, bool sym, const T *const a, \
+                                    const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
       { \
         struct matrix_descr descr; \
         sparse_matrix_t     csr; \
-        mkl_sparse_##C##_create_csr(&csr, N == 'C' ? SPARSE_INDEX_BASE_ZERO : SPARSE_INDEX_BASE_ONE, *m, *k, const_cast<int *>(ia), const_cast<int *>(ia + 1), const_cast<int *>(ja), const_cast<T *>(a)); \
+        mkl_sparse_##C##_create_csr(&csr, N == 'C' ? SPARSE_INDEX_BASE_ZERO : SPARSE_INDEX_BASE_ONE, *m, *k, const_cast<int *>(ia), const_cast<int *>(ia + 1), \
+                                    const_cast<int *>(ja), const_cast<T *>(a)); \
         descr.type = sym ? SPARSE_MATRIX_TYPE_SYMMETRIC : SPARSE_MATRIX_TYPE_GENERAL; \
         descr.mode = SPARSE_FILL_MODE_LOWER; \
         descr.diag = SPARSE_DIAG_NON_UNIT; \
@@ -412,11 +419,14 @@ const char matdescr<N, M>::b[4]{'S', M, 'N', N};
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::bsrmv(const char *const trans, const int *const m, const int *const k, const int *const bs, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::bsrmv(const char *const trans, const int *const m, const int *const k, const int *const bs, const T *const alpha, bool sym, \
+                                    const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
       { \
         struct matrix_descr descr; \
         sparse_matrix_t     bsr; \
-        mkl_sparse_##C##_create_bsr(&bsr, N == 'C' ? SPARSE_INDEX_BASE_ZERO : SPARSE_INDEX_BASE_ONE, N == 'C' ? SPARSE_LAYOUT_ROW_MAJOR : SPARSE_LAYOUT_COLUMN_MAJOR, *m, *k, *bs, const_cast<int *>(ia), const_cast<int *>(ia + 1), const_cast<int *>(ja), const_cast<T *>(a)); \
+        mkl_sparse_##C##_create_bsr(&bsr, N == 'C' ? SPARSE_INDEX_BASE_ZERO : SPARSE_INDEX_BASE_ONE, \
+                                    N == 'C' ? SPARSE_LAYOUT_ROW_MAJOR : SPARSE_LAYOUT_COLUMN_MAJOR, *m, *k, *bs, const_cast<int *>(ia), \
+                                    const_cast<int *>(ia + 1), const_cast<int *>(ja), const_cast<T *>(a)); \
         descr.type = sym ? SPARSE_MATRIX_TYPE_SYMMETRIC : SPARSE_MATRIX_TYPE_GENERAL; \
         descr.mode = SPARSE_FILL_MODE_UPPER; \
         descr.diag = SPARSE_DIAG_NON_UNIT; \
@@ -425,7 +435,8 @@ const char matdescr<N, M>::b[4]{'S', M, 'N', N};
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::csrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::csrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const T *const alpha, bool sym, \
+                                    const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
       { \
         if (*n != 1) { \
           if (N != 'F') { \
@@ -436,11 +447,13 @@ const char matdescr<N, M>::b[4]{'S', M, 'N', N};
           int                 ldc = (*trans == 'N' ? *m : *k); \
           struct matrix_descr descr; \
           sparse_matrix_t     csr; \
-          mkl_sparse_##C##_create_csr(&csr, SPARSE_INDEX_BASE_ONE, *m, *k, const_cast<int *>(ia), const_cast<int *>(ia + 1), const_cast<int *>(ja), const_cast<T *>(a)); \
+          mkl_sparse_##C##_create_csr(&csr, SPARSE_INDEX_BASE_ONE, *m, *k, const_cast<int *>(ia), const_cast<int *>(ia + 1), const_cast<int *>(ja), \
+                                      const_cast<T *>(a)); \
           descr.type = sym ? SPARSE_MATRIX_TYPE_SYMMETRIC : SPARSE_MATRIX_TYPE_GENERAL; \
           descr.mode = SPARSE_FILL_MODE_LOWER; \
           descr.diag = SPARSE_DIAG_NON_UNIT; \
-          mkl_sparse_##C##_mm(*trans == 'N' ? SPARSE_OPERATION_NON_TRANSPOSE : SPARSE_OPERATION_TRANSPOSE, *alpha, csr, descr, SPARSE_LAYOUT_COLUMN_MAJOR, x, *n, ldb, *beta, y, ldc); \
+          mkl_sparse_##C##_mm(*trans == 'N' ? SPARSE_OPERATION_NON_TRANSPOSE : SPARSE_OPERATION_TRANSPOSE, *alpha, csr, descr, SPARSE_LAYOUT_COLUMN_MAJOR, x, \
+                              *n, ldb, *beta, y, ldc); \
           mkl_sparse_destroy(csr); \
           if (N != 'F') { \
             std::for_each(const_cast<int *>(ia), const_cast<int *>(ia) + *m + 1, [](int &i) { --i; }); \
@@ -452,7 +465,9 @@ HPDDM_GENERATE_CSRCSC
     #define HPDDM_GENERATE_MKL_BSRMM(C, T) \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, \
+                                    const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, \
+                                    const T *const beta, T *const y) \
       { \
         if (*k) { \
           if (*n != 1) { \
@@ -464,11 +479,13 @@ HPDDM_GENERATE_CSRCSC
             int                 ldc = *bs * (*trans == 'N' ? *m : *k); \
             struct matrix_descr descr; \
             sparse_matrix_t     bsr; \
-            mkl_sparse_##C##_create_bsr(&bsr, SPARSE_INDEX_BASE_ONE, SPARSE_LAYOUT_COLUMN_MAJOR, *m, *k, *bs, const_cast<int *>(ia), const_cast<int *>(ia + 1), const_cast<int *>(ja), const_cast<T *>(a)); \
+            mkl_sparse_##C##_create_bsr(&bsr, SPARSE_INDEX_BASE_ONE, SPARSE_LAYOUT_COLUMN_MAJOR, *m, *k, *bs, const_cast<int *>(ia), \
+                                        const_cast<int *>(ia + 1), const_cast<int *>(ja), const_cast<T *>(a)); \
             descr.type = sym ? SPARSE_MATRIX_TYPE_SYMMETRIC : SPARSE_MATRIX_TYPE_GENERAL; \
             descr.mode = SPARSE_FILL_MODE_UPPER; \
             descr.diag = SPARSE_DIAG_NON_UNIT; \
-            mkl_sparse_##C##_mm(*trans == 'N' ? SPARSE_OPERATION_NON_TRANSPOSE : SPARSE_OPERATION_TRANSPOSE, *alpha, bsr, descr, SPARSE_LAYOUT_COLUMN_MAJOR, x, *n, ldb, *beta, y, ldc); \
+            mkl_sparse_##C##_mm(*trans == 'N' ? SPARSE_OPERATION_NON_TRANSPOSE : SPARSE_OPERATION_TRANSPOSE, *alpha, bsr, descr, SPARSE_LAYOUT_COLUMN_MAJOR, \
+                                x, *n, ldb, *beta, y, ldc); \
             mkl_sparse_destroy(bsr); \
             if (N != 'F') { \
               std::for_each(const_cast<int *>(ia), const_cast<int *>(ia) + *m + 1, [](int &i) { --i; }); \
@@ -493,31 +510,47 @@ HPDDM_GENERATE_CSRCSC
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::bsrmv(bool sym, const int *const n, const int *const bs, const T *const a, const int *const ia, const int *const ja, const T *const x, T *const y) \
+      inline void Wrapper<T>::bsrmv(bool sym, const int *const n, const int *const bs, const T *const a, const int *const ia, const int *const ja, \
+                                    const T *const x, T *const y) \
       { \
         if (N == 'C') { \
-          if (sym) mkl_cspblas_##C##bsrsymv("U", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y); \
-          else mkl_cspblas_##C##bsrgemv("N", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y); \
+          if (sym) \
+            mkl_cspblas_##C##bsrsymv("U", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), \
+                                     HPDDM_CONST(T, x), y); \
+          else \
+            mkl_cspblas_##C##bsrgemv("N", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), \
+                                     HPDDM_CONST(T, x), y); \
         } else { \
-          if (sym) mkl_##C##bsrsymv("U", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y); \
-          else mkl_##C##bsrgemv("N", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), y); \
+          if (sym) \
+            mkl_##C##bsrsymv("U", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), \
+                             y); \
+          else \
+            mkl_##C##bsrgemv("N", HPDDM_CONST(int, n), HPDDM_CONST(int, bs), HPDDM_CONST(T, a), HPDDM_CONST(int, ia), HPDDM_CONST(int, ja), HPDDM_CONST(T, x), \
+                             y); \
         } \
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::csrmv(const char *const trans, const int *const m, const int *const k, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::csrmv(const char *const trans, const int *const m, const int *const k, const T *const alpha, bool sym, const T *const a, \
+                                    const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
       { \
-        mkl_##C##csrmv(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, k), HPDDM_CONST(T, alpha), HPDDM_CONST(char, sym ? matdescr<N>::b : matdescr<N>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y); \
+        mkl_##C##csrmv(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, k), HPDDM_CONST(T, alpha), \
+                       HPDDM_CONST(char, sym ? matdescr<N>::b : matdescr<N>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), \
+                       HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y); \
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::bsrmv(const char *const trans, const int *const m, const int *const k, const int *const bs, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::bsrmv(const char *const trans, const int *const m, const int *const k, const int *const bs, const T *const alpha, bool sym, \
+                                    const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
       { \
-        mkl_##C##bsrmv(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha), HPDDM_CONST(char, sym ? (matdescr<N, 'U'>::b) : matdescr<N>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y); \
+        mkl_##C##bsrmv(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha), \
+                       HPDDM_CONST(char, sym ? (matdescr<N, 'U'>::b) : matdescr<N>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), \
+                       HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(T, beta), y); \
       } \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::csrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::csrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const T *const alpha, bool sym, \
+                                    const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
       { \
         if (*n != 1) { \
           if (N != 'F') { \
@@ -526,7 +559,9 @@ HPDDM_GENERATE_CSRCSC
           } \
           const int *const ldb = (*trans == 'N' ? k : m); \
           const int *const ldc = (*trans == 'N' ? m : k); \
-          mkl_##C##csrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n), HPDDM_CONST(int, k), HPDDM_CONST(T, alpha), HPDDM_CONST(char, sym ? matdescr<'F'>::b : matdescr<'F'>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(int, ldb), HPDDM_CONST(T, beta), y, HPDDM_CONST(int, ldc)); \
+          mkl_##C##csrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n), HPDDM_CONST(int, k), HPDDM_CONST(T, alpha), \
+                         HPDDM_CONST(char, sym ? matdescr<'F'>::b : matdescr<'F'>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), \
+                         HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), HPDDM_CONST(int, ldb), HPDDM_CONST(T, beta), y, HPDDM_CONST(int, ldc)); \
           if (N != 'F') { \
             std::for_each(const_cast<int *>(ia), const_cast<int *>(ia) + *m + 1, [](int &i) { --i; }); \
             std::for_each(const_cast<int *>(ja), const_cast<int *>(ja) + ia[*m], [](int &i) { --i; }); \
@@ -544,7 +579,9 @@ HPDDM_GENERATE_CSRCSC
     #define HPDDM_GENERATE_MKL_BSRMM(C, T) \
       template <> \
       template <char N> \
-      inline void Wrapper<T>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+      inline void Wrapper<T>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, \
+                                    const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, \
+                                    const T *const beta, T *const y) \
       { \
         if (*n != 1) { \
           if (N != 'F') { \
@@ -553,7 +590,9 @@ HPDDM_GENERATE_CSRCSC
           } \
           int ldb = *bs * (*trans == 'N' ? *k : *m); \
           int ldc = *bs * (*trans == 'N' ? *m : *k); \
-          mkl_##C##bsrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n), HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha), HPDDM_CONST(char, sym ? (matdescr<'F', 'U'>::b) : matdescr<'F'>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), &ldb, HPDDM_CONST(T, beta), y, &ldc); \
+          mkl_##C##bsrmm(HPDDM_CONST(char, trans), HPDDM_CONST(int, m), HPDDM_CONST(int, n), HPDDM_CONST(int, k), HPDDM_CONST(int, bs), HPDDM_CONST(T, alpha), \
+                         HPDDM_CONST(char, sym ? (matdescr<'F', 'U'>::b) : matdescr<'F'>::a), HPDDM_CONST(T, a), HPDDM_CONST(int, ja), HPDDM_CONST(int, ia), \
+                         HPDDM_CONST(int, ia) + 1, HPDDM_CONST(T, x), &ldb, HPDDM_CONST(T, beta), y, &ldc); \
           if (N != 'F') { \
             std::for_each(const_cast<int *>(ia), const_cast<int *>(ia) + *m + 1, [](int &i) { --i; }); \
             std::for_each(const_cast<int *>(ja), const_cast<int *>(ja) + ia[*m], [](int &i) { --i; }); \
@@ -620,13 +659,15 @@ inline void Wrapper<K>::csrmv(bool sym, const int *const n, const K *const a, co
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::bsrmv(bool sym, const int *const n, const int *const bs, const K *const a, const int *const ia, const int *const ja, const K *const x, K *const y)
+inline void Wrapper<K>::bsrmv(bool sym, const int *const n, const int *const bs, const K *const a, const int *const ia, const int *const ja, const K *const x,
+                              K *const y)
 {
   bsrmv<N>("N", n, n, bs, &d_1, sym, a, ia, ja, x, &d_0, y);
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::csrmv(const char *const trans, const int *const m, const int *const k, const K *const alpha, bool sym, const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
+inline void Wrapper<K>::csrmv(const char *const trans, const int *const m, const int *const k, const K *const alpha, bool sym, const K *const a,
+                              const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
 {
   if (*trans == 'N' && !sym) {
   #ifdef _OPENMP
@@ -658,7 +699,8 @@ inline void Wrapper<K>::csrmv(const char *const trans, const int *const m, const
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const int *const k, const int *const bs, const K *const alpha, bool sym, const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
+inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const int *const k, const int *const bs, const K *const alpha, bool sym,
+                              const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
 {
   if (*trans == 'N' && !sym) {
   #ifdef _OPENMP
@@ -666,7 +708,8 @@ inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const
   #endif
     for (int i = 0; i < *m; ++i) {
       Blas<K>::scal(bs, beta, y + *bs * i, &i_1);
-      for (int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) Blas<K>::gemv(N == 'F' ? "N" : "T", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &i_1, &(Wrapper<K>::d_1), y + *bs * i, &i_1);
+      for (int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+        Blas<K>::gemv(N == 'F' ? "N" : "T", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &i_1, &(Wrapper<K>::d_1), y + *bs * i, &i_1);
     }
   } else {
     const int ldc = *bs * *k;
@@ -686,7 +729,9 @@ inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const
       }
     } else {
       for (int i = 0; i < *m; ++i)
-        for (int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) Blas<K>::gemv(N == 'F' ? trans : "N", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * i, &i_1, &(Wrapper<K>::d_1), y + *bs * (ja[j] - (N == 'F')), &i_1);
+        for (int j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+          Blas<K>::gemv(N == 'F' ? trans : "N", bs, bs, alpha, a + *bs * *bs * j, bs, x + *bs * i, &i_1, &(Wrapper<K>::d_1), y + *bs * (ja[j] - (N == 'F')),
+                        &i_1);
     }
     if (Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
       K *const c = const_cast<K *>(a);
@@ -696,7 +741,8 @@ inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::csrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const K *const alpha, bool sym, const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
+inline void Wrapper<K>::csrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const K *const alpha, bool sym,
+                              const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
 {
   if (*trans == 'N' || sym) {
     int j = *m * *n;
@@ -733,7 +779,8 @@ inline void Wrapper<K>::csrmm(const char *const trans, const int *const m, const
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, const K *const alpha, bool sym, const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
+inline void Wrapper<K>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, const K *const alpha,
+                              bool sym, const K *const a, const int *const ia, const int *const ja, const K *const x, const K *const beta, K *const y)
 {
   if (*k) {
     if (*trans == 'N' && !sym) {
@@ -746,7 +793,8 @@ inline void Wrapper<K>::bsrmm(const char *const trans, const int *const m, const
     #pragma omp for schedule(static, HPDDM_GRANULARITY)
   #endif
       for (int i = 0; i < *m; ++i) {
-        for (j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<K>::d_1), y + *bs * i, &ldc);
+        for (j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j)
+          Blas<K>::gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<K>::d_1), y + *bs * i, &ldc);
       }
     } else {
       const int ldb = *bs * *m;
@@ -768,7 +816,9 @@ inline void Wrapper<K>::bsrmm(const char *const trans, const int *const m, const
         }
       } else {
         for (int i = 0; i < *m; ++i)
-          for (int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) Blas<K>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d_1), y + *bs * (ja[l] - (N == 'F')), &ldc);
+          for (int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l)
+            Blas<K>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<K>::d_1),
+                          y + *bs * (ja[l] - (N == 'F')), &ldc);
       }
       if (Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
         K *const c = const_cast<K *>(a);
@@ -783,7 +833,8 @@ HPDDM_GENERATE_CSRCSC
 
 template <class K>
 template <char S, char N, char M>
-inline void Wrapper<K>::bsrcoo(const int n, const unsigned short bs, K *const a, const int *const ia, const int *const ja, K *&b, int *&ib, int *&jb, const int &shift)
+inline void Wrapper<K>::bsrcoo(const int n, const unsigned short bs, K *const a, const int *const ia, const int *const ja, K *&b, int *&ib, int *&jb,
+                               const int &shift)
 {
   if (S != 'S' || bs == 1) b = a;
   unsigned int nnz = (ia[n] - (N == 'F')) * bs * bs;
@@ -831,13 +882,15 @@ inline void Wrapper<K>::diag(const int &m, const underlying_type<K> *const d, co
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::csrmm(bool sym, const int *const n, const int *const m, const K *const a, const int *const ia, const int *const ja, const K *const x, K *const y)
+inline void Wrapper<K>::csrmm(bool sym, const int *const n, const int *const m, const K *const a, const int *const ia, const int *const ja, const K *const x,
+                              K *const y)
 {
   csrmm<N>("N", n, m, n, &d_1, sym, a, ia, ja, x, &d_0, y);
 }
 template <class K>
 template <char N>
-inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, const int *const bs, const K *const a, const int *const ia, const int *const ja, const K *const x, K *const y)
+inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, const int *const bs, const K *const a, const int *const ia, const int *const ja,
+                              const K *const x, K *const y)
 {
   bsrmm<N>("N", n, m, n, bs, &d_1, sym, a, ia, ja, x, &d_0, y);
 }
@@ -845,7 +898,9 @@ inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, 
   #define HPDDM_GENERATE_LIBXSMM(C, T) \
     template <> \
     template <char N> \
-    inline void Wrapper<T>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, const T *const beta, T *const y) \
+    inline void Wrapper<T>::bsrmm(const char *const trans, const int *const m, const int *const n, const int *const k, const int *const bs, \
+                                  const T *const alpha, bool sym, const T *const a, const int *const ia, const int *const ja, const T *const x, \
+                                  const T *const beta, T *const y) \
     { \
       if (*trans == 'N' && !sym) { \
         const int ldb = *bs * *k; \
@@ -854,7 +909,8 @@ inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, 
         if (beta == &d_0) std::fill_n(y, j, T()); \
         else if (beta != &d_1) Blas<T>::scal(&j, beta, y, &i_1); \
         for (int i = 0; i < *m; ++i) { \
-          for (j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) libxsmm_##C##gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<T>::d_1), y + *bs * i, &ldc); \
+          for (j = ia[i] - (N == 'F'); j < ia[i + 1] - (N == 'F'); ++j) \
+            libxsmm_##C##gemm("N", "N", bs, n, bs, alpha, a + *bs * *bs * j, bs, x + *bs * (ja[j] - (N == 'F')), &ldb, &(Wrapper<T>::d_1), y + *bs * i, &ldc); \
         } \
       } else { \
         const int ldb = *bs * *m; \
@@ -876,7 +932,9 @@ inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, 
           } \
         } else { \
           for (int i = 0; i < *m; ++i) \
-            for (int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) Blas<T>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<T>::d_1), y + *bs * (ja[l] - (N == 'F')), &ldc); \
+            for (int l = ia[i] - (N == 'F'); l < ia[i + 1] - (N == 'F'); ++l) \
+              Blas<T>::gemm(N == 'F' ? trans : "T", "N", bs, n, bs, alpha, a + *bs * *bs * l, bs, x + *bs * i, &ldb, &(Wrapper<T>::d_1), \
+                            y + *bs * (ja[l] - (N == 'F')), &ldc); \
         } \
         if (Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) { \
           T *const c = const_cast<T *>(a); \

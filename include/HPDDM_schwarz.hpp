@@ -196,7 +196,8 @@ public:
     if (Subdomain<K>::a_->sym_) {
       transpose = new std::vector<std::pair<int, int>>[Subdomain<K>::dof_]();
       for (int i = 0; i < Subdomain<K>::dof_; ++i)
-        for (int j = Subdomain<K>::a_->ia_[i] - (HPDDM_NUMBERING == 'F'); j < Subdomain<K>::a_->ia_[i + 1] - (HPDDM_NUMBERING == 'F'); ++j) transpose[Subdomain<K>::a_->ja_[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
+        for (int j = Subdomain<K>::a_->ia_[i] - (HPDDM_NUMBERING == 'F'); j < Subdomain<K>::a_->ia_[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+          transpose[Subdomain<K>::a_->ja_[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
     }
     for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i) {
       const pairNeighbor &pair = Subdomain<K>::map_[i];
@@ -211,8 +212,10 @@ public:
         }
         sizes[i] += 2;
         std::vector<int>::const_iterator it = idx.cbegin();
-        for (int k = Subdomain<K>::a_->ia_[pair.second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::a_->ia_[pair.second[j] + 1] - (HPDDM_NUMBERING == 'F'); ++k) {
-          it = std::lower_bound(it, idx.cend(), Subdomain<K>::a_->ja_[k] - (HPDDM_NUMBERING == 'F'), [&pair](int lhs, int rhs) { return pair.second[lhs] < rhs; });
+        for (int k = Subdomain<K>::a_->ia_[pair.second[j]] - (HPDDM_NUMBERING == 'F'); k < Subdomain<K>::a_->ia_[pair.second[j] + 1] - (HPDDM_NUMBERING == 'F');
+             ++k) {
+          it = std::lower_bound(it, idx.cend(), Subdomain<K>::a_->ja_[k] - (HPDDM_NUMBERING == 'F'),
+                                [&pair](int lhs, int rhs) { return pair.second[lhs] < rhs; });
           if (it != idx.cend() && pair.second[*it] == Subdomain<K>::a_->ja_[k] - (HPDDM_NUMBERING == 'F')) {
             if (d_[pair.second[j]] > HPDDM_EPS) {
               send[i].emplace_back(*it);
@@ -224,7 +227,8 @@ public:
         }
         if (Subdomain<K>::a_->sym_) {
           for (int k = 0; k < transpose[pair.second[j]].size(); ++k) {
-            std::vector<int>::const_iterator first = std::lower_bound(it, idx.cend(), transpose[pair.second[j]][k].first, [&pair](int lhs, int rhs) { return pair.second[lhs] < rhs; });
+            std::vector<int>::const_iterator first = std::lower_bound(it, idx.cend(), transpose[pair.second[j]][k].first,
+                                                                      [&pair](int lhs, int rhs) { return pair.second[lhs] < rhs; });
             if (first != idx.cend() && pair.second[*first] == transpose[pair.second[j]][k].first) {
               if (d_[pair.second[j]] > HPDDM_EPS) {
                 send[i].emplace_back(*first);
@@ -237,7 +241,8 @@ public:
         }
         if (d_[pair.second[j]] > HPDDM_EPS) send[i][n] = nnz;
       }
-      MPI_Isend(send[i].data(), send[i].size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 13, Subdomain<K>::communicator_, Subdomain<K>::rq_ + size + i);
+      MPI_Isend(send[i].data(), send[i].size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 13, Subdomain<K>::communicator_,
+                Subdomain<K>::rq_ + size + i);
     }
     delete[] transpose;
     K **recv = new K *[Subdomain<K>::map_.size()]();
@@ -259,8 +264,11 @@ public:
           const unsigned int nnz = std::lround(std::abs(recv[index][j + 1]));
           j += 2;
           for (unsigned int k = 0; k < nnz; ++k, j += 2) {
-            int *const pt = std::lower_bound(Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[row] - (HPDDM_NUMBERING == 'F'), Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[row + 1] - (HPDDM_NUMBERING == 'F'), Subdomain<K>::map_[index].second[std::lround(std::abs(recv[index][j]))] + (HPDDM_NUMBERING == 'F'));
-            if (pt != Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[row + 1] - (HPDDM_NUMBERING == 'F') && *pt == Subdomain<K>::map_[index].second[std::lround(std::abs(recv[index][j]))] + (HPDDM_NUMBERING == 'F'))
+            int *const pt = std::lower_bound(Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[row] - (HPDDM_NUMBERING == 'F'),
+                                             Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[row + 1] - (HPDDM_NUMBERING == 'F'),
+                                             Subdomain<K>::map_[index].second[std::lround(std::abs(recv[index][j]))] + (HPDDM_NUMBERING == 'F'));
+            if (pt != Subdomain<K>::a_->ja_ + Subdomain<K>::a_->ia_[row + 1] - (HPDDM_NUMBERING == 'F') &&
+                *pt == Subdomain<K>::map_[index].second[std::lround(std::abs(recv[index][j]))] + (HPDDM_NUMBERING == 'F'))
               Subdomain<K>::a_->a_[std::distance(Subdomain<K>::a_->ja_, pt)] = recv[index][j + 1];
           }
         }
@@ -289,9 +297,11 @@ public:
         idx[i]         = *idx + n;
         buff[i]        = *buff + n;
         buff[size + i] = buff[size] + n;
-        MPI_Irecv(buff[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+        MPI_Irecv(buff[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_,
+                  Subdomain<K>::rq_ + i);
         Wrapper<underlying_type<K>>::gthr(Subdomain<K>::map_[i].second.size(), D, buff[size + i], Subdomain<K>::map_[i].second.data());
-        MPI_Isend(buff[size + i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + size + i);
+        MPI_Isend(buff[size + i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0,
+                  Subdomain<K>::communicator_, Subdomain<K>::rq_ + size + i);
         n += Subdomain<K>::map_[i].second.size();
       }
       for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i) {
@@ -370,7 +380,8 @@ public:
   void setMatrix(MatrixCSR<K> *const &a)
   {
     const std::string prefix = super::prefix();
-    const bool        fact   = super::setMatrix(a) && !Option::get()->any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_ORAS, HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_OSM, HPDDM_SCHWARZ_METHOD_NONE});
+    const bool        fact   = super::setMatrix(a) && !Option::get()->any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_ORAS, HPDDM_SCHWARZ_METHOD_SORAS,
+                                                                                                         HPDDM_SCHWARZ_METHOD_OSM, HPDDM_SCHWARZ_METHOD_NONE});
     if (fact) callNumfact(a);
   }
   /* Function: multiplicityScaling
@@ -385,9 +396,11 @@ public:
     for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i) {
       underlying_type<K> *const recv = reinterpret_cast<underlying_type<K> *>(Subdomain<K>::buff_[i]);
       underlying_type<K> *const send = reinterpret_cast<underlying_type<K> *>(Subdomain<K>::buff_[size + i]);
-      MPI_Irecv(recv, Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+      MPI_Irecv(recv, Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_,
+                Subdomain<K>::rq_ + i);
       Wrapper<underlying_type<K>>::gthr(Subdomain<K>::map_[i].second.size(), d, send, Subdomain<K>::map_[i].second.data());
-      MPI_Isend(send, Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + size + i);
+      MPI_Isend(send, Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_underlying_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_,
+                Subdomain<K>::rq_ + size + i);
     }
     std::fill_n(d, Subdomain<K>::dof_, 1.0);
     for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i) {
@@ -422,7 +435,8 @@ public:
     else {
       Wrapper<K>::diag(Subdomain<K>::dof_, d_, in, out, mu);
       int tmp = mu;
-      Blas<K>::gemm(&(Wrapper<K>::transc), "N", super::getAddrLocal(), &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), super::uc_, super::getAddrLocal());
+      Blas<K>::gemm(&(Wrapper<K>::transc), "N", super::getAddrLocal(), &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), out,
+                    &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), super::uc_, super::getAddrLocal());
       super::co_->template IcallSolver<excluded>(super::uc_, mu, rq);
     }
   }
@@ -452,7 +466,9 @@ public:
       super::co_->setParent(this);
       const unsigned short p      = opt.val<unsigned short>(prefix + "level_2_p", 1);
       const unsigned short method = opt.val<unsigned short>(prefix + "level_2_schwarz_method", HPDDM_SCHWARZ_METHOD_NONE);
-      if (super::co_ && p > 1 && opt.val<unsigned short>(prefix + "level_2_aggregate_size", p) == 1 && (method == HPDDM_SCHWARZ_METHOD_RAS || method == HPDDM_SCHWARZ_METHOD_ASM) && opt.val<char>(prefix + "level_2_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) {
+      if (super::co_ && p > 1 && opt.val<unsigned short>(prefix + "level_2_aggregate_size", p) == 1 &&
+          (method == HPDDM_SCHWARZ_METHOD_RAS || method == HPDDM_SCHWARZ_METHOD_ASM) &&
+          opt.val<char>(prefix + "level_2_krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) {
         CoarseOperator<CoarseSolver, S, K>                                                                       *coNeumann = nullptr;
         std::vector<K>                                                                                            overlap;
         std::vector<std::vector<std::pair<unsigned short, unsigned short>>>                                       reduction;
@@ -470,7 +486,8 @@ public:
             A->ia_ = backup->ia_;
             A->ja_ = backup->ja_;
           }
-          super::template buildTwo<excluded, MatrixAccumulation<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm, coNeumann, overlap, reduction, sizes, extra);
+          super::template buildTwo<excluded, MatrixAccumulation<Schwarz<Solver, CoarseSolver, S, K>, K>>(this, comm, coNeumann, overlap, reduction, sizes,
+                                                                                                         extra);
           if (A->ia_ == backup->ia_ && A->ja_ == backup->ja_ && A->nnz_ == backup->nnz_) {
             A->ia_ = nullptr;
             A->ja_ = nullptr;
@@ -508,7 +525,9 @@ public:
       unsigned short    k      = 1;
       const std::string prefix = super::prefix();
       Option           &opt    = *Option::get();
-      if (opt.any_of(prefix + "krylov_method", {HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR}) && !opt.val<unsigned short>(prefix + "recycle_same_system")) k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
+      if (opt.any_of(prefix + "krylov_method", {HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR}) &&
+          !opt.val<unsigned short>(prefix + "recycle_same_system"))
+        k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
       super::start(mu * k);
     }
     return allocate;
@@ -558,7 +577,8 @@ public:
           super::s_.solve(work, mu); // out = A \ in
           MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
           const int k = mu;
-          Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &k, super::getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, super::getAddrLocal(), &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_)); // out = ev_ E \ ev_^T D in
+          Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &k, super::getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_,
+                        super::getAddrLocal(), &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_)); // out = ev_ E \ ev_^T D in
           Blas<K>::axpy(&n, &(Wrapper<K>::d_1), work, &i_1, out, &i_1);
           exchange(out, mu); // out = Z E \ Z^T in + A \ in
         } else MPI_Wait(rq + 1, MPI_STATUS_IGNORE);
@@ -580,11 +600,14 @@ public:
             delete[] tmp;
           } else {
             if (HPDDM_NUMBERING == Wrapper<K>::I)
-              Wrapper<K>::csrmm("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
+              Wrapper<K>::csrmm("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_,
+                                Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
             else if (Subdomain<K>::a_->ia_[Subdomain<K>::dof_] == Subdomain<K>::a_->nnz_)
-              Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
+              Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_,
+                                              Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
             else
-              Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
+              Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_,
+                                              Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
           }
           exchange(work, mu); //  in = (I - A Z E \ Z^T) in
           if (type_ == Prcndtnr::OS) Wrapper<K>::diag(Subdomain<K>::dof_, d_, work, mu);
@@ -716,7 +739,8 @@ public:
     opt["geneo_nu"] = evp.nu_;
     if (super::co_) super::co_->setLocal(evp.nu_);
     const int n = Subdomain<K>::dof_;
-    std::for_each(super::ev_, super::ev_ + evp.nu_, [&](K *const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
+    std::for_each(super::ev_, super::ev_ + evp.nu_,
+                  [&](K *const v) { std::replace_if(v, v + n, [](K x) { return std::abs(x) < 1.0 / (HPDDM_EPS * HPDDM_PEN); }, K()); });
     if (resetPrefix) opt.setPrefix("");
   }
   /* Function: GMV
@@ -744,9 +768,14 @@ public:
             Subdomain<K>::exchange(out, mu);
     #else
     if (A) Wrapper<K>::csrmm(A->sym_, &A->n_, &mu, A->a_, A->ia_, A->ja_, in, out);
-    else if (HPDDM_NUMBERING == Wrapper<K>::I) Wrapper<K>::csrmm(Subdomain<K>::a_->sym_, &(Subdomain<K>::dof_), &mu, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, in, out);
-    else if (Subdomain<K>::a_->ia_[Subdomain<K>::dof_] == Subdomain<K>::a_->nnz_) Wrapper<K>::template csrmm<'C'>(Subdomain<K>::a_->sym_, &(Subdomain<K>::dof_), &mu, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, in, out);
-    else Wrapper<K>::template csrmm<'F'>(Subdomain<K>::a_->sym_, &(Subdomain<K>::dof_), &mu, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, in, out);
+    else if (HPDDM_NUMBERING == Wrapper<K>::I)
+      Wrapper<K>::csrmm(Subdomain<K>::a_->sym_, &(Subdomain<K>::dof_), &mu, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, in, out);
+    else if (Subdomain<K>::a_->ia_[Subdomain<K>::dof_] == Subdomain<K>::a_->nnz_)
+      Wrapper<K>::template csrmm<'C'>(Subdomain<K>::a_->sym_, &(Subdomain<K>::dof_), &mu, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_,
+                                      in, out);
+    else
+      Wrapper<K>::template csrmm<'F'>(Subdomain<K>::a_->sym_, &(Subdomain<K>::dof_), &mu, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_,
+                                      in, out);
     exchange(out, mu);
     #endif
     return 0;
@@ -764,7 +793,8 @@ public:
          *    norm           - l^2, l^1, or l^\infty norm.
          *
          * See also: <Schur::computeResidual>. */
-  void computeResidual(const K *const x, const K *const f, underlying_type<K> *const storage, const unsigned short mu = 1, const unsigned short norm = HPDDM_COMPUTE_RESIDUAL_L2) const
+  void computeResidual(const K *const x, const K *const f, underlying_type<K> *const storage, const unsigned short mu = 1,
+                       const unsigned short norm = HPDDM_COMPUTE_RESIDUAL_L2) const
   {
     int  dim      = mu * Subdomain<K>::dof_;
     K   *tmp      = new K[dim];
@@ -778,7 +808,8 @@ public:
         bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
         for (unsigned short nu = 0; nu < mu; ++nu) {
           if (!boundary) storage[2 * nu + 1] += d_[i] * std::abs(tmp[nu * Subdomain<K>::dof_ + i]);
-          if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
+          if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN)
+            storage[2 * nu] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
           else storage[2 * nu] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i]);
         }
       }
@@ -787,7 +818,8 @@ public:
         bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
         for (unsigned short nu = 0; nu < mu; ++nu) {
           if (!boundary) storage[2 * nu + 1] = std::max(std::abs(tmp[nu * Subdomain<K>::dof_ + i]), storage[2 * nu + 1]);
-          if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
+          if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN)
+            storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
           else storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i]), storage[2 * nu]);
         }
       }
@@ -796,14 +828,16 @@ public:
         bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
         for (unsigned short nu = 0; nu < mu; ++nu) {
           if (!boundary) storage[2 * nu + 1] += d_[i] * std::norm(tmp[nu * Subdomain<K>::dof_ + i]);
-          if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
+          if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN)
+            storage[2 * nu] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
           else storage[2 * nu] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i]);
         }
       }
     }
     delete[] tmp;
     if (norm == HPDDM_COMPUTE_RESIDUAL_L2 || norm == HPDDM_COMPUTE_RESIDUAL_L1) {
-      MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), Subdomain<K>::communicator_);
+      MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM),
+                    Subdomain<K>::communicator_);
       if (norm == HPDDM_COMPUTE_RESIDUAL_L2) std::for_each(storage, storage + 2 * mu, [](underlying_type<K> &b) { b = std::sqrt(b); });
     } else MPI_Allreduce(MPI_IN_PLACE, storage, 2 * mu, Wrapper<K>::mpi_underlying_type(), MPI_MAX, Subdomain<K>::communicator_);
   }
@@ -854,7 +888,8 @@ public:
         PetscCall(KSPGetOperators(levels[0]->ksp, nullptr, &P));
         PetscCall(MatGetBlockSize(P, &bs));
       }
-      PetscCheck(Subdomain<K>::dof_ % bs == 0, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT, Subdomain<K>::dof_, bs);
+      PetscCheck(Subdomain<K>::dof_ % bs == 0, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT,
+                 Subdomain<K>::dof_, bs);
       if (!ismatis) {
         PetscInt *idx;
         PetscCall(PetscMalloc1(Subdomain<K>::dof_ / bs, &idx));
@@ -883,12 +918,14 @@ public:
         PetscCall(ISLocalToGlobalMappingGetBlockIndices(l2g, &idx));
         PetscCall(ISLocalToGlobalMappingGetSize(l2g, &m));
         for (PetscInt i = 0; i < m / bs; ++i) {
-          std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(), std::make_pair(bs * idx[i], static_cast<PetscInt>(0)));
+          std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(),
+                                                                                           std::make_pair(bs * idx[i], static_cast<PetscInt>(0)));
           if (it != v.cend() && it->first == bs * idx[i]) std::fill_n(d + it->second, bs, 1.0);
         }
         for (PetscInt i = 1; i < nproc; ++i) {
           for (PetscInt j = 0; j < numprocs[i]; ++j) {
-            std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(), std::make_pair(bs * idx[indices[i][j]], static_cast<PetscInt>(0)));
+            std::vector<std::pair<PetscInt, PetscInt>>::const_iterator it = std::lower_bound(v.cbegin(), v.cend(),
+                                                                                             std::make_pair(bs * idx[indices[i][j]], static_cast<PetscInt>(0)));
             boundary[it->second].insert(i - 1);
           }
         }
@@ -930,7 +967,8 @@ public:
           Subdomain<K>::map_[i].first = procs[1 + sorted[i]];
           Subdomain<K>::map_[i].second.reserve(map[sorted[i]].size());
           std::copy(map[sorted[i]].cbegin(), map[sorted[i]].cend(), std::back_inserter(Subdomain<K>::map_[i].second));
-          std::sort(Subdomain<K>::map_[i].second.begin(), Subdomain<K>::map_[i].second.end(), [&ptr](const PetscInt &lhs, const PetscInt &rhs) { return ptr[lhs] < ptr[rhs]; });
+          std::sort(Subdomain<K>::map_[i].second.begin(), Subdomain<K>::map_[i].second.end(),
+                    [&ptr](const PetscInt &lhs, const PetscInt &rhs) { return ptr[lhs] < ptr[rhs]; });
         }
         PetscCall(ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices));
         delete[] sorted;
@@ -1049,7 +1087,10 @@ public:
 
     PetscFunctionBeginUser;
     if (!levels[0]->parent->deflation) {
-      solve = Subdomain<K>::dof_ && !std::all_of(d_, d_ + Subdomain<K>::dof_, [&](const underlying_type<K> &x) { return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); }) ? 1 : (Subdomain<K>::dof_ && HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d_1) < underlying_type<K>(HPDDM_EPS) ? 2 : 0);
+      solve = Subdomain<K>::dof_ &&
+                  !std::all_of(d_, d_ + Subdomain<K>::dof_, [&](const underlying_type<K> &x) { return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); })
+              ? 1
+              : (Subdomain<K>::dof_ && HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d_1) < underlying_type<K>(HPDDM_EPS) ? 2 : 0);
       if (solve != 1) PetscCall(PetscInfo(nullptr, "Partition of unity is full of %ss, nothing to solve\n", solve == 0 ? "zero" : "one"));
       PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
       PetscCall(PetscObjectTypeCompare((PetscObject)N, MATSHELL, &flg));
@@ -1141,7 +1182,8 @@ public:
                 PetscReal sigma;
                 PetscCall(SVDGetSingularTriplet(svd, levels[0]->nu, &sigma, nullptr, nullptr));
                 if (sigma / theta < levels[0]->threshold) {
-                  PetscCall(PetscInfo(svd, "HPDDM: Discarding singular value %g, which is lower than the largest singular value %g times %g\n", double(sigma), double(theta), double(levels[0]->threshold)));
+                  PetscCall(PetscInfo(svd, "HPDDM: Discarding singular value %g, which is lower than the largest singular value %g times %g\n", double(sigma),
+                                      double(theta), double(levels[0]->threshold)));
                   break;
                 } else PetscCall(PetscInfo(svd, "HPDDM: Using singular value %g\n", double(sigma)));
               }
@@ -1153,7 +1195,8 @@ public:
               Vec      u, col;
               VecType  type;
               PetscCall(MatGetVecType(N, &type));
-              PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE, nullptr, &(super::ev_)));
+              PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE,
+                                                  nullptr, &(super::ev_)));
               PetscCall(MatShellGetContext(N, static_cast<void *>(&h)));
               PetscCall(MatCreateVecs(N, nullptr, &u));
               for (PetscInt i = 0; i < levels[0]->nu; ++i) {
@@ -1173,7 +1216,8 @@ public:
             VecType type;
             levels[0]->nu = 1;
             PetscCall(MatGetVecType(N, &type));
-            PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE, nullptr, &(super::ev_)));
+            PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE,
+                                                nullptr, &(super::ev_)));
             PetscCall(MatDenseGetColumnVecWrite(super::ev_, 0, &col));
             PetscCall(VecSet(col, Wrapper<K>::d_1));
             PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, 0, &col));
@@ -1327,7 +1371,8 @@ public:
         Subdomain<K>::setBuffer();
         PetscCall(EPSSetOperators(eps, ctx->A[0], weighted));
         PetscCall(EPSGetTarget(eps, &target));
-        PetscCheck(PetscAbsScalar(target) < PETSC_MACHINE_EPSILON, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_target with a magnitude %g (!= 0.0)", prefix, double(PetscAbsScalar(target)));
+        PetscCheck(PetscAbsScalar(target) < PETSC_MACHINE_EPSILON, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_target with a magnitude %g (!= 0.0)",
+                   prefix, double(PetscAbsScalar(target)));
         PetscCall(STGetKSP(st, &empty));
         PetscCall(PetscObjectReference((PetscObject)empty));
         PetscCall(STSetKSP(st, ksp[0]));
@@ -1338,7 +1383,10 @@ public:
           MatStructure str;
           PetscCall(STGetMatStructure(st, &str));
           if (str != SAME_NONZERO_PATTERN)
-            PetscCall(PetscInfo(st, "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on what is passed to PCHPDDMSetAuxiliaryMat()\n", int(str), prefix));
+            PetscCall(PetscInfo(st,
+                                "HPDDM: The MatStructure of the GenEO eigenproblem stencil is set to %d, -%sst_matstructure same is preferred depending on "
+                                "what is passed to PCHPDDMSetAuxiliaryMat()\n",
+                                int(str), prefix));
         }
         PetscCall(EPSSolve(eps));
         PetscCall(EPSGetConverged(eps, &nconv));
@@ -1362,15 +1410,24 @@ public:
           if (levels[0]->nu == 0 && h) relative = HPDDM::hypot(re, im);
           if (HPDDM::hypot(re, im) / relative > levels[0]->threshold) {
             if (HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon()) {
-              if (!h) PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), which magnitude is higher than %g\n", double(re), double(im), double(levels[0]->threshold)));
-              else PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), which magnitude is higher than the one of the smallest eigenvalue %g times %g\n", double(re), double(im), double(relative), double(levels[0]->threshold)));
+              if (!h)
+                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue (%g,%g), which magnitude is higher than %g\n", double(re), double(im),
+                                    double(levels[0]->threshold)));
+              else
+                PetscCall(PetscInfo(eps,
+                                    "HPDDM: Discarding eigenvalue (%g,%g), which magnitude is higher than the one of the smallest eigenvalue %g times %g\n",
+                                    double(re), double(im), double(relative), double(levels[0]->threshold)));
             } else {
-              if (!h) PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, which magnitude is higher than %g\n", double(re), double(levels[0]->threshold)));
-              else PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, which magnitude is higher than the one of the smallest eigenvalue %g times %g\n", double(re), double(relative), double(levels[0]->threshold)));
+              if (!h)
+                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, which magnitude is higher than %g\n", double(re), double(levels[0]->threshold)));
+              else
+                PetscCall(PetscInfo(eps, "HPDDM: Discarding eigenvalue %g, which magnitude is higher than the one of the smallest eigenvalue %g times %g\n",
+                                    double(re), double(relative), double(levels[0]->threshold)));
             }
             break;
           } else {
-            if (HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon()) PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue (%g,%g)\n", double(re), double(im)));
+            if (HPDDM::abs(im) > std::numeric_limits<PetscReal>::epsilon())
+              PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue (%g,%g)\n", double(re), double(im)));
             else PetscCall(PetscInfo(eps, "HPDDM: Using eigenvalue %g\n", double(re)));
           }
         }
@@ -1387,7 +1444,8 @@ public:
     if (levels[0]->nu) {
       VecType type;
       PetscCall(MatGetVecType(N, &type));
-      PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE, nullptr, &(super::ev_)));
+      PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE, nullptr,
+                                          &(super::ev_)));
     }
     if (!levels[0]->parent->deflation) {
       Vec col;
@@ -1530,7 +1588,8 @@ public:
           PetscCall(MatCreateVecs(P, &xin, nullptr));
           PetscCall(VecScatterCreate(xin, uis, levels[i]->D, nullptr, &levels[i]->scatter));
           PetscCall(VecDestroy(&xin));
-          PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS *, Mat *[], PetscBool), (P, &uis, &sub, PETSC_FALSE));
+          PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS *, Mat *[], PetscBool),
+                         (P, &uis, &sub, PETSC_FALSE));
           PetscCall(levels[i]->P->structure(loc, uis, sub[0], nullptr, levels + i));
           PetscCall(ISDestroy(&loc));
           PetscCall(MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted));
@@ -1563,7 +1622,9 @@ public:
         std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> extra;
         MPI_Request                                                                                               rs = MPI_REQUEST_NULL;
         coNeumann                                                                                                    = new CoarseOperator<DMatrix, K>;
-        PetscCall(levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(), *N, i - 1, *n, levels, coNeumann, overlap, reduction, sizes, extra));
+        PetscCall(levels[i - 1]->P->super::template buildTwo<false, MatrixAccumulation<Schwarz<K>, K>>(levels[i - 1]->P, levels[i - 1]->P->getCommunicator(),
+                                                                                                       *N, i - 1, *n, levels, coNeumann, overlap, reduction,
+                                                                                                       sizes, extra));
         if (i > 1) PetscCall(MatDestroy(N));
         if (overlap.size()) PetscCallMPI(MPI_Isend(overlap.data(), overlap.size(), Wrapper<K>::mpi_type(), 0, 300, coNeumann->getCommunicator(), &rs));
   #if defined(PETSC_USE_LOG)
@@ -1619,9 +1680,13 @@ public:
       Wrapper<K>::diag(Subdomain<K>::dof_, d_, in, out, mu); // out = D in
       int tmp   = mu;
       int local = super::getLocal();
-      if (local) Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), super::uc_, &local); // uc_ = ev_^T D in
-      super::co_->template callSolver<excluded, transpose>(super::uc_, mu);                                                                                                                                                  // uc_ = E \ ev_^T D in
-      if (local) Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &tmp, &local, &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &local, &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_));                   // out = ev_ E \ ev_^T D in
+      if (local)
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), out,
+                      &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), super::uc_, &local); // uc_ = ev_^T D in
+      super::co_->template callSolver<excluded, transpose>(super::uc_, mu);           // uc_ = E \ ev_^T D in
+      if (local)
+        Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &tmp, &local, &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &local,
+                      &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_)); // out = ev_ E \ ev_^T D in
       else std::fill_n(out, mu * Subdomain<K>::dof_, 0.0);
       exchange(out, mu);
     }
@@ -1735,7 +1800,8 @@ struct hpddm_method_id<Schwarz<
 };
 } // namespace HPDDM
 #if HPDDM_SLEPC
-PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar> *const P, IS is, Mat const N, Mat const weighted, Mat const rhs, std::vector<Vec> initial, PC_HPDDM_Level **const levels)
+PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar> *const P, IS is, Mat const N, Mat const weighted, Mat const rhs,
+                                             std::vector<Vec> initial, PC_HPDDM_Level **const levels)
 {
   PetscFunctionBeginUser;
   PetscCheck(P, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal() called with no HPDDM object");
@@ -1793,12 +1859,14 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
     PetscCall(VecRestoreArrayRead(x, &in));
   }
   for (unsigned short i = 0, size = map.size(); i < size; ++i) {
-    if (p->work->find(i) != p->work->cend()) PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + i));
+    if (p->work->find(i) != p->work->cend())
+      PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + i));
     else rq[i] = MPI_REQUEST_NULL;
     if (p->status == 'a') {
       HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), out, buffer[size + i], map[i].second.data());
       PetscCallMPI(MPI_Isend(buffer[size + i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + size + i));
-    } else if (p->status == 'b') PetscCallMPI(MPI_Isend(buffer[size + i], 0, HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + size + i));
+    } else if (p->status == 'b')
+      PetscCallMPI(MPI_Isend(buffer[size + i], 0, HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 660, communicator, rq + size + i));
   }
   if (!p->work->empty() || p->status == 'a') {
     PetscInt m = 0;
@@ -1831,7 +1899,8 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
   }
   if (!p->work->empty() || p->status == 'a') {
     for (std::set<unsigned short>::const_iterator it = p->work->cbegin(); it != p->work->cend(); ++it)
-      HPDDM::Wrapper<PetscScalar>::sctr(map[*it].second.size(), buffer[*it], map[*it].second.data(), work + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n);
+      HPDDM::Wrapper<PetscScalar>::sctr(map[*it].second.size(), buffer[*it], map[*it].second.data(),
+                                        work + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n);
     PetscCall(MatDenseRestoreArrayWrite(p->A[1], &work));
     PetscCall(MatProductNumeric(p->A[2]));
     PetscCall(MatDenseGetArrayRead(p->A[2], &in));
@@ -1841,10 +1910,12 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
     if (p->status == 'b') p->status = 'c';
   }
   for (unsigned short i = 0, size = map.size(); i < size; ++i) {
-    if (p->status == 'a') PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + i));
+    if (p->status == 'a')
+      PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + i));
     std::set<unsigned short>::const_iterator it = p->work->find(i);
     if (it != p->work->cend()) {
-      HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n, buffer[size + i], map[i].second.data());
+      HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n, buffer[size + i],
+                                        map[i].second.data());
       PetscCallMPI(MPI_Isend(buffer[size + i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + size + i));
     } else rq[size + i] = MPI_REQUEST_NULL;
   }

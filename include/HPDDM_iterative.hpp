@@ -98,10 +98,13 @@ private:
   /* Function: outputResidual
          *  Prints information about the residual at a given iteration. */
   template <char T, class K>
-  static void checkConvergence(const char verbosity, const unsigned short j, const unsigned short i, const underlying_type<K> &tol, const int &mu, const underlying_type<K> *const norm, const K *const res, short *const conv, const short sentinel)
+  static void checkConvergence(const char verbosity, const unsigned short j, const unsigned short i, const underlying_type<K> &tol, const int &mu,
+                               const underlying_type<K> *const norm, const K *const res, short *const conv, const short sentinel)
   {
     for (unsigned short nu = 0; nu < mu; ++nu)
-      if (conv[nu] == -sentinel && ((tol > underlying_type<K>() && HPDDM::abs(res[nu]) / norm[nu] <= tol) || (tol < underlying_type<K>() && HPDDM::abs(res[nu]) <= -tol))) conv[nu] = i;
+      if (conv[nu] == -sentinel &&
+          ((tol > underlying_type<K>() && HPDDM::abs(res[nu]) / norm[nu] <= tol) || (tol < underlying_type<K>() && HPDDM::abs(res[nu]) <= -tol)))
+        conv[nu] = i;
 #if !HPDDM_PETSC || defined(PETSCSUB) || defined(MU_SLEPC)
     if (verbosity > 2) {
       constexpr auto     method = (T == 2 ? "CG" : (T == 4 ? "GCRODR" : "GMRES"));
@@ -128,7 +131,8 @@ private:
 #endif
   }
   template <char T, class K>
-  static unsigned short checkBlockConvergence(const char verbosity, const int i, const underlying_type<K> &tol, const int mu, const int d, const underlying_type<K> *const norm, const K *const res, const int ldh, K *const work, const unsigned short t)
+  static unsigned short checkBlockConvergence(const char verbosity, const int i, const underlying_type<K> &tol, const int mu, const int d,
+                                              const underlying_type<K> *const norm, const K *const res, const int ldh, K *const work, const unsigned short t)
   {
     underlying_type<K> *pt   = reinterpret_cast<underlying_type<K> *>(work);
     unsigned short      conv = 0;
@@ -185,7 +189,10 @@ private:
   static void convergence(const char verbosity, const unsigned short i, const unsigned short m)
   {
     if (verbosity) {
-      constexpr auto method = (T == 1 ? "BGMRES" : (T == 2 ? "CG" : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 7 ? "PCG" : "GMRES")))))));
+      constexpr auto method = (T == 1
+                                 ? "BGMRES"
+                                 : (T == 2 ? "CG"
+                                           : (T == 3 ? "BCG" : (T == 4 ? "GCRODR" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : (T == 7 ? "PCG" : "GMRES")))))));
       if (i != m + 1) std::cout << method << " converges after " << i << " iteration" << (i > 1 ? "s" : "") << std::endl;
       else std::cout << method << " does not converge after " << m << " iteration" << (m > 1 ? "s" : "") << std::endl;
     }
@@ -196,7 +203,8 @@ private:
 #if !HPDDM_PETSC
     const std::string prefix                                                 = A.prefix();
     const Option     &opt                                                    = *Option::get();
-    m[T == 1 || T == 5 ? 2 : (T == 0 || T == 3 || T == 4 || T == 6 ? 1 : 0)] = std::min(opt.val<short>(prefix + "max_it", 100), std::numeric_limits<short>::max());
+    m[T == 1 || T == 5 ? 2 : (T == 0 || T == 3 || T == 4 || T == 6 ? 1 : 0)] = std::min(opt.val<short>(prefix + "max_it", 100),
+                                                                                        std::numeric_limits<short>::max());
     if (T == 7) {
       d[0] = opt.val(prefix + "richardson_damping_factor", 1.0);
       return;
@@ -209,14 +217,16 @@ private:
     }
     if (T == 0 || T == 1 || T == 4 || T == 5) {
       id[2] = opt.val<char>(prefix + "orthogonalization", HPDDM_ORTHOGONALIZATION_CGS) + (opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR) << 2);
-      m[0]  = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()), std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]));
+      m[0]  = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()),
+                       std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]));
     }
     if (T == 0 || T == 1 || T == 2 || T == 4 || T == 5) id[1] = opt.val<char>(prefix + "variant", HPDDM_VARIANT_RIGHT);
     if (T == 3 || T == 6) id[1] = opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR);
     if (T == 4 || T == 5) {
       *i    = std::min(m[0] - 1, opt.val<int>(prefix + "recycle", 0));
       id[3] = opt.val<char>(prefix + "recycle_target", HPDDM_RECYCLE_TARGET_SM);
-      id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), (unsigned short)(2)));
+      id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) +
+              4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), (unsigned short)(2)));
     }
     if (std::abs(d[T == 1 || T == 5 || T == 6]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
       if (id[0])
@@ -272,7 +282,8 @@ private:
          *    s              - Coefficients in the Krylov subspace.
          *    v              - Basis of the Krylov subspace. */
   template <bool excluded, class Operator, class K, class T>
-  static int updateSol(const Operator &A, const char variant, const int &n, K *const x, const K *const *const h, K *const s, T *const *const v, const short *const hasConverged, const int &mu, K *const work, const int &deflated = -1)
+  static int updateSol(const Operator &A, const char variant, const int &n, K *const x, const K *const *const h, K *const s, T *const *const v,
+                       const short *const hasConverged, const int &mu, K *const work, const int &deflated = -1)
   {
     static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
     if (!excluded) computeMin(h, s, hasConverged, mu, deflated);
@@ -293,10 +304,13 @@ private:
       }
   }
   template <bool excluded, class Operator, class K, class T>
-  static int addSol(const Operator &A, const char variant, const int &n, K *const x, const int &ldh, const K *const s, T *const *const v, const short *const hasConverged, const int &mu, K *const work, const int &deflated = -1)
+  static int addSol(const Operator &A, const char variant, const int &n, K *const x, const int &ldh, const K *const s, T *const *const v,
+                    const short *const hasConverged, const int &mu, K *const work, const int &deflated = -1)
   {
     static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
-    K *const correction = (variant == HPDDM_VARIANT_RIGHT ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K *>(v[ldh / (deflated == -1 ? mu : deflated) - 1])) : work);
+    K *const correction = (variant == HPDDM_VARIANT_RIGHT
+                             ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K *>(v[ldh / (deflated == -1 ? mu : deflated) - 1]))
+                             : work);
     if (excluded || !n) {
       if (variant == HPDDM_VARIANT_RIGHT) HPDDM_CALL(A.template apply<excluded>(work, correction, deflated == -1 ? mu : deflated));
     } else {
@@ -329,7 +343,8 @@ private:
         } else {
           Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d_1), *v, &n, s, &ldh, &(Wrapper<K>::d_0), work, &n);
           if (variant == HPDDM_VARIANT_RIGHT) HPDDM_CALL(A.template apply<excluded>(work, correction, deflated));
-          Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d_1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d_1), x + deflated * n, &n);
+          Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d_1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d_1),
+                        x + deflated * n, &n);
           Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d_1), correction, &i_1, x, &i_1);
         }
       }
@@ -337,7 +352,9 @@ private:
     return 0;
   }
   template <bool excluded, class Operator, class K, class T>
-  static int updateSolRecycling(const Operator &A, const char variant, const int &n, K *const x, const K *const *const h, K *const s, K *const *const v, T *const norm, const K *const C, const K *const U, const short *const hasConverged, const int shift, const int mu, K *const work, const MPI_Comm &comm, const int &deflated = -1)
+  static int updateSolRecycling(const Operator &A, const char variant, const int &n, K *const x, const K *const *const h, K *const s, K *const *const v,
+                                T *const norm, const K *const C, const K *const U, const short *const hasConverged, const int shift, const int mu,
+                                K *const work, const MPI_Comm &comm, const int &deflated = -1)
   {
 #if !HPDDM_PETSC
     const bool same = Option::get()->template val<unsigned short>(A.prefix("recycle_same_system"));
@@ -390,8 +407,11 @@ private:
         Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d_2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
       }
       std::copy_n(U, shift * ldv, v[dim * (variant == HPDDM_VARIANT_FLEXIBLE)]);
-      return addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work, deflated);
-    } else return updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work, deflated);
+      return addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work,
+                              deflated);
+    } else
+      return updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work,
+                                 deflated);
   }
   template <class T, typename std::enable_if<std::is_pointer<T>::value>::type * = nullptr>
   static void clean(T *const &pt)
@@ -441,7 +461,8 @@ private:
     else Wrapper<T>::diag(n, d, in);
   }
   template <bool excluded, class Operator, class K>
-  static int initializeNorm(const Operator &A, const char variant, const K *const b, K *const x, K *const v, const int n, K *work, underlying_type<K> *const norm, const unsigned short mu, const unsigned short k, bool &allocate)
+  static int initializeNorm(const Operator &A, const char variant, const K *const b, K *const x, K *const v, const int n, K *work,
+                            underlying_type<K> *const norm, const unsigned short mu, const unsigned short k, bool &allocate)
   {
     allocate                          = A.template start<excluded>(b, x, mu);
     const underlying_type<K> *const d = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
@@ -464,7 +485,8 @@ private:
       for (unsigned short nu = 0; nu < mu / k; ++nu) {
         norm[nu] = 0.0;
         for (int i = 0; i < n; ++i) {
-          if (HPDDM::abs(work[nu * n + i]) > underlying_type<K>(HPDDM_PEN * HPDDM_EPS) && map.find(i) != map.cend()) norm[nu] += (d ? d[i] : underlying_type<K>(1.0)) * HPDDM::norm(work[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+          if (HPDDM::abs(work[nu * n + i]) > underlying_type<K>(HPDDM_PEN * HPDDM_EPS) && map.find(i) != map.cend())
+            norm[nu] += (d ? d[i] : underlying_type<K>(1.0)) * HPDDM::norm(work[nu * n + i] / underlying_type<K>(HPDDM_PEN));
           else norm[nu] += (d ? d[i] : underlying_type<K>(1.0)) * HPDDM::norm(work[nu * n + i]);
         }
       }
@@ -489,7 +511,8 @@ private:
          *    H              - Dot products.
          *    comm           - Global MPI communicator. */
   template <bool excluded, class K>
-  static void orthogonalization(const char id, const int n, const int k, const int mu, const K *const B, K *const v, K *const H, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
+  static void orthogonalization(const char id, const int n, const int k, const int mu, const K *const B, K *const v, K *const H,
+                                const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
   {
     if (excluded || !n) {
       std::fill_n(H, k * mu, K());
@@ -516,14 +539,17 @@ private:
         int      ldb = mu * n;
         K *const pt  = d ? work : v;
         if (d) Wrapper<K>::diag(n, d, v, work, mu);
-        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d_1), B + nu * n, &ldb, pt + nu * n, &i_1, &(Wrapper<K>::d_0), H + nu, &mu);
+        for (unsigned short nu = 0; nu < mu; ++nu)
+          Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d_1), B + nu * n, &ldb, pt + nu * n, &i_1, &(Wrapper<K>::d_0), H + nu, &mu);
         ignore(MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
-        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d_2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d_1), v + nu * n, &i_1);
+        for (unsigned short nu = 0; nu < mu; ++nu)
+          Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d_2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d_1), v + nu * n, &i_1);
       }
     }
   }
   template <bool excluded, class K>
-  static void blockOrthogonalization(const char id, const int n, const int k, const int mu, const K *const B, K *const v, K *const H, const int ldh, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
+  static void blockOrthogonalization(const char id, const int n, const int k, const int mu, const K *const B, K *const v, K *const H, const int ldh,
+                                     const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
   {
     if (excluded || !n) {
       std::fill_n(work, k * mu * mu, K());
@@ -559,7 +585,8 @@ private:
   /* Function: VR
          *  Computes the inverse of the upper triangular matrix of a QR decomposition using the Cholesky QR method. */
   template <bool excluded, class K>
-  static void VR(const int n, const int k, const int mu, const K *const V, K *const R, const int ldr, const underlying_type<K> *const d, K *work, const MPI_Comm &comm)
+  static void VR(const int n, const int k, const int mu, const K *const V, K *const R, const int ldr, const underlying_type<K> *const d, K *work,
+                 const MPI_Comm &comm)
   {
     K *const  pt  = work != R && ldr != k ? work + k * k * mu : work;
     const int ldv = mu * n;
@@ -567,23 +594,30 @@ private:
     else if (mu > 1) std::cout << "WARNING -- not implemented" << std::endl;
     if (!excluded && n)
       for (unsigned short nu = 0; nu < mu; ++nu) {
-        if (!d) Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d_1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d_0), work + nu * (k * (k + 1)) / 2, &k);
+        if (!d)
+          Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d_1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d_0),
+                        work + nu * (k * (k + 1)) / 2, &k);
         else {
           if (mu == 1) Wrapper<K>::diag(n, d, V, pt, k);
           else {
             for (unsigned short xi = 0; xi < k; ++xi) Wrapper<K>::diag(n, d, V + nu * n + xi * ldv, pt + xi * n);
           }
-          Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &k, &n, &(Wrapper<K>::d_1), V + nu * n, &ldv, pt, &n, &(Wrapper<K>::d_0), work + nu * (k * (k + 1)) / 2, &k);
+          Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &k, &n, &(Wrapper<K>::d_1), V + nu * n, &ldv, pt, &n, &(Wrapper<K>::d_0),
+                         work + nu * (k * (k + 1)) / 2, &k);
         }
-        for (unsigned short xi = 1; xi < k; ++xi) std::copy_n(work + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
+        for (unsigned short xi = 1; xi < k; ++xi)
+          std::copy_n(work + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
       }
     else std::fill_n(work, mu * (k * (k + 1)) / 2, K());
     ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * (k * (k + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
     for (unsigned short nu = mu; nu-- > 0;)
-      for (unsigned short xi = k; xi > 0; --xi) std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + nu * k * k + xi * ldr - (ldr - xi));
+      for (unsigned short xi = k; xi > 0; --xi)
+        std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2,
+                           R + nu * k * k + xi * ldr - (ldr - xi));
   }
   template <bool excluded, class K>
-  static bool RRQR(const char id, const int n, const int k, K *const Q, K *const R, const underlying_type<K> tol, int &rank, int *const piv, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
+  static bool RRQR(const char id, const int n, const int k, K *const Q, K *const R, const underlying_type<K> tol, int &rank, int *const piv,
+                   const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
   {
     if (tol < underlying_type<K>(-0.9)) {
       rank = QR<excluded>(id, n, k, Q, R, k, d, work, comm);
@@ -625,7 +659,8 @@ private:
   /* Function: QR
          *  Computes a QR decomposition of a distributed matrix. */
   template <bool excluded, class K>
-  static int QR(const char id, const int n, const int k, K *const Q, K *const R, const int ldr, const underlying_type<K> *const d, K *work, const MPI_Comm &comm, bool update = true, const int mu = 1)
+  static int QR(const char id, const int n, const int k, K *const Q, K *const R, const int ldr, const underlying_type<K> *const d, K *work,
+                const MPI_Comm &comm, bool update = true, const int mu = 1)
   {
     const int ldv  = mu * n;
     int       rank = k;
@@ -672,7 +707,9 @@ private:
   /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
   template <bool excluded, class K>
-  static void Arnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const s, underlying_type<K> *const sn, const int n, const int i, const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm, K *const *const save = nullptr, const unsigned short shift = 0)
+  static void Arnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const s, underlying_type<K> *const sn, const int n,
+                      const int i, const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm, K *const *const save = nullptr,
+                      const unsigned short shift = 0)
   {
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
     PetscCallContinue(PetscLogEventBegin(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
@@ -716,7 +753,9 @@ private:
   /* Function: BlockArnoldi
          *  Computes one iteration of the Block Arnoldi method for generating one basis vector of a block Krylov space. */
   template <bool excluded, class K>
-  static bool BlockArnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const tau, K *const s, const int lwork, const int n, const int i, const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm, K *const *const save = nullptr, const unsigned short shift = 0)
+  static bool BlockArnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const tau, K *const s, const int lwork, const int n,
+                           const int i, const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm, K *const *const save = nullptr,
+                           const unsigned short shift = 0)
   {
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
     PetscCallContinue(PetscLogEventBegin(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
@@ -729,7 +768,8 @@ private:
     if (save)
       for (unsigned short nu = 0; nu < mu; ++nu) std::copy_n(H[i] + shift * mu + nu * ldh, (i + 1 - shift) * mu + nu + 1, save[i - shift] + nu * ldh);
     const int N = 2 * mu;
-    for (unsigned short k = shift; k < i; ++k) Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
+    for (unsigned short k = shift; k < i; ++k)
+      Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
     Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
     Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
@@ -738,11 +778,14 @@ private:
     return false;
   }
   template <bool excluded, class K>
-  static void equilibrate(int n, K *sb, K *sx, std::function<K *(K *, unsigned int *, unsigned int *, int)> &lambda, unsigned int *local, unsigned short k, int rank, int div, const MPI_Comm &comm)
+  static void equilibrate(int n, K *sb, K *sx, std::function<K *(K *, unsigned int *, unsigned int *, int)> &lambda, unsigned int *local, unsigned short k,
+                          int rank, int div, const MPI_Comm &comm)
   {
     unsigned int                                                 *global    = local + k;
     unsigned short                                                j         = 0;
-    std::function<unsigned int *(unsigned int *, unsigned short)> find_zero = [](unsigned int *global, unsigned short k) { return std::find_if(global, global + k, [](const unsigned int &v) { return v == 0; }); };
+    std::function<unsigned int *(unsigned int *, unsigned short)> find_zero = [](unsigned int *global, unsigned short k) {
+      return std::find_if(global, global + k, [](const unsigned int &v) { return v == 0; });
+    };
     for (unsigned int *pt = find_zero(global, k); pt != global + k; pt = find_zero(global, k), ++j) {
       if ((rank < k * div && (rank % div) == j) || (rank >= k * div && (j + (k - 1) * div == rank))) {
         while (pt != global + k) {
@@ -817,7 +860,8 @@ private:
         std::copy_n(x, n, sx + j * n);
         std::copy_n(b, n, sb + j * n);
         std::function<K *(K *, unsigned int *, unsigned int *, int)> lambda = [](K *sb, unsigned int *local, unsigned int *swap, int n) {
-          return static_cast<K *>(std::find_if(sb + std::distance(local, swap) * n, sb + (std::distance(local, swap) + 1) * n, [](const K &v) { return HPDDM::abs(v) > underlying_type<K>(HPDDM_EPS); }));
+          return static_cast<K *>(std::find_if(sb + std::distance(local, swap) * n, sb + (std::distance(local, swap) + 1) * n,
+                                               [](const K &v) { return HPDDM::abs(v) > underlying_type<K>(HPDDM_EPS); }));
         };
         equilibrate<excluded>(n, sb, sx, lambda, local, k, rank, size / k, comm);
       } else {
@@ -837,9 +881,11 @@ private:
     if (k <= 1) opt.remove(prefix + "enlarge_krylov_subspace");
     else {
       opt[prefix + "enlarge_krylov_subspace"] = k;
-      if (!opt.any_of(prefix + "krylov_method", {HPDDM_KRYLOV_METHOD_BGMRES, HPDDM_KRYLOV_METHOD_BCG, HPDDM_KRYLOV_METHOD_BGCRODR, HPDDM_KRYLOV_METHOD_BFBCG})) {
+      if (!opt.any_of(prefix + "krylov_method",
+                      {HPDDM_KRYLOV_METHOD_BGMRES, HPDDM_KRYLOV_METHOD_BCG, HPDDM_KRYLOV_METHOD_BGCRODR, HPDDM_KRYLOV_METHOD_BFBCG})) {
         opt[prefix + "krylov_method"] = HPDDM_KRYLOV_METHOD_BGMRES;
-        if (opt.val<char>(prefix + "verbosity", 0)) std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
+        if (opt.val<char>(prefix + "verbosity", 0))
+          std::cout << "WARNING -- block iterative methods should be used when enlarging Krylov subspaces, now switching to BGMRES" << std::endl;
       }
     }
 #else
@@ -881,17 +927,20 @@ private:
       std::cout << header << storage[1] << " / " << storage[0];
       if (mu > 1) std::cout << " (rhs #1)\n";
       else std::cout << "\n";
-      for (unsigned short nu = 1; nu < mu; ++nu) std::cout << std::string(header.size(), ' ') << storage[2 * nu + 1] << " / " << storage[2 * nu] << " (rhs #" << (nu + 1) << ")\n";
+      for (unsigned short nu = 1; nu < mu; ++nu)
+        std::cout << std::string(header.size(), ' ') << storage[2 * nu + 1] << " / " << storage[2 * nu] << " (rhs #" << (nu + 1) << ")\n";
     }
     delete[] storage;
   }
   template <class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type * = nullptr>
-  static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu, const unsigned short norm)
+  static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu,
+                              const unsigned short norm)
   {
     A.computeResidual(x, b, storage, mu, norm);
   }
   template <class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value == 0>::type * = nullptr>
-  static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu, const unsigned short norm)
+  static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu,
+                              const unsigned short norm)
   {
     const int n   = A.getDof();
     int       dim = mu * n;
@@ -911,7 +960,8 @@ private:
       for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
           storage[2 * nu + 1] = std::max(std::abs(tmp[nu * n + i]), storage[2 * nu + 1]);
-          if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] = std::max(std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
+          if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
+            storage[2 * nu] = std::max(std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
           else storage[2 * nu] = std::max(std::abs(b[nu * n + i]), storage[2 * nu]);
         }
       }
@@ -1019,7 +1069,8 @@ public:
   template <bool excluded = false, class Operator, class K>
   static int PCG(const Operator &A, const K *const b, K *const x, const MPI_Comm &comm);
 #if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
-  template <bool excluded = false, class Operator = void, class K = double, typename std::enable_if<!is_substructuring_method<Operator>::value>::type * = nullptr>
+  template <bool excluded = false, class Operator = void, class K = double,
+            typename std::enable_if<!is_substructuring_method<Operator>::value>::type * = nullptr>
   static
   #if !defined(PETSC_PCHPDDM_MAXLEVELS)
     int
@@ -1049,7 +1100,7 @@ public:
   unsigned short k      = opt.val<unsigned short>(prefix + "enlarge_krylov_subspace", 0);
   const char     method = opt.val<char>(prefix + "krylov_method");
   #else
-    unsigned short k      = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->scntl[reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->cntl[0] != HPDDM_KRYLOV_METHOD_BFBCG];
+    unsigned short k = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->scntl[reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->cntl[0] != HPDDM_KRYLOV_METHOD_BFBCG];
     char           method = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->cntl[0];
   #endif
   K *sx = nullptr;

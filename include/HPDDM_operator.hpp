@@ -66,7 +66,8 @@ protected:
   unsigned short              signed_;
   unsigned short              connectivity_;
   template <char Q = P, typename std::enable_if<Q == 's' || Q == 'u'>::type * = nullptr>
-  OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) : p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
+  OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
+    p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
   {
     static_assert(Q == P, "Wrong sparsity pattern");
     sparsity_.reserve(map_.size());
@@ -74,7 +75,13 @@ protected:
   }
   template <char Q = P, typename std::enable_if<Q != 's' && Q != 'u'>::type * = nullptr>
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
-    p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max + std::max(1, (c - 1)) * (max & 4095)), connectivity_(c)
+    p_(p),
+    deflation_(buildDeflation(p)),
+    map_(p.getMap()),
+    n_(p.getDof()),
+    local_(p.getLocal()),
+    max_(max + std::max(1, (c - 1)) * (max & 4095)),
+    connectivity_(c)
   {
 #if HPDDM_BDD
     Members<true>::rank_      = p_.getRank();
@@ -103,7 +110,8 @@ protected:
         recvSparsity[i] = *recvSparsity + connectivity_ * i;
         MPI_Irecv(recvSparsity[i], connectivity_, MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.getCommunicator(), rq + i);
       }
-      for (unsigned short i = 0; i < map_.size(); ++i) MPI_Isend(sendSparsity, map_.size(), MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.getCommunicator(), rq + map_.size() + i);
+      for (unsigned short i = 0; i < map_.size(); ++i)
+        MPI_Isend(sendSparsity, map_.size(), MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.getCommunicator(), rq + map_.size() + i);
       Members<true>::vecSparsity_.resize(map_.size());
       for (unsigned short i = 0; i < map_.size(); ++i) {
         int        index, count;
@@ -123,8 +131,8 @@ protected:
         neighbors.reserve(map_.size());
         std::for_each(map_.cbegin(), map_.cend(), [&](const pairNeighbor &n) { neighbors.emplace_back(n.first); });
         typedef std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator> pairIt;
-        auto                                                                                                        comp = [](const pairIt &lhs, const pairIt &rhs) { return *lhs.first > *rhs.first; };
-        std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)>                                            pq(comp);
+        auto                                                             comp = [](const pairIt &lhs, const pairIt &rhs) { return *lhs.first > *rhs.first; };
+        std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)> pq(comp);
         pq.push({neighbors.cbegin(), neighbors.cend()});
         for (const std::vector<unsigned short> &v : Members<true>::vecSparsity_) pq.push({v.cbegin(), v.cend()});
         while (!pq.empty()) {
@@ -223,7 +231,8 @@ protected:
       } else {
         if (!map_.empty()) displs.emplace_back(local_ * (map_.size() + 1) * map_[0].second.size());
         for (unsigned short i = 1; i < map_.size(); ++i) displs.emplace_back(displs.back() + local_ * (map_.size() + 1) * map_[i].second.size());
-        for (unsigned short i = 0; i < map_.size(); ++i) displs.emplace_back(displs.back() + local_ * (Members<true>::vecSparsity_[i].size() + 1) * map_[i].second.size());
+        for (unsigned short i = 0; i < map_.size(); ++i)
+          displs.emplace_back(displs.back() + local_ * (Members<true>::vecSparsity_[i].size() + 1) * map_[i].second.size());
       }
     } else {
       if (!U) {
@@ -249,9 +258,13 @@ protected:
         }
       } else {
         if (!map_.empty()) displs.emplace_back(local_ * (map_.size() + (0 < signed_)) * map_[0].second.size());
-        for (unsigned short i = 1; i < map_.size(); ++i) displs.emplace_back(displs.back() + local_ * (map_.size() + (i < signed_) - i) * map_[i].second.size());
+        for (unsigned short i = 1; i < map_.size(); ++i)
+          displs.emplace_back(displs.back() + local_ * (map_.size() + (i < signed_) - i) * map_[i].second.size());
         for (unsigned short i = 0; i < map_.size(); ++i) {
-          unsigned short size = std::distance(std::lower_bound(Members<true>::vecSparsity_[i].cbegin(), Members<true>::vecSparsity_[i].cend(), Members<true>::rank_), Members<true>::vecSparsity_[i].cend()) + !(i < signed_);
+          unsigned short size = std::distance(std::lower_bound(Members<true>::vecSparsity_[i].cbegin(), Members<true>::vecSparsity_[i].cend(),
+                                                               Members<true>::rank_),
+                                              Members<true>::vecSparsity_[i].cend()) +
+                                !(i < signed_);
           displs.emplace_back(displs.back() + local_ * size * map_[i].second.size());
         }
       }
@@ -263,7 +276,8 @@ protected:
         for (unsigned short i = 0; i < map_.size(); ++i) {
           if (displs[i + map_.size()] != displs[i - 1 + map_.size()]) {
             out[i] = *in + displs[i - 1 + map_.size()];
-            MPI_Irecv(out[i], displs[i + map_.size()] - displs[i - 1 + map_.size()], Wrapper<K>::mpi_type(), map_[i].first, 2, p_.getCommunicator(), rqRecv + i);
+            MPI_Irecv(out[i], displs[i + map_.size()] - displs[i - 1 + map_.size()], Wrapper<K>::mpi_type(), map_[i].first, 2, p_.getCommunicator(),
+                      rqRecv + i);
           } else out[i] = nullptr;
         }
     } else if (out) *in = nullptr;
@@ -365,7 +379,8 @@ public:
   template <class T>
   friend class Schwarz;
   template <typename... Types>
-  UserCoarseOperator(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) : super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix)
+  UserCoarseOperator(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
+    super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix)
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -398,15 +413,18 @@ private:
     int m = U ? super::local_ : *infoNeighbor;
     std::fill_n(work_, m * super::n_, K());
     for (unsigned short i = 0; i < m; ++i)
-      for (int j = 0; j < super::map_[index].second.size(); ++j) work_[i * super::n_ + super::map_[index].second[j]] = D_[super::map_[index].second[j]] * in[i * super::map_[index].second.size() + j];
-    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &(super::n_), &(Wrapper<K>::d_1), *super::deflation_, &(super::n_), work_, &(super::n_), &(Wrapper<K>::d_0), work, &(super::local_));
+      for (int j = 0; j < super::map_[index].second.size(); ++j)
+        work_[i * super::n_ + super::map_[index].second[j]] = D_[super::map_[index].second[j]] * in[i * super::map_[index].second.size() + j];
+    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &(super::n_), &(Wrapper<K>::d_1), *super::deflation_, &(super::n_), work_, &(super::n_),
+                  &(Wrapper<K>::d_0), work, &(super::local_));
   }
 
 public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
   template <typename... Types>
   #if HPDDM_PETSC
-  MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) : super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling())
+  MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
+    super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling())
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -437,7 +455,8 @@ public:
     super::signed_ = s;
   }
   #else
-  MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Types...) : super(p, c, max), A_(p.getMatrix()), C_(), D_(p.getScaling())
+  MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Types...) :
+    super(p, c, max), A_(p.getMatrix()), C_(), D_(p.getScaling())
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -479,7 +498,8 @@ public:
     #ifdef _OPENMP
       #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
     #endif
-      for (unsigned int i = 0; i < A_->n_; ++i) std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K> &lhs, const std::pair<unsigned int, K> &rhs) { return lhs.first < rhs.first; });
+      for (unsigned int i = 0; i < A_->n_; ++i)
+        std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K> &lhs, const std::pair<unsigned int, K> &rhs) { return lhs.first < rhs.first; });
       for (unsigned int i = 0; i < A_->n_; ++i) {
         for (const std::pair<unsigned int, K> &p : v[i]) {
           C_->ja_[nnz]  = p.first + (Wrapper<K>::I == 'F' && HPDDM_NUMBERING != Wrapper<K>::I);
@@ -524,7 +544,8 @@ public:
   #endif
     for (unsigned short i = 0; i < super::signed_; ++i) {
       if (U || info[i]) {
-        for (unsigned short j = 0; j < super::local_; ++j) Wrapper<K>::gthr(super::map_[i].second.size(), work_ + j * super::n_, in[i] + j * super::map_[i].second.size(), super::map_[i].second.data());
+        for (unsigned short j = 0; j < super::local_; ++j)
+          Wrapper<K>::gthr(super::map_[i].second.size(), work_ + j * super::n_, in[i] + j * super::map_[i].second.size(), super::map_[i].second.data());
         MPI_Isend(in[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
       }
     }
@@ -541,7 +562,8 @@ public:
       }
   }
   template <char S, char N, bool U, class T>
-  void applyFromNeighborMain(const K *in, unsigned short index, T *I, T *J, K *C, int coefficients, unsigned int offsetI, unsigned int *offsetJ, K *arrayC, unsigned short *const &infoNeighbor = nullptr)
+  void applyFromNeighborMain(const K *in, unsigned short index, T *I, T *J, K *C, int coefficients, unsigned int offsetI, unsigned int *offsetJ, K *arrayC,
+                             unsigned short *const &infoNeighbor = nullptr)
   {
   #ifdef HPDDM_CSR_CO
     ignore(I, offsetI);
@@ -580,13 +602,15 @@ public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
   template <typename First, typename Second, typename Third, typename Fourth, typename Fifth, typename... Rest>
   #if !HPDDM_PETSC
-  MatrixAccumulation(const Preconditioner &p, const unsigned short &c, const unsigned int &max, First &, Second &arg2, Third &arg3, Fourth &arg4, Fifth &arg5, Rest &...args) :
+  MatrixAccumulation(const Preconditioner &p, const unsigned short &c, const unsigned int &max, First &, Second &arg2, Third &arg3, Fourth &arg4, Fifth &arg5,
+                     Rest &...args) :
     super(p, c, max, args...), overlap_(arg2), reduction_(arg3), sizes_(arg4), extra_(arg5)
   {
     static_assert(std::is_same<typename std::remove_pointer<First>::type, typename Preconditioner::super::co_type>::value, "Wrong constructor");
   }
   #else
-  MatrixAccumulation(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, First &, Second &arg2, Third &arg3, Fourth &arg4, Fifth &arg5, Rest &...args) :
+  MatrixAccumulation(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, First &,
+                     Second &arg2, Third &arg3, Fourth &arg4, Fifth &arg5, Rest &...args) :
     super(p, c, max, A, level, prefix, args...), overlap_(arg2), reduction_(arg3), sizes_(arg4), extra_(arg5)
   {
     static_assert(std::is_same<typename std::remove_pointer<First>::type, typename Preconditioner::super::co_type>::value, "Wrong constructor");
@@ -603,7 +627,8 @@ public:
     }
   }
   template <char S, bool U>
-  void setPattern(int *ldistribution, const int p, const int sizeSplit, unsigned short *const *const split = nullptr, const unsigned short *const world = nullptr)
+  void setPattern(int *ldistribution, const int p, const int sizeSplit, unsigned short *const *const split = nullptr,
+                  const unsigned short *const world = nullptr)
   {
     ldistribution_ = ldistribution;
     size_          = p;
@@ -619,22 +644,27 @@ public:
       for (unsigned short i = 0; i < sizeSplit; ++i) {
         for (unsigned short j = 0; j < split[i][0]; ++j) {
           if (getMain(split[i][(U != 1 ? 3 : 1) + j]) != self) {
-            sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + j])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + j]] : super::local_);
+            sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + j])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + j]]
+                                                                                                             : super::local_);
             reduction_[i].emplace_back(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + j]);
             if (S == 'S' && split[i][(U != 1 ? 3 : 1) + j] < rank + i) {
               std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::iterator it = extra_.find(i);
               if (it == extra_.end()) {
-                std::pair<std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::iterator, bool> p = extra_.emplace(i, std::forward_as_tuple(0, 0, std::vector<unsigned short>()));
-                it                                                                                                                                     = p.first;
-                std::get<0>(it->second)                                                                                                                = (U != 1 ? world[rank + i] : 1);
-                std::get<1>(it->second)                                                                                                                = (U != 1 ? std::accumulate(world + rank, world + rank + i, 0) : i);
+                std::pair<std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::iterator, bool>
+                  p                     = extra_.emplace(i, std::forward_as_tuple(0, 0, std::vector<unsigned short>()));
+                it                      = p.first;
+                std::get<0>(it->second) = (U != 1 ? world[rank + i] : 1);
+                std::get<1>(it->second) = (U != 1 ? std::accumulate(world + rank, world + rank + i, 0) : i);
               }
               std::get<2>(it->second).emplace_back(split[i][(U != 1 ? 3 : 1) + j]);
             }
             for (unsigned short k = j + 1; k < split[i][0]; ++k) {
               if (pattern[split[i][(U != 1 ? 3 : 1) + j] * size + split[i][(U != 1 ? 3 : 1) + k]] && getMain(split[i][(U != 1 ? 3 : 1) + k]) != self) {
-                sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + k])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + k]] : super::local_);
-                if (S != 'S') sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + k], split[i][(U != 1 ? 3 : 1) + j])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + j]] : super::local_);
+                sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + k])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + k]]
+                                                                                                                 : super::local_);
+                if (S != 'S')
+                  sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + k], split[i][(U != 1 ? 3 : 1) + j])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + j]]
+                                                                                                                   : super::local_);
                 reduction_[i].emplace_back(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + k]);
                 if (S != 'S') reduction_[i].emplace_back(split[i][(U != 1 ? 3 : 1) + k], split[i][(U != 1 ? 3 : 1) + j]);
               }
@@ -643,7 +673,8 @@ public:
         }
         std::sort(reduction_[i].begin(), reduction_[i].end());
         if (S == 'S') {
-          const unsigned short first = std::distance(split[i] + (U != 1 ? 3 : 1), std::upper_bound(split[i] + (U != 1 ? 3 : 1), split[i] + (U != 1 ? 3 : 1) + split[i][0], rank + i));
+          const unsigned short first = std::distance(split[i] + (U != 1 ? 3 : 1),
+                                                     std::upper_bound(split[i] + (U != 1 ? 3 : 1), split[i] + (U != 1 ? 3 : 1) + split[i][0], rank + i));
           split[i][0] -= first;
           for (unsigned short j = 0; j < split[i][0]; ++j) split[i][(U != 1 ? 3 : 1) + j] = split[i][(U != 1 ? 3 : 1) + first + j];
         }
@@ -693,8 +724,10 @@ public:
     MPI_Request    *rq        = new MPI_Request[2 * super::map_.size()];
     unsigned short *neighbors = new unsigned short[super::map_.size()];
     for (unsigned short i = 0; i < super::map_.size(); ++i) neighbors[i] = super::map_[i].first;
-    for (unsigned short i = 0; i < super::map_.size(); ++i) MPI_Isend(neighbors, super::map_.size(), MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + super::map_.size() + i);
-    for (unsigned short i = 0; i < super::map_.size(); ++i) MPI_Irecv(accumulate[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + i);
+    for (unsigned short i = 0; i < super::map_.size(); ++i)
+      MPI_Isend(neighbors, super::map_.size(), MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + super::map_.size() + i);
+    for (unsigned short i = 0; i < super::map_.size(); ++i)
+      MPI_Irecv(accumulate[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + i);
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       int        index;
       MPI_Status st;
@@ -727,7 +760,8 @@ public:
         }
         if (S == 'S' && getMain(accumulate[overlap[i]][j]) == main) {
           unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[overlap[i]][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[overlap[i]][j]) accumulate[super::map_.size() + overlap[i]].emplace_back(std::distance(neighbors, pt));
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[overlap[i]][j])
+            accumulate[super::map_.size() + overlap[i]].emplace_back(std::distance(neighbors, pt));
         }
       }
       accumulate[overlap[i]].resize(size);
@@ -795,7 +829,9 @@ public:
     }
     K **tmp = new K *[2 * super::map_.size()];
     *tmp    = new K[omap.size() * (U == 1 ? super::map_.size() * super::local_ : std::max(super::local_, std::accumulate(info, info + super::map_.size(), 0))) +
-                    std::max(static_cast<int>(omap.size() * (U == 1 ? super::map_.size() * super::local_ : std::max(super::local_, std::accumulate(info, info + super::map_.size(), 0)))), super::n_ * super::local_)]();
+                    std::max(static_cast<int>(omap.size() * (U == 1 ? super::map_.size() * super::local_
+                                                                    : std::max(super::local_, std::accumulate(info, info + super::map_.size(), 0)))),
+                             super::n_ * super::local_)]();
     for (unsigned short i = 1; i < super::map_.size(); ++i) tmp[i] = tmp[i - 1] + omap.size() * (U == 1 ? super::local_ : info[i - 1]);
     if (super::map_.size()) {
       tmp[super::map_.size()] = tmp[super::map_.size() - 1] + omap.size() * (U == 1 ? super::local_ : info[super::map_.size() - 1]);
@@ -811,23 +847,29 @@ public:
     }
     K **buff = new K *[2 * super::map_.size()];
     m        = 0;
-    for (unsigned short i = 0; i < super::map_.size(); ++i) m += super::map_[i].second.size() * 2 * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
+    for (unsigned short i = 0; i < super::map_.size(); ++i)
+      m += super::map_[i].second.size() * 2 * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     *buff = new K[m];
     m     = 0;
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       buff[i] = *buff + m;
-      MPI_Irecv(buff[i], super::map_[i].second.size() * (U == 1 ? super::local_ : info[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.getCommunicator(), rq + i);
+      MPI_Irecv(buff[i], super::map_[i].second.size() * (U == 1 ? super::local_ : info[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 20,
+                super::p_.getCommunicator(), rq + i);
       m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     }
     if (super::local_) Wrapper<K>::diag(super::n_, super::D_, *super::deflation_, *tmp, super::local_);
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       buff[super::map_.size() + i] = *buff + m;
-      for (unsigned short j = 0; j < super::local_; ++j) Wrapper<K>::gthr(super::map_[i].second.size(), *tmp + j * super::n_, buff[super::map_.size() + i] + j * super::map_[i].second.size(), super::map_[i].second.data());
-      MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.getCommunicator(), rq + super::map_.size() + i);
+      for (unsigned short j = 0; j < super::local_; ++j)
+        Wrapper<K>::gthr(super::map_[i].second.size(), *tmp + j * super::n_, buff[super::map_.size() + i] + j * super::map_[i].second.size(),
+                         super::map_[i].second.data());
+      MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 20,
+                super::p_.getCommunicator(), rq + super::map_.size() + i);
       m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     }
   #if !HPDDM_PETSC
-    Wrapper<K>::template csrmm<Wrapper<K>::I>(super::A_->sym_, &(super::n_), &(super::local_), super::A_->a_, super::A_->ia_, super::A_->ja_, *tmp, super::work_);
+    Wrapper<K>::template csrmm<Wrapper<K>::I>(super::A_->sym_, &(super::n_), &(super::local_), super::A_->a_, super::A_->ia_, super::A_->ja_, *tmp,
+                                              super::work_);
   #else
     Mat Z, P;
     if (n == super::n_) {
@@ -866,9 +908,11 @@ public:
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       int index;
       MPI_Waitany(super::map_.size(), rq, &index, MPI_STATUS_IGNORE);
-      for (unsigned short k = 0; k < (U ? super::local_ : info[index]); ++k) Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), tmp[index] + k * omap.size());
+      for (unsigned short k = 0; k < (U ? super::local_ : info[index]); ++k)
+        Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), tmp[index] + k * omap.size());
     }
-    for (unsigned short i = 0; i < super::map_.size(); ++i) MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(), rq + i);
+    for (unsigned short i = 0; i < super::map_.size(); ++i)
+      MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(), rq + i);
     m = std::distance(tmp[0], tmp[super::map_.size()]) / omap.size();
   #if !HPDDM_PETSC
     {
@@ -883,11 +927,12 @@ public:
         for (int j = super::C_->ia_[i] - (Wrapper<K>::I == 'F'); j < super::C_->ia_[i + 1] - (Wrapper<K>::I == 'F'); ++j) {
           for (unsigned short k = 0; k < compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')].size(); ++k) {
             const int m = (U == 1 ? super::local_ : info[compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]]);
-            Blas<K>::axpy(&m, super::C_->a_ + j, tmp[compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + super::C_->ja_[j] - (Wrapper<K>::I == 'F'), &(super::C_->n_), tmp[super::map_.size() + compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + i,
-                          &(super::C_->n_));
+            Blas<K>::axpy(&m, super::C_->a_ + j, tmp[compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + super::C_->ja_[j] - (Wrapper<K>::I == 'F'),
+                          &(super::C_->n_), tmp[super::map_.size() + compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::C_->n_));
             if (super::C_->sym_ && i != super::C_->ja_[j] - (Wrapper<K>::I == 'F')) {
               const int m = (U == 1 ? super::local_ : info[compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]]);
-              Blas<K>::axpy(&m, super::C_->a_ + j, tmp[compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::C_->n_), tmp[super::map_.size() + compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + super::C_->ja_[j] - (Wrapper<K>::I == 'F'),
+              Blas<K>::axpy(&m, super::C_->a_ + j, tmp[compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + i, &(super::C_->n_),
+                            tmp[super::map_.size() + compute[super::C_->ja_[j] - (Wrapper<K>::I == 'F')][k]] + super::C_->ja_[j] - (Wrapper<K>::I == 'F'),
                             &(super::C_->n_));
             }
           }
@@ -935,16 +980,18 @@ public:
     MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       m = (U == 1 ? super::local_ : info[i]);
-      for (unsigned short j = 0; j < m; ++j) Wrapper<K>::gthr(nmap[i].size(), tmp[super::map_.size() + i] + j * omap.size(), buff[super::map_.size() + i] + j * nmap[i].size(), nmap[i].data());
-      MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(), rq + super::map_.size() + i);
+      for (unsigned short j = 0; j < m; ++j)
+        Wrapper<K>::gthr(nmap[i].size(), tmp[super::map_.size() + i] + j * omap.size(), buff[super::map_.size() + i] + j * nmap[i].size(), nmap[i].data());
+      MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(),
+                rq + super::map_.size() + i);
     }
     K *pt = overlap_.data();
     for (unsigned short i = 0; i < overlap.size(); ++i) {
       for (unsigned short j = 0; j < overlap.size(); ++j) {
         if (block[overlap[i]][overlap[j]].first != 0 && block[overlap[i]][overlap[j]].second != 0) {
           const int n = omap.size();
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(block[overlap[i]][overlap[j]].first), &(block[overlap[i]][overlap[j]].second), &n, &(Wrapper<K>::d_1), tmp[overlap[i]], &n, tmp[super::map_.size() + overlap[j]], &n, &(Wrapper<K>::d_0), pt,
-                        &(block[overlap[i]][overlap[j]].first));
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(block[overlap[i]][overlap[j]].first), &(block[overlap[i]][overlap[j]].second), &n, &(Wrapper<K>::d_1),
+                        tmp[overlap[i]], &n, tmp[super::map_.size() + overlap[j]], &n, &(Wrapper<K>::d_0), pt, &(block[overlap[i]][overlap[j]].first));
           pt += (U == 1 ? super::local_ * super::local_ : info[overlap[i]] * info[overlap[j]]);
         }
       }
@@ -969,13 +1016,15 @@ public:
       for (unsigned short i = 0; i < overlap.size() && overlap[i] < super::signed_; ++i) {
         m = (U == 1 ? super::local_ : info[overlap[i]]);
         if (m) {
-          for (unsigned short nu = 0; nu < super::local_; ++nu) Wrapper<K>::gthr(omap.size(), super::work_ + nu * super::n_, work + nu * omap.size(), omap.data());
+          for (unsigned short nu = 0; nu < super::local_; ++nu)
+            Wrapper<K>::gthr(omap.size(), super::work_ + nu * super::n_, work + nu * omap.size(), omap.data());
           const std::vector<unsigned short> &r = accumulate[super::map_.size() + overlap[i]];
           for (unsigned short j = 0; j < r.size(); ++j) {
             for (unsigned short nu = 0; nu < super::local_; ++nu) {
               std::fill_n(tmp[super::map_.size()], omap.size(), K());
               Wrapper<K>::sctr(nmap[r[j]].size(), buff[r[j]] + nu * nmap[r[j]].size(), nmap[r[j]].data(), tmp[super::map_.size()]);
-              for (unsigned int k = 0; k < nmap[overlap[i]].size(); ++k) work[nmap[overlap[i]][k] + nu * omap.size()] += tmp[super::map_.size()][nmap[overlap[i]][k]];
+              for (unsigned int k = 0; k < nmap[overlap[i]].size(); ++k)
+                work[nmap[overlap[i]][k] + nu * omap.size()] += tmp[super::map_.size()][nmap[overlap[i]][k]];
             }
           }
           const int n = omap.size();
@@ -988,27 +1037,34 @@ public:
     delete[] tmp;
     for (unsigned short i = 0; i < overlap.size() && overlap[i] < super::signed_; ++i) {
       if (U || info[overlap[i]]) {
-        for (unsigned short nu = 0; nu < super::local_; ++nu) Wrapper<K>::gthr(super::map_[overlap[i]].second.size(), super::work_ + nu * super::n_, in[overlap[i]] + nu * super::map_[overlap[i]].second.size(), super::map_[overlap[i]].second.data());
+        for (unsigned short nu = 0; nu < super::local_; ++nu)
+          Wrapper<K>::gthr(super::map_[overlap[i]].second.size(), super::work_ + nu * super::n_, in[overlap[i]] + nu * super::map_[overlap[i]].second.size(),
+                           super::map_[overlap[i]].second.data());
         const std::vector<unsigned short> &r = accumulate[overlap[i]];
         for (unsigned short k = 0; k < r.size(); ++k) {
           for (unsigned short nu = 0; nu < super::local_; ++nu) {
             std::fill_n(work, omap.size(), K());
             Wrapper<K>::sctr(nmap[r[k]].size(), buff[r[k]] + nu * nmap[r[k]].size(), nmap[r[k]].data(), work);
-            for (unsigned int j = 0; j < super::map_[overlap[i]].second.size(); ++j) in[overlap[i]][j + nu * super::map_[overlap[i]].second.size()] += work[nmap[overlap[i]][j]];
+            for (unsigned int j = 0; j < super::map_[overlap[i]].second.size(); ++j)
+              in[overlap[i]][j + nu * super::map_[overlap[i]].second.size()] += work[nmap[overlap[i]][j]];
           }
         }
-        MPI_Isend(in[overlap[i]], super::map_[overlap[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[overlap[i]].first, 2, super::p_.getCommunicator(), rs + overlap[i]);
+        MPI_Isend(in[overlap[i]], super::map_[overlap[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[overlap[i]].first, 2,
+                  super::p_.getCommunicator(), rs + overlap[i]);
       }
     }
     for (unsigned short i = 0; i < interior.size(); ++i) {
       for (unsigned short k = 0; k < super::local_; ++k)
-        for (unsigned int j = 0; j < super::map_[interior[i]].second.size(); ++j) super::work_[super::map_[interior[i]].second[j] + k * super::n_] += buff[interior[i]][j + k * super::map_[interior[i]].second.size()];
+        for (unsigned int j = 0; j < super::map_[interior[i]].second.size(); ++j)
+          super::work_[super::map_[interior[i]].second[j] + k * super::n_] += buff[interior[i]][j + k * super::map_[interior[i]].second.size()];
     }
     for (unsigned short i = 0; i < interior.size() && interior[i] < super::signed_; ++i) {
       if (U || info[interior[i]]) {
         for (unsigned short nu = 0; nu < super::local_; ++nu)
-          Wrapper<K>::gthr(super::map_[interior[i]].second.size(), super::work_ + nu * super::n_, in[interior[i]] + nu * super::map_[interior[i]].second.size(), super::map_[interior[i]].second.data());
-        MPI_Isend(in[interior[i]], super::map_[interior[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[interior[i]].first, 2, super::p_.getCommunicator(), rs + interior[i]);
+          Wrapper<K>::gthr(super::map_[interior[i]].second.size(), super::work_ + nu * super::n_, in[interior[i]] + nu * super::map_[interior[i]].second.size(),
+                           super::map_[interior[i]].second.data());
+        MPI_Isend(in[interior[i]], super::map_[interior[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[interior[i]].first, 2,
+                  super::p_.getCommunicator(), rs + interior[i]);
       }
     }
     rs += super::signed_;
@@ -1030,16 +1086,32 @@ private:
   template <char S, bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *info)
   {
-    std::vector<unsigned short>::const_iterator middle     = std::lower_bound(super::vecSparsity_[index].cbegin(), super::vecSparsity_[index].cend(), super::rank_);
+    std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::vecSparsity_[index].cbegin(), super::vecSparsity_[index].cend(), super::rank_);
     unsigned int                                accumulate = 0;
     if (!(index < super::signed_)) {
-      for (unsigned short k = 0; k < (U ? super::local_ : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]); ++k)
-        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[super::map_[index].first] + super::map_[index].second[j] + k * super::n_] += in[k * super::map_[index].second.size() + j];
-      accumulate += (U ? super::local_ : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]) * super::map_[index].second.size();
+      for (unsigned short k = 0;
+           k <
+           (U ? super::local_
+              : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]);
+           ++k)
+        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+          work[super::offsets_[super::map_[index].first] + super::map_[index].second[j] + k * super::n_] += in[k * super::map_[index].second.size() + j];
+      accumulate += (U ? super::local_
+                       : info[std::distance(super::sparsity_.cbegin(),
+                                            std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]) *
+                    super::map_[index].second.size();
     } else if (S != 'S') {
-      for (unsigned short k = 0; k < (U ? super::local_ : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]); ++k)
-        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[super::map_[index].first] + super::map_[index].second[j] + k * super::n_] -= in[k * super::map_[index].second.size() + j];
-      accumulate += (U ? super::local_ : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]) * super::map_[index].second.size();
+      for (unsigned short k = 0;
+           k <
+           (U ? super::local_
+              : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]);
+           ++k)
+        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+          work[super::offsets_[super::map_[index].first] + super::map_[index].second[j] + k * super::n_] -= in[k * super::map_[index].second.size() + j];
+      accumulate += (U ? super::local_
+                       : info[std::distance(super::sparsity_.cbegin(),
+                                            std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]) *
+                    super::map_[index].second.size();
     }
     std::vector<unsigned short>::const_iterator begin = super::sparsity_.cbegin();
     if (S != 'S')
@@ -1048,47 +1120,57 @@ private:
           std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::sparsity_.cend(), *it);
           if (*it > super::map_[index].first || super::signed_ > index)
             for (unsigned short k = 0; k < info[std::distance(super::sparsity_.cbegin(), idx)]; ++k)
-              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
+              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+                work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
           else
             for (unsigned short k = 0; k < info[std::distance(super::sparsity_.cbegin(), idx)]; ++k)
-              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+                work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
           accumulate += info[std::distance(super::sparsity_.cbegin(), idx)] * super::map_[index].second.size();
           begin = idx + 1;
         } else {
           if (*it > super::map_[index].first || super::signed_ > index)
             for (unsigned short k = 0; k < super::local_; ++k)
-              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
+              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+                work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
           else
             for (unsigned short k = 0; k < super::local_; ++k)
-              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+              for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+                work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
           accumulate += super::local_ * super::map_[index].second.size();
         }
       }
     if (index < super::signed_)
       for (unsigned short k = 0; k < super::local_; ++k)
-        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[super::rank_] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
+        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+          work[super::offsets_[super::rank_] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
     else
       for (unsigned short k = 0; k < super::local_; ++k)
-        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[super::rank_] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+          work[super::offsets_[super::rank_] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
     accumulate += super::local_ * super::map_[index].second.size();
     for (std::vector<unsigned short>::const_iterator it = middle + 1; it < super::vecSparsity_[index].cend(); ++it) {
       if (!U) {
         std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::sparsity_.cend(), *it);
         if (*it > super::map_[index].first && super::signed_ > index)
           for (unsigned short k = 0; k < info[std::distance(super::sparsity_.cbegin(), idx)]; ++k)
-            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
+            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+              work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
         else
           for (unsigned short k = 0; k < info[std::distance(super::sparsity_.cbegin(), idx)]; ++k)
-            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+              work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
         accumulate += info[std::distance(super::sparsity_.cbegin(), idx)] * super::map_[index].second.size();
         begin = idx + 1;
       } else {
         if (*it > super::map_[index].first && super::signed_ > index)
           for (unsigned short k = 0; k < super::local_; ++k)
-            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
+            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+              work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] -= in[accumulate + k * super::map_[index].second.size() + j];
         else
           for (unsigned short k = 0; k < super::local_; ++k)
-            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+              work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
         accumulate += super::local_ * super::map_[index].second.size();
       }
     }
@@ -1112,7 +1194,9 @@ public:
     unsigned short *displs = new unsigned short[super::map_.size() + 1];
     displs[0]              = 0;
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::local_ : infoNeighbor[i]), super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + i);
+      MPI_Irecv(mult + offset[i + 1] * nbMult + displs[i] * (U ? super::local_ : infoNeighbor[i]),
+                super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11,
+                super::p_.getCommunicator(), rqMult + i);
       displs[i + 1] = displs[i] + super::map_[i].second.size();
     }
 
@@ -1121,14 +1205,18 @@ public:
     for (unsigned short i = 0; i < super::signed_; ++i) {
       for (unsigned short k = 0; k < super::local_; ++k)
         for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
-          tmp[super::map_[i].second[j] + k * super::n_] -= m[i][j] * (mult[displs[i] * super::local_ + j + k * super::map_[i].second.size()] = -super::deflation_[k][super::map_[i].second[j]]);
-      MPI_Isend(mult + displs[i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + super::map_.size() + i);
+          tmp[super::map_[i].second[j] + k * super::n_] -= m[i][j] * (mult[displs[i] * super::local_ + j +
+                                                                           k * super::map_[i].second.size()] = -super::deflation_[k][super::map_[i].second[j]]);
+      MPI_Isend(mult + displs[i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11,
+                super::p_.getCommunicator(), rqMult + super::map_.size() + i);
     }
     for (unsigned short i = super::signed_; i < super::map_.size(); ++i) {
       for (unsigned short k = 0; k < super::local_; ++k)
         for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
-          tmp[super::map_[i].second[j] + k * super::n_] += m[i][j] * (mult[displs[i] * super::local_ + j + k * super::map_[i].second.size()] = super::deflation_[k][super::map_[i].second[j]]);
-      MPI_Isend(mult + displs[i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + super::map_.size() + i);
+          tmp[super::map_[i].second[j] + k * super::n_] += m[i][j] * (mult[displs[i] * super::local_ + j +
+                                                                           k * super::map_[i].second.size()] = super::deflation_[k][super::map_[i].second[j]]);
+      MPI_Isend(mult + displs[i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11,
+                super::p_.getCommunicator(), rqMult + super::map_.size() + i);
     }
 
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
@@ -1137,11 +1225,17 @@ public:
       if (index < super::signed_)
         for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[index]); ++k)
           for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
-            tmp[super::map_[index].second[j] + (offset[index + 1] + k) * super::n_] = -m[index][j] * mult[offset[index + 1] * nbMult + displs[index] * (U ? super::local_ : infoNeighbor[index]) + j + k * super::map_[index].second.size()];
+            tmp[super::map_[index].second[j] + (offset[index + 1] + k) * super::n_] = -m[index][j] *
+                                                                                      mult[offset[index + 1] * nbMult +
+                                                                                           displs[index] * (U ? super::local_ : infoNeighbor[index]) + j +
+                                                                                           k * super::map_[index].second.size()];
       else
         for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[index]); ++k)
           for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
-            tmp[super::map_[index].second[j] + (offset[index + 1] + k) * super::n_] = m[index][j] * mult[offset[index + 1] * nbMult + displs[index] * (U ? super::local_ : infoNeighbor[index]) + j + k * super::map_[index].second.size()];
+            tmp[super::map_[index].second[j] + (offset[index + 1] + k) * super::n_] = m[index][j] *
+                                                                                      mult[offset[index + 1] * nbMult +
+                                                                                           displs[index] * (U ? super::local_ : infoNeighbor[index]) + j +
+                                                                                           k * super::map_[index].second.size()];
     }
 
     delete[] displs;
@@ -1174,51 +1268,68 @@ public:
       accumulate = super::local_;
       for (unsigned short k = 0; k < super::local_; ++k)
         for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
-          work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] -= (in[i][k * super::map_[i].second.size() + j] = -m[i][j] * tmp[super::map_[i].second[j] + k * super::n_]);
+          work[super::offsets_[super::rank_] + super::map_[i].second[j] +
+               k * super::n_] -= (in[i][k * super::map_[i].second.size() + j] = -m[i][j] * tmp[super::map_[i].second[j] + k * super::n_]);
       for (unsigned short l = (S != 'S' ? 0 : i); l < super::map_.size(); ++l) {
-        if (Q == FetiPrcndtnr::SUPERLUMPED && l != i && !std::binary_search(super::vecSparsity_[i].cbegin(), super::vecSparsity_[i].cend(), super::map_[l].first)) {
+        if (Q == FetiPrcndtnr::SUPERLUMPED && l != i &&
+            !std::binary_search(super::vecSparsity_[i].cbegin(), super::vecSparsity_[i].cend(), super::map_[l].first)) {
           if (S != 'S' || !(l < super::signed_))
             for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[l]); ++k)
-              for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] -= -m[i][j] * tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
+              for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+                work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] -= -m[i][j] * tmp[super::map_[i].second[j] +
+                                                                                                                         (offset[l + 1] + k) * super::n_];
           continue;
         }
         for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[l]); ++k)
           for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) {
             if (S != 'S' || !(l < super::signed_))
-              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] -= (in[i][(accumulate + k) * super::map_[i].second.size() + j] = -m[i][j] * tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_]);
+              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] +
+                   k * super::n_] -= (in[i][(accumulate + k) * super::map_[i].second.size() + j] = -m[i][j] * tmp[super::map_[i].second[j] +
+                                                                                                                  (offset[l + 1] + k) * super::n_]);
             else in[i][(accumulate + k) * super::map_[i].second.size() + j] = -m[i][j] * tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
           }
         accumulate += U ? super::local_ : infoNeighbor[l];
       }
-      if (U || infoNeighbor[i]) MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
+      if (U || infoNeighbor[i])
+        MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
     }
     for (unsigned short i = super::signed_; i < super::map_.size(); ++i) {
       if (S != 'S') {
         accumulate = super::local_;
         for (unsigned short k = 0; k < super::local_; ++k)
           for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
-            work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] += (in[i][k * super::map_[i].second.size() + j] = m[i][j] * tmp[super::map_[i].second[j] + k * super::n_]);
+            work[super::offsets_[super::rank_] + super::map_[i].second[j] +
+                 k * super::n_] += (in[i][k * super::map_[i].second.size() + j] = m[i][j] * tmp[super::map_[i].second[j] + k * super::n_]);
       } else {
         accumulate = 0;
         for (unsigned short k = 0; k < super::local_; ++k)
-          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] += m[i][j] * tmp[super::map_[i].second[j] + k * super::n_];
+          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+            work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] += m[i][j] * tmp[super::map_[i].second[j] + k * super::n_];
       }
       for (unsigned short l = S != 'S' ? 0 : super::signed_; l < super::map_.size(); ++l) {
-        if (Q == FetiPrcndtnr::SUPERLUMPED && l != i && !std::binary_search(super::vecSparsity_[i].cbegin(), super::vecSparsity_[i].cend(), super::map_[l].first)) {
+        if (Q == FetiPrcndtnr::SUPERLUMPED && l != i &&
+            !std::binary_search(super::vecSparsity_[i].cbegin(), super::vecSparsity_[i].cend(), super::map_[l].first)) {
           if (S != 'S' || !(l < i))
             for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[l]); ++k)
-              for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] += m[i][j] * tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
+              for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+                work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] += m[i][j] * tmp[super::map_[i].second[j] +
+                                                                                                                        (offset[l + 1] + k) * super::n_];
           continue;
         }
         for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[l]); ++k)
           for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) {
             if (S != 'S' || !(l < i))
-              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] += (in[i][(accumulate + k) * super::map_[i].second.size() + j] = m[i][j] * tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_]);
-            else work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] += m[i][j] * tmp[super::map_[i].second[j] + (offset[l + 1] + k) * super::n_];
+              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] +
+                   k * super::n_] += (in[i][(accumulate + k) * super::map_[i].second.size() + j] = m[i][j] * tmp[super::map_[i].second[j] +
+                                                                                                                 (offset[l + 1] + k) * super::n_]);
+            else
+              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] += m[i][j] * tmp[super::map_[i].second[j] +
+                                                                                                                      (offset[l + 1] + k) * super::n_];
           }
         if (S != 'S' || !(l < i)) accumulate += U ? super::local_ : infoNeighbor[l];
       }
-      if (U || infoNeighbor[i]) MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
+      if (U || infoNeighbor[i])
+        MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
     }
     delete[] tmp;
     delete[] offset;
@@ -1229,16 +1340,20 @@ public:
   {
     applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
     if (++super::consolidate_ == super::map_.size()) {
-      if (S != 'S') Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
+      if (S != 'S')
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_,
+                      super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
       else
         for (unsigned short j = 0; j < super::local_; ++j) {
           int local = coefficients + super::local_ - j;
-          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1, &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
+          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1,
+                        &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
         }
     }
   }
   template <char S, char N, bool U>
-  void applyFromNeighborMain(const K *in, unsigned short index, int *I, int *J, K *C, int coefficients, unsigned int offsetI, unsigned int *offsetJ, K *arrayC, unsigned short *const &infoNeighbor = nullptr)
+  void applyFromNeighborMain(const K *in, unsigned short index, int *I, int *J, K *C, int coefficients, unsigned int offsetI, unsigned int *offsetJ, K *arrayC,
+                             unsigned short *const &infoNeighbor = nullptr)
   {
     assembleForMain<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
     super::template assembleOperator<S, N, U>(I, J, coefficients, offsetI, offsetJ, infoNeighbor);
@@ -1261,12 +1376,20 @@ private:
   template <char S, bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *info)
   {
-    std::vector<unsigned short>::const_iterator middle     = std::lower_bound(super::vecSparsity_[index].cbegin(), super::vecSparsity_[index].cend(), super::rank_);
+    std::vector<unsigned short>::const_iterator middle = std::lower_bound(super::vecSparsity_[index].cbegin(), super::vecSparsity_[index].cend(), super::rank_);
     unsigned int                                accumulate = 0;
     if (S != 'S' || !(index < super::signed_)) {
-      for (unsigned short k = 0; k < (U ? super::local_ : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]); ++k)
-        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[super::map_[index].first] + super::map_[index].second[j] + k * super::n_] += in[k * super::map_[index].second.size() + j];
-      accumulate += (U ? super::local_ : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]) * super::map_[index].second.size();
+      for (unsigned short k = 0;
+           k <
+           (U ? super::local_
+              : info[std::distance(super::sparsity_.cbegin(), std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]);
+           ++k)
+        for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+          work[super::offsets_[super::map_[index].first] + super::map_[index].second[j] + k * super::n_] += in[k * super::map_[index].second.size() + j];
+      accumulate += (U ? super::local_
+                       : info[std::distance(super::sparsity_.cbegin(),
+                                            std::lower_bound(super::sparsity_.cbegin(), super::sparsity_.cend(), super::map_[index].first))]) *
+                    super::map_[index].second.size();
     }
     std::vector<unsigned short>::const_iterator begin = super::sparsity_.cbegin();
     if (S != 'S')
@@ -1274,29 +1397,34 @@ private:
         if (!U) {
           std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::sparsity_.cend(), *it);
           for (unsigned short k = 0; k < info[std::distance(super::sparsity_.cbegin(), idx)]; ++k)
-            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+              work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
           accumulate += info[std::distance(super::sparsity_.cbegin(), idx)] * super::map_[index].second.size();
           begin = idx + 1;
         } else {
           for (unsigned short k = 0; k < super::local_; ++k)
-            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+            for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+              work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
           accumulate += super::local_ * super::map_[index].second.size();
         }
       }
     for (unsigned short k = 0; k < super::local_; ++k) {
-      for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[super::rank_] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+      for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+        work[super::offsets_[super::rank_] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
     }
     accumulate += super::local_ * super::map_[index].second.size();
     for (std::vector<unsigned short>::const_iterator it = middle + 1; it < super::vecSparsity_[index].cend(); ++it) {
       if (!U) {
         std::vector<unsigned short>::const_iterator idx = std::lower_bound(begin, super::sparsity_.cend(), *it);
         for (unsigned short k = 0; k < info[std::distance(super::sparsity_.cbegin(), idx)]; ++k)
-          for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+          for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+            work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
         accumulate += info[std::distance(super::sparsity_.cbegin(), idx)] * super::map_[index].second.size();
         begin = idx + 1;
       } else {
         for (unsigned short k = 0; k < super::local_; ++k)
-          for (unsigned int j = 0; j < super::map_[index].second.size(); ++j) work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
+          for (unsigned int j = 0; j < super::map_[index].second.size(); ++j)
+            work[super::offsets_[*it] + super::map_[index].second[j] + k * super::n_] += in[accumulate + k * super::map_[index].second.size() + j];
         accumulate += super::local_ * super::map_[index].second.size();
       }
     }
@@ -1306,7 +1434,8 @@ public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
   template <typename... Types>
   #if HPDDM_PETSC
-  BddProjection(const Preconditioner &p, const unsigned short &c, const int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) : super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling())
+  BddProjection(const Preconditioner &p, const unsigned short &c, const int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
+    super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling())
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -1340,8 +1469,9 @@ public:
     }
     K *mult = new K[U ? 2 * displs[0][super::map_.size()] * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][super::map_.size()]];
     for (unsigned short i = 0; i < super::map_.size(); ++i)
-      MPI_Irecv(mult + (U ? (displs[0][super::map_.size()] + displs[0][i]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][i]), super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(),
-                super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + i);
+      MPI_Irecv(mult + (U ? (displs[0][super::map_.size()] + displs[0][i]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][i]),
+                super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11,
+                super::p_.getCommunicator(), rqMult + i);
     K                              *tmp = new K[(U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]) * super::n_]();
     const underlying_type<K> *const m   = super::p_.getScaling();
   #if HPDDM_PETSC
@@ -1351,18 +1481,26 @@ public:
       for (unsigned short k = 0; k < super::local_; ++k)
   #if HPDDM_BDD
         for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
-          tmp[super::map_[i].second[j] + k * super::n_] = (mult[displs[0][i] * super::local_ + j + k * super::map_[i].second.size()] = m[super::map_[i].second[j]] * super::deflation_[k][super::map_[i].second[j]]);
+          tmp[super::map_[i].second[j] +
+              k * super::n_] = (mult[displs[0][i] * super::local_ + j + k * super::map_[i].second.size()] = m[super::map_[i].second[j]] *
+                                                                                                            super::deflation_[k][super::map_[i].second[j]]);
   #else
-        Wrapper<K>::gthr(super::map_[i].second.size(), tmp + k * super::n_, mult + displs[0][i] * super::local_ + k * super::map_[i].second.size(), super::map_[i].second.data());
+        Wrapper<K>::gthr(super::map_[i].second.size(), tmp + k * super::n_, mult + displs[0][i] * super::local_ + k * super::map_[i].second.size(),
+                         super::map_[i].second.data());
   #endif
-      MPI_Isend(mult + displs[0][i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11, super::p_.getCommunicator(), rqMult + super::map_.size() + i);
+      MPI_Isend(mult + displs[0][i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11,
+                super::p_.getCommunicator(), rqMult + super::map_.size() + i);
     }
 
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       int index;
       MPI_Waitany(super::map_.size(), rqMult, &index, MPI_STATUS_IGNORE);
       for (unsigned short k = 0; k < (U ? super::local_ : infoNeighbor[index]); ++k)
-        Wrapper<K>::sctr(super::map_[index].second.size(), mult + (U ? (displs[0][super::map_.size()] + displs[0][index]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][index]) + k * super::map_[index].second.size(),
+        Wrapper<K>::sctr(super::map_[index].second.size(),
+                         mult +
+                           (U ? (displs[0][super::map_.size()] + displs[0][index]) * super::local_
+                              : displs[0][super::map_.size()] * super::local_ + displs[1][index]) +
+                           k * super::map_[index].second.size(),
                          super::map_[index].second.data(), tmp + ((U ? (index + 1) * super::local_ : displs[2][index + 1]) + k) * super::n_);
     }
     if (U || displs[2][super::map_.size() + 1]) {
@@ -1405,10 +1543,13 @@ public:
   #if HPDDM_PETSC
     std::copy_n(tmp, super::local_ * super::n_, work + super::offsets_[super::rank_]);
     if (S != 'S') {
-      for (unsigned short i = 0; i < super::signed_; ++i) std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::map_[i].first]);
+      for (unsigned short i = 0; i < super::signed_; ++i)
+        std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_,
+                  work + super::offsets_[super::map_[i].first]);
     }
     for (unsigned short i = super::signed_; i < super::map_.size(); ++i)
-      std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_, work + super::offsets_[super::map_[i].first]);
+      std::copy(tmp + (U ? (i + 1) * super::local_ : displs[2][i + 1]) * super::n_, tmp + (U ? (i + 2) * super::local_ : displs[2][i + 2]) * super::n_,
+                work + super::offsets_[super::map_[i].first]);
   #endif
 
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
@@ -1416,7 +1557,9 @@ public:
         accumulate = super::local_;
         for (unsigned short k = 0; k < super::local_; ++k)
   #if HPDDM_BDD
-          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] = in[i][k * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + k * super::n_];
+          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+            work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] = in[i][k * super::map_[i].second.size() +
+                                                                                                   j] = tmp[super::map_[i].second[j] + k * super::n_];
   #else
           Wrapper<K>::gthr(super::map_[i].second.size(), tmp + k * super::n_, in[i] + k * super::map_[i].second.size(), super::map_[i].second.data());
   #endif
@@ -1424,7 +1567,8 @@ public:
         accumulate = 0;
   #if HPDDM_BDD
         for (unsigned short k = 0; k < super::local_; ++k)
-          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] = tmp[super::map_[i].second[j] + k * super::n_];
+          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+            work[super::offsets_[super::rank_] + super::map_[i].second[j] + k * super::n_] = tmp[super::map_[i].second[j] + k * super::n_];
   #endif
       }
       for (unsigned short l = S != 'S' ? 0 : std::min(i, super::signed_); l < super::map_.size(); ++l) {
@@ -1432,19 +1576,27 @@ public:
   #if HPDDM_BDD
           for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) {
             if (S != 'S' || !(l < std::max(i, super::signed_)))
-              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] = in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
+              work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] +
+                   k * super::n_] = in[i][(accumulate + k) * super::map_[i].second.size() +
+                                          j] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
             else {
-              if (i < super::signed_) in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
-              else work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] + k * super::n_] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
+              if (i < super::signed_)
+                in[i][(accumulate + k) * super::map_[i].second.size() + j] = tmp[super::map_[i].second[j] +
+                                                                                 ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
+              else
+                work[super::offsets_[super::map_[l].first] + super::map_[i].second[j] +
+                     k * super::n_] = tmp[super::map_[i].second[j] + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_];
             }
           }
   #else
           if (S != 'S' || !(l < std::max(i, super::signed_)) || i < super::signed_)
-            Wrapper<K>::gthr(super::map_[i].second.size(), tmp + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_, in[i] + (accumulate + k) * super::map_[i].second.size(), super::map_[i].second.data());
+            Wrapper<K>::gthr(super::map_[i].second.size(), tmp + ((U ? (l + 1) * super::local_ : displs[2][l + 1]) + k) * super::n_,
+                             in[i] + (accumulate + k) * super::map_[i].second.size(), super::map_[i].second.data());
   #endif
         if (S != 'S' || !(l < i) || i < super::signed_) accumulate += U ? super::local_ : infoNeighbor[l];
       }
-      if (U || infoNeighbor[i]) MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
+      if (U || infoNeighbor[i])
+        MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
     }
     delete[] tmp;
     delete[] *displs;
@@ -1459,27 +1611,33 @@ public:
       Wrapper<K>::diag(super::n_, m, arrayC, coefficients + (S == 'S') * super::local_);
       if (S == 'B' || S == 'C') {
         K *tmp = new K[coefficients * super::local_];
-        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d_0), tmp, &coefficients);
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_,
+                      &(super::n_), &(Wrapper<K>::d_0), tmp, &coefficients);
         for (int i = 0; i < coefficients; ++i) {
-          for (unsigned short j = 0; j < super::local_; ++j) C[(i / super::local_) * super::local_ * super::local_ + j * super::local_ + (i % super::local_)] = tmp[i + j * coefficients];
+          for (unsigned short j = 0; j < super::local_; ++j)
+            C[(i / super::local_) * super::local_ * super::local_ + j * super::local_ + (i % super::local_)] = tmp[i + j * coefficients];
         }
         delete[] tmp;
       } else if (S != 'S') {
         if (super::local_)
   #if HPDDM_BDD
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_,
+                        super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
   #else
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d_0), C, &coefficients);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_,
+                        &(super::n_), &(Wrapper<K>::d_0), C, &coefficients);
   #endif
       } else
         for (unsigned short j = 0; j < super::local_; ++j) {
           int local = coefficients + super::local_ - j;
-          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1, &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
+          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1,
+                        &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
         }
     }
   }
   template <char S, char N, bool U, class T>
-  void applyFromNeighborMain(const K *in, unsigned short index, T *I, T *J, K *C, int coefficients, unsigned int offsetI, unsigned int *offsetJ, K *arrayC, unsigned short *const &infoNeighbor = nullptr)
+  void applyFromNeighborMain(const K *in, unsigned short index, T *I, T *J, K *C, int coefficients, unsigned int offsetI, unsigned int *offsetJ, K *arrayC,
+                             unsigned short *const &infoNeighbor = nullptr)
   {
     assembleForMain<S, U>(C, in, coefficients, index, arrayC, infoNeighbor);
     super::template assembleOperator<S, N, U, T>(I, J, coefficients, offsetI, offsetJ, infoNeighbor);

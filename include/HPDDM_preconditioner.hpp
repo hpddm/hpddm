@@ -128,16 +128,20 @@ protected:
     #endif
                                                 Types &...args)
   {
-    static_assert(std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super &, decltype(*this)>::value, "Wrong preconditioner");
+    static_assert(std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super &, decltype(*this)>::value,
+                  "Wrong preconditioner");
     typename CoarseOperator::return_type ret{};
     CoarseOperator                     *&co = front(args...);
-    constexpr unsigned short             N  = std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3 : 4;
-    unsigned short                       allUniform[N + 1];
+    constexpr unsigned short N = std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3
+                                                                                                                                                           : 4;
+    unsigned short           allUniform[N + 1];
     allUniform[0] = Subdomain<K>::map_.size();
     #if !HPDDM_PETSC
     Option              &opt    = *Option::get();
     const std::string    prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
-    const unsigned short nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co ? co->getLocal() : opt.val<unsigned short>(prefix + "geneo_nu", opt.set(prefix + "geneo_threshold") ? 0 : 20));
+    const unsigned short nu = allUniform[1] = allUniform[2] = (sizeof...(Types) == 0 && co
+                                                                 ? co->getLocal()
+                                                                 : opt.val<unsigned short>(prefix + "geneo_nu", opt.set(prefix + "geneo_threshold") ? 0 : 20));
     #else
     unsigned short nu;
     std::string    prefixC;
@@ -239,9 +243,17 @@ protected:
         construction = MPI_Wtime() - construction;
         ss << std::setprecision(3) << construction;
         const unsigned short p    = opt.val<unsigned short>("p", 1);
-        const std::string    line = " --- coarse operator transferred " + std::string(Operator::factorize_ ? "and factorized " : "") + std::string("by ") + to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
+        const std::string    line = " --- coarse operator transferred " + std::string(Operator::factorize_ ? "and factorized " : "") + std::string("by ") +
+                                    to_string(p) + " process" + (p == 1 ? "" : "es") + " (in " + ss.str() + "s)";
         std::cout << line << std::endl;
-        std::cout << std::right << std::setw(line.size()) << "(criterion = " + to_string(allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu) ? nu : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -co->getLocal() : (uniformity ? allUniform[1] : 0))) + ")" << std::endl;
+        std::cout << std::right << std::setw(line.size())
+                  << "(criterion = " +
+                       to_string(
+                         allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)
+                           ? nu
+                           : (N == 4 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]) ? -co->getLocal() : (uniformity ? allUniform[1] : 0))) +
+                       ")"
+                  << std::endl;
         std::cout.unsetf(std::ios_base::adjustfield);
       }
       opt.setPrefix(prev);

@@ -156,7 +156,8 @@ public:
         HYPRE_PCGSetTol(solver_, opt.val("hypre_tol", 1.0e-12));
         HYPRE_PCGSetPrintLevel(solver_, 0);
         HYPRE_PCGSetLogging(solver_, 0);
-        HYPRE_PCGSetPrecond(solver_, reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSolve), reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSetup), precond_);
+        HYPRE_PCGSetPrecond(solver_, reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSolve), reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSetup),
+                            precond_);
         HYPRE_ParCSRPCGSetup(solver_, parcsr_A, par_b, par_x);
       } else {
         HYPRE_ParCSRFlexGMRESCreate(DMatrix::communicator_, &solver_);
@@ -165,7 +166,8 @@ public:
         HYPRE_FlexGMRESSetTol(solver_, opt.val("hypre_tol", 1.0e-12));
         HYPRE_FlexGMRESSetPrintLevel(solver_, 0);
         HYPRE_FlexGMRESSetLogging(solver_, 0);
-        HYPRE_FlexGMRESSetPrecond(solver_, reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSolve), reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSetup), precond_);
+        HYPRE_FlexGMRESSetPrecond(solver_, reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSolve),
+                                  reinterpret_cast<HYPRE_PtrToSolverFcn>(HYPRE_BoomerAMGSetup), precond_);
         HYPRE_ParCSRFlexGMRESSetup(solver_, parcsr_A, par_b, par_x);
       }
     }
@@ -203,8 +205,10 @@ public:
         HYPRE_ParCSRFlexGMRESSolve(solver_, parcsr_A, par_b, par_x);
         HYPRE_GMRESGetNumIterations(solver_, &num_iterations);
       }
-      std::copy_n(hypre_ParVectorLocalVector(reinterpret_cast<hypre_ParVector *>(hypre_IJVectorObject(reinterpret_cast<hypre_IJVector *>(x_))))->data, local_, rhs + nu * local_);
-      if (DMatrix::rank_ == 0 && opt.val<char>("verbosity", 0) > 3) std::cout << " --- BoomerAMG performed " << num_iterations << " iteration" << (num_iterations > 1 ? "s" : "") << std::endl;
+      std::copy_n(hypre_ParVectorLocalVector(reinterpret_cast<hypre_ParVector *>(hypre_IJVectorObject(reinterpret_cast<hypre_IJVector *>(x_))))->data, local_,
+                  rhs + nu * local_);
+      if (DMatrix::rank_ == 0 && opt.val<char>("verbosity", 0) > 3)
+        std::cout << " --- BoomerAMG performed " << num_iterations << " iteration" << (num_iterations > 1 ? "s" : "") << std::endl;
     }
     loc->data = const_cast<K *>(b);
   }

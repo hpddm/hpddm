@@ -40,7 +40,8 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
   if (p > sizeWorld_ / 2 && sizeWorld_ > 1) {
     p        = sizeWorld_ / 2;
     opt["p"] = p;
-    if (rankWorld_ == 0) std::cout << "WARNING -- the number of main processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
+    if (rankWorld_ == 0)
+      std::cout << "WARNING -- the number of main processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
   }
   if (!p) p = opt["p"] = 1;
   #else
@@ -77,7 +78,9 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
       // Here, it is assumed that all subdomains have the same number of coarse degrees of freedom as the rank 0 ! (only true when the distribution is uniform)
       float area = sizeWorld_ * sizeWorld_ / (2.0 * p);
       for (unsigned short i = 1; i < p; ++i)
-        DMatrix::ldistribution_[i] = std::lround(sizeWorld_ - std::sqrt(std::max(sizeWorld_ * sizeWorld_ - 2 * sizeWorld_ * DMatrix::ldistribution_[i - 1] - 2 * area + DMatrix::ldistribution_[i - 1] * DMatrix::ldistribution_[i - 1], 1.0f)));
+        DMatrix::ldistribution_[i] = std::lround(sizeWorld_ - std::sqrt(std::max(sizeWorld_ * sizeWorld_ - 2 * sizeWorld_ * DMatrix::ldistribution_[i - 1] -
+                                                                                   2 * area + DMatrix::ldistribution_[i - 1] * DMatrix::ldistribution_[i - 1],
+                                                                                 1.0f)));
       int           *idx = std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + p, rankWorld_);
       unsigned short i   = idx - DMatrix::ldistribution_;
       // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
@@ -136,7 +139,8 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
 }
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <bool U, typename DMatrix::Distribution D, bool excluded>
-inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionCollective(const unsigned short *info, unsigned short p, const unsigned short *infoSplit)
+inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionCollective(const unsigned short *info, unsigned short p,
+                                                                                              const unsigned short *infoSplit)
 {
   if (!U) {
     if (excluded) sizeWorld_ -= p;
@@ -168,7 +172,8 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
   if (T == 0) {
     if (!U) {
       unsigned int accumulate = 0;
-      for (unsigned short i = 0; i < p - 1; accumulate += DMatrix::ldistribution_[i++]) DMatrix::ldistribution_[i] = std::accumulate(info + i * (sizeWorld_ / p), info + (i + 1) * (sizeWorld_ / p), 0);
+      for (unsigned short i = 0; i < p - 1; accumulate += DMatrix::ldistribution_[i++])
+        DMatrix::ldistribution_[i] = std::accumulate(info + i * (sizeWorld_ / p), info + (i + 1) * (sizeWorld_ / p), 0);
       DMatrix::ldistribution_[p - 1] = DMatrix::n_ - accumulate;
     } else {
       if (p == 1) *DMatrix::ldistribution_ = DMatrix::n_;
@@ -193,13 +198,15 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
           offset = U ? local_ * (1 + i / (sizeWorld_ / p)) : std::accumulate(info, info + 1 + i / (sizeWorld_ / p), 0);
           offset += U ? (j - p) * local_ : std::accumulate(info + p, info + j, 0);
         }
-        std::iota(DMatrix::idistribution_ + offset, DMatrix::idistribution_ + offset + (U ? local_ : info[j]), U ? local_ * j : std::accumulate(info, info + j, 0));
+        std::iota(DMatrix::idistribution_ + offset, DMatrix::idistribution_ + offset + (U ? local_ : info[j]),
+                  U ? local_ * j : std::accumulate(info, info + j, 0));
         if (i % (sizeWorld_ / p) != 0) j = offset + (U ? local_ : info[j]);
       }
     std::iota(DMatrix::idistribution_ + j, DMatrix::idistribution_ + DMatrix::n_, j);
     if (!U) {
       unsigned int accumulate = 0;
-      for (unsigned short i = 0; i < p - 1; accumulate += DMatrix::ldistribution_[i++]) DMatrix::ldistribution_[i] = std::accumulate(info + p + i * (sizeWorld_ / p - 1), info + p + (i + 1) * (sizeWorld_ / p - 1), info[i]);
+      for (unsigned short i = 0; i < p - 1; accumulate += DMatrix::ldistribution_[i++])
+        DMatrix::ldistribution_[i] = std::accumulate(info + p + i * (sizeWorld_ / p - 1), info + p + (i + 1) * (sizeWorld_ / p - 1), info[i]);
       DMatrix::ldistribution_[p - 1] = DMatrix::n_ - accumulate;
     } else {
       std::fill_n(DMatrix::ldistribution_, p - 1, local_ * (sizeWorld_ / p - excluded));
@@ -210,7 +217,8 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
   else if (T == 2) {
     if (!U) {
       unsigned int accumulate = 0;
-      for (unsigned short i = 0; i < p - 1; accumulate += DMatrix::ldistribution_[i++]) DMatrix::ldistribution_[i] = std::accumulate(info + DMatrix::ldistribution_[i], info + DMatrix::ldistribution_[i + 1], 0);
+      for (unsigned short i = 0; i < p - 1; accumulate += DMatrix::ldistribution_[i++])
+        DMatrix::ldistribution_[i] = std::accumulate(info + DMatrix::ldistribution_[i], info + DMatrix::ldistribution_[i + 1], 0);
       DMatrix::ldistribution_[p - 1] = DMatrix::n_ - accumulate;
     } else {
       for (unsigned short i = 0; i < p - 1; ++i) DMatrix::ldistribution_[i] = (DMatrix::ldistribution_[i + 1] - DMatrix::ldistribution_[i] - excluded) * local_;
@@ -220,7 +228,8 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
 }
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <unsigned short U, unsigned short excluded, class Operator>
-inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construction(Operator &&v, const MPI_Comm &comm)
+inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construction(
+  Operator &&v, const MPI_Comm &comm)
 {
 #if HPDDM_PETSC
   PetscFunctionBeginUser;
@@ -281,7 +290,8 @@ HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char
 #endif
                                                     ,
                                                     unsigned short U, unsigned short excluded, class Operator>
-inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(typename std::enable_if<Operator::pattern_ != 'u', Operator>::type &v)
+inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
+  HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(typename std::enable_if<Operator::pattern_ != 'u', Operator>::type &v)
 {
 #if HPDDM_PETSC
   PetscFunctionBeginUser;
@@ -361,11 +371,17 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     int full = v.max_;
     if (S != 'S') v.max_ = ((v.max_ & 4095) + 1) * pow(v.max_ >> 12, 2);
     for (unsigned short i = rankSplit; (i % treeDimension == 0) && currentHeight < treeHeight; i /= treeDimension) {
-      const unsigned short bound = std::min(treeDimension, static_cast<unsigned short>(1 + ((sizeSplit_ - rankSplit - 1) / pow(treeDimension, currentHeight)))) - 1;
+      const unsigned short bound = std::min(treeDimension,
+                                            static_cast<unsigned short>(1 + ((sizeSplit_ - rankSplit - 1) / pow(treeDimension, currentHeight)))) -
+                                   1;
       if (S == 'S') v.max_ = std::min(size - (rank + pow(treeDimension, currentHeight)), full & 4095) * pow(full >> 12, 2);
       for (unsigned short k = 0; k < bound; ++k) {
         msg->emplace_back(std::array<int, 3>({
-          {static_cast<int>(std::min(pow(treeDimension, currentHeight), static_cast<unsigned short>(sizeSplit_ - (rankSplit + pow(treeDimension, currentHeight) * (k + 1)))) * v.max_ + (S == 'S' ? (!blocked ? ((full >> 12) * ((full >> 12) + 1)) / 2 : pow(full >> 12, 2)) : 0)), rankSplit + pow(treeDimension, currentHeight) * (k + 1), accumulate}
+          {static_cast<int>(
+             std::min(pow(treeDimension, currentHeight), static_cast<unsigned short>(sizeSplit_ - (rankSplit + pow(treeDimension, currentHeight) * (k + 1)))) *
+               v.max_ +
+             (S == 'S' ? (!blocked ? ((full >> 12) * ((full >> 12) + 1)) / 2 : pow(full >> 12, 2)) : 0)),
+           rankSplit + pow(treeDimension, currentHeight) * (k + 1), accumulate}
         }));
         accumulate += msg->back()[0];
       }
@@ -422,7 +438,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         if (T != 1) {
           for (unsigned short i = 0; i < info[0]; ++i) {
             info[(U != 1 ? 3 : 1) + i] = sparsity[i + (Operator::factorize_ ? first : 0)] + 1;
-            for (unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (sizeWorld_ / p) * (j + 1) : DMatrix::ldistribution_[j + 1]); ++j) ++info[(U != 1 ? 3 : 1) + i];
+            for (unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (sizeWorld_ / p) * (j + 1) : DMatrix::ldistribution_[j + 1]); ++j)
+              ++info[(U != 1 ? 3 : 1) + i];
           }
         } else {
           for (unsigned short i = 0; i < info[0]; ++i) info[(U != 1 ? 3 : 1) + i] = p + sparsity[i + (Operator::factorize_ ? first : 0)];
@@ -470,7 +487,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     size       = 0;
     infoSplit  = new unsigned short *[sizeSplit_];
     *infoSplit = new unsigned short[sizeSplit_ * ((U != 1 ? 3 : 1) + v.getConnectivity()) + (U != 1) * sizeWorld_];
-    MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0, scatterComm_);
+    MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0,
+               scatterComm_);
     for (unsigned int i = 1; i < sizeSplit_; ++i) infoSplit[i] = *infoSplit + i * ((U != 1 ? 3 : 1) + v.getConnectivity());
     if (S == 'S' && Operator::pattern_ == 's' && Operator::factorize_) **infoSplit -= first;
     offsetIdx = new unsigned int[std::max(sizeSplit_ - 1, 2 * p)];
@@ -523,7 +541,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       nrow = (sizeSplit_ - (excluded == 2)) * local_;
 #endif
       if (S == 'S') {
-        for (unsigned short i = 1; i < sizeSplit_; size += infoSplit[i++][0]) offsetIdx[i - 1] = size * local_ * local_ + (i - 1) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
+        for (unsigned short i = 1; i < sizeSplit_; size += infoSplit[i++][0])
+          offsetIdx[i - 1] = size * local_ * local_ + (i - 1) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
         info[0] -= first;
         size = (size + info[0]) * local_ * local_ + (sizeSplit_ - (excluded == 2)) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
       } else {
@@ -552,7 +571,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     I = new integer_type[2 * size];
     J = I + size;
 #endif
-    C = new K[!std::is_same<downscaled_type<K>, K>::value ? std::max((info[0] + 1) * local_ * local_, static_cast<int>(1 + ((size * sizeof(downscaled_type<K>) - 1) / sizeof(K)))) : size];
+    C = new K[!std::is_same<downscaled_type<K>, K>::value
+                ? std::max((info[0] + 1) * local_ * local_, static_cast<int>(1 + ((size * sizeof(downscaled_type<K>) - 1) / sizeof(K))))
+                : size];
   }
   const vectorNeighbor &M = v.p_.getMap();
 
@@ -562,7 +583,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 
   K **sendNeighbor = v.p_.getBuffer();
   K **recvNeighbor;
-  int coefficients = (U == 1 ? local_ * (info[0] + (S != 'S' || blocked)) : std::accumulate(infoNeighbor + first, infoNeighbor + sparsity.size(), S == 'S' ? 0 : local_));
+  int coefficients = (U == 1 ? local_ * (info[0] + (S != 'S' || blocked))
+                             : std::accumulate(infoNeighbor + first, infoNeighbor + sparsity.size(), S == 'S' ? 0 : local_));
   K  *work         = nullptr;
   if (Operator::pattern_ == 's') {
     rqRecv                  = (rankSplit == 0 && !treeDimension ? new MPI_Request[sizeSplit_ - 1 + info[0]] : rqSend + (S != 'S' ? info[0] : first));
@@ -577,26 +599,36 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       sendNeighbor[i] = *sendNeighbor + accumulate;
       if (U == 1 || infoNeighbor[i]) accumulate += local_ * M[i].second.size();
     }
-    if (rankSplit) C = new K[treeDimension && !msg->empty() ? size + (!std::is_same<downscaled_type<K>, K>::value ? 1 + (((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) - 1) / sizeof(K)) : (msg->back()[0] + msg->back()[2])) : size];
+    if (rankSplit)
+      C = new K[treeDimension && !msg->empty()
+                  ? size + (!std::is_same<downscaled_type<K>, K>::value ? 1 + (((msg->back()[0] + msg->back()[2]) * sizeof(downscaled_type<K>) - 1) / sizeof(K))
+                                                                        : (msg->back()[0] + msg->back()[2]))
+                  : size];
     recvNeighbor = (U == 1 || local_ ? sendNeighbor + (S != 'S' ? info[0] : first) : nullptr);
     if (U == 1 || local_) {
       for (unsigned short i = 0; i < info[0]; ++i) {
         recvNeighbor[i] = *sendNeighbor + accumulate;
-        MPI_Irecv(recvNeighbor[i], (U == 1 ? local_ : infoNeighbor[i + first]) * M[i + first].second.size(), Wrapper<K>::mpi_type(), M[i + first].first, 2, v.p_.getCommunicator(), rqRecv + i);
+        MPI_Irecv(recvNeighbor[i], (U == 1 ? local_ : infoNeighbor[i + first]) * M[i + first].second.size(), Wrapper<K>::mpi_type(), M[i + first].first, 2,
+                  v.p_.getCommunicator(), rqRecv + i);
         accumulate += (U == 1 ? local_ : infoNeighbor[i + first]) * M[i + first].second.size();
       }
     } else std::fill_n(rqRecv, info[0], MPI_REQUEST_NULL);
     if (excluded < 2) {
       const K *const *const &EV = v.deflation_;
       const int              n  = v.p_.getDof();
-      v.initialize(n * (U == 1 || info[0] == 0 ? local_ : std::max(static_cast<unsigned short>(local_), *std::max_element(infoNeighbor + first, infoNeighbor + sparsity.size()))), work, S != 'S' ? info[0] : first);
+      v.initialize(n * (U == 1 || info[0] == 0
+                          ? local_
+                          : std::max(static_cast<unsigned short>(local_), *std::max_element(infoNeighbor + first, infoNeighbor + sparsity.size()))),
+                   work, S != 'S' ? info[0] : first);
       v.template applyToNeighbor<S, U == 1>(sendNeighbor, work, rqSend, infoNeighbor);
       if (S != 'S') {
         unsigned short before = 0;
         for (unsigned short j = 0; j < info[0] && sparsity[j] < rank; ++j) before += (U == 1 ? (!blocked ? local_ : 1) : infoNeighbor[j]);
         if (local_) {
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d_1), work, &n, *EV, &n, &(Wrapper<K>::d_0), C + before * (!blocked ? 1 : local_ * local_), !blocked ? &coefficients : &local_);
-          Wrapper<K>::template imatcopy<super::numbering_ == 'F' && blocked ? 'C' : 'R'>(local_, local_, C + before * (!blocked ? 1 : local_ * local_), !blocked ? coefficients : local_, !blocked ? coefficients : local_);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d_1), work, &n, *EV, &n, &(Wrapper<K>::d_0),
+                        C + before * (!blocked ? 1 : local_ * local_), !blocked ? &coefficients : &local_);
+          Wrapper<K>::template imatcopy<super::numbering_ == 'F' && blocked ? 'C' : 'R'>(local_, local_, C + before * (!blocked ? 1 : local_ * local_),
+                                                                                         !blocked ? coefficients : local_, !blocked ? coefficients : local_);
         }
         if (rankSplit == 0) {
           if (!blocked)
@@ -620,11 +652,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         if (blocked || (coefficients >= local_ && local_)) {
           Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local_, &local_, &n, &(Wrapper<K>::d_1), *EV, &n, work, &n, &(Wrapper<K>::d_0), C, &local_);
           if (!blocked)
-            for (unsigned short j = local_; j-- > 0;) std::copy_backward(C + j * (local_ + 1), C + (j + 1) * local_, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * local_);
+            for (unsigned short j = local_; j-- > 0;)
+              std::copy_backward(C + j * (local_ + 1), C + (j + 1) * local_, C - (j * (j + 1)) / 2 + j * coefficients + (j + 1) * local_);
         } else
           for (unsigned short j = 0; j < local_; ++j) {
             int local = local_ - j;
-            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d_1), EV[j], &n, work + n * j, &i_1, &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + local_), &i_1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &n, &local, &(Wrapper<K>::d_1), EV[j], &n, work + n * j, &i_1, &(Wrapper<K>::d_0),
+                          C - (j * (j - 1)) / 2 + j * (coefficients + local_), &i_1);
           }
         if (rankSplit == 0) {
           if (!blocked)
@@ -632,7 +666,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #ifndef HPDDM_CSR_CO
               std::fill_n(I + j * (coefficients + local_) - (j * (j - 1)) / 2, local_ - j, v.max_ + j);
 #endif
-              std::iota(J + j * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + j, J + j * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + local_, v.max_ + j);
+              std::iota(J + j * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + j, J + j * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + local_,
+                        v.max_ + j);
 #if HPDDM_INEXACT_COARSE_OPERATOR
               std::fill_n(neighbors + j * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + j, local_ - j, DMatrix::rank_);
 #endif
@@ -655,7 +690,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   std::pair<MPI_Request, const K *> *ret = nullptr;
   if (rankSplit) {
     if (treeDimension) {
-      for (const std::array<int, 3> &m : *msg) MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C + size) + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, scatterComm_, rqTree++);
+      for (const std::array<int, 3> &m : *msg)
+        MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C + size) + m[2], m[0], Wrapper<downscaled_type<K>>::mpi_type(), m[1], 3, scatterComm_, rqTree++);
       rqTree -= msg->size();
     }
     downscaled_type<K> *const pt = reinterpret_cast<downscaled_type<K> *>(C);
@@ -672,7 +708,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           for (unsigned short k = 0; k < info[0]; ++k) {
             int index;
             MPI_Waitany(info[0], rqRecv, &index, MPI_STATUS_IGNORE);
-            v.template assembleForMain<!blocked ? S : 'B', U == 1>(C + offsetArray[index], recvNeighbor[index], coefficients + (S == 'S' && !blocked ? local_ - 1 : 0), index + first, blocked && super::numbering_ == 'F' ? C + offsetArray[index] * local_ : work, !U ? infoNeighbor + first + index : nullptr);
+            v.template assembleForMain<!blocked ? S : 'B', U == 1>(C + offsetArray[index], recvNeighbor[index],
+                                                                   coefficients + (S == 'S' && !blocked ? local_ - 1 : 0), index + first,
+                                                                   blocked && super::numbering_ == 'F' ? C + offsetArray[index] * local_ : work,
+                                                                   !U ? infoNeighbor + first + index : nullptr);
             if (blocked && super::numbering_ == 'C') Wrapper<K>::template omatcopy<'T'>(local_, local_, work, local_, C + offsetArray[index] * local_, local_);
           }
           delete[] offsetArray;
@@ -710,8 +749,12 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       delete[] rqTree;
       delete msg;
       if (size) {
-        if (excluded) MPI_Isend(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, scatterComm_, &ret->first);
-        else MPI_Send(pt, size, Wrapper<downscaled_type<K>>::mpi_type(), pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, scatterComm_);
+        if (excluded)
+          MPI_Isend(pt, size, Wrapper<downscaled_type<K>>::mpi_type(),
+                    pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, scatterComm_, &ret->first);
+        else
+          MPI_Send(pt, size, Wrapper<downscaled_type<K>>::mpi_type(),
+                   pow(treeDimension, currentHeight + 1) * (rankSplit / pow(treeDimension, currentHeight + 1)), 3, scatterComm_);
       }
     }
     if (!excluded) delete[] C;
@@ -764,7 +807,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   } else {
     const unsigned short relative = (T == 1 ? p + rankWorld_ * ((sizeWorld_ / p) - 1) - 1 : rankWorld_);
     unsigned int        *offsetPosition;
-    if (excluded < 2) std::for_each(offsetIdx, offsetIdx + sizeSplit_ - 1, [&](unsigned int &i) { i += coefficients * local_ + (S == 'S' && !blocked) * (local_ * (local_ + 1)) / 2; });
+    if (excluded < 2)
+      std::for_each(offsetIdx, offsetIdx + sizeSplit_ - 1,
+                    [&](unsigned int &i) { i += coefficients * local_ + (S == 'S' && !blocked) * (local_ * (local_ + 1)) / 2; });
     K *const backup = std::is_same<downscaled_type<K>, K>::value ? C : new K[offsetIdx[0]];
     if (!std::is_same<downscaled_type<K>, K>::value) std::copy_n(C, offsetIdx[0], backup);
     if (!treeDimension) {
@@ -773,10 +818,14 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       for (unsigned short k = 1; k < sizeSplit_; ++k) {
         if (U != 1) {
           if (infoSplit[k][1])
-            MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[k - 1], infoSplit[k][2] * infoSplit[k][1] + (S == 'S' ? infoSplit[k][1] * (infoSplit[k][1] + 1) / 2 : 0), Wrapper<downscaled_type<K>>::mpi_type(), k, 3, scatterComm_, rqRecv + treeHeight + k - 1);
+            MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[k - 1],
+                      infoSplit[k][2] * infoSplit[k][1] + (S == 'S' ? infoSplit[k][1] * (infoSplit[k][1] + 1) / 2 : 0), Wrapper<downscaled_type<K>>::mpi_type(),
+                      k, 3, scatterComm_, rqRecv + treeHeight + k - 1);
           else rqRecv[treeHeight + k - 1] = MPI_REQUEST_NULL;
         } else
-          MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[k - 1], local_ * local_ * infoSplit[k][0] + (S == 'S' && !blocked ? local_ * (local_ + 1) / 2 : local_ * local_), Wrapper<downscaled_type<K>>::mpi_type(), k, 3, scatterComm_, rqRecv + treeHeight + k - 1);
+          MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[k - 1],
+                    local_ * local_ * infoSplit[k][0] + (S == 'S' && !blocked ? local_ * (local_ + 1) / 2 : local_ * local_),
+                    Wrapper<downscaled_type<K>>::mpi_type(), k, 3, scatterComm_, rqRecv + treeHeight + k - 1);
       }
     } else {
       std::fill_n(rqTree, treeHeight * (treeDimension - 1), MPI_REQUEST_NULL);
@@ -787,11 +836,16 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           const unsigned short nextLeaf = std::min(leaf * (k + 1) * treeDimension, sizeSplit_);
           int                  nnz      = 0;
           if (U != 1) {
-            for (unsigned short j = leaf * (k + 1); j < nextLeaf; ++j) nnz += infoSplit[j][2] * infoSplit[j][1] + (S == 'S' ? infoSplit[j][1] * (infoSplit[j][1] + 1) / 2 : 0);
-            if (nnz) MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[leaf * (k + 1) - 1], nnz, Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, scatterComm_, rqTree + i * (treeDimension - 1) + k);
+            for (unsigned short j = leaf * (k + 1); j < nextLeaf; ++j)
+              nnz += infoSplit[j][2] * infoSplit[j][1] + (S == 'S' ? infoSplit[j][1] * (infoSplit[j][1] + 1) / 2 : 0);
+            if (nnz)
+              MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[leaf * (k + 1) - 1], nnz, Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1),
+                        3, scatterComm_, rqTree + i * (treeDimension - 1) + k);
           } else {
             for (unsigned short j = leaf * (k + 1); j < nextLeaf; ++j) nnz += infoSplit[j][0];
-            MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[leaf * (k + 1) - 1], local_ * local_ * nnz + (S == 'S' && !blocked ? local_ * (local_ + 1) / 2 : local_ * local_) * (nextLeaf - leaf), Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, scatterComm_, rqTree + i * (treeDimension - 1) + k);
+            MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(C) + offsetIdx[leaf * (k + 1) - 1],
+                      local_ * local_ * nnz + (S == 'S' && !blocked ? local_ * (local_ + 1) / 2 : local_ * local_) * (nextLeaf - leaf),
+                      Wrapper<downscaled_type<K>>::mpi_type(), leaf * (k + 1), 3, scatterComm_, rqTree + i * (treeDimension - 1) + k);
           }
         }
       }
@@ -823,9 +877,14 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           while (i < infoSplit[k][0] && infoSplit[k][(U != 1 ? 3 : 1) + i] < max) {
 #if HPDDM_INEXACT_COARSE_OPERATOR
             if (T == 1 && infoSplit[k][(U != 1 ? 3 : 1) + i] < p) *nghbrs = infoSplit[k][(U != 1 ? 3 : 1) + i];
-            else *nghbrs = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + DMatrix::rank_ + 1, infoSplit[k][(U != 1 ? 3 : 1) + i]));
-            if (*nghbrs != DMatrix::rank_ && ((T != 1 && (i == 0 || *nghbrs != *(nghbrs - 1))) || (T == 1 && !std::binary_search(super::send_[*nghbrs].cbegin(), super::send_[*nghbrs].cend(), tmp - (super::numbering_ == 'F')))))
-              for (unsigned short row = 0; row < (U == 1 ? (!blocked ? local_ : 1) : infoSplit[k][1]); ++row) super::send_[*nghbrs].emplace_back(tmp - (super::numbering_ == 'F') + row);
+            else
+              *nghbrs = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + DMatrix::rank_ + 1,
+                                                                                    infoSplit[k][(U != 1 ? 3 : 1) + i]));
+            if (*nghbrs != DMatrix::rank_ &&
+                ((T != 1 && (i == 0 || *nghbrs != *(nghbrs - 1))) ||
+                 (T == 1 && !std::binary_search(super::send_[*nghbrs].cbegin(), super::send_[*nghbrs].cend(), tmp - (super::numbering_ == 'F')))))
+              for (unsigned short row = 0; row < (U == 1 ? (!blocked ? local_ : 1) : infoSplit[k][1]); ++row)
+                super::send_[*nghbrs].emplace_back(tmp - (super::numbering_ == 'F') + row);
 #endif
             if (!blocked) {
               if (U != 1) {
@@ -861,9 +920,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         while (i < infoSplit[k][0]) {
 #if HPDDM_INEXACT_COARSE_OPERATOR
           if (U == 1 || infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]) {
-            *nghbrs = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + DMatrix::rank_ + 1, DMatrix::ldistribution_ + p, infoSplit[k][(U != 1 ? 3 : 1) + i]));
-            if (S != 'S' && *nghbrs != DMatrix::rank_ && ((T != 1 && (i == 0 || *nghbrs != *(nghbrs - 1))) || (T == 1 && !std::binary_search(super::send_[*nghbrs].cbegin(), super::send_[*nghbrs].cend(), tmp - (super::numbering_ == 'F')))))
-              for (unsigned short row = 0; row < (U == 1 ? (!blocked ? local_ : 1) : infoSplit[k][1]); ++row) super::send_[*nghbrs].emplace_back(tmp - (super::numbering_ == 'F') + row);
+            *nghbrs = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + DMatrix::rank_ + 1, DMatrix::ldistribution_ + p,
+                                                                                  infoSplit[k][(U != 1 ? 3 : 1) + i]));
+            if (S != 'S' && *nghbrs != DMatrix::rank_ &&
+                ((T != 1 && (i == 0 || *nghbrs != *(nghbrs - 1))) ||
+                 (T == 1 && !std::binary_search(super::send_[*nghbrs].cbegin(), super::send_[*nghbrs].cend(), tmp - (super::numbering_ == 'F')))))
+              for (unsigned short row = 0; row < (U == 1 ? (!blocked ? local_ : 1) : infoSplit[k][1]); ++row)
+                super::send_[*nghbrs].emplace_back(tmp - (super::numbering_ == 'F') + row);
           }
 #endif
           if (!blocked) {
@@ -917,9 +980,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       }
     }
 #ifdef HPDDM_CONTIGUOUS
-    if (excluded == 2) loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[1]);
+    if (excluded == 2)
+      loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[1]);
     if (excluded == 2 || sizeSplit_ > 1)
-      loc2glob[1] = (U == 1 ? (relative + sizeSplit_ - 1 - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[sizeSplit_ - 1]) + (!blocked ? (U == 1 ? local_ : infoSplit[sizeSplit_ - 1][1]) - 1 : 0);
+      loc2glob[1] = (U == 1 ? (relative + sizeSplit_ - 1 - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? local_ : 1) +
+                                (super::numbering_ == 'F')
+                            : offsetPosition[sizeSplit_ - 1]) +
+                    (!blocked ? (U == 1 ? local_ : infoSplit[sizeSplit_ - 1][1]) - 1 : 0);
 #endif
     if (std::is_same<downscaled_type<K>, K>::value) delete[] offsetIdx;
     if (excluded < 2) {
@@ -984,17 +1051,31 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           MPI_Waitany(Operator::pattern_ == 's' ? info[0] : M.size(), rqRecv, &index, MPI_STATUS_IGNORE);
           if (Operator::pattern_ == 's') {
             const unsigned int offset = offsetArray[index][0] / (!blocked ? 1 : local_);
-            v.template applyFromNeighborMain<!blocked ? S : 'B', super::numbering_, U == 1>(recvNeighbor[index], index + first, I + offset, J + offset, backup + offsetArray[index][0] * (!blocked ? 1 : local_), coefficients + (S == 'S' && !blocked) * (local_ - 1), v.max_, U == 1 ? nullptr : (offsetArray[index] + 1), work, U == 1 ? nullptr : infoNeighbor + first + index);
+            v.template applyFromNeighborMain<!blocked ? S : 'B', super::numbering_, U == 1>(recvNeighbor[index], index + first, I + offset, J + offset,
+                                                                                            backup + offsetArray[index][0] * (!blocked ? 1 : local_),
+                                                                                            coefficients + (S == 'S' && !blocked) * (local_ - 1), v.max_,
+                                                                                            U == 1 ? nullptr : (offsetArray[index] + 1), work,
+                                                                                            U == 1 ? nullptr : infoNeighbor + first + index);
 #if HPDDM_INEXACT_COARSE_OPERATOR
             if (T == 1 && M[first + index].first < p) neighbors[offset] = M[first + index].first;
-            else if (blocked || offset < size) neighbors[offset] = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + p, M[first + index].first));
-            if (S != 'S' && (blocked || offset < size) && neighbors[offset] != DMatrix::rank_ && (super::send_[neighbors[offset]].empty() || super::send_[neighbors[offset]].back() != ((v.max_ - (super::numbering_ == 'F')) / (!blocked ? 1 : local_) + (!blocked ? local_ : 1) - 1)))
-              for (unsigned short i = 0; i < (!blocked ? local_ : 1); ++i) super::send_[neighbors[offset]].emplace_back((v.max_ - (super::numbering_ == 'F')) / (!blocked ? 1 : local_) + i);
+            else if (blocked || offset < size)
+              neighbors[offset] = std::distance(DMatrix::ldistribution_ + 1,
+                                                std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + p, M[first + index].first));
+            if (S != 'S' && (blocked || offset < size) && neighbors[offset] != DMatrix::rank_ &&
+                (super::send_[neighbors[offset]].empty() ||
+                 super::send_[neighbors[offset]].back() != ((v.max_ - (super::numbering_ == 'F')) / (!blocked ? 1 : local_) + (!blocked ? local_ : 1) - 1)))
+              for (unsigned short i = 0; i < (!blocked ? local_ : 1); ++i)
+                super::send_[neighbors[offset]].emplace_back((v.max_ - (super::numbering_ == 'F')) / (!blocked ? 1 : local_) + i);
             if (!blocked && offset < size)
-              for (unsigned short i = 0; i < local_; ++i) std::fill_n(neighbors + offset + (coefficients + (S == 'S') * (local_ - 1)) * i - (S == 'S') * (i * (i - 1)) / 2, U == 1 ? local_ : infoNeighbor[first + index], neighbors[offset]);
+              for (unsigned short i = 0; i < local_; ++i)
+                std::fill_n(neighbors + offset + (coefficients + (S == 'S') * (local_ - 1)) * i - (S == 'S') * (i * (i - 1)) / 2,
+                            U == 1 ? local_ : infoNeighbor[first + index], neighbors[offset]);
 #endif
           } else
-            v.template applyFromNeighborMain<!blocked ? S : (S == 'S' ? 'B' : 'C'), super::numbering_, U == 1>(recvNeighbor[index], index, I, J, backup, coefficients, v.max_, U == 1 ? nullptr : *offsetArray, work, U == 1 ? nullptr : infoNeighbor);
+            v.template applyFromNeighborMain<!blocked ? S : (S == 'S' ? 'B' : 'C'), super::numbering_, U == 1>(recvNeighbor[index], index, I, J, backup,
+                                                                                                               coefficients, v.max_,
+                                                                                                               U == 1 ? nullptr : *offsetArray, work,
+                                                                                                               U == 1 ? nullptr : infoNeighbor);
         }
         downscaled_type<K> *pt = reinterpret_cast<downscaled_type<K> *>(C);
         if (!std::is_same<downscaled_type<K>, K>::value) {
@@ -1036,7 +1117,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       std::ofstream output{filename + "_" + S + "_" + super::numbering_ + "_" + to_string(T) + "_" + to_string(DMatrix::rank_) + ".txt"};
       output << std::scientific;
   #ifndef HPDDM_CSR_CO
-      for (unsigned int i = 0; i < size; ++i) output << std::setw(9) << I[i] + (super::numbering_ == 'C') << std::setw(9) << J[i] + (super::numbering_ == 'C') << " " << pt[i] << std::endl;
+      for (unsigned int i = 0; i < size; ++i)
+        output << std::setw(9) << I[i] + (super::numbering_ == 'C') << std::setw(9) << J[i] + (super::numbering_ == 'C') << " " << pt[i] << std::endl;
   #else
       unsigned int accumulate = 0;
       for (unsigned int i = 0; i < nrow / (!blocked ? 1 : local_); ++i) {
@@ -1053,7 +1135,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           else {
             for (unsigned short b = 0; b < local_; ++b) {
               if (b) output << "                   ";
-              for (unsigned short c = 0; c < local_; ++c) output << std::setw(13) << pt[(accumulate + j - (super::numbering_ == 'F')) * local_ * local_ + (super::numbering_ == 'C' ? b * local_ + c : b + c * local_)] << "  ";
+              for (unsigned short c = 0; c < local_; ++c)
+                output << std::setw(13)
+                       << pt[(accumulate + j - (super::numbering_ == 'F')) * local_ * local_ + (super::numbering_ == 'C' ? b * local_ + c : b + c * local_)]
+                       << "  ";
               output << "\n";
             }
           }
@@ -1256,7 +1341,8 @@ HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char
 #endif
                                                     ,
                                                     unsigned short U, unsigned short excluded, class Operator>
-inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(typename std::enable_if<Operator::pattern_ == 'u', Operator>::type &v)
+inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
+  HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(typename std::enable_if<Operator::pattern_ == 'u', Operator>::type &v)
 {
 #if HPDDM_PETSC
   PetscFunctionBeginUser;
@@ -1335,7 +1421,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           if (T != 1) {
             for (unsigned short i = 0; i < info[0]; ++i) {
               info[(U != 1 ? 3 : 1) + i] = sparsity[i + first] + 1;
-              for (unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (sizeWorld_ / p) * (j + 1) : DMatrix::ldistribution_[j + 1]); ++j) ++info[(U != 1 ? 3 : 1) + i];
+              for (unsigned short j = 0; j < p - 1 && info[(U != 1 ? 3 : 1) + i] >= (T == 0 ? (sizeWorld_ / p) * (j + 1) : DMatrix::ldistribution_[j + 1]); ++j)
+                ++info[(U != 1 ? 3 : 1) + i];
             }
           } else {
             for (unsigned short i = 0; i < info[0]; ++i) info[(U != 1 ? 3 : 1) + i] = p + sparsity[i + first];
@@ -1364,7 +1451,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     size       = 0;
     infoSplit  = new unsigned short *[sizeSplit_];
     *infoSplit = new unsigned short[sizeSplit_ * ((U != 1 ? 3 : 1) + v.getConnectivity()) + (U != 1) * sizeWorld_];
-    MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0, scatterComm_);
+    MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0,
+               scatterComm_);
     for (unsigned int i = 1; i < sizeSplit_; ++i) infoSplit[i] = *infoSplit + i * ((U != 1 ? 3 : 1) + v.getConnectivity());
     if (S == 'S' && Operator::pattern_ == 's') **infoSplit -= first;
     unsigned int *offsetIdx = new unsigned int[std::max(sizeSplit_ - 1, 2 * p)];
@@ -1409,7 +1497,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       DMatrix::n_ = (sizeWorld_ - (excluded == 2 ? p : 0)) * local_;
       v.max_      = (rankWorld_ - (excluded == 2 ? rank : 0)) * local_ + (super::numbering_ == 'F');
       if (S == 'S') {
-        for (unsigned short i = 1; i < sizeSplit_; size += infoSplit[i++][0]) offsetIdx[i - 1] = size * local_ * local_ + (i - 1) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
+        for (unsigned short i = 1; i < sizeSplit_; size += infoSplit[i++][0])
+          offsetIdx[i - 1] = size * local_ * local_ + (i - 1) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
         info[0] -= first;
         size = (size + info[0]) * local_ * local_ + (sizeSplit_ - (excluded == 2)) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
       } else {
@@ -1439,9 +1528,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         else
           for (unsigned int k = 1; k < sizeSplit_; ++k) offsetPosition[k] = offsetPosition[k - 1] + infoWorld[relative + k - 1];
       }
-      if (excluded == 2) loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[1]);
+      if (excluded == 2)
+        loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[1]);
       if (sizeSplit_ > 1)
-        loc2glob[1] = (U == 1 ? (relative + sizeSplit_ - 1 - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[sizeSplit_ - 1]) + (!blocked ? (U == 1 ? local_ : infoSplit[sizeSplit_ - 1][1]) - 1 : 0);
+        loc2glob[1] = (U == 1 ? (relative + sizeSplit_ - 1 - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0)) * (!blocked ? local_ : 1) +
+                                  (super::numbering_ == 'F')
+                              : offsetPosition[sizeSplit_ - 1]) +
+                      (!blocked ? (U == 1 ? local_ : infoSplit[sizeSplit_ - 1][1]) - 1 : 0);
       delete[] offsetPosition;
     }
     if (excluded < 2) {
@@ -1494,7 +1587,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 }
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char T, unsigned short U, unsigned short excluded, bool blocked>
-inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSetup(unsigned short *&infoWorld, const int rankSplit, const unsigned short p, unsigned short **&infoSplit, const int rank)
+inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSetup(unsigned short *&infoWorld, const int rankSplit, const unsigned short p,
+                                                                                   unsigned short **&infoSplit, const int rank)
 {
 #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
   DMatrix::distribution_ = static_cast<DMatrix::Distribution>(Option::get()->val<char>("distribution", HPDDM_DISTRIBUTION_CENTRALIZED));
@@ -1646,22 +1740,28 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
           }
           transfer<false>(DMatrix::gatherCounts_, sizeWorld_ - p, mu, rhs);
           std::for_each(DMatrix::gatherCounts_, DMatrix::displs_ + sizeWorld_ - 2 * p, [&](int &i) { i /= mu; });
-        } else if (gatherComm_ != MPI_COMM_NULL) MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+        } else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                      gatherComm_);
         if (DMatrix::communicator_ != MPI_COMM_NULL) {
           super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
           std::for_each(DMatrix::gatherSplitCounts_, DMatrix::displsSplit_ + sizeSplit_, [&](int &i) { i *= mu; });
           transfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs);
-        } else MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+        } else
+          MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                       scatterComm_);
       } else {
         if (rankWorld_ == 0) {
           MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
           int p = 0;
           if (offset_ || excluded) MPI_Comm_size(DMatrix::communicator_, &p);
           Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeWorld_ - p, mu, rhs + (p ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
-        } else if (gatherComm_ != MPI_COMM_NULL) MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
+        } else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
         if (DMatrix::communicator_ != MPI_COMM_NULL) {
           super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu);
-          Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
+          Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded),
+                                                           rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
           MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
         } else MPI_Scatter(nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
       }
@@ -1674,10 +1774,14 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
             --p;
           }
           transfer<false>(DMatrix::gatherCounts_, sizeWorld_ - p, mu, rhs);
-        } else if (gatherComm_ != MPI_COMM_NULL) MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+        } else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                      gatherComm_);
         if (DMatrix::communicator_ != MPI_COMM_NULL) super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
         if (rankWorld_ == 0) transfer<true>(DMatrix::gatherCounts_, mu, sizeWorld_ - p, rhs);
-        else if (gatherComm_ != MPI_COMM_NULL) MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+        else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                       gatherComm_);
       } else {
         if (rankWorld_ == 0) {
           if (offset_ || excluded) MPI_Comm_size(DMatrix::communicator_, &p);
@@ -1698,18 +1802,22 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
         PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(rhs, mu));
         transfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs);
       } else {
-        MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
+        MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                    gatherComm_);
   #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
         if (super::s_) PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(nullptr, mu));
   #endif
-        MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
+        MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                     scatterComm_);
       }
     } else {
       if (DMatrix::communicator_ != MPI_COMM_NULL) {
         MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
-        Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeSplit_ - (offset_ || excluded), mu, rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
+        Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeSplit_ - (offset_ || excluded), mu, rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0),
+                                                         *DMatrix::gatherCounts_);
         PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu));
-        Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
+        Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0),
+                                                         *DMatrix::gatherCounts_);
         MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
       } else {
         MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
@@ -1752,13 +1860,17 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K *const pt, const unsigne
         if (rankWorld_ == 0) {
           Itransfer<false>(DMatrix::gatherCounts_, sizeWorld_, mu, rhs, rq);
           std::for_each(DMatrix::gatherCounts_, DMatrix::displs_ + sizeWorld_, [&](int &i) { i /= mu; });
-        } else if (gatherComm_ != MPI_COMM_NULL) MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+        } else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                       gatherComm_, rq);
         if (DMatrix::communicator_ != MPI_COMM_NULL) {
           MPI_Wait(rq, MPI_STATUS_IGNORE);
           super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
           std::for_each(DMatrix::gatherSplitCounts_, DMatrix::displsSplit_ + sizeSplit_, [&](int &i) { i *= mu; });
           Itransfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs, rq + 1);
-        } else MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+        } else
+          MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                        scatterComm_, rq + 1);
       } else {
         if (rankWorld_ == 0) {
           MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
@@ -1767,24 +1879,30 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K *const pt, const unsigne
           MPI_Wait(rq, MPI_STATUS_IGNORE);
           *rq = MPI_REQUEST_NULL;
           Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeWorld_ - p, mu, rhs + (p ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
-        } else if (gatherComm_ != MPI_COMM_NULL) MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+        } else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
         if (DMatrix::communicator_ != MPI_COMM_NULL) {
           MPI_Wait(rq, MPI_STATUS_IGNORE);
           super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu);
-          Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
+          Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded),
+                                                           rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
           MPI_Iscatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_, rq + 1);
         } else MPI_Iscatter(nullptr, 0, MPI_DATATYPE_NULL, rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
       }
     } else {
       if (DMatrix::displs_) {
         if (rankWorld_ == 0) Itransfer<false>(DMatrix::gatherCounts_, sizeWorld_, mu, rhs, rq);
-        else if (gatherComm_ != MPI_COMM_NULL) MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+        else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                       gatherComm_, rq);
         if (DMatrix::communicator_ != MPI_COMM_NULL) {
           MPI_Wait(rq, MPI_STATUS_IGNORE);
           super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
         }
         if (rankWorld_ == 0) Itransfer<true>(DMatrix::gatherCounts_, mu, sizeWorld_, rhs, rq + 1);
-        else if (gatherComm_ != MPI_COMM_NULL) MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq + 1);
+        else if (gatherComm_ != MPI_COMM_NULL)
+          MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                        gatherComm_, rq + 1);
       } else {
         int p = 0;
         if (rankWorld_ == 0) {
@@ -1811,16 +1929,20 @@ inline void CoarseOperator<Solver, S, K>::IcallSolver(K *const pt, const unsigne
         super::solve(rhs, mu);
         Itransfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs, rq + 1);
       } else {
-        MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
-        MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq + 1);
+        MPI_Igatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                     gatherComm_, rq);
+        MPI_Iscatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
+                      scatterComm_, rq + 1);
       }
     } else {
       if (DMatrix::communicator_ != MPI_COMM_NULL) {
         MPI_Igather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
         MPI_Wait(rq, MPI_STATUS_IGNORE);
-        Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeSplit_ - (offset_ || excluded), mu, rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
+        Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeSplit_ - (offset_ || excluded), mu, rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0),
+                                                         *DMatrix::gatherCounts_);
         super::solve(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu);
-        Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), *DMatrix::gatherCounts_);
+        Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0),
+                                                         *DMatrix::gatherCounts_);
         MPI_Iscatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_, rq + 1);
       } else {
         MPI_Igather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);

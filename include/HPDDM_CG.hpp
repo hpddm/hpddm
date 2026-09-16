@@ -40,7 +40,8 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
     const std::string prefix = A.prefix();
     const Option     &opt    = *Option::get();
     if ((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) &&
-        (!opt.any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE}) || opt.any_of(prefix + "schwarz_coarse_correction", {HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED})))
+        (!opt.any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE}) ||
+         opt.any_of(prefix + "schwarz_coarse_correction", {HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED})))
       return GMRES<excluded>(A, b, x, mu, comm);
     options<2>(A, &tol, nullptr, &it, id);
   }
@@ -99,7 +100,9 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   else if (A.ksp_->converged == KSPConvergedSkip) dir[0] = 1.0;
 #endif
   int i = 0;
-  if (std::find_if(dir, dir + mu, [](const underlying_type<K> &v) { return v < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2)); }) == dir + mu) {
+  if (std::find_if(dir, dir + mu, [](const underlying_type<K> &v) {
+        return v < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2));
+      }) == dir + mu) {
     while (i < HPDDM_MAX_IT(it, A)) {
       for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i_1, trash + n * nu, &i_1));
       if (!excluded) HPDDM_CALL(A.GMV(p, z, mu));
@@ -131,7 +134,9 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
         for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
       } else {
         for (unsigned short k = 0; k < i; ++k)
-          for (unsigned short nu = 0; nu < mu; ++nu) dir[2 * mu + k * mu + nu] = -HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + (HPDDM_MAX_IT(it, A) + k + 1) * dim + n * nu, &i_1)) / dir[(HPDDM_MAX_IT(it, A) + k + 2) * mu + nu];
+          for (unsigned short nu = 0; nu < mu; ++nu)
+            dir[2 * mu + k * mu + nu] = -HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + (HPDDM_MAX_IT(it, A) + k + 1) * dim + n * nu, &i_1)) /
+                                        dir[(HPDDM_MAX_IT(it, A) + k + 2) * mu + nu];
         ignore(MPI_Allreduce(MPI_IN_PLACE, dir, (i + 2) * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
         if (!excluded && n) {
           std::copy_n(z, dim, p);
@@ -180,7 +185,8 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
     const std::string prefix = A.prefix();
     const Option     &opt    = *Option::get();
     if ((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) &&
-        (!opt.any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE}) || opt.any_of(prefix + "schwarz_coarse_correction", {HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED})))
+        (!opt.any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE}) ||
+         opt.any_of(prefix + "schwarz_coarse_correction", {HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED})))
       return GMRES<excluded>(A, b, x, mu, comm);
     options<3>(A, &tol, nullptr, m, id);
     if (opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE) return CG<excluded>(A, b, x, mu, comm);
@@ -288,10 +294,13 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
         rho[2 * mu * mu - 1] = HPDDM::real(Blas<K>::dot(&n, trash, &i_1, trash + n, &i_1));
       }
     } else std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
-    ignore(MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
-    bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0, trash, (m[0] <= 1 ? mu : 1)));
+    ignore(MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(),
+                         Wrapper<K>::mpi_op(MPI_SUM), comm));
+    bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0,
+                                                     trash, (m[0] <= 1 ? mu : 1)));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
-    A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(reinterpret_cast<underlying_type<K> *>(trash), reinterpret_cast<underlying_type<K> *>(trash) + (m[0] <= 1 ? mu : 1)));
+    A.ksp_->rnorm = static_cast<PetscReal>(
+      *std::max_element(reinterpret_cast<underlying_type<K> *>(trash), reinterpret_cast<underlying_type<K> *>(trash) + (m[0] <= 1 ? mu : 1)));
     PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
     PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
     PetscCall((*A.ksp_->converged)(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
@@ -344,7 +353,8 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
     const std::string prefix = A.prefix();
     const Option     &opt    = *Option::get();
     if ((hpddm_method_id<Operator>::value == 1 || hpddm_method_id<Operator>::value == 4) &&
-        (!opt.any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE}) || opt.any_of(prefix + "schwarz_coarse_correction", {HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED})))
+        (!opt.any_of(prefix + "schwarz_method", {HPDDM_SCHWARZ_METHOD_SORAS, HPDDM_SCHWARZ_METHOD_ASM, HPDDM_SCHWARZ_METHOD_NONE}) ||
+         opt.any_of(prefix + "schwarz_coarse_correction", {HPDDM_SCHWARZ_COARSE_CORRECTION_DEFLATED})))
       return GMRES<excluded>(A, b, x, mu, comm);
     options<6>(A, tol, nullptr, m, id);
     if (opt.val<char>(prefix + "variant", HPDDM_VARIANT_LEFT) == HPDDM_VARIANT_FLEXIBLE) return CG<excluded>(A, b, x, mu, comm);
@@ -440,7 +450,8 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
     ignore(MPI_Allreduce(MPI_IN_PLACE, alpha, deflated * mu + mu / m[0], Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
     bool converged = (mu == checkBlockConvergence<6>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol[1], A), mu, deflated, norm, res, 0, trash, m[0]));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
-    A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(reinterpret_cast<underlying_type<K> *>(trash), reinterpret_cast<underlying_type<K> *>(trash) + deflated));
+    A.ksp_->rnorm = static_cast<PetscReal>(
+      *std::max_element(reinterpret_cast<underlying_type<K> *>(trash), reinterpret_cast<underlying_type<K> *>(trash) + deflated));
     PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
     PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
     PetscCall((*A.ksp_->converged)(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
@@ -483,14 +494,15 @@ inline int IterativeMethod::PCG(const Operator &A, const K *const f, K *const x,
   char               verbosity;
   options<8>(A, &tol, nullptr, &it, &verbosity);
   typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K **, K *>::type ptr_type;
-  const int                                                                                                                                   n      = std::is_same<ptr_type, K *>::value ? A.getDof() : A.getMult();
-  const int                                                                                                                                   offset = std::is_same<ptr_type, K *>::value ? A.getEliminated() : 0;
-  ptr_type                                                                                                                                    storage[std::is_same<ptr_type, K *>::value ? 1 : 2];
+  const int n      = std::is_same<ptr_type, K *>::value ? A.getDof() : A.getMult();
+  const int offset = std::is_same<ptr_type, K *>::value ? A.getEliminated() : 0;
+  ptr_type  storage[std::is_same<ptr_type, K *>::value ? 1 : 2];
   // storage[0] = r
   // storage[1] = lambda
   A.allocateArray(storage);
   auto                  m        = A.getScaling();
-  bool                  allocate = std::is_same<ptr_type, K *>::value ? A.template start<excluded>(f, x + offset, nullptr, storage[0]) : A.template start<excluded>(f, x, storage[1], storage[0]);
+  bool                  allocate = std::is_same<ptr_type, K *>::value ? A.template start<excluded>(f, x + offset, nullptr, storage[0])
+                                                                      : A.template start<excluded>(f, x, storage[1], storage[0]);
   std::vector<ptr_type> z;
   z.reserve(it);
   ptr_type zCurr;

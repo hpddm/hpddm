@@ -49,7 +49,10 @@ private:
          *  Pointer to an unordered map that may store custom options as defined by the user in its application. */
   std::unordered_map<std::string, double> *app_;
   std::string                              prefix_;
-  static bool                              hasEnding(const std::string &str, const std::string &ending) { return str.length() >= ending.length() ? str.compare(str.length() - ending.length(), ending.length(), ending) == 0 : false; }
+  static bool                              hasEnding(const std::string &str, const std::string &ending)
+  {
+    return str.length() >= ending.length() ? str.compare(str.length() - ending.length(), ending.length(), ending) == 0 : false;
+  }
 
 public:
   template <int N>
@@ -58,34 +61,36 @@ public:
   {
     std::unordered_map<std::string, double>::const_iterator show = opt_.find("verbosity");
     if (show != opt_.cend()) {
-      std::function<void(const std::unordered_map<std::string, double> &, const std::string &)> generate = [&](const std::unordered_map<std::string, double> &map, const std::string &header) {
-        std::vector<std::string> v;
-        v.reserve(map.size() + 3);
-        v.emplace_back(" ┌");
-        v.emplace_back(" │ " + header + " option" + std::string(map.size() > 1 ? "s" : "") + " used:");
-        size_t max = v.back().size();
-        for (const auto &x : map) {
-          double intpart;
-          if (x.second < -10000000 && x.first[-x.second - 10000000] == '#') v.emplace_back(" │  " + x.first.substr(0, -x.second - 10000000) + ": " + x.first.substr(-x.second - 10000000 + 1));
-          else if (x.second < 1000 && std::modf(x.second, &intpart) == 0.0) v.emplace_back(" │  " + x.first + ": " + to_string(static_cast<int>(x.second)));
-          else {
-            std::stringstream ss;
-            ss << std::scientific << std::setprecision(1) << x.second;
-            v.emplace_back(" │  " + x.first + ": " + ss.str());
+      std::function<void(const std::unordered_map<std::string, double> &, const std::string &)> generate =
+        [&](const std::unordered_map<std::string, double> &map, const std::string &header) {
+          std::vector<std::string> v;
+          v.reserve(map.size() + 3);
+          v.emplace_back(" ┌");
+          v.emplace_back(" │ " + header + " option" + std::string(map.size() > 1 ? "s" : "") + " used:");
+          size_t max = v.back().size();
+          for (const auto &x : map) {
+            double intpart;
+            if (x.second < -10000000 && x.first[-x.second - 10000000] == '#')
+              v.emplace_back(" │  " + x.first.substr(0, -x.second - 10000000) + ": " + x.first.substr(-x.second - 10000000 + 1));
+            else if (x.second < 1000 && std::modf(x.second, &intpart) == 0.0) v.emplace_back(" │  " + x.first + ": " + to_string(static_cast<int>(x.second)));
+            else {
+              std::stringstream ss;
+              ss << std::scientific << std::setprecision(1) << x.second;
+              v.emplace_back(" │  " + x.first + ": " + ss.str());
+            }
+            max = std::max(max, v.back().size());
           }
-          max = std::max(max, v.back().size());
-        }
-        v.emplace_back(" └");
-        std::sort(v.begin() + 2, v.end() - 1, [](const std::string &a, const std::string &b) {
-          std::string::const_iterator p[2]{std::find_if(a.cbegin(), a.cend(), ::isdigit), std::find_if(b.cbegin(), b.cend(), ::isdigit)};
-          if (p[0] != a.cend() && p[1] != b.cend()) {
-            std::iterator_traits<std::string::const_iterator>::difference_type v[2]{std::distance(a.cbegin(), p[0]), std::distance(b.cbegin(), p[1])};
-            if (a.substr(0, v[0]) == b.substr(0, v[1])) return sto<int>(a.substr(v[0], a.size())) < sto<int>(b.substr(v[1], b.size()));
-            else return a.substr(0, v[0]) < b.substr(0, v[1]);
-          } else return a < b;
-        });
-        output(v, max);
-      };
+          v.emplace_back(" └");
+          std::sort(v.begin() + 2, v.end() - 1, [](const std::string &a, const std::string &b) {
+            std::string::const_iterator p[2]{std::find_if(a.cbegin(), a.cend(), ::isdigit), std::find_if(b.cbegin(), b.cend(), ::isdigit)};
+            if (p[0] != a.cend() && p[1] != b.cend()) {
+              std::iterator_traits<std::string::const_iterator>::difference_type v[2]{std::distance(a.cbegin(), p[0]), std::distance(b.cbegin(), p[1])};
+              if (a.substr(0, v[0]) == b.substr(0, v[1])) return sto<int>(a.substr(v[0], a.size())) < sto<int>(b.substr(v[1], b.size()));
+              else return a.substr(0, v[0]) < b.substr(0, v[1]);
+            } else return a < b;
+          });
+          output(v, max);
+        };
       if (show->second > 1) {
         if (app_) generate(*app_, "Application-specific");
         generate(opt_, "HPDDM");
@@ -97,7 +102,8 @@ public:
   static void output(const std::vector<std::string> &list, const size_t width)
   {
     std::cout << list.front() << std::setfill('-') << std::setw(width + 1) << std::right << "┐" << std::endl;
-    for (std::vector<std::string>::const_iterator it = list.begin() + 1; it != list.end() - 1; ++it) std::cout << std::left << std::setfill(' ') << std::setw(width + 2) << *it << "│" << std::endl;
+    for (std::vector<std::string>::const_iterator it = list.begin() + 1; it != list.end() - 1; ++it)
+      std::cout << std::left << std::setfill(' ') << std::setw(width + 2) << *it << "│" << std::endl;
     std::cout << list.back() << std::setfill('-') << std::setw(width + 1) << std::right << "┘" << std::endl;
     std::cout << std::setfill(' ');
   }
@@ -221,13 +227,16 @@ public:
     std::unordered_map<std::string, double>::const_iterator it = opt_.find(key);
     return (it != opt_.cend() && std::any_of(list.begin(), list.end(), [&](const T &t) { return t == static_cast<T>(it->second); }));
   }
-  template <class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type * = nullptr, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>>
+  template <class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type * = nullptr,
+            class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>>
   int parse(int argc, T **argv, bool display = true, const Container &reg = {})
   {
     std::vector<std::string> args(argv, argv + argc);
     return parse(args, display, reg);
   }
-  template <class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>, typename std::enable_if<!std::is_same<Container, bool>::value && !std::is_same<C, int>::value && !std::is_same<C, std::ifstream>::value>::type * = nullptr>
+  template <
+    class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>,
+    typename std::enable_if<!std::is_same<Container, bool>::value && !std::is_same<C, int>::value && !std::is_same<C, std::ifstream>::value>::type * = nullptr>
   int parse(C &arg, bool display = true, const Container &reg = {})
   {
     std::vector<std::string> args;
@@ -264,7 +273,8 @@ public:
       return parse<true>(s, display);
     }
   }
-  template <bool = false, bool = false, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>>
+  template <bool = false, bool = false,
+            class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>>
   int parse(std::vector<std::string> &, bool display = true, const Container &reg = {}, const std::string &prefix = "");
   template <bool internal, bool exact = false, class T>
   bool insert(const T &option, std::string str, const std::string &arg, const std::string &prefix = "")
@@ -363,7 +373,10 @@ public:
           auto target = std::get<2>(*it).template target<bool (*)(const std::string &, const std::string &, bool)>();
           if (!target || *target != Arg::argument) map[key] = sto<double>(val);
           else {
-            const std::unordered_map<std::string, double>::const_iterator it = std::find_if(map.cbegin(), map.cend(), [&str](const std::pair<std::string, double> &x) { return x.first.find(str + "#") == 0; });
+            const std::unordered_map<std::string, double>::const_iterator it = std::find_if(map.cbegin(), map.cend(),
+                                                                                            [&str](const std::pair<std::string, double> &x) {
+                                                                                              return x.first.find(str + "#") == 0;
+                                                                                            });
             if (it != map.cend()) map.erase(it);
             map[key + "#" + val] = -static_cast<int>(key.size()) - 10000000;
           }

@@ -50,7 +50,10 @@ template <class K>
 struct CustomOperator : public HPDDM::EmptyOperator<K> {
   void (*mv_)(const int *, const K *, K *, const int *);
   void (*precond_)(const int *, const K *, K *, const int *);
-  CustomOperator(int n, void (*mv)(const int *, const K *, K *, const int *), void (*precond)(const int *, const K *, K *, const int *)) : HPDDM::EmptyOperator<K>(n), mv_(mv), precond_(precond) { }
+  CustomOperator(int n, void (*mv)(const int *, const K *, K *, const int *), void (*precond)(const int *, const K *, K *, const int *)) :
+    HPDDM::EmptyOperator<K>(n), mv_(mv), precond_(precond)
+  {
+  }
   int GMV(const K *const in, K *const out, const int &mu = 1) const
   {
     mv_(&(HPDDM::EmptyOperator<K>::n_), in, out, &mu);
@@ -77,7 +80,9 @@ void HPDDM_F77(hpddmoptionremove)(const char *str)
 {
   HPDDM::Option::get()->remove(str);
 }
-int HPDDM_F77(hpddmcustomoperatorsolve)(const int *n, void (**mv)(const int *, const K *, K *, const int *), void (**precond)(const int *, const K *, K *, const int *), const K *const b, K *const sol, const int *mu, const int *comm)
+int HPDDM_F77(hpddmcustomoperatorsolve)(const int *n, void (**mv)(const int *, const K *, K *, const int *),
+                                        void (**precond)(const int *, const K *, K *, const int *), const K *const b, K *const sol, const int *mu,
+                                        const int *comm)
 {
   return HPDDM::IterativeMethod::solve(CustomOperator<K>(*n, *mv, *precond), b, sol, *mu, MPI_Comm_f2c(*comm));
 }
