@@ -146,10 +146,10 @@ namespace HPDDM
 {
 /* Constants: BLAS constants
  *
- *    i__0                - Zero.
- *    i__1                - One. */
-static constexpr int i__0 = 0;
-static constexpr int i__1 = 1;
+ *    i_0                - Zero.
+ *    i_1                - One. */
+static constexpr int i_0 = 0;
+static constexpr int i_1 = 1;
 
 typedef std::pair<unsigned short, std::vector<int>> pairNeighbor; // MPI_Comm_size < MAX_UNSIGNED_SHORT
 typedef std::vector<pairNeighbor>                   vectorNeighbor;

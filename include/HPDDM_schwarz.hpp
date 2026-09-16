@@ -33,15 +33,15 @@ PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
     #include "HPDDM_operator.hpp"
-typedef struct _n_Aux *Aux;
-struct _n_Aux {
+typedef struct n_Aux *Aux;
+struct n_Aux {
   Mat V;
   Vec sigma;
   IS  is;
 };
-static PetscErrorCode  MatMult_Aux(Mat, Vec, Vec);
-typedef struct _n_Sum *Sum;
-struct _n_Sum {
+static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
+typedef struct n_Sum *Sum;
+struct n_Sum {
   Mat                       A[3];
   void                     *decomposition;
   std::set<unsigned short> *work;
@@ -148,6 +148,7 @@ public:
   }
   void operator=(const Schwarz &B)
   {
+    if (this == &B) return;
     dtor();
     Subdomain<K>::a_            = B.a_ ? new MatrixCSR<K>(*B.a_) : nullptr;
     Subdomain<K>::buff_         = new K *[2 * B.map_.size()]();
@@ -421,7 +422,7 @@ public:
     else {
       Wrapper<K>::diag(Subdomain<K>::dof_, d_, in, out, mu);
       int tmp = mu;
-      Blas<K>::gemm(&(Wrapper<K>::transc), "N", super::getAddrLocal(), &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d__0), super::uc_, super::getAddrLocal());
+      Blas<K>::gemm(&(Wrapper<K>::transc), "N", super::getAddrLocal(), &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), super::uc_, super::getAddrLocal());
       super::co_->template IcallSolver<excluded>(super::uc_, mu, rq);
     }
   }
@@ -557,15 +558,15 @@ public:
           super::s_.solve(work, mu); // out = A \ in
           MPI_Waitall(2, rq, MPI_STATUSES_IGNORE);
           const int k = mu;
-          Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &k, super::getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, super::getAddrLocal(), &(Wrapper<K>::d__0), out, &(Subdomain<K>::dof_)); // out = ev_ E \ ev_^T D in
-          Blas<K>::axpy(&n, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
+          Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &k, super::getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, super::getAddrLocal(), &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_)); // out = ev_ E \ ev_^T D in
+          Blas<K>::axpy(&n, &(Wrapper<K>::d_1), work, &i_1, out, &i_1);
           exchange(out, mu); // out = Z E \ Z^T in + A \ in
         } else MPI_Wait(rq + 1, MPI_STATUS_IGNORE);
   #else
         deflation<excluded>(in, out, mu);
         if (!excluded) {
           super::s_.solve(work, mu);
-          Blas<K>::axpy(&n, &(Wrapper<K>::d__1), work, &i__1, out, &i__1);
+          Blas<K>::axpy(&n, &(Wrapper<K>::d_1), work, &i_1, out, &i_1);
           exchange(out, mu);
         }
   #endif // HPDDM_ICOLLECTIVE
@@ -579,11 +580,11 @@ public:
             delete[] tmp;
           } else {
             if (HPDDM_NUMBERING == Wrapper<K>::I)
-              Wrapper<K>::csrmm("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d__2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d__1), work);
+              Wrapper<K>::csrmm("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
             else if (Subdomain<K>::a_->ia_[Subdomain<K>::dof_] == Subdomain<K>::a_->nnz_)
-              Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d__2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d__1), work);
+              Wrapper<K>::template csrmm<'C'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
             else
-              Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d__2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d__1), work);
+              Wrapper<K>::template csrmm<'F'>("N", &(Subdomain<K>::dof_), &(n = mu), &(Subdomain<K>::dof_), &(Wrapper<K>::d_2), Subdomain<K>::a_->sym_, Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, out, &(Wrapper<K>::d_1), work);
           }
           exchange(work, mu); //  in = (I - A Z E \ Z^T) in
           if (type_ == Prcndtnr::OS) Wrapper<K>::diag(Subdomain<K>::dof_, d_, work, mu);
@@ -596,15 +597,15 @@ public:
               GMV(work, tmp, mu);
               if (super::cc_) {
                 deflation<excluded>(tmp, tmp + n, mu);
-                Blas<K>::axpy(&n, &(Wrapper<K>::d__2), tmp + n, &i__1, work, &i__1);
+                Blas<K>::axpy(&n, &(Wrapper<K>::d_2), tmp + n, &i_1, work, &i_1);
               } else {
                 deflation<excluded>(nullptr, tmp, mu);
-                Blas<K>::axpy(&n, &(Wrapper<K>::d__2), tmp, &i__1, work, &i__1);
+                Blas<K>::axpy(&n, &(Wrapper<K>::d_2), tmp, &i_1, work, &i_1);
               }
               delete[] tmp;
             } else deflation<excluded>(nullptr, nullptr, mu);
           }
-          Blas<K>::axpy(&n, &(Wrapper<K>::d__1), work, &i__1, out, &i__1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
+          Blas<K>::axpy(&n, &(Wrapper<K>::d_1), work, &i_1, out, &i_1); // out = D A \ (I - A Z E \ Z^T) in + Z E \ Z^T in
         }
       }
     }
@@ -642,7 +643,11 @@ public:
     }
     int nnz = iPrev;
     delete B;
-    B   = new MatrixCSR<K>(Subdomain<K>::dof_, Subdomain<K>::dof_, nnz, A->sym_);
+    B = new MatrixCSR<K>(Subdomain<K>::dof_, Subdomain<K>::dof_, nnz, A->sym_);
+    if (!nnz) {
+      std::fill_n(B->ia_, Subdomain<K>::dof_ + 1, N == 'F');
+      return;
+    }
     nnz = iPrev = k = 0;
     for (unsigned int i : intoOverlap) {
       std::fill(B->ia_ + iPrev, B->ia_ + i + 1, nnz + (N == 'F'));
@@ -682,6 +687,7 @@ public:
     if (super::ev_) {
       delete[] *super::ev_;
       delete[] super::ev_;
+      super::ev_ = nullptr;
     }
   #if defined(MUMPSSUB) || defined(MKL_PARDISOSUB)
     if (threshold > 0.0 && opt.val<char>("geneo_estimate_nu", 0) && (!B || B->hashIndices() == A->hashIndices())) {
@@ -765,7 +771,7 @@ public:
     bool allocate = Subdomain<K>::setBuffer();
     GMV(x, tmp, mu);
     Subdomain<K>::clearBuffer(allocate);
-    Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), f, &i__1, tmp, &i__1);
+    Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), f, &i_1, tmp, &i_1);
     std::fill_n(storage, 2 * mu, 0.0);
     if (norm == HPDDM_COMPUTE_RESIDUAL_L1) {
       for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
@@ -1013,7 +1019,7 @@ public:
       htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::getDof(), ev, E);
     #else
       const htool::DistributedOperator<PetscScalar> *distributed_operator;
-      PetscCall(MatHtoolGetHierarchicalMat(A, &distributed_operator));
+      PetscCall(MatHtoolGetHierarchicalMat(A, static_cast<void *>(&distributed_operator)));
       htool::Matrix<PetscScalar> E;
       htool::build_geneo_coarse_operator(*distributed_operator, levels[n]->nu, super::getDof(), ev, E);
     #endif
@@ -1043,15 +1049,15 @@ public:
 
     PetscFunctionBeginUser;
     if (!levels[0]->parent->deflation) {
-      solve = Subdomain<K>::dof_ && !std::all_of(d_, d_ + Subdomain<K>::dof_, [&](const underlying_type<K> &x) { return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); }) ? 1 : (Subdomain<K>::dof_ && HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d__1) < underlying_type<K>(HPDDM_EPS) ? 2 : 0);
+      solve = Subdomain<K>::dof_ && !std::all_of(d_, d_ + Subdomain<K>::dof_, [&](const underlying_type<K> &x) { return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); }) ? 1 : (Subdomain<K>::dof_ && HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d_1) < underlying_type<K>(HPDDM_EPS) ? 2 : 0);
       if (solve != 1) PetscCall(PetscInfo(nullptr, "Partition of unity is full of %ss, nothing to solve\n", solve == 0 ? "zero" : "one"));
       PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
       PetscCall(PetscObjectTypeCompare((PetscObject)N, MATSHELL, &flg));
       if (flg && N == weighted && !rhs) {
-        std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
+        for (Vec &v : initial) PetscCall(VecDestroy(&v));
         std::vector<Vec>().swap(initial);
         if (solve == 1) {
-          PetscCall(MatShellGetContext(N, &h));
+          PetscCall(MatShellGetContext(N, static_cast<void *>(&h)));
           if (h->A[1]) {
             Mat     A;
             VecType type;
@@ -1148,7 +1154,7 @@ public:
               VecType  type;
               PetscCall(MatGetVecType(N, &type));
               PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE, nullptr, &(super::ev_)));
-              PetscCall(MatShellGetContext(N, &h));
+              PetscCall(MatShellGetContext(N, static_cast<void *>(&h)));
               PetscCall(MatCreateVecs(N, nullptr, &u));
               for (PetscInt i = 0; i < levels[0]->nu; ++i) {
                 PetscCall(SVDGetSingularTriplet(svd, i, nullptr, u, nullptr));
@@ -1169,7 +1175,7 @@ public:
             PetscCall(MatGetVecType(N, &type));
             PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE, nullptr, &(super::ev_)));
             PetscCall(MatDenseGetColumnVecWrite(super::ev_, 0, &col));
-            PetscCall(VecSet(col, Wrapper<K>::d__1));
+            PetscCall(VecSet(col, Wrapper<K>::d_1));
             PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, 0, &col));
           } else if (solve == 0) levels[0]->nu = 0;
           PetscFunctionReturn(PETSC_SUCCESS);
@@ -1243,7 +1249,7 @@ public:
       PetscCall(EPSGetST(eps, &st));
       PetscCall(STSetType(st, STSINVERT));
       PetscCall(EPSSetInitialSpace(eps, initial.size(), initial.data()));
-      std::for_each(initial.begin(), initial.end(), [&](Vec v) { PetscCallVoid(VecDestroy(&v)); });
+      for (Vec &v : initial) PetscCall(VecDestroy(&v));
       std::vector<Vec>().swap(initial);
       PetscCall(EPSSetFromOptions(eps));
       if (weighted || ismatis) {
@@ -1388,7 +1394,7 @@ public:
       if (solve == 2) {
         levels[0]->nu = 0;
         PetscCall(MatDenseGetColumnVecWrite(super::ev_, 0, &col));
-        PetscCall(VecSet(col, Wrapper<K>::d__1));
+        PetscCall(VecSet(col, Wrapper<K>::d_1));
         PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, 0, &col));
       }
       if (ismatis) PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
@@ -1467,7 +1473,7 @@ public:
     if (A && *A) PetscValidHeaderSpecific(*A, MAT_CLASSID, 1);
     if (N && *N) PetscValidHeaderSpecific(*N, MAT_CLASSID, 2);
     PetscAssertPointer(n, 4);
-    PetscAssertPointer(levels, 5);
+    PetscAssertPointer(static_cast<const void *>(levels), 5);
   #if defined(PETSC_USE_LOG)
     if (!levels[0]->parent->log_separate) PetscCall(PetscLogEventBegin(PC_HPDDM_PtAP, levels[i]->ksp, nullptr, nullptr, nullptr));
   #endif
@@ -1582,7 +1588,7 @@ public:
   PetscErrorCode initialize(IS is, Mat N, Mat weighted, Mat rhs, std::vector<Vec> initial, PC_HPDDM_Level **const levels)
   {
     PetscFunctionBeginUser;
-    PetscCall(solveGEVP(is, N, initial, levels, weighted, rhs));
+    PetscCall(solveGEVP(is, N, std::move(initial), levels, weighted, rhs));
     PetscCall(PetscObjectComposeFunction((PetscObject)levels[0]->ksp, "PCHPDDMSetUp_Private_C", next));
     PetscFunctionReturn(PETSC_SUCCESS);
   }
@@ -1613,9 +1619,9 @@ public:
       Wrapper<K>::diag(Subdomain<K>::dof_, d_, in, out, mu); // out = D in
       int tmp   = mu;
       int local = super::getLocal();
-      if (local) Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d__0), super::uc_, &local); // uc_ = ev_^T D in
-      super::co_->template callSolver<excluded, transpose>(super::uc_, mu);                                                                                                                                                    // uc_ = E \ ev_^T D in
-      if (local) Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &tmp, &local, &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &local, &(Wrapper<K>::d__0), out, &(Subdomain<K>::dof_));                   // out = ev_ E \ ev_^T D in
+      if (local) Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &tmp, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), out, &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), super::uc_, &local); // uc_ = ev_^T D in
+      super::co_->template callSolver<excluded, transpose>(super::uc_, mu);                                                                                                                                                  // uc_ = E \ ev_^T D in
+      if (local) Blas<K>::gemm("N", "N", &(Subdomain<K>::dof_), &tmp, &local, &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &local, &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_));                   // out = ev_ E \ ev_^T D in
       else std::fill_n(out, mu * Subdomain<K>::dof_, 0.0);
       exchange(out, mu);
     }
@@ -1733,7 +1739,7 @@ PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar> *const 
 {
   PetscFunctionBeginUser;
   PetscCheck(P, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "PCHPDDM_Internal() called with no HPDDM object");
-  PetscCall(P->initialize(is, N, weighted, rhs, initial, levels));
+  PetscCall(P->initialize(is, N, weighted, rhs, std::move(initial), levels));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y)
@@ -1742,7 +1748,7 @@ static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y)
   Vec left, right, leftEcon;
 
   PetscFunctionBeginUser;
-  PetscCall(MatShellGetContext(A, &aux));
+  PetscCall(MatShellGetContext(A, static_cast<void *>(&aux)));
   PetscCall(MatCreateVecs(aux->V, &right, &left));
   PetscCall(MatCreateVecs(aux->V, nullptr, &leftEcon));
   PetscCall(VecSet(left, 0.0));
@@ -1772,7 +1778,7 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
   MPI_Comm                     communicator;
 
   PetscFunctionBeginUser;
-  PetscCall(MatShellGetContext(A, &p));
+  PetscCall(MatShellGetContext(A, static_cast<void *>(&p)));
   decomposition = reinterpret_cast<HPDDM::Schwarz<PetscScalar> *>(p->decomposition);
   buffer        = decomposition->getBuffer();
   d             = decomposition->getScaling();
@@ -1862,7 +1868,7 @@ static PetscErrorCode MatMult_Harmonic(Mat A, Vec x, Vec y)
   std::tuple<Harmonic, Mat, Vec[4]> *p;
 
   PetscFunctionBeginUser;
-  PetscCall(MatShellGetContext(A, &p));
+  PetscCall(MatShellGetContext(A, static_cast<void *>(&p)));
   PetscCall(VecISCopy(x, std::get<0>(*p)->is[4], SCATTER_REVERSE, std::get<2>(*p)[0]));
   PetscCall(MatMult(std::get<1>(*p), std::get<2>(*p)[0], std::get<2>(*p)[1]));
   PetscCall(VecSet(std::get<2>(*p)[2], 0.0));
@@ -1879,7 +1885,7 @@ static PetscErrorCode MatDestroy_Harmonic(Mat A)
   std::tuple<Harmonic, Mat, Vec[4]> *p;
 
   PetscFunctionBeginUser;
-  PetscCall(MatShellGetContext(A, &p));
+  PetscCall(MatShellGetContext(A, static_cast<void *>(&p)));
   for (PetscInt i = 0; i < 4; ++i) PetscCall(VecDestroy(std::get<2>(*p) + i));
   PetscCall(PetscFree(p));
   PetscFunctionReturn(PETSC_SUCCESS);

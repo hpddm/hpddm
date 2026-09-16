@@ -153,7 +153,8 @@ endif
 
 LIST_COMPILATION ?= cpp c python fortran
 
-.PHONY: all cpp c python fortran clean test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarzFromFile_cpp test_bin/driver force
+.PHONY: all cpp c python fortran clean test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarzFromFile_cpp test_bin/driver force \
+        checkgitclean checkclangversion checkclangformatversion checkclangtidyversion clangformat checkclangformat clangtidy checkclangtidy
 
 .PRECIOUS: ${TOP_DIR}/${BIN_DIR}/%_cpp.o ${TOP_DIR}/${BIN_DIR}/%_c.o ${TOP_DIR}/${BIN_DIR}/%.o
 
@@ -390,37 +391,66 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 
 CLANGFORMAT_VERSION = 22
 CLANGFORMAT ?= clang-format
-
-checkclangformatversion:
-	@version=`${CLANGFORMAT} --version | cut -d" " -f3 | cut -d"." -f 1`; \
-	if [ "$$version" = "version" ]; then \
-		version=`${CLANGFORMAT} --version | cut -d" " -f4 | cut -d"." -f 1`; \
-	fi; \
-	if [ "$$version" != "${CLANGFORMAT_VERSION}" ]; then \
-		if [ -z "$$version" ]; then \
-			echo "Could not determine clang-format version (attempted command: ${CLANGFORMAT} --version)"; \
-		else \
-			echo "Require clang-format version ${CLANGFORMAT_VERSION}! Currently used ${CLANGFORMAT} version is $$version"; \
-		fi; \
-		false; \
-	fi
+CLANGTIDY_VERSION = 23
+CLANGTIDY ?= clang-tidy
+CLANGTIDYFLAGS ?= --warnings-as-errors=*
+CLANGTIDY_INCS ?=
+CLANGTIDY_PETSC_INCS ?= -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
+CLANGTIDY_CXX_SOURCES ?= examples/schwarz.cpp examples/generate.cpp examples/generateFromFile.cpp examples/driver.cpp benchmark/local_solver.cpp benchmark/local_eigensolver.cpp interface/hpddm_c.cpp interface/hpddm_fortran.cpp interface/hpddm_python.cpp
+CLANGTIDY_C_SOURCES ?= examples/schwarz.c examples/generate.c examples/custom_operator.c
+CLANGTIDY_PETSC_SOURCES ?= interface/petsc/ksp/hpddm.cxx interface/petsc/pc/pchpddm.cxx interface/hpddm_petsc.cpp
 
 checkgitclean:
 	@if ! git diff --quiet; then \
-		echo "The repository has uncommitted files, cannot run checkclangformat"; \
+		echo "The repository has uncommitted files, cannot run Clang checks"; \
 		git status -s --untracked-files=no; \
 		false; \
 	fi;
 
+checkclangversion: checkgitclean checkclangformatversion checkclangtidyversion
+
+checkclangformatversion: CLANG_TOOL = ${CLANGFORMAT}
+checkclangformatversion: CLANG_VERSION = ${CLANGFORMAT_VERSION}
+checkclangtidyversion: CLANG_TOOL = ${CLANGTIDY}
+checkclangtidyversion: CLANG_VERSION = ${CLANGTIDY_VERSION}
+checkclangformatversion checkclangtidyversion: checkgitclean
+	@version=`${CLANG_TOOL} --version | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p'`; \
+	if [ "$$version" != "${CLANG_VERSION}" ]; then \
+		if [ -z "$$version" ]; then \
+			echo "Could not determine ${CLANG_TOOL} version (attempted command: ${CLANG_TOOL} --version)"; \
+		else \
+			echo "Require ${CLANG_TOOL} version ${CLANG_VERSION}! Currently used version is $$version"; \
+		fi; \
+		false; \
+	fi
+
 clangformat: checkclangformatversion
 	-@git --no-pager ls-files "*.[ch]" "*.[ch]pp" "*.cu" | grep -v '\/petsc\/' | xargs ${CLANGFORMAT} -i
 
-checkclangformat: checkclangformatversion checkgitclean clangformat
+checkclangformat: clangformat
 	@if ! git diff --quiet; then \
 		printf "The current commit has C/C++ source code formatting problems\n"; \
 		git --no-pager diff --stat; \
 		false; \
 	fi;
+
+clangtidy: checkclangtidyversion
+	@set -e; for source in ${CLANGTIDY_CXX_SOURCES}; do \
+		extra_incs=""; \
+		case "$$source" in \
+			*FromFile.cpp) extra_incs="${METIS_INCS}" ;; \
+			*hpddm_python.cpp) extra_incs="${PYTHON_INCS}" ;; \
+		esac; \
+		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- ${CXXFLAGS} ${HPDDMFLAGS} ${INCS} $$extra_incs ${CLANGTIDY_INCS}; \
+	done
+	@set -e; for source in ${CLANGTIDY_C_SOURCES}; do \
+		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- ${CFLAGS} ${HPDDMFLAGS} ${INCS} ${CLANGTIDY_INCS}; \
+	done
+	@set -e; for source in ${CLANGTIDY_PETSC_SOURCES}; do \
+		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- -std=c++14 -I./include ${CLANGTIDY_PETSC_INCS} ${CLANGTIDY_INCS}; \
+	done
+
+checkclangtidy: clangtidy
 
 ${TOP_DIR}/${TRASH_DIR}/%.d: ;
 

@@ -83,7 +83,7 @@ public:
         const PetscBLASInt m    = eta * n;
         PetscScalar       *work = new PetscScalar[m]();
         if (!T) std::copy_n(in, m, work);
-        else if (m) Blas<PetscScalar>::axpy(&m, T, in, &i__1, work, &i__1);
+        else if (m) Blas<PetscScalar>::axpy(&m, T, in, &i_1, work, &i_1);
         PetscInt P = 0, Q = 0;
         bool     reset = false;
         if (X_[1]) PetscCall(MatGetSize(X_[1], &P, &Q));
@@ -103,7 +103,7 @@ public:
           reset = true;
         }
         PetscCall(MatProductNumeric(X_[0]));
-        if (m && S) Blas<PetscScalar>::axpy(&m, S, in, &i__1, out, &i__1);
+        if (m && S) Blas<PetscScalar>::axpy(&m, S, in, &i_1, out, &i_1);
         delete[] work;
         PetscCall(MatKAIJRestoreTRead(A, &T));
         PetscCall(MatKAIJRestoreSRead(A, &S));
@@ -184,7 +184,7 @@ public:
       if (flg) {
         PetscCall(PetscObjectQuery((PetscObject)A, "_HPDDM_MatProduct", (PetscObject *)&container));
         if (container) {
-          PetscCall(PetscContainerGetPointer(container, (void **)&ptr));
+          PetscCall(PetscContainerGetPointer(container, static_cast<void *>(&ptr)));
           if (ptr[1] != X_[1])
             for (unsigned short i = 0; i < 2; ++i) {
               PetscCall(MatDestroy(x + i));
@@ -220,8 +220,8 @@ public:
         PetscCall(MatProductSymbolic(X_[0]));
         if (flg) {
           reset = true;
-          if (!container) PetscCall(PetscObjectContainerCompose((PetscObject)A, "_HPDDM_MatProduct", x, nullptr));
-          else PetscCall(PetscContainerSetPointer(container, x));
+          if (!container) PetscCall(PetscObjectContainerCompose((PetscObject)A, "_HPDDM_MatProduct", static_cast<void *>(x), nullptr));
+          else PetscCall(PetscContainerSetPointer(container, static_cast<void *>(x)));
         }
       } else {
 #if defined(PETSC_PCHPDDM_MAXLEVELS)

@@ -71,6 +71,7 @@ public:
   Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) : tol_(threshold > 0.0 ? HPDDM_EPS : tol), threshold_(threshold), n_(n), nu_(std::min(nu, n)) { }
   std::string dump(const K *const eigenvalues, const K *const *const eigenvectors, const MPI_Comm &communicator, std::ios_base::openmode mode = std::ios_base::out) const
   {
+    if (n_ <= 0 || nu_ <= 0) return std::string();
     int rankWorld;
     MPI_Comm_rank(communicator, &rankWorld);
     const Option &opt      = *Option::get();
@@ -139,7 +140,7 @@ public:
         if (Wrapper<K>::is_complex) std::for_each(basis[nu_], basis[nev - 1] + n_, [&](K &v) { imag(v, uniform(generator)); });
         eigenvectors = basis;
         if (nu_ == 0) {
-          underlying_type<K> nrm = Blas<K>::nrm2(&n_, *basis, &i__1);
+          underlying_type<K> nrm = Blas<K>::nrm2(&n_, *basis, &i_1);
           std::for_each(*basis, *basis + n_, [&](K &v) { v /= nrm; });
           nu_ = 1;
         }
@@ -147,6 +148,8 @@ public:
         for (unsigned short i = nu_; i < nev; ++i) IterativeMethod::orthogonalization(id, n_, i - 1, *basis, basis[i]);
       }
       nu_ = nev;
+      break;
+    default:
       break;
     }
     nu_ = std::min(nu_, static_cast<int>(nev));

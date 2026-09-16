@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <smumps_c.h>
 #include <dmumps_c.h>
 #include <cmumps_c.h>
@@ -217,12 +219,12 @@ public:
   void                  dtor()
   {
     delete[] I_;
+    I_ = nullptr;
     if (id_) {
       id_->job = -2;
       MUMPS_STRUC_C<K>::mumps_c(id_);
       delete id_;
       id_ = nullptr;
-      I_  = nullptr;
     }
   }
   template <char N = HPDDM_NUMBERING>
@@ -255,10 +257,12 @@ public:
     }
     id_->icntl[13] = opt.val<int>("mumps_icntl_14", 80);
     for (unsigned short i : {5, 6, 7, 11, 12, 13, 22, 23, 26, 27, 28, 34, 35, 36}) {
+      assert(i < sizeof(id_->icntl) / sizeof(*id_->icntl));
       int val = opt.val<int>("mumps_icntl_" + to_string(i + 1));
       if (val != std::numeric_limits<int>::lowest()) id_->icntl[i] = val;
     }
     for (unsigned short i : {0, 1, 2, 3, 4, 6}) {
+      assert(i < sizeof(id_->cntl) / sizeof(*id_->cntl));
       double val = opt.val("mumps_cntl_" + to_string(i + 1));
       if (val >= std::numeric_limits<double>::lowest() / 10.0) id_->cntl[i] = val;
     }

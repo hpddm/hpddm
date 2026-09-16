@@ -70,7 +70,7 @@ public:
       else if (T == 2) {
         float area = size * size / (2.0 * p);
         *pm        = 0;
-        for (unsigned short i = 1; i < p; ++i) pm[i] = static_cast<int>(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)) + 0.5f);
+        for (unsigned short i = 1; i < p; ++i) pm[i] = std::lround(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)));
       } else
         for (unsigned short i = 0; i < p; ++i) pm[i] = i * (size / p);
       bool excluded = std::binary_search(pm, pm + p, rank);
@@ -315,8 +315,7 @@ protected:
       map_send[q.first].reserve(q.second.size());
       for (std::vector<pair_type>::const_reference p : q.second) {
         if (P == 0) map_send[q.first].emplace_back(vec[p.first]);
-        else if (P == 1) map_send[q.first].emplace_back(res[p.first]);
-        else if (P == 2) map_send[q.first].emplace_back(res[p.first]);
+        else if (P == 1 || P == 2) map_send[q.first].emplace_back(res[p.first]);
       }
       MPI_Isend(map_send[q.first].data(), q.second.size(), Wrapper<K>::mpi_type(), q.first, 5, communicator_, rqSend + i++);
     }

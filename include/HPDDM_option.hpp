@@ -252,7 +252,7 @@ public:
       std::stringstream ss(buffer);
       std::string       item;
       while (std::getline(ss, item, '\n')) {
-        size = std::min(item.find("//"), item.find("#"));
+        size = std::min(item.find("//"), item.find('#'));
         if (size > 1 + std::string(HPDDM_PREFIX).size()) {
           item = item.substr(0, size);
           std::stringstream ws(item);
@@ -265,12 +265,12 @@ public:
     }
   }
   template <bool = false, bool = false, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>>
-  int parse(std::vector<std::string> &, bool display = true, const Container &reg = {}, std::string prefix = "");
+  int parse(std::vector<std::string> &, bool display = true, const Container &reg = {}, const std::string &prefix = "");
   template <bool internal, bool exact = false, class T>
   bool insert(const T &option, std::string str, const std::string &arg, const std::string &prefix = "")
   {
     static_assert(internal || !exact, "Wrong call");
-    std::string::size_type n   = str.find("=");
+    std::string::size_type n   = str.find('=');
     bool                   sep = true;
     std::string            val;
     if (n != std::string::npos) {
@@ -415,9 +415,10 @@ public:
 #if !HPDDM_PETSC
   void setPrefix(const char *prefix)
   {
+    const std::size_t size = std::strlen(prefix) + 1;
     delete[] prefix_;
-    prefix_ = new char[std::strlen(prefix) + 1];
-    std::strcpy(prefix_, prefix);
+    prefix_ = new char[size];
+    std::copy_n(prefix, size, prefix_);
   }
   void setPrefix(const std::string &prefix)
   {
@@ -426,7 +427,7 @@ public:
   std::string prefix() const { return std::string(!prefix_ ? "" : prefix_); }
   std::string prefix(const std::string &opt) const { return !prefix_ ? opt : std::string(prefix_) + opt; }
 #else
-  std::string prefix() const { return ""; }
+  static std::string prefix() { return ""; }
 #endif
   template <bool reset = true>
   void destroy()

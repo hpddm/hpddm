@@ -83,6 +83,7 @@ public:
     buff_(),
     map_(),
     rq_(),
+    communicator_(MPI_COMM_NULL),
     dof_()
   {
   }
@@ -317,8 +318,7 @@ public:
         else stop = a_->ia_[i + 1] - shift;
         if ((a_->sym_ || stop < a_->ia_[i + 1] - shift || a_->ja_[a_->ia_[i + 1] - shift - 1] == i + shift) && a_->ja_[std::max(1U, stop) - 1] == i + shift && std::abs(a_->a_[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
           for (unsigned int j = a_->ia_[i] - shift; j < stop; ++j) {
-            if (i != a_->ja_[j] - shift && std::abs(a_->a_[j]) > HPDDM_EPS) return K();
-            else if (i == a_->ja_[j] - shift && std::abs(a_->a_[j] - K(1.0)) > HPDDM_EPS) return K();
+            if (std::abs(a_->a_[j] - K(i == a_->ja_[j] - shift)) > HPDDM_EPS) return K();
           }
       } else return K();
       return a_->a_[stop - 1];
@@ -675,12 +675,11 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
   } else {
     int rank;
     MPI_Comm_rank(A.getCommunicator(), &rank);
-    k                                  = std::min(k, static_cast<unsigned short>(size));
-    unsigned int           *local      = new unsigned int[2 * k];
-    unsigned int           *global     = local + k;
-    const int               n          = excluded ? 0 : A.getDof();
-    const vectorNeighbor   &map        = A.getMap();
-    int                     accumulate = 0;
+    k                              = std::min(k, static_cast<unsigned short>(size));
+    unsigned int           *local  = new unsigned int[2 * k];
+    unsigned int           *global = local + k;
+    const int               n      = excluded ? 0 : A.getDof();
+    const vectorNeighbor   &map    = A.getMap();
     std::unordered_set<int> redundant;
     unsigned short          j          = std::min(k - 1, rank / (size / k));
     std::function<void()>   check_size = [&] {
@@ -695,7 +694,6 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
     };
     if (!excluded)
       for (const auto &i : map) {
-        accumulate += i.second.size();
         for (const int &k : i.second) redundant.emplace(k);
       }
     check_size();
@@ -710,22 +708,15 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
       }
     }
     if (k > 1) {
-      unsigned short *idx  = new unsigned short[n + accumulate];
-      unsigned short *buff = idx + n;
-      sx                   = new K[k * n]();
-      sb                   = new K[k * n]();
-      const int div        = size / k;
-      if (!excluded) {
-        std::fill_n(idx, n + accumulate, std::min(rank / div, k - 1) + 1);
-        accumulate = 0;
-        for (unsigned short i = 0; i < map.size(); ++i) {
-          if (rank < map[i].first) std::fill_n(buff + accumulate, map[i].second.size(), std::min(static_cast<int>(map[i].first / div), static_cast<int>(k - 1)) + 1);
-          accumulate += map[i].second.size();
-        }
-        accumulate = 0;
-        for (unsigned short i = 0; i < map.size(); ++i) {
-          Wrapper<unsigned short>::sctr(map[i].second.size(), buff + accumulate, map[i].second.data(), idx);
-          accumulate += map[i].second.size();
+      unsigned short *idx = new unsigned short[n];
+      sx                  = new K[k * n]();
+      sb                  = new K[k * n]();
+      const int div       = size / k;
+      if (!excluded && n > 0) {
+        std::fill_n(idx, n, std::min(rank / div, k - 1) + 1);
+        for (const auto &neighbor : map) {
+          const unsigned short value = std::min(std::max(rank, static_cast<int>(neighbor.first)) / div, static_cast<int>(k - 1)) + 1;
+          for (const int index : neighbor.second) idx[index] = value;
         }
         for (unsigned int i = 0; i < n; ++i) {
           sx[i + (idx[i] - 1) * n] = x[i];

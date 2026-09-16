@@ -122,7 +122,7 @@ public:
     if (S == 'S') {
       El::DistMatrix<ElT<K>> C(*grid_);
       El::Transpose(*A_, C);
-      El::Axpy(Wrapper<K>::d__1, C, *A_);
+      El::Axpy(Wrapper<K>::d_1, C, *A_);
     }
     B_ = new El::DistMatrix<ElT<K>>(*grid_);
     El::Zeros(*B_, DMatrix::n_, 1);

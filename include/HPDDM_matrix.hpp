@@ -170,7 +170,7 @@ public:
     std::copy_n(B.a_, MatrixBase<K>::nnz_, a_);
   }
 #if !HPDDM_PETSC
-  explicit MatrixCSR(std::ifstream &file)
+  explicit MatrixCSR(std::ifstream &file) : a_()
   {
     if (!file.good()) {
       a_                 = nullptr;
