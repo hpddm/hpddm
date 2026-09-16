@@ -38,7 +38,7 @@ inline Option::Option(Singleton::construct_key<N>)
   app_ = nullptr;
 }
 template <bool recursive, bool exact, class Container>
-inline int Option::parse(std::vector<std::string> &args, bool display, const Container &reg, std::string prefix)
+inline int Option::parse(std::vector<std::string> &args, bool display, const Container &reg, const std::string &prefix)
 {
   if (args.size() == 0 && reg.size() == 0) return 0;
   std::vector<std::tuple<std::string, std::string, std::function<bool(std::string &, const std::string &, bool)>>> option{std::forward_as_tuple("help", "Display available options", Arg::anything),
@@ -187,7 +187,7 @@ inline int Option::parse(std::vector<std::string> &args, bool display, const Con
     app_->reserve(reg.size());
     for (const auto &x : reg) {
       std::string            def = std::get<0>(x);
-      std::string::size_type n   = def.find("=");
+      std::string::size_type n   = def.find('=');
       if (n != std::string::npos && n + 2 < def.size()) {
         std::string val = def.substr(n + 2, def.size() - n - 3);
         def             = def.substr(0, n);
@@ -209,10 +209,10 @@ inline int Option::parse(std::vector<std::string> &args, bool display, const Con
     std::string::size_type n = itArg->find("-" + (pre.empty() ? p : std::string(HPDDM_PREFIX)));
     if (n == std::string::npos) {
       if (reg.size() != 0) {
-        n = itArg->find_first_not_of("-");
+        n = itArg->find_first_not_of('-');
         if (n != 0 && n != std::string::npos && insert<0>(reg, itArg->substr(n), itArg + 1 != args.cend() ? *(itArg + 1) : "")) ++itArg;
       }
-    } else if (itArg->substr(0, n).find_first_not_of("-") == std::string::npos) {
+    } else if (itArg->substr(0, n).find_first_not_of('-') == std::string::npos) {
       std::string opt    = itArg->substr(n + 1 + (pre.empty() ? p.size() : std::string(HPDDM_PREFIX).size()));
       bool        ending = hasEnding(opt, "_prefix");
       if (!ending && insert<true, exact>(option, (!pre.empty() ? p : "") + opt, itArg + 1 != args.cend() ? *(itArg + 1) : "", prefix)) ++itArg;
@@ -220,7 +220,8 @@ inline int Option::parse(std::vector<std::string> &args, bool display, const Con
         opt = opt.substr(0, opt.size() - 7);
         if (hasEnding(opt, "push")) {
           opt = (exact ? prefix : opt.substr(0, opt.size() - 4));
-          p   = (pre.empty() ? "" : p) + opt;
+          if (pre.empty()) p.clear();
+          p += opt;
           pre.push(opt);
         } else if (opt.compare("pop") == 0) {
           if (!pre.empty()) {
@@ -303,29 +304,29 @@ inline void Option::version() const
                                 " │ HPDDM compilation options: ",
                                 " │  HPDDM version: " + std::string(HPDDM_VERSION),
   #ifdef PY_VERSION
-                                " │  Python.h version: " PY_VERSION,
+                                (" │  Python.h version: " PY_VERSION),
   #endif
                                 " │  epsilon: " + std::string(HPDDM_STR(HPDDM_EPS)),
                                 " │  penalization: " + std::string(HPDDM_STR(HPDDM_PEN)),
                                 " │  OpenMP granularity: " + std::string(HPDDM_STR(HPDDM_GRANULARITY)),
-                                " │  OpenMP activated: "
+                                (" │  OpenMP activated: "
   #ifdef _OPENMP
-                                "true",
+                                 "true"),
   #else
-                                "false",
+                                 "false"),
   #endif
                                 " │  numbering: '" + std::string(1, HPDDM_NUMBERING) + "'",
-                                " │  regular expression support: "
+                                (" │  regular expression support: "
   #ifdef HPDDM_NO_REGEX
-                                "false",
+                                 "false"),
   #else
-                                "true",
+                                 "true"),
   #endif
-                                " │  C++ RTTI support: "
+                                (" │  C++ RTTI support: "
   #if __cpp_rtti || defined(__GXX_RTTI) || defined(__INTEL_RTTI__) || defined(_CPPRTTI)
-                                "true",
+                                 "true"),
   #else
-                                "false",
+                                 "false"),
   #endif
                                 " │  MPI support: " + std::string(bool(HPDDM_MPI) ? "true" : "false"),
                                 " │  MKL support: " + std::string(bool(HPDDM_MKL) ? "true" : "false"),

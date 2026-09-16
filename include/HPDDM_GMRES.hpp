@@ -66,7 +66,7 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
         for (int j = 0; j < n; ++j) sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
       }
     else
-      for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i__1, *v + nu * n, &i__1));
+      for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i_1, *v + nu * n, &i_1));
     if (HPDDM_IT(j, A) == 1) {
       ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       for (unsigned short nu = 0; nu < mu; ++nu) {
@@ -202,7 +202,7 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
     diagonal<1>(id[0], s, mu, tol[0], piv);
 #endif
-    if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9) && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i__1, &i__1, &mu, norm, &i__1, piv);
+    if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9) && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
     if (N == 0) {
 #if HPDDM_PETSC
       PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
@@ -275,12 +275,12 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
       }
       ++HPDDM_IT(j, A);
     }
-    if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) Lapack<K>::lapmt(&i__1, &n, &mu, x, &n, piv);
+    if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
     if (HPDDM_IT(j, A) != HPDDM_MAX_IT(m[2], A) + 1 && i == m[0]) {
       HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), &dim, mu, Ax, deflated));
       if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) {
-        Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
-        if (m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i__0, &i__1, &mu, norm, &i__1, piv);
+        Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
+        if (m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_0, &i_1, &mu, norm, &i_1, piv);
       }
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
       if (id[0] > 1) std::cout << "BGMRES restart(" << m[0] << ")" << std::endl;
@@ -293,7 +293,7 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
   }
   if (HPDDM_IT(j, A) != 0 && deflated != -1) {
     HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), &dim, mu, Ax, deflated));
-    if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) Lapack<K>::lapmt(&i__0, &n, &mu, x, &n, piv);
+    if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
   }
   delete[] piv;
   A.end(allocate);

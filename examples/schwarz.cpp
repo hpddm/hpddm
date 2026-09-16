@@ -31,7 +31,7 @@ struct CustomOperator : public HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
     const HPDDM::MatrixCSR<K> *const A = getMatrix();
     for (int i = 0; i < n_; ++i) {
       int mid = (A->sym_ ? (A->ia_[i + 1] - A->ia_[0]) : std::distance(A->ja_, std::upper_bound(A->ja_ + A->ia_[i] - A->ia_[0], A->ja_ + A->ia_[i + 1] - A->ia_[0], i + A->ia_[0]))) - 1;
-      HPDDM::Blas<K>::axpby(mu, HPDDM::Wrapper<K>::d__1 / A->a_[mid], in + i, n_, K(), out + i, n_);
+      HPDDM::Blas<K>::axpby(mu, HPDDM::Wrapper<K>::d_1 / A->a_[mid], in + i, n_, K(), out + i, n_);
     }
     return 0;
   }
@@ -160,16 +160,16 @@ int main(int argc, char **argv)
       S.solve(f, sol, mu);
     } else it = HPDDM::IterativeMethod::solve(CustomOperator(Mat), f, sol, mu, MPI_COMM_SELF);
     HPDDM::underlying_type<K> *nrmb = new HPDDM::underlying_type<K>[2 * mu];
-    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + nu * ndof, &(HPDDM::i__1));
+    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + nu * ndof, &(HPDDM::i_1));
     K *tmp = new K[mu * ndof];
     HPDDM::Wrapper<K>::csrmm(Mat->sym_, &ndof, &mu, Mat->a_, Mat->ia_, Mat->ja_, sol, tmp);
     ndof *= mu;
     float minus = -1.0;
-    HPDDM::Blas<float>::axpy(&ndof, &minus, f, &(HPDDM::i__1), tmp, &(HPDDM::i__1));
+    HPDDM::Blas<float>::axpy(&ndof, &minus, f, &(HPDDM::i_1), tmp, &(HPDDM::i_1));
     ndof /= mu;
     HPDDM::underlying_type<K> *nrmAx = nrmb + mu;
     for (unsigned short nu = 0; nu < mu; ++nu) {
-      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&ndof, tmp + nu * ndof, &(HPDDM::i__1));
+      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&ndof, tmp + nu * ndof, &(HPDDM::i_1));
       if (nu == 0) std::cout << " --- residual = ";
       else std::cout << "                ";
       std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];

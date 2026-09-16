@@ -23,6 +23,9 @@ SLEPC_INCS = -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
 METIS_INCS = -I/usr/include
 PYTHON_INCS = -I${pythonLocation}/include/python3.14
 
+CLANGTIDY_INCS = $(shell mpicxx.openmpi --showme:compile) -DOMPI_SKIP_MPICXX
+CLANGTIDY_PETSC_INCS = -I../petsc/include -I${RUNNER_TEMP}/clang-tidy-petsc-include
+
 BLAS_LIBS = -L/usr/lib/x86_64-linux-gnu -lblas -llapack
 ARPACK_LIBS = -L/usr/lib/x86_64-linux-gnu -larpack
 SCALAPACK_LIBS = -L/usr/lib/x86_64-linux-gnu -lscalapack-openmpi

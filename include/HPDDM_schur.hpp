@@ -195,7 +195,7 @@ protected:
           for (unsigned int j = i; j < Subdomain<K>::dof_; ++j) res[j + i * Subdomain<K>::dof_] *= d[i] * d[j];
       int flag, info;
       Lapack<K>::potrf("L", &(Subdomain<K>::dof_), res, &(Subdomain<K>::dof_), &flag);
-      Lapack<K>::gst(&i__1, "L", &(Subdomain<K>::dof_), A, &(Subdomain<K>::dof_), res, &(Subdomain<K>::dof_), &flag);
+      Lapack<K>::gst(&i_1, "L", &(Subdomain<K>::dof_), A, &(Subdomain<K>::dof_), res, &(Subdomain<K>::dof_), &flag);
       int lwork = -1;
       {
         K wkopt;
@@ -227,7 +227,7 @@ protected:
         int                *iwork  = isplit + Subdomain<K>::dof_;
         char                range  = threshold > 0.0 ? 'V' : 'I';
         underlying_type<K>  tol    = evp.getTol();
-        Lapack<K>::stebz(&range, "B", &(Subdomain<K>::dof_), &vl, &vu, &i__1, &iu, &tol, d, e, &evp.nu_, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K> *>(work), iwork, &info);
+        Lapack<K>::stebz(&range, "B", &(Subdomain<K>::dof_), &vl, &vu, &i_1, &iu, &tol, d, e, &evp.nu_, &nsplit, evr, iblock, isplit, reinterpret_cast<underlying_type<K> *>(work), iwork, &info);
         if (evp.nu_) {
           if (super::ev_) {
             delete[] *super::ev_;
@@ -400,7 +400,8 @@ public:
       unsigned int   end = Subdomain<K>::a_->n_;
       std::vector<K> backup(in + bi_->m_, in + end);
       unsigned int   j = Subdomain<K>::dof_;
-      while (j-- > 0 && j != interface[j]) {
+      while (j-- > 0) {
+        if (j == interface[j]) break;
         std::copy_backward(in + interface[j] - j - 1, in + end - j - 1, in + end);
         in[interface[j]] = backup[j];
         end              = interface[j];
@@ -480,8 +481,7 @@ public:
           if (!Subdomain<K>::a_->sym_) {
             bool isBoundaryCond = true;
             for (j = Subdomain<K>::a_->ia_[i]; j < Subdomain<K>::a_->ia_[i + 1] && isBoundaryCond; ++j) {
-              if (i != Subdomain<K>::a_->ja_[j] && (!trim || std::abs(Subdomain<K>::a_->a_[j]) > HPDDM_EPS)) isBoundaryCond = false;
-              else if (i == Subdomain<K>::a_->ja_[j] && (!trim || std::abs(Subdomain<K>::a_->a_[j] - K(1.0)) > HPDDM_EPS)) isBoundaryCond = false;
+              if (!trim || std::abs(Subdomain<K>::a_->a_[j] - K(i == Subdomain<K>::a_->ja_[j])) > HPDDM_EPS) isBoundaryCond = false;
             }
             if (isBoundaryCond) {
               if (row > 0) boundaryCond.second.push_back(row);
@@ -603,13 +603,13 @@ public:
     if (!schur_) {
       if (bi_->m_) {
         K *tmp = new K[n * bi_->m_];
-        Wrapper<K>::template csrmm<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &n, &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, in, &(Wrapper<K>::d__0), tmp);
+        Wrapper<K>::template csrmm<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &n, &bi_->m_, &(Wrapper<K>::d_1), false, bi_->a_, bi_->ia_, bi_->ja_, in, &(Wrapper<K>::d_0), tmp);
         super::s_.solve(tmp, n);
-        Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, tmp, &(Wrapper<K>::d__0), out);
+        Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &bi_->m_, &(Wrapper<K>::d_1), false, bi_->a_, bi_->ia_, bi_->ja_, tmp, &(Wrapper<K>::d_0), out);
         delete[] tmp;
       }
-      Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__2), out);
-    } else Blas<K>::symm("L", "L", &(Subdomain<K>::dof_), &n, &(Wrapper<K>::d__1), schur_, &(Subdomain<K>::dof_), in, &(Subdomain<K>::dof_), &(Wrapper<K>::d__0), out, &(Subdomain<K>::dof_));
+      Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d_2), out);
+    } else Blas<K>::symm("L", "L", &(Subdomain<K>::dof_), &n, &(Wrapper<K>::d_1), schur_, &(Subdomain<K>::dof_), in, &(Subdomain<K>::dof_), &(Wrapper<K>::d_0), out, &(Subdomain<K>::dof_));
     delete[] in;
     in = out;
   }
@@ -625,19 +625,19 @@ public:
   void applyLocalSchurComplement(K *const in, K *const &out = nullptr) const
   {
     if (!schur_) {
-      Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, in, &(Wrapper<K>::d__0), work_);
+      Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d_1), false, bi_->a_, bi_->ia_, bi_->ja_, in, &(Wrapper<K>::d_0), work_);
       if (bi_->m_) super::s_.solve(work_);
       if (out) {
-        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, work_, &(Wrapper<K>::d__0), out);
-        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__2), out);
+        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d_1), false, bi_->a_, bi_->ia_, bi_->ja_, work_, &(Wrapper<K>::d_0), out);
+        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d_2), out);
       } else {
-        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__1), false, bi_->a_, bi_->ia_, bi_->ja_, work_, &(Wrapper<K>::d__0), work_ + bi_->m_);
-        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__2), work_ + bi_->m_);
+        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d_1), false, bi_->a_, bi_->ia_, bi_->ja_, work_, &(Wrapper<K>::d_0), work_ + bi_->m_);
+        Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d_2), work_ + bi_->m_);
         std::copy_n(work_ + bi_->m_, Subdomain<K>::dof_, in);
       }
-    } else if (out) Blas<K>::symv("L", &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), schur_, &(Subdomain<K>::dof_), in, &i__1, &(Wrapper<K>::d__0), out, &i__1);
+    } else if (out) Blas<K>::symv("L", &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), schur_, &(Subdomain<K>::dof_), in, &i_1, &(Wrapper<K>::d_0), out, &i_1);
     else {
-      Blas<K>::symv("L", &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), schur_, &(Subdomain<K>::dof_), in, &i__1, &(Wrapper<K>::d__0), work_ + bi_->m_, &i__1);
+      Blas<K>::symv("L", &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), schur_, &(Subdomain<K>::dof_), in, &i_1, &(Wrapper<K>::d_0), work_ + bi_->m_, &i_1);
       std::copy_n(work_ + bi_->m_, Subdomain<K>::dof_, in);
     }
   }
@@ -653,7 +653,7 @@ public:
   void applyLocalLumpedMatrix(K *&in, const int &n) const
   {
     K *out = new K[n * Subdomain<K>::dof_];
-    Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__0), out);
+    Wrapper<K>::template csrmm<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &n, &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d_0), out);
     delete[] in;
     in = out;
   }
@@ -668,7 +668,7 @@ public:
          * See also: <Feti::applyLocalPreconditioner>. */
   void applyLocalLumpedMatrix(K *const in) const
   {
-    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d__1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d__0), work_ + bi_->m_);
+    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &(Subdomain<K>::dof_), &(Wrapper<K>::d_1), true, bb_->a_, bb_->ia_, bb_->ja_, in, &(Wrapper<K>::d_0), work_ + bi_->m_);
     std::copy_n(work_ + bi_->m_, Subdomain<K>::dof_, in);
   }
   /* Function: applyLocalSuperlumpedMatrix(n)
@@ -725,7 +725,7 @@ public:
   {
     if (bi_->m_) super::s_.solve(f, structure_);
     std::copy_n(f + bi_->m_, Subdomain<K>::dof_, b ? b : structure_ + bi_->m_);
-    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d__2), false, bi_->a_, bi_->ia_, bi_->ja_, structure_, &(Wrapper<K>::d__1), b ? b : structure_ + bi_->m_);
+    Wrapper<K>::template csrmv<Wrapper<K>::I>("N", &(Subdomain<K>::dof_), &bi_->m_, &(Wrapper<K>::d_2), false, bi_->a_, bi_->ia_, bi_->ja_, structure_, &(Wrapper<K>::d_1), b ? b : structure_ + bi_->m_);
   }
   /* Function: computeResidual
          *
@@ -754,8 +754,8 @@ public:
     Wrapper<K>::csrmv(Subdomain<K>::a_->sym_, &(Subdomain<K>::a_->n_), Subdomain<K>::a_->a_, Subdomain<K>::a_->ia_, Subdomain<K>::a_->ja_, x, work_);
     Subdomain<K>::exchange(work_ + bi_->m_);
     Subdomain<K>::clearBuffer(allocate);
-    Blas<K>::axpy(&(Subdomain<K>::a_->n_), &(Wrapper<K>::d__2), tmp, &i__1, work_, &i__1);
-    storage[1] = std::real(Blas<K>::dot(&bi_->m_, work_, &i__1, work_, &i__1));
+    Blas<K>::axpy(&(Subdomain<K>::a_->n_), &(Wrapper<K>::d_2), tmp, &i_1, work_, &i_1);
+    storage[1] = std::real(Blas<K>::dot(&bi_->m_, work_, &i_1, work_, &i_1));
     std::fill_n(tmp, Subdomain<K>::dof_, K(1.0));
     for (const pairNeighbor &neighbor : Subdomain<K>::map_)
       for (const pairNeighbor::second_type::value_type &val : neighbor.second) tmp[val] /= K(1.0) + tmp[val];

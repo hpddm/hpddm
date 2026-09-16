@@ -319,10 +319,27 @@ jobs:
                 lcov --directory . --directory ../petsc/arch-ci/lib --exclude '/usr/*' --exclude '*/petsc/include/*' --capture --output-file coverage_${PRECISION}_${TYPE}_${INT64}.info
               fi
               make clean
+              if [ "${{ matrix.compiler }}" = "clang" ] && [ "$PRECISION" = "double" ] && [ "$TYPE" = "real" ] && [ "$INT64" = "0" ]; then
+                cp -R "${PETSC_DIR}/${PETSC_ARCH}/include" "${RUNNER_TEMP}/clang-tidy-petsc-include"
+              fi
               cd ../petsc && rm -rf ${PETSC_ARCH}
             done
           done
         done
+    - name: Get clang-tidy version
+      if: matrix.compiler == 'clang'
+      id: clangtidy-version
+      run: |
+        echo "var=$(sed -n 's/CLANGTIDY_VERSION = //p' Makefile)" >> "$GITHUB_OUTPUT"
+    - name: Install clang-tidy
+      if: matrix.compiler == 'clang'
+      uses: aminya/setup-cpp@v1
+      with:
+        clang-tidy: ${{ steps.clangtidy-version.outputs.var }}
+        setup-cpp: false
+    - name: Enforce clang-tidy
+      if: matrix.compiler == 'clang'
+      run: make checkclangtidy
     - uses: actions/upload-artifact@v7
       with:
         name: artifact-${{ matrix.compiler}}

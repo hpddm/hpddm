@@ -399,7 +399,7 @@ private:
     std::fill_n(work_, m * super::n_, K());
     for (unsigned short i = 0; i < m; ++i)
       for (int j = 0; j < super::map_[index].second.size(); ++j) work_[i * super::n_ + super::map_[index].second[j]] = D_[super::map_[index].second[j]] * in[i * super::map_[index].second.size() + j];
-    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &(super::n_), &(Wrapper<K>::d__1), *super::deflation_, &(super::n_), work_, &(super::n_), &(Wrapper<K>::d__0), work, &(super::local_));
+    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &(super::n_), &(Wrapper<K>::d_1), *super::deflation_, &(super::n_), work_, &(super::n_), &(Wrapper<K>::d_0), work, &(super::local_));
   }
 
 public:
@@ -943,7 +943,7 @@ public:
       for (unsigned short j = 0; j < overlap.size(); ++j) {
         if (block[overlap[i]][overlap[j]].first != 0 && block[overlap[i]][overlap[j]].second != 0) {
           const int n = omap.size();
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(block[overlap[i]][overlap[j]].first), &(block[overlap[i]][overlap[j]].second), &n, &(Wrapper<K>::d__1), tmp[overlap[i]], &n, tmp[super::map_.size() + overlap[j]], &n, &(Wrapper<K>::d__0), pt,
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(block[overlap[i]][overlap[j]].first), &(block[overlap[i]][overlap[j]].second), &n, &(Wrapper<K>::d_1), tmp[overlap[i]], &n, tmp[super::map_.size() + overlap[j]], &n, &(Wrapper<K>::d_0), pt,
                         &(block[overlap[i]][overlap[j]].first));
           pt += (U == 1 ? super::local_ * super::local_ : info[overlap[i]] * info[overlap[j]]);
         }
@@ -979,7 +979,7 @@ public:
             }
           }
           const int n = omap.size();
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &m, &(super::local_), &n, &(Wrapper<K>::d__1), tmp[overlap[i]], &n, work, &n, &(Wrapper<K>::d__0), pt, &m);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &m, &(super::local_), &n, &(Wrapper<K>::d_1), tmp[overlap[i]], &n, work, &n, &(Wrapper<K>::d_0), pt, &m);
           pt += super::local_ * m;
         }
       }
@@ -1229,11 +1229,11 @@ public:
   {
     applyFromNeighbor<S, U>(in, index, arrayC, infoNeighbor);
     if (++super::consolidate_ == super::map_.size()) {
-      if (S != 'S') Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d__1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d__0), C, &coefficients);
+      if (S != 'S') Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
       else
         for (unsigned short j = 0; j < super::local_; ++j) {
           int local = coefficients + super::local_ - j;
-          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d__1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i__1);
+          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1, &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
         }
     }
   }
@@ -1459,7 +1459,7 @@ public:
       Wrapper<K>::diag(super::n_, m, arrayC, coefficients + (S == 'S') * super::local_);
       if (S == 'B' || S == 'C') {
         K *tmp = new K[coefficients * super::local_];
-        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d__1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d__0), tmp, &coefficients);
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d_0), tmp, &coefficients);
         for (int i = 0; i < coefficients; ++i) {
           for (unsigned short j = 0; j < super::local_; ++j) C[(i / super::local_) * super::local_ * super::local_ + j * super::local_ + (i % super::local_)] = tmp[i + j * coefficients];
         }
@@ -1467,14 +1467,14 @@ public:
       } else if (S != 'S') {
         if (super::local_)
   #if HPDDM_BDD
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d__1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d__0), C, &coefficients);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
   #else
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d__1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d__0), C, &coefficients);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_, &(super::n_), &(Wrapper<K>::d_0), C, &coefficients);
   #endif
       } else
         for (unsigned short j = 0; j < super::local_; ++j) {
           int local = coefficients + super::local_ - j;
-          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d__1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i__1, &(Wrapper<K>::d__0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i__1);
+          Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1, &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
         }
     }
   }

@@ -202,7 +202,7 @@ protected:
         } else level = prefix + "level_2_";
       } else {
         std::string       sub  = prev.substr(6, std::string::npos);
-        const std::size_t find = sub.find("_", 0);
+        const std::size_t find = sub.find('_', 0);
         sub                    = sub.substr(0, find);
         level                  = prefix.substr(0, prefix.size() - prev.size()) + "level_" + std::to_string(std::stoi(sub) + 1) + "_";
       }
@@ -349,7 +349,7 @@ public:
   void destroyVectors(void (*dtor)(void *))
   {
     if (ev_) dtor(*ev_);
-    dtor(ev_);
+    dtor(static_cast<void *>(ev_));
     ev_ = nullptr;
   }
   #else
@@ -364,8 +364,8 @@ public:
          *  Returns the value of <Coarse operator::local>. */
   constexpr unsigned short getLocal() const { return co_ ? co_->getLocal() : 0; }
   /* Function: getAddrLocal
-         *  Returns the address of <Coarse operator::local> or <i__0> if <Preconditioner::co> is not allocated. */
-  const int *getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i__0; }
+         *  Returns the address of <Coarse operator::local> or <i_0> if <Preconditioner::co> is not allocated. */
+  const int *getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i_0; }
 #else
 protected:
   Preconditioner() { }

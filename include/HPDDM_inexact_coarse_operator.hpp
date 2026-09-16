@@ -334,7 +334,7 @@ protected:
             std::map<unsigned short, std::vector<int>>::iterator it = send_.emplace_hint(send_.end(), i, std::vector<int>(lengths[distance]));
             MPI_Irecv(it->second.data(), it->second.size(), MPI_INT, i, 12, communicator_, rq + distance++);
           }
-          accumulate = std::accumulate(lengths + infoRecv.size(), lengths + size, 0);
+          accumulate = std::accumulate(lengths + infoRecv.size(), lengths + size, 0U);
           delete[] lengths;
           int *sendIdx = new int[accumulate];
           accumulate   = 0;
@@ -596,7 +596,7 @@ protected:
         std::map<unsigned short, std::vector<int>>::iterator it = send_.emplace_hint(send_.end(), i, std::vector<int>(lengths[distance]));
         MPI_Irecv(it->second.data(), it->second.size(), MPI_INT, i, 12, DMatrix::communicator_, rq + distance++);
       }
-      accumulate   = std::accumulate(lengths + infoRecv.size(), lengths + size, 0);
+      accumulate   = std::accumulate(lengths + infoRecv.size(), lengths + size, 0U);
       int *sendIdx = new int[accumulate];
       accumulate   = 0;
       for (std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != recv_.cend(); ++it) {
@@ -782,9 +782,9 @@ public:
     exchange<'N'>(in, nullptr, mu);
     Wrapper<K>::template bsrmm<Solver<K>::numbering_>(S == 'S', &dof_, &mu, &bs_, da_, di_, dj_, in, out);
     wait<'N'>(o_ + (mu - 1) * off_ * bs_);
-    Wrapper<K>::template bsrmm<Solver<K>::numbering_>("N", &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d__1), false, oa_, oi_, oj_, o_, &(Wrapper<K>::d__1), out);
+    Wrapper<K>::template bsrmm<Solver<K>::numbering_>("N", &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d_1), false, oa_, oi_, oj_, o_, &(Wrapper<K>::d_1), out);
     if (S == 'S') {
-      Wrapper<K>::template bsrmm<Solver<K>::numbering_>(&(Wrapper<K>::transc), &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d__1), false, oa_, oi_, oj_, in, &(Wrapper<K>::d__0), o_);
+      Wrapper<K>::template bsrmm<Solver<K>::numbering_>(&(Wrapper<K>::transc), &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d_1), false, oa_, oi_, oj_, in, &(Wrapper<K>::d_0), o_);
       exchange<'T'>(nullptr, out, mu);
       wait<'T'>(out + (mu - 1) * dof_ * bs_);
     }
@@ -1204,7 +1204,7 @@ public:
                 }
               accumulate += mu1 * mu2;
             } else {
-              if (super::numbering_ == 'F') Blas<K>::axpy(&bss, &(Wrapper<K>::d__1), std::get<1>(transfer) + accumulate, &i__1, da + loc[key(r1, r2)] * bss, &i__1);
+              if (super::numbering_ == 'F') Blas<K>::axpy(&bss, &(Wrapper<K>::d_1), std::get<1>(transfer) + accumulate, &i_1, da + loc[key(r1, r2)] * bss, &i_1);
               else
                 for (unsigned short nu1 = 0; nu1 < in->bs_; ++nu1)
                   for (unsigned short nu2 = 0; nu2 < in->bs_; ++nu2) da[loc[key(r1, r2)] * bss + nu2 * in->bs_ + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->bs_ + accumulate];
@@ -1225,7 +1225,7 @@ public:
                   accumulate += mu1 * mu2;
                   shift += mu2;
                 } else {
-                  if (super::numbering_ == 'C') Blas<K>::axpy(&bss, &(Wrapper<K>::d__1), std::get<1>(transfer) + accumulate, &i__1, da + (di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift, &i__1);
+                  if (super::numbering_ == 'C') Blas<K>::axpy(&bss, &(Wrapper<K>::d_1), std::get<1>(transfer) + accumulate, &i_1, da + (di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift, &i_1);
                   else
                     for (unsigned short nu1 = 0; nu1 < in->bs_; ++nu1)
                       for (unsigned short nu2 = 0; nu2 < in->bs_; ++nu2) da[(di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift + nu2 * in->bs_ + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->bs_ + accumulate];
@@ -1522,7 +1522,7 @@ public:
         PetscCall(VecGetArray(s_->D, reinterpret_cast<PetscScalar **>(&d)));
       }
 #endif
-      std::fill_n(d, dof_ * bs_, Wrapper<underlying_type<K>>::d__1);
+      std::fill_n(d, dof_ * bs_, Wrapper<underlying_type<K>>::d_1);
 #if HPDDM_PETSC
       s->initialize(d);
       if (!std::is_same<PetscScalar, PetscReal>::value) {
@@ -1691,7 +1691,7 @@ private:
         MPI_Status st;
         MPI_Waitany(send_.size(), rq_ + recv_.size(), &index, &st);
         const std::vector<int> &v = send_.at(st.MPI_SOURCE);
-        for (unsigned int j = 0; j < v.size(); ++j) Blas<K>::axpy(&bs_, &(Wrapper<K>::d__1), buff_[recv_.size() + index] + j * bs_, &i__1, in + v[j] * bs_, &i__1);
+        for (unsigned int j = 0; j < v.size(); ++j) Blas<K>::axpy(&bs_, &(Wrapper<K>::d_1), buff_[recv_.size() + index] + j * bs_, &i_1, in + v[j] * bs_, &i_1);
       }
       MPI_Waitall(recv_.size(), rq_, MPI_STATUSES_IGNORE);
     }

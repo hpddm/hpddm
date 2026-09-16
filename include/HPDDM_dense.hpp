@@ -85,7 +85,7 @@ public:
     std::copy_n(A, Subdomain<K>::dof_ * Subdomain<K>::dof_, a);
     MatrixCSR<K> rhs(Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_ * Subdomain<K>::dof_, a, nullptr, nullptr, false, true);
     K *const     b = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_]();
-    for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) b[(Subdomain<K>::dof_ + 1) * i] = Wrapper<K>::d__1;
+    for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) b[(Subdomain<K>::dof_ + 1) * i] = Wrapper<K>::d_1;
     MatrixCSR<K>   lhs(Subdomain<K>::dof_, Subdomain<K>::dof_, Subdomain<K>::dof_ * Subdomain<K>::dof_, b, nullptr, nullptr, false, true);
     EIGENSOLVER<K> evp(threshold, Subdomain<K>::dof_, opt.val<unsigned short>("geneo_nu", 20));
     evp.template solve<SUBDOMAIN>(&lhs, &rhs, super::ev_, Subdomain<K>::communicator_, nullptr);
@@ -97,17 +97,17 @@ public:
     int info;
     int lwork = -1;
     {
-      Lapack<K>::gehrd(&(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, H, &lwork, &info);
-      Lapack<K>::hseqr("E", "N", &(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, nullptr, nullptr, &i__1, H + 1, &lwork, &info);
+      Lapack<K>::gehrd(&(Subdomain<K>::dof_), &i_1, &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, H, &lwork, &info);
+      Lapack<K>::hseqr("E", "N", &(Subdomain<K>::dof_), &i_1, &(Subdomain<K>::dof_), nullptr, &(Subdomain<K>::dof_), nullptr, nullptr, nullptr, &i_1, H + 1, &lwork, &info);
       lwork = std::max(Subdomain<K>::dof_ * (Subdomain<K>::dof_ + (Wrapper<K>::is_complex ? 0 : 2)), static_cast<int>(std::max(std::real(H[0]), std::real(H[1]))));
     }
     K *work = new K[lwork]();
     std::copy_n(A, Subdomain<K>::dof_ * Subdomain<K>::dof_, H);
-    Lapack<K>::gehrd(&(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), H + Subdomain<K>::dof_ * Subdomain<K>::dof_, work, &lwork, &info);
+    Lapack<K>::gehrd(&(Subdomain<K>::dof_), &i_1, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), H + Subdomain<K>::dof_ * Subdomain<K>::dof_, work, &lwork, &info);
     K *w      = new K[Wrapper<K>::is_complex ? Subdomain<K>::dof_ : (2 * Subdomain<K>::dof_)];
     K *backup = new K[Subdomain<K>::dof_ * Subdomain<K>::dof_];
     std::copy_n(H, Subdomain<K>::dof_ * Subdomain<K>::dof_, backup);
-    Lapack<K>::hseqr("E", "N", &(Subdomain<K>::dof_), &i__1, &(Subdomain<K>::dof_), backup, &(Subdomain<K>::dof_), w, w + Subdomain<K>::dof_, nullptr, &i__1, work, &lwork, &info);
+    Lapack<K>::hseqr("E", "N", &(Subdomain<K>::dof_), &i_1, &(Subdomain<K>::dof_), backup, &(Subdomain<K>::dof_), w, w + Subdomain<K>::dof_, nullptr, &i_1, work, &lwork, &info);
     delete[] backup;
     std::vector<std::pair<unsigned short, std::complex<underlying_type<K>>>> q;
     q.reserve(Subdomain<K>::dof_);
@@ -141,8 +141,8 @@ public:
     for (unsigned short i = 1; i < mm; ++i) super::ev_[i] = *super::ev_ + i * Subdomain<K>::dof_;
     int *ifailr = new int[mm];
     int  col;
-    Lapack<K>::hsein("R", "Q", "N", select, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), w, w + Subdomain<K>::dof_, nullptr, &i__1, *super::ev_, &(Subdomain<K>::dof_), &mm, &col, work, rwork, nullptr, ifailr, &info);
-    Lapack<K>::mhr("L", "N", &(Subdomain<K>::dof_), &mm, &i__1, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), H + Subdomain<K>::dof_ * Subdomain<K>::dof_, *super::ev_, &(Subdomain<K>::dof_), work, &lwork, &info);
+    Lapack<K>::hsein("R", "Q", "N", select, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), w, w + Subdomain<K>::dof_, nullptr, &i_1, *super::ev_, &(Subdomain<K>::dof_), &mm, &col, work, rwork, nullptr, ifailr, &info);
+    Lapack<K>::mhr("L", "N", &(Subdomain<K>::dof_), &mm, &i_1, &(Subdomain<K>::dof_), H, &(Subdomain<K>::dof_), H + Subdomain<K>::dof_ * Subdomain<K>::dof_, *super::ev_, &(Subdomain<K>::dof_), work, &lwork, &info);
     delete[] ifailr;
     delete[] select;
     delete[] rwork;

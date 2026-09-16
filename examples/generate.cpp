@@ -40,7 +40,7 @@ void assign(std::mt19937 &gen, std::uniform_real_distribution<HPDDM::underlying_
   x = K(dis(gen), dis(gen));
 }
 
-void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::vector<int>> &mapping, int &ndof, HPDDM::MatrixCSR<K> *&Mat, HPDDM::MatrixCSR<K> *&MatNeumann, HPDDM::underlying_type<K> *&d, K *&f, K *&sol)
+void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::vector<int>> &mapping, int &ndofOut, HPDDM::MatrixCSR<K> *&Mat, HPDDM::MatrixCSR<K> *&MatNeumann, HPDDM::underlying_type<K> *&d, K *&f, K *&sol)
 {
   HPDDM::Option &opt     = *HPDDM::Option::get();
   const int      Nx      = opt.app()["Nx"];
@@ -52,14 +52,20 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   while (sizeWorld % xGrid != 0) --xGrid;
   int yGrid = sizeWorld / xGrid;
 
-  int y      = rankWorld / xGrid;
-  int x      = rankWorld - xGrid * y;
-  int iStart = std::max(x * Nx / xGrid - overlap, 0);
-  int iEnd   = std::min((x + 1) * Nx / xGrid + overlap, Nx);
-  int jStart = std::max(y * Ny / yGrid - overlap, 0);
-  int jEnd   = std::min((y + 1) * Ny / yGrid + overlap, Ny);
-  ndof       = (iEnd - iStart) * (jEnd - jStart);
-  int nnz    = ndof * 3 - (iEnd - iStart) - (jEnd - jStart);
+  int       y      = rankWorld / xGrid;
+  int       x      = rankWorld - xGrid * y;
+  int       iStart = std::max(x * Nx / xGrid - overlap, 0);
+  int       iEnd   = std::min((x + 1) * Nx / xGrid + overlap, Nx);
+  int       jStart = std::max(y * Ny / yGrid - overlap, 0);
+  int       jEnd   = std::min((y + 1) * Ny / yGrid + overlap, Ny);
+  const int ndof   = (iEnd - iStart) * (jEnd - jStart);
+  ndofOut          = ndof;
+  if (iEnd <= iStart || jEnd <= jStart || ndof <= 0 || overlap < 0 || ((iStart != 0 || iEnd != Nx) && overlap > (iEnd - iStart) / 2) || ((jStart != 0 || jEnd != Ny) && overlap > (jEnd - jStart) / 2)) { // LCOV_EXCL_START
+    std::cerr << "Invalid grid dimensions or overlap for the subdomain" << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, 1);
+    std::abort();
+  } // LCOV_EXCL_STOP
+  int nnz = ndof * 3 - (iEnd - iStart) - (jEnd - jStart);
   /*# InitEnd #*/
   if (!sym) nnz = 2 * nnz - ndof;
   f                                 = new K[std::max(1, mu) * ndof];
@@ -188,7 +194,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   int           *in = nullptr, *jn = nullptr;
   K             *neumann = nullptr;
   constexpr char N       = HPDDM_NUMBERING;
-  int           *ia      = new int[ndof + 1];
+  int           *ia      = new int[static_cast<std::size_t>(ndof) + 1];
   int           *ja      = new int[nnz];
   K             *a       = new K[nnz];
   ia[0]                  = (N == 'F');
@@ -207,7 +213,8 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
         }
         a[nnz]    = 2 / (dx * dx) + 2 / (dy * dy);
         ja[nnz++] = k + (N == 'F');
-        ia[++k]   = nnz + (N == 'F');
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        ia[++k] = nnz + (N == 'F');
       }
     }
     /*# MatrixEnd #*/
@@ -232,6 +239,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
           a[nnz]    = -1 / (dy * dy);
           ja[nnz++] = k + (Nx / xGrid) + (N == 'F');
         }
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         ia[++k] = nnz + (N == 'F');
       }
     }

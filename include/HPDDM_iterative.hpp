@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include "HPDDM_LAPACK.hpp"
 
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -139,16 +141,16 @@ private:
       conv = mu - d;
       for (unsigned short nu = 0; nu < d; ++nu) {
         int dim = nu + 1;
-        pt[nu]  = Blas<K>::nrm2(&dim, res + nu * ldh, &i__1);
+        pt[nu]  = Blas<K>::nrm2(&dim, res + nu * ldh, &i_1);
         if (((tol > underlying_type<K>() && pt[nu] / norm[nu] <= tol) || (tol < underlying_type<K>() && pt[nu] <= -tol))) ++conv;
       }
     } else {
       std::fill_n(work, d, K());
       for (unsigned short nu = 0; nu < t; ++nu) {
         int dim = nu + 1;
-        Blas<K>::axpy(&dim, &(Wrapper<K>::d__1), res + nu * ldh, &i__1, work, &i__1);
+        Blas<K>::axpy(&dim, &(Wrapper<K>::d_1), res + nu * ldh, &i_1, work, &i_1);
       }
-      *pt = Blas<K>::nrm2(&d, work, &i__1);
+      *pt = Blas<K>::nrm2(&d, work, &i_1);
       if (((tol > underlying_type<K>() && *pt / *norm <= tol) || (tol < underlying_type<K>() && *pt <= -tol))) ++conv;
     }
 #if !HPDDM_PETSC || defined(PETSCSUB) || defined(MU_SLEPC)
@@ -214,7 +216,7 @@ private:
     if (T == 4 || T == 5) {
       *i    = std::min(m[0] - 1, opt.val<int>(prefix + "recycle", 0));
       id[3] = opt.val<char>(prefix + "recycle_target", HPDDM_RECYCLE_TARGET_SM);
-      id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), (unsigned short)(2)));
+      id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) + 4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
     }
     if (std::abs(d[T == 1 || T == 5 || T == 6]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
       if (id[0])
@@ -304,31 +306,31 @@ private:
           for (unsigned short nu = 0; nu < mu; ++nu)
             if (hasConverged[nu]) {
               int dim = std::abs(hasConverged[nu]);
-              Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__1), x + nu * n, &i__1);
+              Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d_1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d_1), x + nu * n, &i_1);
             }
         } else {
           for (unsigned short nu = 0; nu < mu; ++nu) {
             int dim = std::abs(hasConverged[nu]);
-            Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d__1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d__0), work + nu * n, &i__1);
+            Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d_1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d_0), work + nu * n, &i_1);
           }
           if (variant == HPDDM_VARIANT_RIGHT) HPDDM_CALL(A.template apply<excluded>(work, correction, mu));
           for (unsigned short nu = 0; nu < mu; ++nu)
-            if (hasConverged[nu]) Blas<K>::axpy(&n, &(Wrapper<K>::d__1), correction + nu * n, &i__1, x + nu * n, &i__1);
+            if (hasConverged[nu]) Blas<K>::axpy(&n, &(Wrapper<K>::d_1), correction + nu * n, &i_1, x + nu * n, &i_1);
         }
       } else {
         int dim = *hasConverged;
         if (deflated == mu) {
-          if (variant == HPDDM_VARIANT_LEFT) Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__1), x, &n);
+          if (variant == HPDDM_VARIANT_LEFT) Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d_1), *v, &n, s, &ldh, &(Wrapper<K>::d_1), x, &n);
           else {
-            Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
+            Blas<K>::gemm("N", "N", &n, &mu, &dim, &(Wrapper<K>::d_1), *v, &n, s, &ldh, &(Wrapper<K>::d_0), work, &n);
             if (variant == HPDDM_VARIANT_RIGHT) HPDDM_CALL(A.template apply<excluded>(work, correction, mu));
-            Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
+            Blas<K>::axpy(&(dim = mu * n), &(Wrapper<K>::d_1), correction, &i_1, x, &i_1);
           }
         } else {
-          Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d__1), *v, &n, s, &ldh, &(Wrapper<K>::d__0), work, &n);
+          Blas<K>::gemm("N", "N", &n, &deflated, &dim, &(Wrapper<K>::d_1), *v, &n, s, &ldh, &(Wrapper<K>::d_0), work, &n);
           if (variant == HPDDM_VARIANT_RIGHT) HPDDM_CALL(A.template apply<excluded>(work, correction, deflated));
-          Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d__1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d__1), x + deflated * n, &n);
-          Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d__1), correction, &i__1, x, &i__1);
+          Blas<K>::gemm("N", "N", &n, &(dim = mu - deflated), &deflated, &(Wrapper<K>::d_1), correction, &n, s + deflated * ldh, &ldh, &(Wrapper<K>::d_1), x + deflated * n, &n);
+          Blas<K>::axpy(&(dim = deflated * n), &(Wrapper<K>::d_1), correction, &i_1, x, &i_1);
         }
       }
     }
@@ -356,7 +358,7 @@ private:
             for (unsigned short nu = 0; nu < mu; ++nu) {
               if (std::abs(hasConverged[nu])) {
                 K alpha = norm[nu];
-                Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, pt + nu * n, &i__1, &(Wrapper<K>::d__0), s + nu, &mu);
+                Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, pt + nu * n, &i_1, &(Wrapper<K>::d_0), s + nu, &mu);
               }
             }
           } else std::fill_n(s, shift * mu, K());
@@ -366,7 +368,7 @@ private:
           for (unsigned short nu = 0; nu < mu; ++nu) {
             if (std::abs(hasConverged[nu])) {
               int diff = std::abs(hasConverged[nu]) - shift;
-              Blas<K>::gemv("N", &shift, &diff, &(Wrapper<K>::d__2), h[shift] + nu * dim, &ldh, s + shift * mu + nu, &mu, &(Wrapper<K>::d__1), s + nu, &mu);
+              Blas<K>::gemv("N", &shift, &diff, &(Wrapper<K>::d_2), h[shift] + nu * dim, &ldh, s + shift * mu + nu, &mu, &(Wrapper<K>::d_1), s + nu, &mu);
             }
           }
       } else {
@@ -375,17 +377,17 @@ private:
         if (!same) {
           if (!excluded && n) {
             std::copy_n(v[shift], deflated * n, work);
-            Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d__1), reinterpret_cast<K *>(norm), &ldh, work, &n);
+            Blas<K>::trmm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d_1), reinterpret_cast<K *>(norm), &ldh, work, &n);
             Wrapper<K>::diag(n, reinterpret_cast<const underlying_type<K> *>(A.getScaling()), work, mu);
-            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d__1), C, &n, work, &n, &(Wrapper<K>::d__0), s, &ldh);
+            Blas<K>::gemm(&(Wrapper<K>::transc), "N", &bK, &deflated, &n, &(Wrapper<K>::d_1), C, &n, work, &n, &(Wrapper<K>::d_0), s, &ldh);
             for (unsigned short i = 0; i < deflated; ++i) std::copy_n(s + i * ldh, bK, work + i * bK);
           } else std::fill_n(work, bK * deflated, K());
           ignore(MPI_Allreduce(MPI_IN_PLACE, work, bK * deflated, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
           for (unsigned short i = 0; i < deflated; ++i) std::copy_n(work + i * bK, bK, s + i * ldh);
-          beta = Wrapper<K>::d__1;
+          beta = Wrapper<K>::d_1;
         }
         int diff = *hasConverged - deflated * shift;
-        Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d__2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
+        Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d_2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
       }
       std::copy_n(U, shift * ldv, v[dim * (variant == HPDDM_VARIANT_FLEXIBLE)]);
       return addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work, deflated);
@@ -451,12 +453,12 @@ private:
           for (int i = 0; i < n; ++i) norm[nu / k] += d[i] * HPDDM::norm(v[i + nu * n]);
         }
       else
-        for (unsigned short nu = 0; nu < mu; ++nu) norm[nu / k] = HPDDM::real(Blas<K>::dot(&n, v + nu * n, &i__1, v + nu * n, &i__1));
+        for (unsigned short nu = 0; nu < mu; ++nu) norm[nu / k] = HPDDM::real(Blas<K>::dot(&n, v + nu * n, &i_1, v + nu * n, &i_1));
     } else {
       if (k <= 1) work = const_cast<K *>(b);
       else {
         std::fill_n(work, n, K());
-        for (unsigned short nu = 0; nu < k; ++nu) Blas<K>::axpy(&n, &(Wrapper<K>::d__1), b + nu * n, &i__1, work, &i__1);
+        for (unsigned short nu = 0; nu < k; ++nu) Blas<K>::axpy(&n, &(Wrapper<K>::d_1), b + nu * n, &i_1, work, &i_1);
       }
       const std::unordered_map<unsigned int, typename Operator::scalar_type> map = A.boundaryConditions();
       for (unsigned short nu = 0; nu < mu / k; ++nu) {
@@ -503,20 +505,20 @@ private:
               for (int j = 0; j < n; ++j) H[i * mu + nu] += d[j] * Wrapper<K>::conj(B[(i * mu + nu) * n + j]) * v[nu * n + j];
             }
           else
-            for (unsigned short nu = 0; nu < mu; ++nu) H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
+            for (unsigned short nu = 0; nu < mu; ++nu) H[i * mu + nu] = Blas<K>::dot(&n, B + (i * mu + nu) * n, &i_1, v + nu * n, &i_1);
           ignore(MPI_Allreduce(MPI_IN_PLACE, H + i * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
           for (unsigned short nu = 0; nu < mu; ++nu) {
             K alpha = -H[i * mu + nu];
-            Blas<K>::axpy(&n, &alpha, B + (i * mu + nu) * n, &i__1, v + nu * n, &i__1);
+            Blas<K>::axpy(&n, &alpha, B + (i * mu + nu) * n, &i_1, v + nu * n, &i_1);
           }
         }
       } else {
         int      ldb = mu * n;
         K *const pt  = d ? work : v;
         if (d) Wrapper<K>::diag(n, d, v, work, mu);
-        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d__1), B + nu * n, &ldb, pt + nu * n, &i__1, &(Wrapper<K>::d__0), H + nu, &mu);
+        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::gemv(&(Wrapper<K>::transc), &n, &k, &(Wrapper<K>::d_1), B + nu * n, &ldb, pt + nu * n, &i_1, &(Wrapper<K>::d_0), H + nu, &mu);
         ignore(MPI_Allreduce(MPI_IN_PLACE, H, k * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
-        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d__2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d__1), v + nu * n, &i__1);
+        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::gemv("N", &n, &k, &(Wrapper<K>::d_2), B + nu * n, &ldb, H + nu, &mu, &(Wrapper<K>::d_1), v + nu * n, &i_1);
       }
     }
   }
@@ -539,17 +541,17 @@ private:
       if (id == 1) {
         for (unsigned short i = 0; i < k; ++i) {
           if (d) Wrapper<K>::diag(n, d, v, pt, mu);
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &mu, &mu, &n, &(Wrapper<K>::d__1), B + i * mu * n, &n, pt, &n, &(Wrapper<K>::d__0), work, &mu);
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &mu, &mu, &n, &(Wrapper<K>::d_1), B + i * mu * n, &n, pt, &n, &(Wrapper<K>::d_0), work, &mu);
           ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
-          Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d__2), B + i * mu * n, &n, work, &mu, &(Wrapper<K>::d__1), v, &n);
+          Blas<K>::gemm("N", "N", &n, &mu, &mu, &(Wrapper<K>::d_2), B + i * mu * n, &n, work, &mu, &(Wrapper<K>::d_1), v, &n);
           Wrapper<K>::template omatcopy<'N'>(mu, mu, work, mu, H + mu * i, ldh);
         }
       } else {
         if (d) Wrapper<K>::diag(n, d, v, pt, mu);
         const int tmp = k * mu;
-        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &tmp, &mu, &n, &(Wrapper<K>::d__1), B, &n, pt, &n, &(Wrapper<K>::d__0), work, &tmp);
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &tmp, &mu, &n, &(Wrapper<K>::d_1), B, &n, pt, &n, &(Wrapper<K>::d_0), work, &tmp);
         ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * tmp, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
-        Blas<K>::gemm("N", "N", &n, &mu, &tmp, &(Wrapper<K>::d__2), B, &n, work, &tmp, &(Wrapper<K>::d__1), v, &n);
+        Blas<K>::gemm("N", "N", &n, &mu, &tmp, &(Wrapper<K>::d_2), B, &n, work, &tmp, &(Wrapper<K>::d_1), v, &n);
         Wrapper<K>::template omatcopy<'N'>(mu, tmp, work, tmp, H, ldh);
       }
     }
@@ -565,13 +567,13 @@ private:
     else if (mu > 1) std::cout << "WARNING -- not implemented" << std::endl;
     if (!excluded && n)
       for (unsigned short nu = 0; nu < mu; ++nu) {
-        if (!d) Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d__1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d__0), work + nu * (k * (k + 1)) / 2, &k);
+        if (!d) Blas<K>::herk("U", "C", &k, &n, &(Wrapper<underlying_type<K>>::d_1), V + nu * n, &ldv, &(Wrapper<underlying_type<K>>::d_0), work + nu * (k * (k + 1)) / 2, &k);
         else {
           if (mu == 1) Wrapper<K>::diag(n, d, V, pt, k);
           else {
             for (unsigned short xi = 0; xi < k; ++xi) Wrapper<K>::diag(n, d, V + nu * n + xi * ldv, pt + xi * n);
           }
-          Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &k, &n, &(Wrapper<K>::d__1), V + nu * n, &ldv, pt, &n, &(Wrapper<K>::d__0), work + nu * (k * (k + 1)) / 2, &k);
+          Blas<K>::gemmt("U", &(Wrapper<K>::transc), "N", &k, &n, &(Wrapper<K>::d_1), V + nu * n, &ldv, pt, &n, &(Wrapper<K>::d_0), work + nu * (k * (k + 1)) / 2, &k);
         }
         for (unsigned short xi = 1; xi < k; ++xi) std::copy_n(work + nu * (k * (k + 1)) / 2 + xi * k, xi + 1, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2);
       }
@@ -581,24 +583,27 @@ private:
       for (unsigned short xi = k; xi > 0; --xi) std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2, R + nu * k * k + xi * ldr - (ldr - xi));
   }
   template <bool excluded, class K>
-  static void RRQR(const char id, const int n, const int k, K *const Q, K *const R, const underlying_type<K> tol, int &rank, int *const piv, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
+  static bool RRQR(const char id, const int n, const int k, K *const Q, K *const R, const underlying_type<K> tol, int &rank, int *const piv, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
   {
-    if (tol < underlying_type<K>(-0.9)) rank = QR<excluded>(id, n, k, Q, R, k, d, work, comm);
-    else {
+    if (tol < underlying_type<K>(-0.9)) {
+      rank = QR<excluded>(id, n, k, Q, R, k, d, work, comm);
+      return false;
+    } else {
       VR<excluded>(n, k, 1, Q, R, k, d, work, comm);
       int info;
-      Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d__0), reinterpret_cast<underlying_type<K> *>(work), &info);
+      Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d_0), reinterpret_cast<underlying_type<K> *>(work), &info);
       while (rank > 1 && HPDDM::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol) --rank;
-      Lapack<K>::lapmt(&i__1, &n, &k, Q, &n, piv);
-      if (!excluded && n) Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d__1), R, &k, Q, &n);
+      Lapack<K>::lapmt(&i_1, &n, &k, Q, &n, piv);
+      if (!excluded && n) Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d_1), R, &k, Q, &n);
+      return true;
     }
   }
   template <char T, class K>
   static void diagonal(const char verbosity, const K *const R, const int k, const underlying_type<K> tol = -1.0, const int *const piv = nullptr)
   {
-    if (verbosity > 3) {
+    if (verbosity > 3 && k > 0) {
       constexpr auto method = (T == 3 ? "BCG" : (T == 5 ? "BGCRODR" : (T == 6 ? "BFBCG" : "BGMRES")));
-      if (tol < -0.9) {
+      if (tol < underlying_type<K>(-0.9)) {
         std::cout << method << " diag(R), QR = block residual: ";
         std::cout << *R;
         if (k > 1) {
@@ -632,7 +637,7 @@ private:
         if (info > 0) rank = info - 1;
       }
       if (!excluded && n && update)
-        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d__1), R + nu * k * ldr, &ldr, Q + nu * n, &ldv);
+        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d_1), R + nu * k * ldr, &ldr, Q + nu * n, &ldv);
     } else {
       if (!work) work = R;
       K *const pt = (d || work == R) ? work + k * k * mu : work;
@@ -644,7 +649,7 @@ private:
             for (int j = 0; j < n; ++j) work[xi * (k + 1) * mu + nu] += d[j] * HPDDM::norm(Q[xi * ldv + nu * n + j]);
           }
         else
-          for (unsigned short nu = 0; nu < mu; ++nu) work[xi * (k + 1) * mu + nu] = Blas<K>::dot(&n, Q + xi * ldv + nu * n, &i__1, Q + xi * ldv + nu * n, &i__1);
+          for (unsigned short nu = 0; nu < mu; ++nu) work[xi * (k + 1) * mu + nu] = Blas<K>::dot(&n, Q + xi * ldv + nu * n, &i_1, Q + xi * ldv + nu * n, &i_1);
         ignore(MPI_Allreduce(MPI_IN_PLACE, work + xi * (k + 1) * mu, mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         for (unsigned short nu = 0; nu < mu; ++nu) {
           work[xi * (k + 1) * mu + nu] = HPDDM::sqrt(work[xi * (k + 1) * mu + nu]);
@@ -653,7 +658,7 @@ private:
         if (rank != xi)
           for (unsigned short nu = 0; nu < mu; ++nu) {
             K alpha = K(1.0) / work[xi * (k + 1) * mu + nu];
-            Blas<K>::scal(&n, &alpha, Q + xi * ldv + nu * n, &i__1);
+            Blas<K>::scal(&n, &alpha, Q + xi * ldv + nu * n, &i_1);
           }
       }
       if (work != R) {
@@ -680,7 +685,7 @@ private:
         for (int j = 0; j < n; ++j) sn[i * mu + nu] += d[j] * HPDDM::norm(v[i + 1][nu * n + j]);
       }
     else
-      for (unsigned short nu = 0; nu < mu; ++nu) sn[i * mu + nu] = HPDDM::real(Blas<K>::dot(&n, v[i + 1] + nu * n, &i__1, v[i + 1] + nu * n, &i__1));
+      for (unsigned short nu = 0; nu < mu; ++nu) sn[i * mu + nu] = HPDDM::real(Blas<K>::dot(&n, v[i + 1] + nu * n, &i_1, v[i + 1] + nu * n, &i_1));
     ignore(MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     for (unsigned short nu = 0; nu < mu; ++nu) {
       H[i][(i + 1) * mu + nu] = HPDDM::sqrt(sn[i * mu + nu]);
@@ -780,10 +785,11 @@ private:
     } else {
       int rank;
       MPI_Comm_rank(comm, &rank);
-      k                                = std::min(k, static_cast<unsigned short>(size));
-      unsigned int         *local      = new unsigned int[2 * k];
-      unsigned int         *global     = local + k;
-      const int             n          = A.getDof();
+      k                    = std::min(k, static_cast<unsigned short>(size));
+      unsigned int *local  = new unsigned int[2 * k];
+      unsigned int *global = local + k;
+      const int     n      = A.getDof();
+      assert(n >= 0);
       unsigned short        j          = std::min(k - 1, rank / (size / k));
       std::function<void()> check_size = [&] {
         std::fill_n(local, k, 0U);
@@ -846,7 +852,7 @@ private:
     if (sb != b) {
       const int n = A.getDof();
       std::fill_n(x, n, K());
-      for (unsigned short j = 0; j < k; ++j) Blas<K>::axpy(&n, &(Wrapper<K>::d__1), sx + j * n, &i__1, x, &i__1);
+      for (unsigned short j = 0; j < k; ++j) Blas<K>::axpy(&n, &(Wrapper<K>::d_1), sx + j * n, &i_1, x, &i_1);
       delete[] sb;
       delete[] sx;
     }
@@ -855,7 +861,8 @@ private:
   template <class Operator = void, class K = double>
   static void printResidual(const Operator &A, const K *const b, const K *const x, const unsigned short mu, const unsigned short norm, const MPI_Comm &comm)
   {
-    HPDDM::underlying_type<K> *storage = new HPDDM::underlying_type<K>[2 * mu]();
+    if (!mu) return;
+    HPDDM::underlying_type<K> *storage = new HPDDM::underlying_type<K>[2 * static_cast<std::size_t>(mu)];
     computeResidual(A, b, x, storage, mu, norm);
     if (!hpddm_method_id<Operator>::value) {
       if (norm == HPDDM_COMPUTE_RESIDUAL_L2 || norm == HPDDM_COMPUTE_RESIDUAL_L1) {
@@ -886,12 +893,14 @@ private:
   template <class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value == 0>::type * = nullptr>
   static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu, const unsigned short norm)
   {
-    int dim = mu * A.getDof();
-    K  *tmp = new K[dim];
+    const int n   = A.getDof();
+    int       dim = mu * n;
+    K        *tmp = new K[static_cast<std::size_t>(mu) * n];
     A.GMV(x, tmp, mu);
-    Blas<K>::axpy(&dim, &(Wrapper<K>::d__2), b, &i__1, tmp, &i__1);
+    Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), b, &i_1, tmp, &i_1);
+    std::fill_n(storage, 2 * mu, underlying_type<K>());
     if (norm == HPDDM_COMPUTE_RESIDUAL_L1) {
-      for (unsigned int i = 0, n = A.getDof(); i < n; ++i) {
+      for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
           storage[2 * nu + 1] += std::abs(tmp[nu * n + i]);
           if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] += std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
@@ -899,7 +908,7 @@ private:
         }
       }
     } else if (norm == HPDDM_COMPUTE_RESIDUAL_LINFTY) {
-      for (unsigned int i = 0, n = A.getDof(); i < n; ++i) {
+      for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
           storage[2 * nu + 1] = std::max(std::abs(tmp[nu * n + i]), storage[2 * nu + 1]);
           if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] = std::max(std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
@@ -907,7 +916,7 @@ private:
         }
       }
     } else {
-      for (unsigned int i = 0, n = A.getDof(); i < n; ++i) {
+      for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
           storage[2 * nu + 1] += std::norm(tmp[nu * n + i]);
           if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] += std::norm(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
@@ -979,7 +988,7 @@ public:
       factor = d;
     }
     const int      n        = excluded ? 0 : mu * A.getDof();
-    K             *work     = new K[2 * n];
+    K             *work     = new K[2 * static_cast<std::size_t>(n)];
     K             *r        = work + n;
     bool           allocate = A.template start<excluded>(b, x, mu);
     unsigned short j        = 1;
@@ -987,7 +996,7 @@ public:
       if (!excluded) HPDDM_CALL(A.GMV(x, r, mu));
       Blas<K>::axpby(n, 1.0, b, 1, -1.0, r, 1);
       HPDDM_CALL(A.template apply<excluded>(r, work, mu));
-      Blas<K>::axpy(&n, &factor, work, &i__1, x, &i__1);
+      Blas<K>::axpy(&n, &factor, work, &i_1, x, &i_1);
     }
     delete[] work;
     A.end(allocate);
@@ -1031,9 +1040,9 @@ public:
   #endif
   std::ios_base::fmtflags ff(std::cout.flags());
   std::cout << std::scientific;
-  const std::string prefix = A.prefix();
   #if !defined(PETSC_PCHPDDM_MAXLEVELS)
-  Option &opt = *Option::get();
+  const std::string prefix = A.prefix();
+  Option           &opt    = *Option::get();
     #if HPDDM_MIXED_PRECISION
   opt[prefix + "variant"] = HPDDM_VARIANT_FLEXIBLE;
     #endif

@@ -116,13 +116,13 @@ public:
           std::copy_n(b ? b : super::structure_ + super::bi_->m_, Subdomain<K>::dof_, x);
           Wrapper<K>::diag(Subdomain<K>::dof_, m_, x);
           if (super::schur_) {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), x, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), x, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
             super::co_->template callSolver<excluded>(super::uc_);
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i__1, &(Wrapper<K>::d__0), x, &i__1);
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1, &(Wrapper<K>::d_0), x, &i_1);
           } else {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), x, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), x, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
             super::co_->template callSolver<excluded>(super::uc_);
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i__1, &(Wrapper<K>::d__0), x, &i__1);
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i_1, &(Wrapper<K>::d_0), x, &i_1);
           }
           Wrapper<K>::diag(Subdomain<K>::dof_, m_, x);
         } else {
@@ -132,7 +132,7 @@ public:
         Subdomain<K>::exchange(x);
         super::applyLocalSchurComplement(x, r);
         Subdomain<K>::exchange(r);
-        Blas<K>::axpby(Subdomain<K>::dof_, Wrapper<K>::d__1, b ? b : super::structure_ + super::bi_->m_, 1, Wrapper<K>::d__2, r, 1);
+        Blas<K>::axpby(Subdomain<K>::dof_, Wrapper<K>::d_1, b ? b : super::structure_ + super::bi_->m_, 1, Wrapper<K>::d_2, r, 1);
       } else super::co_->template callSolver<excluded>(super::uc_);
     } else if (!excluded) {
       super::condensateEffort(f, r);
@@ -175,7 +175,7 @@ public:
       if (super::deficiency_) static_cast<QR<K> *>(super::pinv_)->solve(super::work_ + super::bi_->m_);
       else {
         int info;
-        Lapack<K>::potrs("L", &(Subdomain<K>::dof_), &i__1, static_cast<const K *>(super::pinv_), &(Subdomain<K>::dof_), super::work_ + super::bi_->m_, &(Subdomain<K>::dof_), &info);
+        Lapack<K>::potrs("L", &(Subdomain<K>::dof_), &i_1, static_cast<const K *>(super::pinv_), &(Subdomain<K>::dof_), super::work_ + super::bi_->m_, &(Subdomain<K>::dof_), &info);
       }
     }
     if (out) {
@@ -227,13 +227,13 @@ public:
           if (trans == 'N') Wrapper<K>::diag(Subdomain<K>::dof_, m_, super::structure_ + super::bi_->m_);
           else Wrapper<K>::diag(Subdomain<K>::dof_, m_, in, super::structure_ + super::bi_->m_);
           if (super::schur_) {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::structure_ + super::bi_->m_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::structure_ + super::bi_->m_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
             super::co_->template callSolver<excluded>(super::uc_);
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i__1, &(Wrapper<K>::d__0), super::structure_ + super::bi_->m_, &i__1);
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1, &(Wrapper<K>::d_0), super::structure_ + super::bi_->m_, &i_1);
           } else {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::structure_ + super::bi_->m_, &i__1, &(Wrapper<K>::d__0), super::uc_, &i__1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::structure_ + super::bi_->m_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
             super::co_->template callSolver<excluded>(super::uc_);
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d__1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i__1, &(Wrapper<K>::d__0), super::structure_ + super::bi_->m_, &i__1);
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i_1, &(Wrapper<K>::d_0), super::structure_ + super::bi_->m_, &i_1);
           }
         } else {
           super::co_->template callSolver<excluded>(super::uc_);
@@ -244,7 +244,7 @@ public:
         if (trans == 'T') apply(super::structure_ + super::bi_->m_);
         if (out)
           for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) out[i] = in[i] - *(super::structure_ + super::bi_->m_ + i);
-        else Blas<K>::axpy(&(Subdomain<K>::dof_), &(Wrapper<K>::d__2), super::structure_ + super::bi_->m_, &i__1, in, &i__1);
+        else Blas<K>::axpy(&(Subdomain<K>::dof_), &(Wrapper<K>::d_2), super::structure_ + super::bi_->m_, &i_1, in, &i_1);
       } else super::co_->template callSolver<excluded>(super::uc_);
     } else if (!excluded && out) std::copy_n(in, Subdomain<K>::dof_, out);
   }
@@ -279,7 +279,7 @@ public:
   {
     if (!excluded && super::bi_->m_) {
       std::copy_n(f, super::bi_->m_, x);
-      Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &(super::bi_->m_), &(Wrapper<K>::d__2), false, super::bi_->a_, super::bi_->ia_, super::bi_->ja_, x + super::bi_->m_, &(Wrapper<K>::d__1), x);
+      Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &(super::bi_->m_), &(Wrapper<K>::d_2), false, super::bi_->a_, super::bi_->ia_, super::bi_->ja_, x + super::bi_->m_, &(Wrapper<K>::d_1), x);
       if (!super::schur_) super::s_.solve(x);
       else {
         std::copy_n(x, super::bi_->m_, super::structure_);
@@ -307,7 +307,7 @@ public:
   {
     if (!excluded) {
       Wrapper<K>::diag(Subdomain<K>::dof_, m_, a, super::work_);
-      *val = std::real(Blas<K>::dot(&(Subdomain<K>::dof_), super::work_, &i__1, b, &i__1));
+      *val = std::real(Blas<K>::dot(&(Subdomain<K>::dof_), super::work_, &i_1, b, &i_1));
     } else *val = 0.0;
     MPI_Allreduce(MPI_IN_PLACE, val, 1, Wrapper<K>::mpi_underlying_type(), MPI_SUM, comm);
   }
