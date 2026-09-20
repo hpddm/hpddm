@@ -149,6 +149,7 @@ jobs:
           echo -e "MPICXX ?= mpicxx.openmpi -fprofile-arcs -ftest-coverage\nMPICC ?= mpicc.openmpi -fprofile-arcs -ftest-coverage\nMPIF90 ?= mpif90.openmpi -fprofile-arcs -ftest-coverage" | cat - Make.inc/Makefile.Actions > Makefile.inc
         fi
     - name: Fetch PETSc and data files
+      id: datafiles
       run: |
         cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc || exit 1
         OUTPUT=$(for SRC in ksp/impls/hpddm/hpddm.cxx ksp/impls/hpddm/cuda/hpddm.cu pc/impls/hpddm/pchpddm.cxx;
@@ -156,7 +157,15 @@ jobs:
           diff --suppress-common-lines -y -W 900 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
         done)
         if [ ! -z "${OUTPUT}" ]; then printf '%s\n' "${OUTPUT}"; exit 1; fi
-        wget -nv https://joliv.et/petsc_datafiles.tar.xz && tar xJf petsc_datafiles.tar.xz || exit 1
+        if curl --fail --location --show-error --silent --connect-timeout 15 --max-time 120 \
+             --retry 1 --retry-all-errors --retry-max-time 300 --output petsc_datafiles.tar.xz \
+             https://joliv.et/petsc_datafiles.tar.xz; then
+          tar xJf petsc_datafiles.tar.xz
+          echo "source=archive" >> "$GITHUB_OUTPUT"
+        else
+          git clone --depth=1 https://gitlab.com/petsc/datafiles.git datafiles || exit 1
+          echo "source=git" >> "$GITHUB_OUTPUT"
+        fi
         if [ "${{ steps.cache-dependencies.outputs.cache-hit }}" = "true" ]; then
           cp -r ~/.cache/arch-packages .
         else
@@ -215,7 +224,9 @@ jobs:
         cd ../petsc
         export REPOSITORY_NAME=${{ github.event.repository.name }}
         bash ../${REPOSITORY_NAME}/.github/workflows/aldaas2021robust.sh
-        bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
+        if [ "${{ steps.datafiles.outputs.source }}" = "archive" ]; then
+          bash ../${REPOSITORY_NAME}/.github/workflows/algebraic.sh
+        fi
         export PETSC_DIR=`pwd`
         export PETSC_ARCH=arch-ci
         export DATAFILESPATH=`pwd`/datafiles
