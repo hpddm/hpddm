@@ -5,10 +5,11 @@ on:
   pull_request:
     branches: [ main ]
 env:
+  UBUNTU_RUNNER: &ubuntu-runner ubuntu-24.04
   OMP_NUM_THREADS: 1
 jobs:
   variables:
-    runs-on: ubuntu-24.04
+    runs-on: *ubuntu-runner
     outputs:
       petsc-branch: ${{ steps.petsc-branch.outputs.var }}
       hpddm-branch: ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
@@ -50,15 +51,15 @@ jobs:
           git fetch $owner ${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }}
           worker=`git show -s -b $owner/${{ steps.hpddm-branch-push.outputs.var }}${{ steps.hpddm-branch-pr.outputs.var }} --format=%B | grep '\[runs-on: ' | sed 's/\[runs-on: \(.*\)\]/\1/g'`
           if [ "$worker" = "" ]; then
-            worker=ubuntu-24.04
+            worker="$UBUNTU_RUNNER"
           fi
-          matrix=$(jq --arg worker "$worker" 'map(. | select(.runs_on == $worker))' <<< '[ { "runs_on":"ubuntu-24.04" }, { "runs_on":"self-hosted" } ]')
-          echo matrix={\"include\":$(echo $matrix)}\" >> $GITHUB_OUTPUT
+          matrix=$(jq -cn --arg worker "$worker" --arg ubuntu "$UBUNTU_RUNNER" '{include: ([{runs_on: $ubuntu}, {runs_on: "self-hosted"}] | map(select(.runs_on == $worker)))}')
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
   main:
     strategy:
       matrix:
         compiler: [ gcc, clang ]
-    runs-on: ubuntu-24.04
+    runs-on: *ubuntu-runner
     needs:
       - variables
     steps:
@@ -321,7 +322,7 @@ jobs:
         git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} https://gitlab.com/petsc/petsc.git
         git clone --depth=1 -b ${{ needs.variables.outputs.hpddm-branch }} git@github.com:${{ github.event.pull_request.head.repo.full_name || github.repository }}
         wget -nv https://joliv.et/petsc_datafiles.tar.xz && tar xJf petsc_datafiles.tar.xz || exit 1
-      if: matrix.runs_on != 'ubuntu-24.04'
+      if: matrix.runs_on != env.UBUNTU_RUNNER
     - name: Build and test with PETSc and SLEPc
       env:
         HOSTNAME: ${{ secrets.HOSTNAME }}
@@ -372,7 +373,7 @@ jobs:
           find .. -name '*.gcda' -delete
           cd -
         done
-      if: matrix.runs_on != 'ubuntu-24.04' && env.HOSTNAME != ''
+      if: matrix.runs_on != env.UBUNTU_RUNNER && env.HOSTNAME != ''
     - uses: actions/upload-artifact@v7
       env:
         HOSTNAME: ${{ secrets.HOSTNAME }}
@@ -381,9 +382,9 @@ jobs:
         path: |
           coverage_nvcc.info
           coverage_nvcc_complex.info
-      if: matrix.runs_on != 'ubuntu-24.04' && env.HOSTNAME != ''
+      if: matrix.runs_on != env.UBUNTU_RUNNER && env.HOSTNAME != ''
   post-main:
-    runs-on: ubuntu-24.04
+    runs-on: *ubuntu-runner
     if: ${{ failure() }}
     needs:
       - main
@@ -397,7 +398,7 @@ jobs:
               run_id: context.runId
             })
   post-nvcc:
-    runs-on: ubuntu-24.04
+    runs-on: *ubuntu-runner
     if: ${{ failure() }}
     needs:
       - nvcc
@@ -411,7 +412,7 @@ jobs:
               run_id: context.runId
             })
   coverage:
-    runs-on: ubuntu-24.04
+    runs-on: *ubuntu-runner
     if: ${{ success() }}
     needs: [ main, nvcc ]
     steps:
