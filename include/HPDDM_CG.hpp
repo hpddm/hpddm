@@ -520,7 +520,7 @@ inline int IterativeMethod::PCG(const Operator &A, const K *const f, K *const x,
   A.allocateSingle(pCurr);
   p.emplace_back(pCurr);
 
-  K                 *alpha  = new K[excluded ? std::max((unsigned short)(2), it) : 2 * it];
+  K                 *alpha  = new K[excluded ? std::max(static_cast<unsigned short>(2), it) : 2 * it];
   underlying_type<K> resRel = std::numeric_limits<underlying_type<K>>::max();
   unsigned short     i      = 1;
   while (i <= it) {

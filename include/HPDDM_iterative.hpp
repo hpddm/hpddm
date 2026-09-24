@@ -226,7 +226,7 @@ private:
       *i    = std::min(m[0] - 1, opt.val<int>(prefix + "recycle", 0));
       id[3] = opt.val<char>(prefix + "recycle_target", HPDDM_RECYCLE_TARGET_SM);
       id[4] = opt.val<char>(prefix + "recycle_strategy", HPDDM_RECYCLE_STRATEGY_A) +
-              4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), (unsigned short)(2)));
+              4 * (std::min(opt.val<unsigned short>(prefix + "recycle_same_system"), static_cast<unsigned short>(2)));
     }
     if (std::abs(d[T == 1 || T == 5 || T == 6]) < std::numeric_limits<underlying_type<K>>::epsilon()) {
       if (id[0])
