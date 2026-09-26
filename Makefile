@@ -308,21 +308,21 @@ test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py:
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity 4 -hpddm_help
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity -generate_random_rhs 8
 	${MPIRUN} 1 $(subst test_,${SEP} ${TOP_DIR}/,$@) -symmetric_csr -hpddm_verbosity -generate_random_rhs 8
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity=1 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_orthogonalization=mgs
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity=1 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_orthogonalization=mgs -overlap 3
 	@if test ! $(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS}); then \
 		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_verbosity=1 --hpddm_gmres_restart=25 -hpddm_max_it 80 -generate_random_rhs 4 -hpddm_schwarz_coarse_correction deflated"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
 ifdef EIGENSOLVER
-	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20 -hpddm_dump_eigenvectors ${TRASH_DIR}/ev
+	${MPIRUN} 2 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=2 -hpddm_verbosity=2 -symmetric_csr --hpddm_gmres_restart    20 -hpddm_level_2_p 4 -hpddm_dump_eigenvectors ${TRASH_DIR}/ev
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=4 --hpddm_gmres_restart=15 -hpddm_max_it 80 -hpddm_dump_matrices=${TRASH_DIR}/output -hpddm_level_2_push_prefix -hpddm_dump_matrix=${TRASH_DIR}/co -hpddm_assembly_hierarchy 2 -hpddm_pop_prefix
 	@if [ -f ${LIB_DIR}/libhpddm_python.${EXTENSION_LIB} ]; then \
 		CMD="${MPIRUN} 1 examples/solver.py ${TRASH_DIR}/output_1_4.txt"; \
 		echo "$${CMD}"; \
 		$${CMD} || exit; \
 	fi
-	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -hpddm_level_2_distribution sol -hpddm_orthogonalization   mgs -hpddm_gmres_restart=25 -hpddm_level_2_hypre_solver=amg
+	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -hpddm_level_2_topology 2 -hpddm_level_2_distribution sol -hpddm_orthogonalization   mgs -hpddm_gmres_restart=25 -hpddm_level_2_hypre_solver=amg
 	${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_schwarz_coarse_correction deflated -hpddm_geneo_nu=10 -hpddm_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_level_2_p 2 -hpddm_gmres_restart=25
 	@if [ "$@" = "test_bin/schwarz_cpp" ]; then \
 		CMD="${MPIRUN} 4 $(subst test_,${SEP} ${TOP_DIR}/,$@) -hpddm_myPrefix_schwarz_coarse_correction deflated -hpddm_myPrefix_geneo_nu=10 -hpddm_myPrefix_verbosity=2 -nonuniform -Nx 50 -Ny 50 -symmetric_csr -hpddm_myPrefix_level_2_p 2 -hpddm_myPrefix_gmres_restart=25 -hpddm_verbosity=2 -prefix=myPrefix_ -hpddm_myPrefix_level_2_hypre_solver=pcg"; \
