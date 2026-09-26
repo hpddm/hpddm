@@ -33,10 +33,12 @@
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wshadow"
   #pragma clang diagnostic ignored "-Wsign-compare"
+  #pragma clang diagnostic ignored "-Wold-style-cast"
 #elif defined(__GNUC__)
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wshadow"
   #pragma GCC diagnostic ignored "-Wsign-compare"
+  #pragma GCC diagnostic ignored "-Wold-style-cast"
 #endif
 
 #ifdef _MSC_VER
