@@ -44,7 +44,8 @@ int main(int argc, char **argv)
   HpddmOptionParse(opt, argc, argv, rankWorld == 0);
   {
     char *val[4]  = {"Nx=<100>", "Ny=<100>", "overlap=<1>", "generate_random_rhs=<0>"};
-    char *desc[4] = {"Number of grid points in the x-direction.", "Number of grid points in the y-direction.", "Number of grid points in the overlap.", "Number of generated random right-hand sides."};
+    char *desc[4] = {"Number of grid points in the x-direction.", "Number of grid points in the y-direction.", "Number of grid points in the overlap.",
+                     "Number of generated random right-hand sides."};
     HpddmOptionParseInts(opt, argc, argv, 4, val, desc);
     val[0]  = "symmetric_csr=(0|1)";
     desc[0] = "Assemble symmetric matrices.";

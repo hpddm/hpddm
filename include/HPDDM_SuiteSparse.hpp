@@ -38,10 +38,17 @@ template <>
 struct stsprs<double> {
   static void umfpack_defaults(double *control) { umfpack_di_defaults(control); }
   static void umfpack_report_info(const double *control, const double *info) { umfpack_di_report_info(control, info); }
-  static int  umfpack_numeric(const int *ia, const int *ja, const double *a, void *symbolic, void **numeric, const double *control, double *info) { return umfpack_di_numeric(ia, ja, a, symbolic, numeric, control, info); }
-  static int  umfpack_symbolic(int n, int m, const int *ia, const int *ja, const double *a, void **symbolic, const double *control, double *info) { return umfpack_di_symbolic(n, m, ia, ja, a, symbolic, control, info); }
+  static int  umfpack_numeric(const int *ia, const int *ja, const double *a, void *symbolic, void **numeric, const double *control, double *info)
+  {
+    return umfpack_di_numeric(ia, ja, a, symbolic, numeric, control, info);
+  }
+  static int umfpack_symbolic(int n, int m, const int *ia, const int *ja, const double *a, void **symbolic, const double *control, double *info)
+  {
+    return umfpack_di_symbolic(n, m, ia, ja, a, symbolic, control, info);
+  }
   static void umfpack_free_symbolic(void **symbolic) { umfpack_di_free_symbolic(symbolic); }
-  static int  umfpack_wsolve(int sys, const int *ia, const int *ja, const double *a, double *X, const double *B, void *numeric, const double *control, double *info, int *Wi, double *W)
+  static int  umfpack_wsolve(int sys, const int *ia, const int *ja, const double *a, double *X, const double *B, void *numeric, const double *control,
+                             double *info, int *Wi, double *W)
   {
     return umfpack_di_wsolve(sys, ia, ja, a, X, B, numeric, control, info, Wi, W);
   }
@@ -61,9 +68,11 @@ struct stsprs<std::complex<double>> {
     return umfpack_zi_symbolic(n, m, ia, ja, reinterpret_cast<const double *>(a), NULL, symbolic, control, info);
   }
   static void umfpack_free_symbolic(void **symbolic) { umfpack_zi_free_symbolic(symbolic); }
-  static int  umfpack_wsolve(int sys, const int *ia, const int *ja, const std::complex<double> *a, std::complex<double> *X, const std::complex<double> *B, void *numeric, const double *control, double *info, int *Wi, std::complex<double> *W)
+  static int  umfpack_wsolve(int sys, const int *ia, const int *ja, const std::complex<double> *a, std::complex<double> *X, const std::complex<double> *B,
+                             void *numeric, const double *control, double *info, int *Wi, std::complex<double> *W)
   {
-    return umfpack_zi_wsolve(sys, ia, ja, reinterpret_cast<const double *>(a), NULL, reinterpret_cast<double *>(X), NULL, reinterpret_cast<const double *>(B), NULL, numeric, control, info, Wi, reinterpret_cast<double *>(W));
+    return umfpack_zi_wsolve(sys, ia, ja, reinterpret_cast<const double *>(a), NULL, reinterpret_cast<double *>(X), NULL, reinterpret_cast<const double *>(B),
+                             NULL, numeric, control, info, Wi, reinterpret_cast<double *>(W));
   }
   static void umfpack_free_numeric(void **numeric) { umfpack_zi_free_numeric(numeric); }
 };
@@ -344,7 +353,9 @@ public:
   #ifdef _OPENMP
     #pragma omp parallel for schedule(static, HPDDM_GRANULARITY)
   #endif
-        for (i = 0; i < A->n_; ++i) std::sort(v[i].begin(), v[i].end(), [](const std::pair<unsigned int, K> &lhs, const std::pair<unsigned int, K> &rhs) { return lhs.first < rhs.first; });
+        for (i = 0; i < A->n_; ++i)
+          std::sort(v[i].begin(), v[i].end(),
+                    [](const std::pair<unsigned int, K> &lhs, const std::pair<unsigned int, K> &rhs) { return lhs.first < rhs.first; });
         ia[0] = 0;
         for (i = 0; i < A->n_; ++i) {
           for (const std::pair<unsigned int, K> &p : v[i]) {
@@ -378,7 +389,8 @@ public:
       x_->ncol  = 1;
       x_->nzmax = x_->nrow;
       x_->x     = tmp_;
-      cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense **>(&x_), NULL, const_cast<cholmod_dense **>(&Y_), const_cast<cholmod_dense **>(&E_), c_);
+      cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense **>(&x_), NULL, const_cast<cholmod_dense **>(&Y_), const_cast<cholmod_dense **>(&E_),
+                     c_);
       std::copy_n(tmp_, x_->nrow, x);
     } else {
       stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, tmp_, x, numeric_, control_, NULL, pattern_, W_);
@@ -394,7 +406,8 @@ public:
       x_->ncol  = n;
       x_->nzmax = x_->nrow;
       x_->x     = new K[n * x_->nrow];
-      cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense **>(&x_), NULL, const_cast<cholmod_dense **>(&Y_), const_cast<cholmod_dense **>(&E_), c_);
+      cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense **>(&x_), NULL, const_cast<cholmod_dense **>(&Y_), const_cast<cholmod_dense **>(&E_),
+                     c_);
       std::copy_n(static_cast<K *>(x_->x), n * x_->nrow, x);
       delete[] static_cast<K *>(x_->x);
       x_->x = NULL;
@@ -415,10 +428,12 @@ public:
       x_->ncol  = n;
       x_->nzmax = x_->nrow;
       x_->x     = x;
-      cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense **>(&x_), NULL, const_cast<cholmod_dense **>(&Y_), const_cast<cholmod_dense **>(&E_), c_);
+      cholmod_solve2(CHOLMOD_A, L_, b_, NULL, const_cast<cholmod_dense **>(&x_), NULL, const_cast<cholmod_dense **>(&Y_), const_cast<cholmod_dense **>(&E_),
+                     c_);
     } else {
       int ld = std::distance(tmp_, W_);
-      for (unsigned short i = 0; i < n; ++i) stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, x + i * ld, b + i * ld, numeric_, control_, NULL, pattern_, W_);
+      for (unsigned short i = 0; i < n; ++i)
+        stsprs<K>::umfpack_wsolve(UMFPACK_Aat, NULL, NULL, NULL, x + i * ld, b + i * ld, numeric_, control_, NULL, pattern_, W_);
     }
   }
 };

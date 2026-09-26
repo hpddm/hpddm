@@ -125,7 +125,9 @@
   #if !__cpp_rtti && !defined(__GXX_RTTI) && !defined(__INTEL_RTTI__) && !defined(_CPPRTTI)
     #pragma message("Consider enabling RTTI support with your C++ compiler")
   #endif
-static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double) && sizeof(char) == 1, "Unsupported scalar type");
+static_assert(2 * sizeof(double) == sizeof(std::complex<double>) && 2 * sizeof(float) == sizeof(std::complex<float>) && 2 * sizeof(float) == sizeof(double) &&
+                sizeof(char) == 1,
+              "Unsupported scalar type");
   #ifdef __GNUG__
     #include <cxxabi.h>
   #endif
@@ -214,7 +216,8 @@ inline std::string to_string(const T &x)
 }
   #endif // __MINGW32__
 template <class T>
-inline T sto(const std::string &s, typename std::enable_if<std::is_same<T, std::complex<float>>::value || std::is_same<T, std::complex<double>>::value>::type * = nullptr)
+inline T sto(const std::string &s,
+             typename std::enable_if<std::is_same<T, std::complex<float>>::value || std::is_same<T, std::complex<double>>::value>::type * = nullptr)
 {
   std::istringstream stm(s);
   T                  cplx;
@@ -289,15 +292,19 @@ inline underlying_type<T> imag(const T &v)
 namespace HPDDM
 {
 template <class T>
-using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, float>::value, __fp16, T>::type>::type,
-                                                  typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>,
-                                                                            typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<float>>::value, std::complex<__fp16>,
+using downscaled_type = typename std::conditional<
+  std::is_same<underlying_type<T>, T>::value,
+  typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float,
+                            typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, float>::value, __fp16, T>::type>::type,
+  typename std::conditional<
+    HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>,
+    typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<float>>::value, std::complex<__fp16>,
     #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
-                                                                                                      typename std::conditional<std::is_same<T, thrust::complex<double>>::value, thrust::complex<float>, T>::type
+                              typename std::conditional<std::is_same<T, thrust::complex<double>>::value, thrust::complex<float>, T>::type
     #else
-                                                                                                      T
+                              T
     #endif
-                                                                                                      >::type>::type>::type;
+                              >::type>::type>::type;
 } // namespace HPDDM
     #if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128)
       #include "HPDDM_specifications.hpp"
@@ -306,27 +313,29 @@ using downscaled_type = typename std::conditional<std::is_same<underlying_type<T
 namespace HPDDM
 {
 template <class T>
-using downscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type,
-                                                  typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>,
+using downscaled_type = typename std::conditional<
+  std::is_same<underlying_type<T>, T>::value, typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, double>::value, float, T>::type,
+  typename std::conditional<HPDDM_MIXED_PRECISION && std::is_same<T, std::complex<double>>::value, std::complex<float>,
     #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
-                                                                            typename std::conditional<std::is_same<T, thrust::complex<double>>::value, thrust::complex<float>, T>::type
+                            typename std::conditional<std::is_same<T, thrust::complex<double>>::value, thrust::complex<float>, T>::type
     #else
-                                                                            T
+                            T
     #endif
-                                                                            >::type>::type;
+                            >::type>::type;
 } // namespace HPDDM
   #endif
   #if !defined(PETSC_HAVE_REAL___FLOAT128) || defined(PETSC_SKIP_REAL___FLOAT128) || defined(__NVCC__) || defined(__CUDACC__)
 namespace HPDDM
 {
 template <class T>
-using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, double,
+using upscaled_type = typename std::conditional<
+  std::is_same<underlying_type<T>, T>::value, double,
     #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
-                                                typename std::conditional<std::is_same<T, std::complex<underlying_type<T>>>::value, std::complex<double>, thrust::complex<double>>::type
+  typename std::conditional<std::is_same<T, std::complex<underlying_type<T>>>::value, std::complex<double>, thrust::complex<double>>::type
     #else
-                                                std::complex<double>
+  std::complex<double>
     #endif
-                                                >::type;
+  >::type;
 template <class T>
 inline T sqrt(const T &v)
 {
@@ -374,7 +383,9 @@ struct complex_spec<__float128> {
   typedef __complex128 type;
 };
 template <class T>
-using upscaled_type = typename std::conditional<std::is_same<underlying_type<T>, T>::value, typename std::conditional<std::is_same<T, float>::value, double, __float128>::type, typename std::conditional<std::is_same<T, std::complex<float>>::value, std::complex<double>, __complex128>::type>::type;
+using upscaled_type = typename std::conditional<
+  std::is_same<underlying_type<T>, T>::value, typename std::conditional<std::is_same<T, float>::value, double, __float128>::type,
+  typename std::conditional<std::is_same<T, std::complex<float>>::value, std::complex<double>, __complex128>::type>::type;
 template <class T, typename std::enable_if<!std::is_same<T, __float128>::value && !std::is_same<T, __complex128>::value>::type * = nullptr>
 inline underlying_type<T> norm(const T &v)
 {
@@ -475,12 +486,18 @@ inline long lround(const T &v)
 {
   return lroundq(v);
 }
-template <class InputIt, class Size, class OutputIt, typename std::enable_if<!std::is_same<OutputIt, __complex128 *>::value || std::is_same<typename std::remove_const<typename std::remove_pointer<InputIt>::type>::type, typename std::remove_const<typename std::remove_pointer<OutputIt>::type>::type>::value>::type * = nullptr>
+template <class InputIt, class Size, class OutputIt,
+          typename std::enable_if<!std::is_same<OutputIt, __complex128 *>::value ||
+                                  std::is_same<typename std::remove_const<typename std::remove_pointer<InputIt>::type>::type,
+                                               typename std::remove_const<typename std::remove_pointer<OutputIt>::type>::type>::value>::type * = nullptr>
 inline void copy_n(InputIt in, Size n, OutputIt out)
 {
   std::copy_n(in, n, out);
 }
-template <class InputIt, class Size, class OutputIt, typename std::enable_if<std::is_same<OutputIt, __complex128 *>::value && !std::is_same<typename std::remove_const<typename std::remove_pointer<InputIt>::type>::type, typename std::remove_const<typename std::remove_pointer<OutputIt>::type>::type>::value>::type * = nullptr>
+template <class InputIt, class Size, class OutputIt,
+          typename std::enable_if<std::is_same<OutputIt, __complex128 *>::value &&
+                                  !std::is_same<typename std::remove_const<typename std::remove_pointer<InputIt>::type>::type,
+                                                typename std::remove_const<typename std::remove_pointer<OutputIt>::type>::type>::value>::type * = nullptr>
 inline void copy_n(InputIt in, Size n, OutputIt out)
 {
   for (Size i = 0; i < n; ++i) {

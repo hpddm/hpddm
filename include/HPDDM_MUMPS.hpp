@@ -189,12 +189,14 @@ public:
       id_->nrhs = n;
     }
     std::fill_n(reinterpret_cast<K *>(id_->rhs), n * id_->n, K());
-    for (unsigned short i = 0; i < n; ++i) std::copy_n(rhs + i * (range_.second - range_.first), range_.second - range_.first, reinterpret_cast<K *>(id_->rhs) + i * id_->n + range_.first);
+    for (unsigned short i = 0; i < n; ++i)
+      std::copy_n(rhs + i * (range_.second - range_.first), range_.second - range_.first, reinterpret_cast<K *>(id_->rhs) + i * id_->n + range_.first);
     MPI_Allreduce(MPI_IN_PLACE, reinterpret_cast<K *>(id_->rhs), n * id_->n, Wrapper<K>::mpi_type(), MPI_SUM, DMatrix::communicator_);
     id_->job = 3;
     MUMPS_STRUC_C<K>::mumps_c(id_);
     MPI_Bcast(reinterpret_cast<K *>(id_->rhs), n * id_->n, Wrapper<K>::mpi_type(), 0, DMatrix::communicator_);
-    for (unsigned short i = 0; i < n; ++i) std::copy_n(reinterpret_cast<K *>(id_->rhs) + i * id_->n + range_.first, range_.second - range_.first, x + i * (range_.second - range_.first));
+    for (unsigned short i = 0; i < n; ++i)
+      std::copy_n(reinterpret_cast<K *>(id_->rhs) + i * id_->n + range_.first, range_.second - range_.first, x + i * (range_.second - range_.first));
   }
   #endif
 };

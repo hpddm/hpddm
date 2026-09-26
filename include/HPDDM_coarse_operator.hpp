@@ -47,7 +47,8 @@ namespace HPDDM
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) class InexactCoarseOperator;
 } // namespace HPDDM
 #endif
-#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DLAPACK) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
+#if defined(DPASTIX) || defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DLAPACK) || defined(DHYPRE) || defined(DELEMENTAL) || \
+  HPDDM_INEXACT_COARSE_OPERATOR
   #define HPDDM_CSR_CO
 #endif
 #if defined(DMKL_PARDISO) || defined(DSUITESPARSE) || defined(DLAPACK) || defined(DHYPRE) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
@@ -56,12 +57,14 @@ HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) class InexactCoarseOperator;
 
 namespace HPDDM
 {
-HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) using coarse_operator_type = typename std::conditional<HPDDM_INEXACT_COARSE_OPERATOR, InexactCoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>,
-                                                                                                 Solver
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S,
+                            K) using coarse_operator_type = typename std::conditional<HPDDM_INEXACT_COARSE_OPERATOR,
+                                                                                      InexactCoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>,
+                                                                                      Solver
 #if !HPDDM_PETSC
-                                                                                                 <K>
+                                                                                      <K>
 #endif
-                                                                                                 >::type;
+                                                                                      >::type;
 /* Class: Coarse operator
  *
  *  A class for handling coarse corrections.
@@ -206,10 +209,14 @@ private:
       downscaled_type<K> *ba   = new downscaled_type<K>[counts[size - 1] + counts[2 * size - 1]];
       if (!T) {
         for (int i = 0; i < size; ++i)
-          for (int j = 0; j < m; ++j) std::copy_n(ab + counts[size + i] + j * (counts[i] / m), counts[i] / m, ba + counts[size + i] / m + j * ((counts[size - 1] + counts[2 * size - 1]) / m));
+          for (int j = 0; j < m; ++j)
+            std::copy_n(ab + counts[size + i] + j * (counts[i] / m), counts[i] / m,
+                        ba + counts[size + i] / m + j * ((counts[size - 1] + counts[2 * size - 1]) / m));
       } else {
         for (int j = 0; j < n; ++j)
-          for (int i = 0; i < size; ++i) std::copy_n(ab + counts[size + i] / n + j * ((counts[size - 1] + counts[2 * size - 1]) / n), counts[i] / n, ba + counts[size + i] + j * (counts[i] / n));
+          for (int i = 0; i < size; ++i)
+            std::copy_n(ab + counts[size + i] / n + j * ((counts[size - 1] + counts[2 * size - 1]) / n), counts[i] / n,
+                        ba + counts[size + i] + j * (counts[i] / n));
       }
       std::copy_n(ba, counts[size - 1] + counts[2 * size - 1], ab);
       delete[] ba;
@@ -220,12 +227,14 @@ private:
   {
     if (!T) {
       std::for_each(counts, counts + 2 * n, [&](int &i) { i *= m; });
-      MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_, rq);
+      MPI_Igatherv(MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), ab, counts, counts + n, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_,
+                   rq);
       MPI_Wait(rq, MPI_STATUS_IGNORE);
     }
     permute<T>(counts, n, m, ab);
     if (T) {
-      MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_, rq);
+      MPI_Iscatterv(ab, counts, counts + m, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_,
+                    rq);
       std::for_each(counts, counts + 2 * m, [&](int &i) { i /= n; });
     }
   }

@@ -59,8 +59,14 @@ protected:
 public:
   MatrixBase() : ia_(), ja_(), n_(0), m_(0), nnz_(0), sym_(true), free_(true) { }
   MatrixBase(const int &n, const int &m, const bool &sym) : ia_(new int[n + 1]), ja_(), n_(n), m_(m), nnz_(0), sym_(sym), free_(true) { }
-  MatrixBase(const int &n, const int &m, const int &nnz, const bool &sym) : ia_(new int[n + 1]), ja_(new int[nnz]), n_(n), m_(m), nnz_(nnz), sym_(sym), free_(true) { }
-  MatrixBase(const int &n, const int &m, const int &nnz, int *const &ia, int *const &ja, const bool &sym, const bool &takeOwnership = false) : ia_(ia), ja_(ja), n_(n), m_(m), nnz_(nnz), sym_(sym), free_(takeOwnership) { }
+  MatrixBase(const int &n, const int &m, const int &nnz, const bool &sym) :
+    ia_(new int[n + 1]), ja_(new int[nnz]), n_(n), m_(m), nnz_(nnz), sym_(sym), free_(true)
+  {
+  }
+  MatrixBase(const int &n, const int &m, const int &nnz, int *const &ia, int *const &ja, const bool &sym, const bool &takeOwnership = false) :
+    ia_(ia), ja_(ja), n_(n), m_(m), nnz_(nnz), sym_(sym), free_(takeOwnership)
+  {
+  }
   MatrixBase(const MatrixBase &) = delete;
   ~MatrixBase() { destroy(); }
   /* Function: destroy
@@ -129,7 +135,8 @@ protected:
     f << std::scientific;
     unsigned int k = MatrixBase<K>::ia_[0] - (N == 'F');
     for (unsigned int i = 0; i < MatrixBase<K>::n_; ++i)
-      for (unsigned int ke = MatrixBase<K>::ia_[i + 1] - (N == 'F'); k < ke; ++k) f << std::setw(9) << i + 1 << " " << std::setw(9) << MatrixBase<K>::ja_[k] + (N == 'C') << " " << pts(a, k) << "\n";
+      for (unsigned int ke = MatrixBase<K>::ia_[i + 1] - (N == 'F'); k < ke; ++k)
+        f << std::setw(9) << i + 1 << " " << std::setw(9) << MatrixBase<K>::ja_[k] + (N == 'C') << " " << pts(a, k) << "\n";
     f.flags(ff);
     return f;
   }
@@ -162,7 +169,10 @@ public:
   MatrixCSR() : MatrixBase<K>(), a_() { }
   MatrixCSR(const int &n, const int &m, const bool &sym) : MatrixBase<K>(n, m, sym), a_() { }
   MatrixCSR(const int &n, const int &m, const int &nnz, const bool &sym) : MatrixBase<K>(n, m, nnz, sym), a_(new K[nnz]) { }
-  MatrixCSR(const int &n, const int &m, const int &nnz, K *const &a, int *const &ia, int *const &ja, const bool &sym, const bool &takeOwnership = false) : MatrixBase<K>(n, m, nnz, ia, ja, sym, takeOwnership), a_(a) { }
+  MatrixCSR(const int &n, const int &m, const int &nnz, K *const &a, int *const &ia, int *const &ja, const bool &sym, const bool &takeOwnership = false) :
+    MatrixBase<K>(n, m, nnz, ia, ja, sym, takeOwnership), a_(a)
+  {
+  }
   MatrixCSR(const MatrixCSR &B) : MatrixBase<K>(B.n_, B.m_, B.nnz_, B.sym_), a_(new K[B.nnz_])
   {
     std::copy_n(B.ia_, MatrixBase<K>::n_ + 1, MatrixBase<K>::ia_);
@@ -223,7 +233,8 @@ public:
               order = Option::Arg::integer(std::string(), word, false);
             }
             int row;
-            if ((order && MatrixBase<K>::template scan<true>(line.c_str(), &row, MatrixBase<K>::ja_ + MatrixBase<K>::nnz_, a_ + MatrixBase<K>::nnz_)) || (!order && MatrixBase<K>::template scan<false>(line.c_str(), &row, MatrixBase<K>::ja_ + MatrixBase<K>::nnz_, a_ + MatrixBase<K>::nnz_))) {
+            if ((order && MatrixBase<K>::template scan<true>(line.c_str(), &row, MatrixBase<K>::ja_ + MatrixBase<K>::nnz_, a_ + MatrixBase<K>::nnz_)) ||
+                (!order && MatrixBase<K>::template scan<false>(line.c_str(), &row, MatrixBase<K>::ja_ + MatrixBase<K>::nnz_, a_ + MatrixBase<K>::nnz_))) {
               delete[] a_;
               a_ = nullptr;
               delete[] MatrixBase<K>::ja_;
@@ -258,7 +269,8 @@ public:
           unsigned int col = perm[a->MatrixBase<K>::ja_[j]];
           if (col > 0) tmp.emplace_back(std::make_pair(col - 1, a->a_[j]));
         }
-        std::sort(tmp.begin() + MatrixBase<K>::ia_[i], tmp.end(), [](const std::pair<int, K> &lhs, const std::pair<int, K> &rhs) { return lhs.first < rhs.first; });
+        std::sort(tmp.begin() + MatrixBase<K>::ia_[i], tmp.end(),
+                  [](const std::pair<int, K> &lhs, const std::pair<int, K> &rhs) { return lhs.first < rhs.first; });
         MatrixBase<K>::ia_[i + 1] = tmp.size();
       }
       MatrixBase<K>::nnz_ = tmp.size();
@@ -334,10 +346,12 @@ public:
       else {
         int *diagonal;
         if (!MatrixBase<K>::sym_) {
-          diagonal = std::lower_bound(MatrixBase<K>::ja_ + MatrixBase<K>::ia_[i] - (N == 'F'), MatrixBase<K>::ja_ + MatrixBase<K>::ia_[i + 1] - (N == 'F'), i + (N == 'F'));
+          diagonal = std::lower_bound(MatrixBase<K>::ja_ + MatrixBase<K>::ia_[i] - (N == 'F'), MatrixBase<K>::ja_ + MatrixBase<K>::ia_[i + 1] - (N == 'F'),
+                                      i + (N == 'F'));
           for (int j = MatrixBase<K>::ia_[i] - (N == 'F'); j < MatrixBase<K>::ia_[i + 1] - (N == 'F'); ++j) {
             if (j != std::distance(MatrixBase<K>::ja_, diagonal)) {
-              int *it = std::lower_bound(MatrixBase<K>::ja_ + MatrixBase<K>::ia_[MatrixBase<K>::ja_[j] - (N == 'F')] - (N == 'F'), MatrixBase<K>::ja_ + MatrixBase<K>::ia_[MatrixBase<K>::ja_[j] - (N == 'F') + 1] - (N == 'F'), i + (N == 'F'));
+              int *it = std::lower_bound(MatrixBase<K>::ja_ + MatrixBase<K>::ia_[MatrixBase<K>::ja_[j] - (N == 'F')] - (N == 'F'),
+                                         MatrixBase<K>::ja_ + MatrixBase<K>::ia_[MatrixBase<K>::ja_[j] - (N == 'F') + 1] - (N == 'F'), i + (N == 'F'));
               if (it == MatrixBase<K>::ja_ + MatrixBase<K>::ia_[MatrixBase<K>::ja_[j] - (N == 'F') + 1] - (N == 'F') || *it != i + (N == 'F'))
                 missingCoefficients.emplace_back(std::array<int, 3>({
                   {static_cast<int>(std::distance(MatrixBase<K>::ja_, it)), MatrixBase<K>::ja_[j] - (N == 'F'), i}
@@ -363,16 +377,22 @@ public:
     } else {
       std::sort(missingCoefficients.begin(), missingCoefficients.end());
       MatrixCSR<K> *ret = new MatrixCSR<K>(MatrixBase<K>::n_, MatrixBase<K>::m_, MatrixBase<K>::nnz_ + missingCoefficients.size(), MatrixBase<K>::sym_);
-      if (N == 'C' && M == 'F') std::transform(MatrixBase<K>::ia_, MatrixBase<K>::ia_ + MatrixBase<K>::n_ + 1, ret->MatrixBase<K>::ia_, [](int i) { return i + 1; });
-      else if (N == 'F' && M == 'C') std::transform(MatrixBase<K>::ia_, MatrixBase<K>::ia_ + MatrixBase<K>::n_ + 1, ret->MatrixBase<K>::ia_, [](int i) { return i - 1; });
+      if (N == 'C' && M == 'F')
+        std::transform(MatrixBase<K>::ia_, MatrixBase<K>::ia_ + MatrixBase<K>::n_ + 1, ret->MatrixBase<K>::ia_, [](int i) { return i + 1; });
+      else if (N == 'F' && M == 'C')
+        std::transform(MatrixBase<K>::ia_, MatrixBase<K>::ia_ + MatrixBase<K>::n_ + 1, ret->MatrixBase<K>::ia_, [](int i) { return i - 1; });
       else std::copy_n(MatrixBase<K>::ia_, MatrixBase<K>::n_ + 1, ret->MatrixBase<K>::ia_);
       missingCoefficients.emplace_back(std::array<int, 3>({
         {MatrixBase<K>::nnz_, 0, 0}
       }));
       unsigned int prev = 0;
       for (unsigned int i = 0; i < missingCoefficients.size(); ++i) {
-        if (N == 'C' && M == 'F') std::transform(MatrixBase<K>::ja_ + prev, MatrixBase<K>::ja_ + missingCoefficients[i][0], ret->MatrixBase<K>::ja_ + prev + i, [](int j) { return j + 1; });
-        else if (N == 'F' && M == 'C') std::transform(MatrixBase<K>::ja_ + prev, MatrixBase<K>::ja_ + missingCoefficients[i][0], ret->MatrixBase<K>::ja_ + prev + i, [](int j) { return j - 1; });
+        if (N == 'C' && M == 'F')
+          std::transform(MatrixBase<K>::ja_ + prev, MatrixBase<K>::ja_ + missingCoefficients[i][0], ret->MatrixBase<K>::ja_ + prev + i,
+                         [](int j) { return j + 1; });
+        else if (N == 'F' && M == 'C')
+          std::transform(MatrixBase<K>::ja_ + prev, MatrixBase<K>::ja_ + missingCoefficients[i][0], ret->MatrixBase<K>::ja_ + prev + i,
+                         [](int j) { return j - 1; });
         else std::copy(MatrixBase<K>::ja_ + prev, MatrixBase<K>::ja_ + missingCoefficients[i][0], ret->MatrixBase<K>::ja_ + prev + i);
         std::copy(a_ + prev, a_ + missingCoefficients[i][0], ret->a_ + prev + i);
         if (i != missingCoefficients.size() - 1) {

@@ -27,22 +27,31 @@
   void HPDDM_F77(C##axpy)(const int *, const T *, const T *, const int *, T *, const int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##scal)(const int *, const T *, T *, const int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##lacpy)(const char *, const int *, const int *, const T *, const int *, T *, const int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##gemv)(const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##gemv)(const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) \
+    HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##symv)(const char *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##trsv)(const char *, const char *, const char *, const int *, const T *, const int *, T *, const int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##gemm)(const char *, const char *, const int *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##symm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##trmm)(const char *, const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, T *, const int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##trsm)(const char *, const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, T *, const int *) HPDDM_NOEXCEPT;
+  void HPDDM_F77(C##gemm)(const char *, const char *, const int *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, \
+                          const T *, T *, const int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##symm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, \
+                          const int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##trmm)(const char *, const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, T *, \
+                          const int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##trsm)(const char *, const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, T *, \
+                          const int *) HPDDM_NOEXCEPT;
 #define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U) \
   HPDDM_GENERATE_EXTERN_BLAS(B, U) \
   HPDDM_GENERATE_EXTERN_BLAS(C, T) \
   void HPDDM_F77(B##syr)(const char *const, const int *const, const U *const, const U *const, const int *const, U *const, const int *const) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##her)(const char *const, const int *const, const U *const, const T *const, const int *const, T *const, const int *const) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##syr2)(const char *const, const int *const, const U *const, const U *const, const int *const, const U *const, const int *const, U *const, const int *const) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##her2)(const char *const, const int *const, const T *const, const T *const, const int *const, const T *const, const int *const, T *const, const int *const) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##syrk)(const char *const, const char *const, const int *const, const int *const, const U *const, const U *const, const int *const, const U *const, U *const, const int *const) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##herk)(const char *const, const char *const, const int *const, const int *const, const U *const, const T *const, const int *const, const U *const, T *const, const int *const) HPDDM_NOEXCEPT;
+  void HPDDM_F77(B##syr2)(const char *const, const int *const, const U *const, const U *const, const int *const, const U *const, const int *const, U *const, \
+                          const int *const) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##her2)(const char *const, const int *const, const T *const, const T *const, const int *const, const T *const, const int *const, T *const, \
+                          const int *const) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##syrk)(const char *const, const char *const, const int *const, const int *const, const U *const, const U *const, const int *const, \
+                          const U *const, U *const, const int *const) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##herk)(const char *const, const char *const, const int *const, const int *const, const U *const, const T *const, const int *const, \
+                          const U *const, T *const, const int *const) HPDDM_NOEXCEPT;
 #define HPDDM_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U) \
   U HPDDM_F77(B##nrm2)(const int *, const U *, const int *) HPDDM_NOEXCEPT; \
   U HPDDM_F77(B##C##nrm2)(const int *, const T *, const int *) HPDDM_NOEXCEPT; \
@@ -50,11 +59,15 @@
   HPDDM_GENERATE_EXTERN_BLAS_COMPLEX_VOID(C, T, B, U)
 
 #if HPDDM_MKL
-  #define HPDDM_GENERATE_EXTERN_GEMM3M(C, T) void HPDDM_F77(C##gemm3m)(const char *, const char *, const int *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) HPDDM_NOEXCEPT;
+  #define HPDDM_GENERATE_EXTERN_GEMM3M(C, T) \
+    void HPDDM_F77(C##gemm3m)(const char *, const char *, const int *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, \
+                              const T *, T *, const int *) HPDDM_NOEXCEPT;
   #if !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300
     #define HPDDM_GENERATE_EXTERN_GEMMT(C, T)
   #else
-    #define HPDDM_GENERATE_EXTERN_GEMMT(C, T) void HPDDM_F77(C##gemmt)(const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *) HPDDM_NOEXCEPT;
+    #define HPDDM_GENERATE_EXTERN_GEMMT(C, T) \
+      void HPDDM_F77(C##gemmt)(const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, \
+                               const T *, T *, const int *) HPDDM_NOEXCEPT;
   #endif
   #define HPDDM_GENERATE_EXTERN_MKL_EXTENSIONS(C, T, B, U) \
     HPDDM_GENERATE_EXTERN_GEMM3M(C, T) \
@@ -127,7 +140,9 @@ struct Blas {
     for (int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += static_cast<V>(static_cast<U>(*a) * x[j]);
   }
   #if defined(PETSC_HAVE_REAL___FLOAT128) && !defined(PETSC_SKIP_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
-  template <class U, class V, typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) && std::is_same<U, __complex128>::value>::type * = nullptr>
+  template <class U, class V,
+            typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) &&
+                                    std::is_same<U, __complex128>::value>::type * = nullptr>
   static void axpy(const int *const n, const K *const a, const U *const x, const int *const incx, V *const y, const int *const incy)
   {
     U alpha;
@@ -183,10 +198,12 @@ struct Blas {
 
   /* Function: gemv
      *  Computes a scalar-matrix-vector product. */
-  static void gemv(const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
+  static void gemv(const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const,
+                   const K *const, K *const, const int *const);
   /* Function: symv
      *  Computes a symmetric scalar-matrix-vector product. */
-  static void symv(const char *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
+  static void symv(const char *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const,
+                   K *const, const int *const);
   /* Function: trsv
      *  Solves a system of linear equations with a triangular matrix and a single right-hand side. */
   static void trsv(const char *const, const char *const, const char *const, const int *const, const K *const, const int *const, K *const, const int *const);
@@ -195,20 +212,25 @@ struct Blas {
   static void her(const char *const, const int *const, const underlying_type<K> *const, const K *const, const int *const, K *const, const int *const);
   /* Function: her2
      *  Computes a rank-2 update of a symmetric or Hermitian matrix. */
-  static void her2(const char *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, K *const, const int *const);
+  static void her2(const char *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, K *const,
+                   const int *const);
 
   /* Function: gemm
      *  Computes a scalar-matrix-matrix product. */
-  static void gemm(const char *const, const char *const, const int *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
+  static void gemm(const char *const, const char *const, const int *const, const int *const, const int *const, const K *const, const K *const, const int *const,
+                   const K *const, const int *const, const K *const, K *const, const int *const);
   /* Function: gemmt
      *  Computes a scalar-matrix-matrix product but updates only one triangular part of the output matrix. */
-  static void gemmt(const char *const, const char *const, const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
+  static void gemmt(const char *const, const char *const, const char *const, const int *const, const int *const, const K *const, const K *const,
+                    const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
   /* Function: herk
      *  Computes a Hermitian rank-k update. */
-  static void herk(const char *const, const char *const, const int *const, const int *const, const underlying_type<K> *const, const K *const, const int *const, const underlying_type<K> *const, K *const, const int *const);
+  static void herk(const char *const, const char *const, const int *const, const int *const, const underlying_type<K> *const, const K *const, const int *const,
+                   const underlying_type<K> *const, K *const, const int *const);
   /* Function: symm
      *  Computes a symmetric scalar-matrix-matrix product. */
-  static void symm(const char *const, const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
+  static void symm(const char *const, const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const,
+                   const int *const, const K *const, K *const, const int *const);
   /* Function: trmm
      *  Computes a triangular matrix-matrix product. */
   static void trmm(const char *, const char *, const char *, const char *, const int *, const int *, const K *, const K *, const int *, K *, const int *);
@@ -219,21 +241,27 @@ struct Blas {
 
   #define HPDDM_GENERATE_GEMM(C, T) \
     template <> \
-    inline void Blas<T>::gemm(const char *const transa, const char *const transb, const int *const m, const int *const n, const int *const k, const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) \
+    inline void Blas<T>::gemm(const char *const transa, const char *const transb, const int *const m, const int *const n, const int *const k, \
+                              const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, \
+                              T *const c, const int *const ldc) \
     { \
       HPDDM_F77(C##gemm)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc); \
     }
   #if !HPDDM_MKL || !defined(INTEL_MKL_VERSION) || INTEL_MKL_VERSION < 110300 || defined(PETSC_USE_REAL___FLOAT128) || defined(PETSC_USE_REAL___FP16)
     #define HPDDM_GENERATE_GEMMT(C, T) \
       template <> \
-      inline void Blas<T>::gemmt(const char *const, const char *const transa, const char *const transb, const int *const n, const int *const k, const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) \
+      inline void Blas<T>::gemmt(const char *const, const char *const transa, const char *const transb, const int *const n, const int *const k, \
+                                 const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, \
+                                 T *const c, const int *const ldc) \
       { \
         HPDDM_F77(C##gemm)(transa, transb, n, n, k, alpha, a, lda, b, ldb, beta, c, ldc); \
       }
   #else
     #define HPDDM_GENERATE_GEMMT(C, T) \
       template <> \
-      inline void Blas<T>::gemmt(const char *const uplo, const char *const transa, const char *const transb, const int *const n, const int *const k, const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) \
+      inline void Blas<T>::gemmt(const char *const uplo, const char *const transa, const char *const transb, const int *const n, const int *const k, \
+                                 const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, \
+                                 T *const c, const int *const ldc) \
       { \
         HPDDM_F77(C##gemmt)(uplo, transa, transb, n, k, alpha, a, lda, b, ldb, beta, c, ldc); \
       }
@@ -243,7 +271,9 @@ struct Blas {
   #else
     #define HPDDM_GENERATE_GEMM_COMPLEX(C, T) \
       template <> \
-      inline void Blas<T>::gemm(const char *const transa, const char *const transb, const int *const m, const int *const n, const int *const k, const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) \
+      inline void Blas<T>::gemm(const char *const transa, const char *const transb, const int *const m, const int *const n, const int *const k, \
+                                const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, \
+                                T *const c, const int *const ldc) \
       { \
         HPDDM_F77(C##gemm3m)(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc); \
       }
@@ -260,40 +290,47 @@ struct Blas {
       HPDDM_F77(C##scal)(n, a, x, incx); \
     } \
     template <> \
-    inline void Blas<T>::lacpy(const char *const uplo, const int *const m, const int *const n, const T *const a, const int *const lda, T *const b, const int *const ldb) \
+    inline void Blas<T>::lacpy(const char *const uplo, const int *const m, const int *const n, const T *const a, const int *const lda, T *const b, \
+                               const int *const ldb) \
     { \
       HPDDM_F77(C##lacpy)(uplo, m, n, a, lda, b, ldb); \
     } \
 \
     template <> \
-    inline void Blas<T>::gemv(const char *const trans, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, const T *const x, const int *const incx, const T *const beta, T *const y, const int *const incy) \
+    inline void Blas<T>::gemv(const char *const trans, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, \
+                              const T *const x, const int *const incx, const T *const beta, T *const y, const int *const incy) \
     { \
       HPDDM_F77(C##gemv)(trans, m, n, alpha, a, lda, x, incx, beta, y, incy); \
     } \
     template <> \
-    inline void Blas<T>::symv(const char *const uplo, const int *const n, const T *const alpha, const T *const a, const int *const lda, const T *const x, const int *const incx, const T *const beta, T *const y, const int *const incy) \
+    inline void Blas<T>::symv(const char *const uplo, const int *const n, const T *const alpha, const T *const a, const int *const lda, const T *const x, \
+                              const int *const incx, const T *const beta, T *const y, const int *const incy) \
     { \
       HPDDM_F77(C##symv)(uplo, n, alpha, a, lda, x, incx, beta, y, incy); \
     } \
     template <> \
-    inline void Blas<T>::trsv(const char *const uplo, const char *const trans, const char *const diag, const int *const n, const T *const a, const int *const lda, T *const x, const int *const incx) \
+    inline void Blas<T>::trsv(const char *const uplo, const char *const trans, const char *const diag, const int *const n, const T *const a, \
+                              const int *const lda, T *const x, const int *const incx) \
     { \
       HPDDM_F77(C##trsv)(uplo, trans, diag, n, a, lda, x, incx); \
     } \
 \
     HPDDM_GENERATE_GEMMT(C, T) \
     template <> \
-    inline void Blas<T>::symm(const char *const side, const char *const uplo, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) \
+    inline void Blas<T>::symm(const char *const side, const char *const uplo, const int *const m, const int *const n, const T *const alpha, const T *const a, \
+                              const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) \
     { \
       HPDDM_F77(C##symm)(side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc); \
     } \
     template <> \
-    inline void Blas<T>::trmm(const char *const side, const char *const uplo, const char *const transa, const char *const diag, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, T *const b, const int *const ldb) \
+    inline void Blas<T>::trmm(const char *const side, const char *const uplo, const char *const transa, const char *const diag, const int *const m, \
+                              const int *const n, const T *const alpha, const T *const a, const int *const lda, T *const b, const int *const ldb) \
     { \
       HPDDM_F77(C##trmm)(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb); \
     } \
     template <> \
-    inline void Blas<T>::trsm(const char *const side, const char *const uplo, const char *const transa, const char *const diag, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, T *const b, const int *const ldb) \
+    inline void Blas<T>::trsm(const char *const side, const char *const uplo, const char *const transa, const char *const diag, const int *const m, \
+                              const int *const n, const T *const alpha, const T *const a, const int *const lda, T *const b, const int *const ldb) \
     { \
       HPDDM_F77(C##trsm)(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb); \
     }
@@ -317,33 +354,39 @@ struct Blas {
     HPDDM_GENERATE_BLAS(C, T) \
 \
     template <> \
-    inline void Blas<U>::her(const char *const uplo, const int *const n, const U *const alpha, const U *const x, const int *const incx, U *const a, const int *const lda) \
+    inline void Blas<U>::her(const char *const uplo, const int *const n, const U *const alpha, const U *const x, const int *const incx, U *const a, \
+                             const int *const lda) \
     { \
       HPDDM_F77(B##syr)(uplo, n, alpha, x, incx, a, lda); \
     } \
     template <> \
-    inline void Blas<T>::her(const char *const uplo, const int *const n, const U *const alpha, const T *const x, const int *const incx, T *const a, const int *const lda) \
+    inline void Blas<T>::her(const char *const uplo, const int *const n, const U *const alpha, const T *const x, const int *const incx, T *const a, \
+                             const int *const lda) \
     { \
       HPDDM_F77(C##her)(uplo, n, alpha, x, incx, a, lda); \
     } \
     template <> \
-    inline void Blas<U>::her2(const char *const uplo, const int *const n, const U *const alpha, const U *const x, const int *const incx, const U *const y, const int *const incy, U *const a, const int *const lda) \
+    inline void Blas<U>::her2(const char *const uplo, const int *const n, const U *const alpha, const U *const x, const int *const incx, const U *const y, \
+                              const int *const incy, U *const a, const int *const lda) \
     { \
       HPDDM_F77(B##syr2)(uplo, n, alpha, x, incx, y, incy, a, lda); \
     } \
     template <> \
-    inline void Blas<T>::her2(const char *const uplo, const int *const n, const T *const alpha, const T *const x, const int *const incx, const T *const y, const int *const incy, T *const a, const int *const lda) \
+    inline void Blas<T>::her2(const char *const uplo, const int *const n, const T *const alpha, const T *const x, const int *const incx, const T *const y, \
+                              const int *const incy, T *const a, const int *const lda) \
     { \
       HPDDM_F77(C##her2)(uplo, n, alpha, x, incx, y, incy, a, lda); \
     } \
 \
     template <> \
-    inline void Blas<U>::herk(const char *const uplo, const char *const trans, const int *const n, const int *const k, const U *const alpha, const U *const a, const int *const lda, const U *const beta, U *const c, const int *const ldc) \
+    inline void Blas<U>::herk(const char *const uplo, const char *const trans, const int *const n, const int *const k, const U *const alpha, const U *const a, \
+                              const int *const lda, const U *const beta, U *const c, const int *const ldc) \
     { \
       HPDDM_F77(B##syrk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc); \
     } \
     template <> \
-    inline void Blas<T>::herk(const char *const uplo, const char *const trans, const int *const n, const int *const k, const U *const alpha, const T *const a, const int *const lda, const U *const beta, T *const c, const int *const ldc) \
+    inline void Blas<T>::herk(const char *const uplo, const char *const trans, const int *const n, const int *const k, const U *const alpha, const T *const a, \
+                              const int *const lda, const U *const beta, T *const c, const int *const ldc) \
     { \
       HPDDM_F77(C##herk)(uplo, trans, n, k, alpha, a, lda, beta, c, ldc); \
     }

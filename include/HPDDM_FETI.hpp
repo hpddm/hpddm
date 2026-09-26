@@ -67,19 +67,27 @@ private:
     if (trans == 'T') {
       std::fill_n(primal, Subdomain<K>::dof_, K());
       for (unsigned short i = 0; i < super::signed_; ++i)
-        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j) primal[Subdomain<K>::map_[i].second[j]] -= scale ? m_[i][j] * dual[i][j] : dual[i][j];
+        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+          primal[Subdomain<K>::map_[i].second[j]] -= scale ? m_[i][j] * dual[i][j] : dual[i][j];
       for (unsigned short i = super::signed_; i < Subdomain<K>::map_.size(); ++i)
-        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j) primal[Subdomain<K>::map_[i].second[j]] += scale ? m_[i][j] * dual[i][j] : dual[i][j];
+        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+          primal[Subdomain<K>::map_[i].second[j]] += scale ? m_[i][j] * dual[i][j] : dual[i][j];
     } else {
       for (unsigned short i = 0; i < super::signed_; ++i) {
-        MPI_Irecv(Subdomain<K>::buff_[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
-        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j) dual[i][j] = -(scale ? m_[i][j] * primal[Subdomain<K>::map_[i].second[j]] : primal[Subdomain<K>::map_[i].second[j]]);
-        MPI_Isend(dual[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
+        MPI_Irecv(Subdomain<K>::buff_[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0,
+                  Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+          dual[i][j] = -(scale ? m_[i][j] * primal[Subdomain<K>::map_[i].second[j]] : primal[Subdomain<K>::map_[i].second[j]]);
+        MPI_Isend(dual[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_,
+                  Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
       }
       for (unsigned short i = super::signed_; i < Subdomain<K>::map_.size(); ++i) {
-        MPI_Irecv(Subdomain<K>::buff_[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
-        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j) dual[i][j] = (scale ? m_[i][j] * primal[Subdomain<K>::map_[i].second[j]] : primal[Subdomain<K>::map_[i].second[j]]);
-        MPI_Isend(dual[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_, Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
+        MPI_Irecv(Subdomain<K>::buff_[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0,
+                  Subdomain<K>::communicator_, Subdomain<K>::rq_ + i);
+        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+          dual[i][j] = (scale ? m_[i][j] * primal[Subdomain<K>::map_[i].second[j]] : primal[Subdomain<K>::map_[i].second[j]]);
+        MPI_Isend(dual[i], Subdomain<K>::map_[i].second.size(), Wrapper<K>::mpi_type(), Subdomain<K>::map_[i].first, 0, Subdomain<K>::communicator_,
+                  Subdomain<K>::rq_ + Subdomain<K>::map_.size() + i);
       }
       MPI_Waitall(2 * Subdomain<K>::map_.size(), Subdomain<K>::rq_, MPI_STATUSES_IGNORE);
       Blas<K>::axpy(&(super::mult_), &(Wrapper<K>::d_1), Subdomain<K>::buff_[0], &i_1, *dual, &i_1);
@@ -150,13 +158,17 @@ public:
         if (super::ev_) {
           if (super::schur_) {
             super::condensateEffort(f, nullptr);
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::structure_ + super::bi_->m_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //     uc_ = R_b g
-            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                              //     uc_ = (G Q G^T) \ R_b g
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1); // primal_ = R_b (G Q G^T) \ R f
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_),
+                          super::structure_ + super::bi_->m_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //     uc_ = R_b g
+            super::co_->template callSolver<excluded>(super::uc_);                                         //     uc_ = (G Q G^T) \ R_b g
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1,
+                          &(Wrapper<K>::d_0), primal_, &i_1); // primal_ = R_b (G Q G^T) \ R f
           } else {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::a_->n_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::a_->n_), f, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);    //     uc_ = R f
-            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                                                 //     uc_ = (G Q G^T) \ R f
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1); // primal_ = R_b (G Q G^T) \ R f
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::a_->n_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::a_->n_),
+                          f, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //     uc_ = R f
+            super::co_->template callSolver<excluded>(super::uc_);        //     uc_ = (G Q G^T) \ R f
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_),
+                          super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1); // primal_ = R_b (G Q G^T) \ R f
           }
         } else {
           super::co_->template callSolver<excluded>(super::uc_);
@@ -234,7 +246,8 @@ public:
       bool allocate = Subdomain<K>::setBuffer(super::work_, super::mult_ + super::bi_->m_);
       Subdomain<K>::exchange(primal_);
       for (unsigned short i = 0; i < Subdomain<K>::map_.size(); ++i)
-        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j) m_[i][j] = std::real(Subdomain<K>::buff_[i][j] / primal_[Subdomain<K>::map_[i].second[j]]);
+        for (unsigned int j = 0; j < Subdomain<K>::map_[i].second.size(); ++j)
+          m_[i][j] = std::real(Subdomain<K>::buff_[i][j] / primal_[Subdomain<K>::map_[i].second[j]]);
       Subdomain<K>::clearBuffer(allocate);
     } else {
       scaling = 0;
@@ -346,13 +359,17 @@ public:
           if (trans == 'T') A<'T', 0>(primal_, dual_);
           else A<'T', 0>(primal_, in);
           if (super::schur_) {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_),
+                          primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
             super::co_->template callSolver<excluded>(super::uc_);
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1);
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1,
+                          &(Wrapper<K>::d_0), primal_, &i_1);
           } else {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_,
+                          &(Subdomain<K>::a_->n_), primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1);
             super::co_->template callSolver<excluded>(super::uc_);
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1);
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_),
+                          super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1);
           }
         } else {
           super::co_->template callSolver<excluded>(super::uc_);
@@ -407,17 +424,22 @@ public:
         else {
           A<'T', 0>(primal_, dual_); //    primal_ = A^T Q A (x - S \ A^T l)
           if (super::schur_) {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //        uc_ = R_b^T A^T Q A (x - S \ A^T l)
-            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                              //        uc_ = (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
-            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1, &(Wrapper<K>::d_0), primal_, &i_1); //        x_b = x_b - R_b^T (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
-            Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &(super::bi_->m_), &(Wrapper<K>::d_2), false, super::bi_->a_, super::bi_->ia_, super::bi_->ja_, primal_, &(Wrapper<K>::d_0), super::work_);
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_),
+                          primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //        uc_ = R_b^T A^T Q A (x - S \ A^T l)
+            super::co_->template callSolver<excluded>(super::uc_);              //        uc_ = (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
+            Blas<K>::gemv("N", &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_, &(Subdomain<K>::dof_), super::uc_, &i_1,
+                          &(Wrapper<K>::d_0), primal_, &i_1); //        x_b = x_b - R_b^T (G Q G^T) \ R_b^T A^T Q A (x - S \ A^T l)
+            Wrapper<K>::template csrmv<Wrapper<K>::I>(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), &(super::bi_->m_), &(Wrapper<K>::d_2), false,
+                                                      super::bi_->a_, super::bi_->ia_, super::bi_->ja_, primal_, &(Wrapper<K>::d_0), super::work_);
             if (super::bi_->m_) super::s_.solve(super::work_);
             Blas<K>::axpy(&(super::bi_->m_), &(Wrapper<K>::d_2), super::work_, &i_1, x, &i_1);
             Blas<K>::axpy(&(Subdomain<K>::dof_), &(Wrapper<K>::d_2), primal_, &i_1, x + super::bi_->m_, &i_1);
           } else {
-            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_, &(Subdomain<K>::a_->n_), primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //       uc_ = R A^T Q A (x - S \ A^T l)
-            super::co_->template callSolver<excluded>(super::uc_);                                                                                                                            //       uc_ = (G Q G^T) \ R A^T Q A (x - S \ A^T l)
-            Blas<K>::gemv("N", &(Subdomain<K>::a_->n_), super::co_->getAddrLocal(), &(Wrapper<K>::d_2), *super::ev_, &(Subdomain<K>::a_->n_), super::uc_, &i_1, &(Wrapper<K>::d_1), x, &i_1); //         x = x - R^T (G Q G^T) \ R A^T Q A (x - S \ A^T l)
+            Blas<K>::gemv(&(Wrapper<K>::transc), &(Subdomain<K>::dof_), super::co_->getAddrLocal(), &(Wrapper<K>::d_1), *super::ev_ + super::bi_->m_,
+                          &(Subdomain<K>::a_->n_), primal_, &i_1, &(Wrapper<K>::d_0), super::uc_, &i_1); //       uc_ = R A^T Q A (x - S \ A^T l)
+            super::co_->template callSolver<excluded>(super::uc_);                                       //       uc_ = (G Q G^T) \ R A^T Q A (x - S \ A^T l)
+            Blas<K>::gemv("N", &(Subdomain<K>::a_->n_), super::co_->getAddrLocal(), &(Wrapper<K>::d_2), *super::ev_, &(Subdomain<K>::a_->n_), super::uc_, &i_1,
+                          &(Wrapper<K>::d_1), x, &i_1); //         x = x - R^T (G Q G^T) \ R A^T Q A (x - S \ A^T l)
           }
         }
       }

@@ -72,7 +72,8 @@ public:
         std::for_each(A->ia_, A->ia_ + A->n_ + 1, [](int &i) { ++i; });
       }
     }
-    dslv_->NumericFact(0, B->a_, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING, Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
+    dslv_->NumericFact(0, B->a_, Option::get()->val<char>("dissection_kkt_scaling", 0) ? KKT_SCALING : DIAGONAL_SCALING,
+                       Option::get()->val("dissection_pivot_tol", 1.0 / HPDDM_PEN));
     if (B != A) delete B;
   }
   unsigned short deficiency() const { return dslv_->kern_dimension(); }

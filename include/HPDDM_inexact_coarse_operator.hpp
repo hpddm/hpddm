@@ -300,9 +300,11 @@ protected:
         }
         if (S == 'S') {
           char *table = new char[((T == 1 ? off_ * off_ : (off_ * (off_ - 1)) / 2) >> 3) + 1]();
-          std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator begin = (T == 1 ? recv_.cbegin() : std::upper_bound(recv_.cbegin(), recv_.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::rank_), std::vector<int>()), [](const std::pair<unsigned short, std::vector<int>> &lhs, const std::pair<unsigned short, std::vector<int>> &rhs) {
-            return lhs.first < rhs.first;
-          }));
+          std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator
+            begin = (T == 1 ? recv_.cbegin()
+                            : std::upper_bound(recv_.cbegin(), recv_.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::rank_), std::vector<int>()),
+                                               [](const std::pair<unsigned short, std::vector<int>> &lhs,
+                                                  const std::pair<unsigned short, std::vector<int>> &rhs) { return lhs.first < rhs.first; }));
           for (std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != recv_.cend(); ++it) {
             const unsigned int idx = (T == 1 ? it->first * off_ : (it->first * (it->first - 1)) / 2) + DMatrix::rank_;
             table[idx >> 3] |= 1 << (idx & 7);
@@ -362,10 +364,13 @@ protected:
         for (std::pair<unsigned short, std::vector<int>> &i : recv_) std::for_each(i.second.begin(), i.second.end(), [&](int &j) { j -= dof_; });
         ogj_ = new int[I[nrow] - (super::numbering_ == 'F' ? 1 : 0)];
         std::copy_n(J + di_[nrow] - (super::numbering_ == 'F' ? 1 : 0), I[nrow] - (super::numbering_ == 'F' ? 1 : 0), ogj_);
-        std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0), [&](int &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
+        std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0),
+                      [&](int &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
         buff_      = new K *[send_.size() + recv_.size()];
-        accumulate = std::accumulate(recv_.cbegin(), recv_.cend(), 0, [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
-        accumulate = std::accumulate(send_.cbegin(), send_.cend(), accumulate, [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
+        accumulate = std::accumulate(recv_.cbegin(), recv_.cend(), 0,
+                                     [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
+        accumulate = std::accumulate(send_.cbegin(), send_.cend(), accumulate,
+                                     [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
         *buff_     = new K[accumulate * bs_];
         accumulate = 0;
         off_       = 0;
@@ -563,9 +568,12 @@ protected:
     if (S == 'S') {
       MPI_Comm_size(DMatrix::communicator_, &off_);
       char *table = new char[((T == 1 ? off_ * off_ : (off_ * (off_ - 1)) / 2) >> 3) + 1]();
-      std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator begin = (T == 1 ? recv_.cbegin() : std::upper_bound(recv_.cbegin(), recv_.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::rank_), std::vector<int>()), [](const std::pair<unsigned short, std::vector<int>> &lhs, const std::pair<unsigned short, std::vector<int>> &rhs) {
-        return lhs.first < rhs.first;
-      }));
+      std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator
+        begin = (T == 1 ? recv_.cbegin()
+                        : std::upper_bound(recv_.cbegin(), recv_.cend(), std::make_pair(static_cast<unsigned short>(DMatrix::rank_), std::vector<int>()),
+                                           [](const std::pair<unsigned short, std::vector<int>> &lhs, const std::pair<unsigned short, std::vector<int>> &rhs) {
+                                             return lhs.first < rhs.first;
+                                           }));
       for (std::vector<std::pair<unsigned short, std::vector<int>>>::const_iterator it = begin; it != recv_.cend(); ++it) {
         const unsigned int idx = (T == 1 ? it->first * off_ : (it->first * (it->first - 1)) / 2) + DMatrix::rank_;
         table[idx >> 3] |= 1 << (idx & 7);
@@ -658,7 +666,8 @@ protected:
     for (std::pair<unsigned short, std::vector<int>> &i : recv_) std::for_each(i.second.begin(), i.second.end(), [&](int &j) { j -= dof_; });
     ogj_ = new integer_type[I[nrow] - (super::numbering_ == 'F' ? 1 : 0)];
     std::copy_n(J + di_[nrow] - (super::numbering_ == 'F' ? 1 : 0), I[nrow] - (super::numbering_ == 'F' ? 1 : 0), ogj_);
-    std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0), [&](integer_type &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
+    std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0),
+                  [&](integer_type &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
     oi_  = I;
     oa_  = C + (di_[nrow] - (super::numbering_ == 'F')) * bs_ * bs_;
     oj_  = J + di_[nrow] - (super::numbering_ == 'F');
@@ -764,7 +773,8 @@ public:
         mu_ = mu;
       }
       const std::string prefix = OptionsPrefix<K>::prefix();
-      if (Option::get()->val<char>(prefix + "krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE) IterativeMethod::solve(*this, rhs, x_, mu, communicator_);
+      if (Option::get()->val<char>(prefix + "krylov_method", HPDDM_KRYLOV_METHOD_GMRES) != HPDDM_KRYLOV_METHOD_NONE)
+        IterativeMethod::solve(*this, rhs, x_, mu, communicator_);
       else Solver<K>::solve(rhs, x_, mu);
       std::copy_n(x_, mu * dof_ * bs_, rhs);
     }
@@ -784,7 +794,8 @@ public:
     wait<'N'>(o_ + (mu - 1) * off_ * bs_);
     Wrapper<K>::template bsrmm<Solver<K>::numbering_>("N", &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d_1), false, oa_, oi_, oj_, o_, &(Wrapper<K>::d_1), out);
     if (S == 'S') {
-      Wrapper<K>::template bsrmm<Solver<K>::numbering_>(&(Wrapper<K>::transc), &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d_1), false, oa_, oi_, oj_, in, &(Wrapper<K>::d_0), o_);
+      Wrapper<K>::template bsrmm<Solver<K>::numbering_>(&(Wrapper<K>::transc), &dof_, &mu, &off_, &bs_, &(Wrapper<K>::d_1), false, oa_, oi_, oj_, in,
+                                                        &(Wrapper<K>::d_0), o_);
       exchange<'T'>(nullptr, out, mu);
       wait<'T'>(out + (mu - 1) * dof_ * bs_);
     }
@@ -806,7 +817,9 @@ public:
       unsigned short    k      = 1;
       const std::string prefix = OptionsPrefix<K>::prefix();
       const Option     &opt    = *Option::get();
-      if (opt.any_of(prefix + "krylov_method", {HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR}) && !opt.val<unsigned short>(prefix + "recycle_same_system")) k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
+      if (opt.any_of(prefix + "krylov_method", {HPDDM_KRYLOV_METHOD_GCRODR, HPDDM_KRYLOV_METHOD_BGCRODR}) &&
+          !opt.val<unsigned short>(prefix + "recycle_same_system"))
+        k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
       K **ptr = const_cast<K **>(&o_);
       *ptr    = new K[mu * k * off_ * bs_]();
       return true;
@@ -817,9 +830,17 @@ public:
     if (free) delete[] o_;
   }
 #endif
-  static constexpr underlying_type<K>                 *getScaling() { return nullptr; }
-  static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
-  typename std::conditional<HPDDM_PETSC, Mat, MatrixCSR<K> *>::type buildMatrix(const InexactCoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)> *in, const std::vector<unsigned int> &displs, const unsigned int *const ranges, const std::vector<std::vector<unsigned int>> &off, const std::vector<std::vector<std::pair<unsigned short, unsigned short>>> &reduction = std::vector<std::vector<std::pair<unsigned short, unsigned short>>>(), const std::map<std::pair<unsigned short, unsigned short>, unsigned short> &sizes = std::map<std::pair<unsigned short, unsigned short>, unsigned short>(), const std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra = std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>(), const std::tuple<int *, K *, MPI_Request *> &transfer = std::tuple<int *, K *, MPI_Request *>()) const
+  static constexpr underlying_type<K>                              *getScaling() { return nullptr; }
+  static constexpr std::unordered_map<unsigned int, K>              boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
+  typename std::conditional<HPDDM_PETSC, Mat, MatrixCSR<K> *>::type buildMatrix(
+    const InexactCoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)> *in, const std::vector<unsigned int> &displs, const unsigned int *const ranges,
+    const std::vector<std::vector<unsigned int>>                              &off,
+    const std::vector<std::vector<std::pair<unsigned short, unsigned short>>> &reduction =
+      std::vector<std::vector<std::pair<unsigned short, unsigned short>>>(),
+    const std::map<std::pair<unsigned short, unsigned short>, unsigned short> &sizes = std::map<std::pair<unsigned short, unsigned short>, unsigned short>(),
+    const std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra =
+      std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>(),
+    const std::tuple<int *, K *, MPI_Request *> &transfer = std::tuple<int *, K *, MPI_Request *>()) const
   {
 #if HPDDM_PETSC
     char S;
@@ -842,20 +863,23 @@ public:
     if (S != 'S') {
       to.resize(in->off_);
       for (unsigned int i = 0; i < in->dof_ + 1; ++i)
-        for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j) to[in->oj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F')].emplace_back(i, in->oa_ + (j - (super::numbering_ == 'F')) * bss);
+        for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j)
+          to[in->oj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F')].emplace_back(i, in->oa_ + (j - (super::numbering_ == 'F')) * bss);
       for (unsigned int i = 0; i < in->off_; ++i) {
         std::sort(to[i].begin(), to[i].end(), [](const std::pair<int, K *> &lhs, const std::pair<int, K *> &rhs) { return lhs.first < rhs.first; });
         di[in->dof_ + i + 1] = di[in->dof_ + i] + to[i].size();
       }
     } else {
       if (in != this) {
-        for (std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::const_iterator it = extra.cbegin(); it != extra.cend(); ++it) {
+        for (std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::const_iterator it = extra.cbegin();
+             it != extra.cend(); ++it) {
           if (bss > 1) std::for_each(di + std::get<1>(it->second) + 1, di + in->dof_ + 1, [&](integer_type &k) { k += std::get<2>(it->second).size(); });
           else {
             unsigned int row = 0;
             for (const unsigned short &p : std::get<2>(it->second)) row += sizes.at(std::make_pair(p, p));
             for (unsigned short i = 0; i < std::get<0>(it->second); ++i) di[std::get<1>(it->second) + i + 1] += (i + 1) * row;
-            std::for_each(di + std::get<1>(it->second) + std::get<0>(it->second) + 1, di + in->dof_ + 1, [&](integer_type &k) { k += std::get<0>(it->second) * row; });
+            std::for_each(di + std::get<1>(it->second) + std::get<0>(it->second) + 1, di + in->dof_ + 1,
+                          [&](integer_type &k) { k += std::get<0>(it->second) * row; });
           }
         }
       }
@@ -874,7 +898,8 @@ public:
       {
         std::set<int> unique;
         for (int i = 0; i < in->dof_; ++i) {
-          for (int j = in->oi_[i] - (super::numbering_ == 'F'); j < in->oi_[i + 1] - (super::numbering_ == 'F'); ++j) unique.insert(in->ogj_[j] - (super::numbering_ == 'F'));
+          for (int j = in->oi_[i] - (super::numbering_ == 'F'); j < in->oi_[i + 1] - (super::numbering_ == 'F'); ++j)
+            unique.insert(in->ogj_[j] - (super::numbering_ == 'F'));
         }
         nnz.reserve(unique.size());
         std::copy(unique.cbegin(), unique.cend(), std::back_inserter(nnz));
@@ -911,11 +936,13 @@ public:
           std::fill_n(diag, ((off[j].size() * (off[j].size() + 1)) / 2) * bss, K());
           for (unsigned int i = 0; i < off[j].size(); ++i)
             for (unsigned int k = i; k < off[j].size(); ++k) {
-              integer_type *const pt = std::lower_bound(in->dj_ + in->di_[off[j][i]] - (super::numbering_ == 'F'), in->dj_ + in->di_[off[j][i] + 1] - (super::numbering_ == 'F'), off[j][k] + (super::numbering_ == 'F'));
+              integer_type *const pt = std::lower_bound(in->dj_ + in->di_[off[j][i]] - (super::numbering_ == 'F'),
+                                                        in->dj_ + in->di_[off[j][i] + 1] - (super::numbering_ == 'F'), off[j][k] + (super::numbering_ == 'F'));
               if (pt != in->dj_ + in->di_[off[j][i] + 1] - (super::numbering_ == 'F') && *pt == off[j][k] + (super::numbering_ == 'F'))
                 std::copy_n(in->da_ + std::distance(in->dj_, pt) * bss, bss, diag + (i * off[j].size() + k - ((i * (i - 1)) / 2 + i)) * bss);
             }
-          MPI_Isend(send.back().second, nnz + (nnz + (off[j].size() * (off[j].size() + 1)) / 2) * bss, Wrapper<K>::mpi_type(), in->recv_[j].first, 12, in->communicator_, rqSend + in->recv_.size() + j);
+          MPI_Isend(send.back().second, nnz + (nnz + (off[j].size() * (off[j].size() + 1)) / 2) * bss, Wrapper<K>::mpi_type(), in->recv_[j].first, 12,
+                    in->communicator_, rqSend + in->recv_.size() + j);
         }
         for (unsigned short i = 0; i < in->send_.size(); ++i) {
           it = in->send_.cbegin();
@@ -924,7 +951,8 @@ public:
           std::advance(it, index);
           unsigned int nnz      = std::accumulate(recv[1][index].first, recv[1][index].first + displs[index + 1] - displs[index], 0);
           recv[1][index].second = new K[nnz + (nnz + ((displs[index + 1] - displs[index]) * (displs[index + 1] - displs[index] + 1)) / 2) * bss];
-          MPI_Irecv(recv[1][index].second, nnz + (nnz + ((displs[index + 1] - displs[index]) * (displs[index + 1] - displs[index] + 1)) / 2) * bss, Wrapper<K>::mpi_type(), it->first, 12, in->communicator_, rqRecv + in->send_.size() + index);
+          MPI_Irecv(recv[1][index].second, nnz + (nnz + ((displs[index + 1] - displs[index]) * (displs[index + 1] - displs[index] + 1)) / 2) * bss,
+                    Wrapper<K>::mpi_type(), it->first, 12, in->communicator_, rqRecv + in->send_.size() + index);
         }
         oa = new std::vector<std::pair<unsigned int, K *>>[in->dof_ + in->off_ + displs.back()]();
         for (unsigned short i = 0; i < in->send_.size(); ++i) {
@@ -937,14 +965,20 @@ public:
           accumulate              = 0;
           for (unsigned int j = 0; j < displs[index + 1] - displs[index]; ++j) {
             for (unsigned int k = 0; k < recv[1][index].first[j]; ++k) {
-              if (ja[accumulate] >= range_[0] && ja[accumulate] <= range_[1]) oa[ja[accumulate] - range_[0]].emplace_back(in->dof_ + displs[index] + j, recv[1][index].second + accumulate * bss);
+              if (ja[accumulate] >= range_[0] && ja[accumulate] <= range_[1])
+                oa[ja[accumulate] - range_[0]].emplace_back(in->dof_ + displs[index] + j, recv[1][index].second + accumulate * bss);
               else {
                 bool kept = false;
                 for (unsigned int i = index + 1; i < in->send_.size() && !kept; ++i) {
                   if (ja[accumulate] >= ranges[2 * i] && ja[accumulate] <= ranges[2 * i + 1]) {
-                    const int *pt = std::lower_bound(recv[1][i].first + displs[i + 1] - displs[i], recv[1][i].first + 2 * (displs[i + 1] - displs[i]), ja[accumulate] - ranges[2 * i]);
+                    const int *pt = std::lower_bound(recv[1][i].first + displs[i + 1] - displs[i], recv[1][i].first + 2 * (displs[i + 1] - displs[i]),
+                                                     ja[accumulate] - ranges[2 * i]);
                     if (pt != recv[1][i].first + 2 * (displs[i + 1] - displs[i]) && *pt == ja[accumulate] - ranges[2 * i])
-                      oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs[i] + std::distance(recv[1][i].first + displs[i + 1] - displs[i], std::lower_bound(recv[1][i].first + displs[i + 1] - displs[i], recv[1][i].first + 2 * (displs[i + 1] - displs[i]), ja[accumulate] - ranges[2 * i])),
+                      oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs[i] +
+                                                                      std::distance(recv[1][i].first + displs[i + 1] - displs[i],
+                                                                                    std::lower_bound(recv[1][i].first + displs[i + 1] - displs[i],
+                                                                                                     recv[1][i].first + 2 * (displs[i + 1] - displs[i]),
+                                                                                                     ja[accumulate] - ranges[2 * i])),
                                                                     recv[1][index].second + accumulate * bss);
                     kept = true;
                   }
@@ -952,7 +986,9 @@ public:
                 for (unsigned int i = in->send_.size(); i < in->send_.size() + in->recv_.size() && !kept; ++i) {
                   if (ja[accumulate] >= ranges[2 * i] && ja[accumulate] <= ranges[2 * i + 1]) {
                     std::vector<int>::const_iterator pt = std::lower_bound(nnz.cbegin(), nnz.cend(), ja[accumulate] - (super::numbering_ == 'F'));
-                    if (pt != nnz.cend() && *pt == ja[accumulate] - (super::numbering_ == 'F')) oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs.back() + std::distance(nnz.cbegin(), pt), recv[1][index].second + accumulate * bss);
+                    if (pt != nnz.cend() && *pt == ja[accumulate] - (super::numbering_ == 'F'))
+                      oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs.back() + std::distance(nnz.cbegin(), pt),
+                                                                    recv[1][index].second + accumulate * bss);
                     kept = true;
                   }
                 }
@@ -962,7 +998,9 @@ public:
           }
           for (unsigned int j = 0; j < displs[index + 1] - displs[index]; ++j) {
             for (unsigned int k = j; k < displs[index + 1] - displs[index]; ++k)
-              oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs[index] + k, recv[1][index].second + accumulate + (accumulate + j * (displs[index + 1] - displs[index]) - (j * (j - 1)) / 2 + k - j) * bss);
+              oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs[index] + k,
+                                                            recv[1][index].second + accumulate +
+                                                              (accumulate + j * (displs[index + 1] - displs[index]) - (j * (j - 1)) / 2 + k - j) * bss);
           }
         }
         unsigned int accumulate = 0;
@@ -992,7 +1030,9 @@ public:
         std::vector<K>   val;
         for (unsigned int i = 0; i < p.second.size(); ++i) {
           for (unsigned int k = (S != 'S' ? 0 : i); k < p.second.size(); ++k) {
-            integer_type *const pt = std::lower_bound(in->dj_ + in->di_[p.second[i]] - (super::numbering_ == 'F'), in->dj_ + in->di_[p.second[i] + 1] - (super::numbering_ == 'F'), p.second[k] + (super::numbering_ == 'F'));
+            integer_type *const pt = std::lower_bound(in->dj_ + in->di_[p.second[i]] - (super::numbering_ == 'F'),
+                                                      in->dj_ + in->di_[p.second[i] + 1] - (super::numbering_ == 'F'),
+                                                      p.second[k] + (super::numbering_ == 'F'));
             if (pt != in->dj_ + in->di_[p.second[i] + 1] - (super::numbering_ == 'F') && *pt == p.second[k] + (super::numbering_ == 'F')) {
               send.back().first[2 * i]++;
               col.emplace_back(k);
@@ -1013,8 +1053,10 @@ public:
         for (unsigned int i = 0; i < p.second.size(); ++i) {
           std::copy_n(col.cbegin() + accumulate, send.back().first[2 * i], send.back().second + accumulate * (1 + bss));
           std::copy_n(val.cbegin() + accumulate * bss, send.back().first[2 * i] * bss, send.back().second + accumulate * (1 + bss) + send.back().first[2 * i]);
-          std::copy_n(col.cbegin() + accumulate + send.back().first[2 * i], send.back().first[2 * i + 1], send.back().second + (accumulate + send.back().first[2 * i]) * (1 + bss));
-          std::copy_n(val.cbegin() + (accumulate + send.back().first[2 * i]) * bss, send.back().first[2 * i + 1] * bss, send.back().second + (accumulate + send.back().first[2 * i]) * (1 + bss) + send.back().first[2 * i + 1]);
+          std::copy_n(col.cbegin() + accumulate + send.back().first[2 * i], send.back().first[2 * i + 1],
+                      send.back().second + (accumulate + send.back().first[2 * i]) * (1 + bss));
+          std::copy_n(val.cbegin() + (accumulate + send.back().first[2 * i]) * bss, send.back().first[2 * i + 1] * bss,
+                      send.back().second + (accumulate + send.back().first[2 * i]) * (1 + bss) + send.back().first[2 * i + 1]);
           accumulate += send.back().first[2 * i] + send.back().first[2 * i + 1];
         }
         MPI_Isend(send.back().second, accumulate * (1 + bss), Wrapper<K>::mpi_type(), p.first, 323, in->communicator_, rqSend + in->send_.size());
@@ -1026,7 +1068,8 @@ public:
         MPI_Waitany(in->recv_.size(), rqRecv, &index, MPI_STATUS_IGNORE);
         unsigned int nnz      = std::accumulate(recv[0][index].first, recv[0][index].first + 2 * in->recv_[index].second.size(), 0);
         recv[0][index].second = new K[nnz * (1 + bss)];
-        MPI_Irecv(recv[0][index].second, nnz * (1 + bss), Wrapper<K>::mpi_type(), in->recv_[index].first, 323, in->communicator_, rqRecv + in->recv_.size() + index);
+        MPI_Irecv(recv[0][index].second, nnz * (1 + bss), Wrapper<K>::mpi_type(), in->recv_[index].first, 323, in->communicator_,
+                  rqRecv + in->recv_.size() + index);
       }
       for (unsigned short j = 0; j < in->recv_.size(); ++j) {
         int index;
@@ -1053,20 +1096,24 @@ public:
     } else if (!sizes.empty()) {
       std::map<unsigned short, unsigned short> nnz;
       rows.reserve(sizes.size());
-      rows.emplace_back(std::make_pair(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first))));
+      rows.emplace_back(
+        std::make_pair(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first))));
       for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = sizes.cbegin(); it != sizes.cend(); ++it) {
-        if (it->first.first != rows.back().first->first.first) rows.emplace_back(std::make_pair(it, in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(it->first.first, it->first.first))));
+        if (it->first.first != rows.back().first->first.first)
+          rows.emplace_back(std::make_pair(it, in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(it->first.first, it->first.first))));
       }
       rows.emplace_back(std::make_pair(sizes.cend(), 0));
       unsigned int accumulate = 0;
       for (unsigned short k = 0; k < rows.size() - 1; ++k) {
         unsigned int row = 0;
         if (in->bs_ == 1) {
-          for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = rows[k].first; it != rows[k + 1].first; ++it) row += sizes.at(std::make_pair(it->first.second, it->first.second));
+          for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = rows[k].first; it != rows[k + 1].first; ++it)
+            row += sizes.at(std::make_pair(it->first.second, it->first.second));
           map[rows[k].first->first.first] = accumulate;
           for (unsigned int j = 0; j < rows[k].second; ++j) di[in->dof_ + accumulate + j + 1] += row * (j + 1) - (S == 'S' ? (j * (j + 1)) / 2 : 0);
           accumulate += rows[k].second;
-          for (unsigned int j = accumulate; j < in->off_ + displs.back(); ++j) di[in->dof_ + j + 1] += row * rows[k].second - (S == 'S' ? (rows[k].second * (rows[k].second - 1)) / 2 : 0);
+          for (unsigned int j = accumulate; j < in->off_ + displs.back(); ++j)
+            di[in->dof_ + j + 1] += row * rows[k].second - (S == 'S' ? (rows[k].second * (rows[k].second - 1)) / 2 : 0);
         } else {
           row += std::distance(rows[k].first, rows[k + 1].first);
           map[rows[k].first->first.first] = accumulate;
@@ -1079,10 +1126,13 @@ public:
     integer_type *dj = new integer_type[di[in->dof_ + in->off_ + displs.back()]];
     K            *da = new K[di[in->dof_ + in->off_ + displs.back()] * bss]();
     for (unsigned int i = 0; i < in->dof_; ++i) {
-      for (unsigned int j = in->di_[i]; j < in->di_[i + 1]; ++j) dj[di[i] + j - in->di_[i]] = in->dj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F');
+      for (unsigned int j = in->di_[i]; j < in->di_[i + 1]; ++j)
+        dj[di[i] + j - in->di_[i]] = in->dj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F');
       for (unsigned int j = in->di_[i]; j < in->di_[i + 1]; ++j) {
 #if HPDDM_PETSC
-        if (in == this && S == 'S' && i == in->dj_[j]) Wrapper<K>::template omatcopy<'T'>(in->bs_, in->bs_, in->da_ + (j - (super::numbering_ == 'F')) * bss, in->bs_, da + (di[i] + j - in->di_[i]) * bss, in->bs_);
+        if (in == this && S == 'S' && i == in->dj_[j])
+          Wrapper<K>::template omatcopy<'T'>(in->bs_, in->bs_, in->da_ + (j - (super::numbering_ == 'F')) * bss, in->bs_, da + (di[i] + j - in->di_[i]) * bss,
+                                             in->bs_);
         else
 #endif
           std::copy_n(in->da_ + (j - (super::numbering_ == 'F')) * bss, bss, da + (di[i] + j - in->di_[i]) * bss);
@@ -1104,15 +1154,19 @@ public:
           }
           if (it != extra.cend()) {
             for (const unsigned short &p : std::get<2>(it->second)) {
-              for (unsigned int j = 0; j < (in->bs_ > 1 ? 1 : sizes.at(std::make_pair(p, p))); ++j) dj[di[i] + shift[0] + j + in->di_[i + 1] - in->di_[i]] = in->dof_ + map[p] + j;
+              for (unsigned int j = 0; j < (in->bs_ > 1 ? 1 : sizes.at(std::make_pair(p, p))); ++j)
+                dj[di[i] + shift[0] + j + in->di_[i + 1] - in->di_[i]] = in->dof_ + map[p] + j;
               shift[0] += (in->bs_ > 1 ? 1 : sizes.at(std::make_pair(p, p)));
             }
           }
           shift[1] = displs.back();
         }
       }
-      for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j) dj[di[i] + shift[0] + j - in->oi_[i] + in->di_[i + 1] - in->di_[i]] = in->dof_ + shift[1] + in->oj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F');
-      for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j) std::copy_n(in->oa_ + (j - (super::numbering_ == 'F')) * bss, bss, da + (di[i] + shift[0] + j - in->oi_[i] + in->di_[i + 1] - in->di_[i]) * bss);
+      for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j)
+        dj[di[i] + shift[0] + j - in->oi_[i] + in->di_[i + 1] - in->di_[i]] = in->dof_ + shift[1] + in->oj_[j - (super::numbering_ == 'F')] -
+                                                                              (super::numbering_ == 'F');
+      for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j)
+        std::copy_n(in->oa_ + (j - (super::numbering_ == 'F')) * bss, bss, da + (di[i] + shift[0] + j - in->oi_[i] + in->di_[i + 1] - in->di_[i]) * bss);
     }
     if (S != 'S') {
       for (unsigned int i = 0; i < in->off_; ++i)
@@ -1126,20 +1180,27 @@ public:
         unsigned int accumulate = 0;
         for (unsigned int j = 0; j < in->recv_[i].second.size(); ++j) {
           std::vector<std::pair<int, K *>> row;
-          row.reserve(di[in->dof_ + displs.back() + in->recv_[i].second[j] + 1] - di[in->dof_ + displs.back() + in->recv_[i].second[j]] - (S != 'S' ? to[in->recv_[i].second[j]].size() : 0));
+          row.reserve(di[in->dof_ + displs.back() + in->recv_[i].second[j] + 1] - di[in->dof_ + displs.back() + in->recv_[i].second[j]] -
+                      (S != 'S' ? to[in->recv_[i].second[j]].size() : 0));
           for (unsigned int k = 0; k < recv[0][i].first[2 * j]; ++k) {
-            row.emplace_back(in->recv_[i].second[HPDDM::lround(HPDDM::abs(recv[0][i].second[accumulate * (1 + bss) + k]))], recv[0][i].second + accumulate * (1 + bss) + recv[0][i].first[2 * j] + k * bss);
+            row.emplace_back(in->recv_[i].second[HPDDM::lround(HPDDM::abs(recv[0][i].second[accumulate * (1 + bss) + k]))],
+                             recv[0][i].second + accumulate * (1 + bss) + recv[0][i].first[2 * j] + k * bss);
           }
           for (unsigned int k = 0; k < recv[0][i].first[2 * j + 1]; ++k) {
-            std::vector<int>::const_iterator pt = std::lower_bound(nnz.cbegin(), nnz.cend(), HPDDM::lround(HPDDM::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k])));
+            std::vector<int>::const_iterator pt = std::lower_bound(nnz.cbegin(), nnz.cend(),
+                                                                   HPDDM::lround(
+                                                                     HPDDM::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k])));
             if (pt != nnz.cend() && *pt == HPDDM::lround(HPDDM::abs(recv[0][i].second[(accumulate + recv[0][i].first[2 * j]) * (1 + bss) + k]))) {
-              row.emplace_back(std::distance(nnz.cbegin(), pt), recv[0][i].second + (accumulate + recv[0][i].first[2 * j]) * (1 + bss) + recv[0][i].first[2 * j + 1] + k * bss);
+              row.emplace_back(std::distance(nnz.cbegin(), pt),
+                               recv[0][i].second + (accumulate + recv[0][i].first[2 * j]) * (1 + bss) + recv[0][i].first[2 * j + 1] + k * bss);
             }
           }
           std::sort(row.begin(), row.end());
           for (unsigned int k = 0; k < row.size(); ++k) {
-            dj[di[in->dof_ + displs.back() + in->recv_[i].second[j]] + (S != 'S' ? to[in->recv_[i].second[j]].size() : 0) + k] = in->dof_ + displs.back() + row[k].first;
-            std::copy_n(row[k].second, bss, da + (di[in->dof_ + displs.back() + in->recv_[i].second[j]] + (S != 'S' ? to[in->recv_[i].second[j]].size() : 0) + k) * bss);
+            dj[di[in->dof_ + displs.back() + in->recv_[i].second[j]] + (S != 'S' ? to[in->recv_[i].second[j]].size() : 0) + k] = in->dof_ + displs.back() +
+                                                                                                                                 row[k].first;
+            std::copy_n(row[k].second, bss,
+                        da + (di[in->dof_ + displs.back() + in->recv_[i].second[j]] + (S != 'S' ? to[in->recv_[i].second[j]].size() : 0) + k) * bss);
           }
           accumulate += recv[0][i].first[2 * j] + recv[0][i].first[2 * j + 1];
         }
@@ -1162,8 +1223,10 @@ public:
       delete[] recv;
     } else {
       unsigned int                                                row = 0;
-      const std::function<size_t(unsigned short, unsigned short)> key = [](unsigned short i, unsigned short j) { return static_cast<size_t>(i) << 32 | static_cast<size_t>(j); };
-      std::unordered_map<size_t, unsigned int>                    loc;
+      const std::function<size_t(unsigned short, unsigned short)> key = [](unsigned short i, unsigned short j) {
+        return static_cast<size_t>(i) << 32 | static_cast<size_t>(j);
+      };
+      std::unordered_map<size_t, unsigned int> loc;
       for (unsigned short k = 0; k < rows.size() - 1; ++k) {
         unsigned int col = 0;
         for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = rows[k].first; it != rows[k + 1].first; ++it) {
@@ -1180,7 +1243,8 @@ public:
         }
         if (in->bs_ == 1) {
           for (unsigned short j = 1; j < rows[k].second; ++j)
-            std::copy_n(dj + di[in->dof_ + map[rows[k].first->first.first]] + (S != 'S' ? to[row].size() : j), col - (S == 'S' ? j : 0), dj + di[in->dof_ + map[rows[k].first->first.first] + j] + (S != 'S' ? to[row + j].size() : 0));
+            std::copy_n(dj + di[in->dof_ + map[rows[k].first->first.first]] + (S != 'S' ? to[row].size() : j), col - (S == 'S' ? j : 0),
+                        dj + di[in->dof_ + map[rows[k].first->first.first] + j] + (S != 'S' ? to[row + j].size() : 0));
           row += rows[k].second;
         } else row += 1;
       }
@@ -1193,21 +1257,27 @@ public:
           for (unsigned short j = 0; j < reduction[index].size(); ++j) {
             const unsigned short r1  = reduction[index][j].first;
             const unsigned short r2  = reduction[index][j].second;
-            const unsigned int   row = std::distance(di, std::lower_bound(di + in->dof_, di + in->dof_ + in->off_ + displs.back(), loc[key(r1, r2)])) - (S == 'S' ? 0 : 1);
+            const unsigned int   row = std::distance(di, std::lower_bound(di + in->dof_, di + in->dof_ + in->off_ + displs.back(), loc[key(r1, r2)])) -
+                                       (S == 'S' ? 0 : 1);
             if (in->bs_ == 1) {
               const unsigned short mu1 = sizes.at(std::make_pair(r1, r1));
               const unsigned short mu2 = sizes.at(std::make_pair(r2, r2));
               for (unsigned short nu1 = 0; nu1 < mu1; ++nu1)
                 for (unsigned short nu2 = (S == 'S' && r1 == r2 ? nu1 : 0); nu2 < mu2; ++nu2) {
-                  if (S != 'S' || r1 != r2) da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row]) - (S == 'S' ? (nu1 * (nu1 - 1)) / 2 : 0)] += std::get<1>(transfer)[nu2 * mu1 + nu1 + accumulate];
-                  else da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row]) - (nu1 * (nu1 + 1)) / 2] += std::get<1>(transfer)[nu2 * mu1 + nu1 + accumulate];
+                  if (S != 'S' || r1 != r2)
+                    da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row]) - (S == 'S' ? (nu1 * (nu1 - 1)) / 2 : 0)] += std::get<1>(
+                      transfer)[nu2 * mu1 + nu1 + accumulate];
+                  else
+                    da[loc[key(r1, r2)] + nu2 + nu1 * (di[row + 1] - di[row]) - (nu1 * (nu1 + 1)) / 2] += std::get<1>(transfer)[nu2 * mu1 + nu1 + accumulate];
                 }
               accumulate += mu1 * mu2;
             } else {
-              if (super::numbering_ == 'F') Blas<K>::axpy(&bss, &(Wrapper<K>::d_1), std::get<1>(transfer) + accumulate, &i_1, da + loc[key(r1, r2)] * bss, &i_1);
+              if (super::numbering_ == 'F')
+                Blas<K>::axpy(&bss, &(Wrapper<K>::d_1), std::get<1>(transfer) + accumulate, &i_1, da + loc[key(r1, r2)] * bss, &i_1);
               else
                 for (unsigned short nu1 = 0; nu1 < in->bs_; ++nu1)
-                  for (unsigned short nu2 = 0; nu2 < in->bs_; ++nu2) da[loc[key(r1, r2)] * bss + nu2 * in->bs_ + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->bs_ + accumulate];
+                  for (unsigned short nu2 = 0; nu2 < in->bs_; ++nu2)
+                    da[loc[key(r1, r2)] * bss + nu2 * in->bs_ + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->bs_ + accumulate];
               accumulate += bss;
             }
           }
@@ -1221,14 +1291,20 @@ public:
                   const unsigned short mu1 = std::get<0>(it->second);
                   const unsigned short mu2 = sizes.at(std::make_pair(p, p));
                   for (unsigned short nu1 = 0; nu1 < mu1; ++nu1)
-                    for (unsigned short nu2 = 0; nu2 < mu2; ++nu2) da[di[row] + in->di_[row + 1] - in->di_[row] + shift + nu2 + nu1 * (di[row + 1] - di[row]) - (nu1 * (nu1 + 1)) / 2] += std::get<1>(transfer)[nu2 + nu1 * mu2 + accumulate];
+                    for (unsigned short nu2 = 0; nu2 < mu2; ++nu2)
+                      da[di[row] + in->di_[row + 1] - in->di_[row] + shift + nu2 + nu1 * (di[row + 1] - di[row]) - (nu1 * (nu1 + 1)) / 2] += std::get<1>(
+                        transfer)[nu2 + nu1 * mu2 + accumulate];
                   accumulate += mu1 * mu2;
                   shift += mu2;
                 } else {
-                  if (super::numbering_ == 'C') Blas<K>::axpy(&bss, &(Wrapper<K>::d_1), std::get<1>(transfer) + accumulate, &i_1, da + (di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift, &i_1);
+                  if (super::numbering_ == 'C')
+                    Blas<K>::axpy(&bss, &(Wrapper<K>::d_1), std::get<1>(transfer) + accumulate, &i_1,
+                                  da + (di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift, &i_1);
                   else
                     for (unsigned short nu1 = 0; nu1 < in->bs_; ++nu1)
-                      for (unsigned short nu2 = 0; nu2 < in->bs_; ++nu2) da[(di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift + nu2 * in->bs_ + nu1] += std::get<1>(transfer)[nu2 + nu1 * in->bs_ + accumulate];
+                      for (unsigned short nu2 = 0; nu2 < in->bs_; ++nu2)
+                        da[(di[row] + in->di_[row + 1] - in->di_[row]) * bss + shift + nu2 * in->bs_ + nu1] += std::get<1>(
+                          transfer)[nu2 + nu1 * in->bs_ + accumulate];
                   accumulate += bss;
                   shift += bss;
                 }
@@ -1242,11 +1318,14 @@ public:
       delete[] std::get<2>(transfer);
     }
 #if !HPDDM_PETSC
-    MatrixCSR<K> *ret = new MatrixCSR<K>(in->dof_ + in->off_ + displs.back(), in->dof_ + in->off_ + displs.back(), di[in->dof_ + in->off_ + displs.back()], da, di, dj, S == 'S', true);
+    MatrixCSR<K> *ret = new MatrixCSR<K>(in->dof_ + in->off_ + displs.back(), in->dof_ + in->off_ + displs.back(), di[in->dof_ + in->off_ + displs.back()], da,
+                                         di, dj, S == 'S', true);
     if (bss > 1) {
       int *di = new int[ret->n_ * in->bs_ + 1];
       for (int i = 0; i < ret->n_; ++i)
-        for (int k = 0; k < in->bs_; ++k) di[i * in->bs_ + k] = ret->ia_[i] * bss + (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ * k - (S == 'S' ? i * (in->bs_ * (in->bs_ - 1)) / 2 + (k * (k - 1)) / 2 : 0);
+        for (int k = 0; k < in->bs_; ++k)
+          di[i * in->bs_ + k] = ret->ia_[i] * bss + (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ * k -
+                                (S == 'S' ? i * (in->bs_ * (in->bs_ - 1)) / 2 + (k * (k - 1)) / 2 : 0);
       ret->nnz_ *= bss;
       if (S == 'S') ret->nnz_ -= ret->n_ * (in->bs_ * (in->bs_ - 1)) / 2;
       di[ret->n_ * in->bs_] = ret->nnz_;
@@ -1254,21 +1333,28 @@ public:
       for (int i = 0; i < ret->n_; ++i) {
         for (int j = ret->ia_[i]; j < ret->ia_[i + 1]; ++j)
           for (int k = 0; k < in->bs_; ++k) dj[di[i * in->bs_] + (j - ret->ia_[i]) * in->bs_ + k] = ret->ja_[j] * in->bs_ + k;
-        for (int k = 1; k < in->bs_; ++k) std::copy_n(dj + di[i * in->bs_] + (S == 'S' ? k : 0), (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ - (S == 'S' ? k : 0), dj + di[i * in->bs_ + k]);
+        for (int k = 1; k < in->bs_; ++k)
+          std::copy_n(dj + di[i * in->bs_] + (S == 'S' ? k : 0), (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ - (S == 'S' ? k : 0), dj + di[i * in->bs_ + k]);
       }
       K *da = new K[ret->nnz_];
       if (S != 'S') {
         if (super::numbering_ == 'F') {
-          for (int i = 0; i < ret->n_; ++i) Wrapper<K>::template omatcopy<'T'>((ret->ia_[i + 1] - ret->ia_[i]) * in->bs_, in->bs_, ret->a_ + ret->ia_[i] * bss, in->bs_, da + ret->ia_[i] * bss, (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_);
+          for (int i = 0; i < ret->n_; ++i)
+            Wrapper<K>::template omatcopy<'T'>((ret->ia_[i + 1] - ret->ia_[i]) * in->bs_, in->bs_, ret->a_ + ret->ia_[i] * bss, in->bs_, da + ret->ia_[i] * bss,
+                                               (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_);
         } else {
           for (int i = 0; i < ret->n_; ++i)
-            for (int j = ret->ia_[i]; j < ret->ia_[i + 1]; ++j) Wrapper<K>::template omatcopy<'N'>(in->bs_, in->bs_, ret->a_ + j * bss, in->bs_, da + ret->ia_[i] * bss + (j - ret->ia_[i]) * in->bs_, (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_);
+            for (int j = ret->ia_[i]; j < ret->ia_[i + 1]; ++j)
+              Wrapper<K>::template omatcopy<'N'>(in->bs_, in->bs_, ret->a_ + j * bss, in->bs_, da + ret->ia_[i] * bss + (j - ret->ia_[i]) * in->bs_,
+                                                 (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_);
         }
       } else {
         for (int i = 0; i < ret->n_; ++i)
           for (int j = ret->ia_[i]; j < ret->ia_[i + 1]; ++j) {
             for (int nu = 0; nu < in->bs_; ++nu) {
-              for (int mu = (j == ret->ia_[i] ? nu : 0); mu < in->bs_; ++mu) da[di[i * in->bs_ + nu] + (j - ret->ia_[i]) * in->bs_ + mu - nu] = ret->a_[j * bss + (super::numbering_ == 'F' ? mu * in->bs_ + nu : mu + nu * in->bs_)];
+              for (int mu = (j == ret->ia_[i] ? nu : 0); mu < in->bs_; ++mu)
+                da[di[i * in->bs_ + nu] + (j - ret->ia_[i]) * in->bs_ + mu - nu] = ret->a_[j * bss +
+                                                                                           (super::numbering_ == 'F' ? mu * in->bs_ + nu : mu + nu * in->bs_)];
             }
           }
       }
@@ -1300,7 +1386,8 @@ public:
     }
     PetscCallContinue(MatSetFromOptions(ret));
     PetscCallContinue(MatSetBlockSize(ret, in->bs_));
-    PetscCallContinue(MatSetSizes(ret, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_));
+    PetscCallContinue(MatSetSizes(ret, (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_,
+                                  (in->dof_ + in->off_ + displs.back()) * in->bs_, (in->dof_ + in->off_ + displs.back()) * in->bs_));
     if (S == 'S') {
       PetscCallContinue(MatSetType(ret, MATSEQSBAIJ));
       PetscCallContinue(MatSeqSBAIJSetPreallocationCSR(ret, in->bs_, di, dj, da));
@@ -1325,7 +1412,10 @@ public:
 #endif
       super;
 
-  return_type buildThree(CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)> *const &A, const std::vector<std::vector<std::pair<unsigned short, unsigned short>>> &reduction, const std::map<std::pair<unsigned short, unsigned short>, unsigned short> &sizes, const std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra
+  return_type buildThree(CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)> *const                                                &A,
+                         const std::vector<std::vector<std::pair<unsigned short, unsigned short>>>                                       &reduction,
+                         const std::map<std::pair<unsigned short, unsigned short>, unsigned short>                                       &sizes,
+                         const std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra
 #if HPDDM_PETSC
                          ,
                          Mat *D, Mat *N, PC_HPDDM_Level *const level
@@ -1351,13 +1441,16 @@ public:
       for (unsigned short i = 0; i < reduction.size(); ++i) {
         std::get<0>(transfer)[i + 1] = std::get<0>(transfer)[i];
         for (unsigned short j = 0; j < reduction[i].size(); ++j)
-          std::get<0>(transfer)[i + 1] += (bs_ > 1 ? bs_ * bs_ : sizes.at(std::make_pair(reduction[i][j].first, reduction[i][j].first)) * sizes.at(std::make_pair(reduction[i][j].first, reduction[i][j].second)));
+          std::get<0>(transfer)[i + 1] += (bs_ > 1 ? bs_ * bs_
+                                                   : sizes.at(std::make_pair(reduction[i][j].first, reduction[i][j].first)) *
+                                                       sizes.at(std::make_pair(reduction[i][j].first, reduction[i][j].second)));
         if (S == 'S') {
           std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::const_iterator it = extra.find(i);
           if (it != extra.cend()) {
             if (bs_ > 1) std::get<0>(transfer)[i + 1] += bs_ * bs_ * std::get<2>(it->second).size();
             else {
-              for (std::vector<unsigned short>::const_iterator p = std::get<2>(it->second).cbegin(); p != std::get<2>(it->second).cend(); ++p) std::get<0>(transfer)[i + 1] += std::get<0>(it->second) * sizes.at(std::make_pair(*p, *p));
+              for (std::vector<unsigned short>::const_iterator p = std::get<2>(it->second).cbegin(); p != std::get<2>(it->second).cend(); ++p)
+                std::get<0>(transfer)[i + 1] += std::get<0>(it->second) * sizes.at(std::make_pair(*p, *p));
             }
           }
         }
@@ -1366,7 +1459,8 @@ public:
       std::get<2>(transfer) = new MPI_Request[reduction.size()];
       for (unsigned short i = 0; i < reduction.size(); ++i) {
         if (std::get<0>(transfer)[i + 1] - std::get<0>(transfer)[i])
-          MPI_Irecv(std::get<1>(transfer) + std::get<0>(transfer)[i], std::get<0>(transfer)[i + 1] - std::get<0>(transfer)[i], Wrapper<K>::mpi_type(), i, 300, A->getCommunicator(), std::get<2>(transfer) + i);
+          MPI_Irecv(std::get<1>(transfer) + std::get<0>(transfer)[i], std::get<0>(transfer)[i + 1] - std::get<0>(transfer)[i], Wrapper<K>::mpi_type(), i, 300,
+                    A->getCommunicator(), std::get<2>(transfer) + i);
         else std::get<2>(transfer)[i] = MPI_REQUEST_NULL;
       }
       std::vector<std::vector<unsigned int>> off;
@@ -1404,11 +1498,13 @@ public:
           off[i].reserve(dof_);
           for (unsigned int j = 0; j < dof_; ++j) {
             if (oi_[j + 1] - oi_[j]) {
-              integer_type *start = std::lower_bound(oj_ + oi_[j] - (super::numbering_ == 'F'), oj_ + oi_[j + 1] - (super::numbering_ == 'F'), recv_[i].second[0] + (super::numbering_ == 'F'));
+              integer_type *start = std::lower_bound(oj_ + oi_[j] - (super::numbering_ == 'F'), oj_ + oi_[j + 1] - (super::numbering_ == 'F'),
+                                                     recv_[i].second[0] + (super::numbering_ == 'F'));
               integer_type *end   = std::lower_bound(start, oj_ + oi_[j + 1] - (super::numbering_ == 'F'), recv_[i].second.back() + (super::numbering_ == 'F'));
               if (start == oj_ + oi_[j + 1] - (super::numbering_ == 'F')) --start;
               if (end == oj_ + oi_[j + 1] - (super::numbering_ == 'F')) --end;
-              if ((*start - (super::numbering_ == 'F')) <= recv_[i].second.back() && recv_[i].second[0] <= (*end - (super::numbering_ == 'F'))) off[i].emplace_back(j);
+              if ((*start - (super::numbering_ == 'F')) <= recv_[i].second.back() && recv_[i].second[0] <= (*end - (super::numbering_ == 'F')))
+                off[i].emplace_back(j);
             }
           }
           s[3 * i]     = off[i].size();

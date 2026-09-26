@@ -129,7 +129,8 @@ public:
       ignore(MPI_Waitall(map_.size(), rq_ + map_.size(), MPI_STATUSES_IGNORE));
     }
   }
-  template <class T, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex && std::is_same<K, underlying_type<T>>::value>::type * = nullptr>
+  template <class T, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex &&
+                                             std::is_same<K, underlying_type<T>>::value>::type * = nullptr>
   void exchange(T *const in, const unsigned short &mu = 1) const
   {
     for (unsigned short nu = 0; nu < mu; ++nu) {
@@ -164,7 +165,8 @@ public:
          *    r              - Local-to-neighbor mappings.
          *    comm           - MPI communicator of the domain decomposition. */
   template <class Neighbor, class Mapping>
-  void initialize(MatrixCSR<K> *const &a, const Neighbor &o, const Mapping &r, MPI_Comm *const &comm = nullptr, const MatrixCSR<void> *const &restriction = nullptr)
+  void initialize(MatrixCSR<K> *const &a, const Neighbor &o, const Mapping &r, MPI_Comm *const &comm = nullptr,
+                  const MatrixCSR<void> *const &restriction = nullptr)
   {
     if (comm) communicator_ = *comm;
     else communicator_ = MPI_COMM_WORLD;
@@ -236,7 +238,8 @@ public:
     buff_ = new K *[2 * map_.size()]();
   }
 #ifndef PETSC_PCHPDDM_MAXLEVELS
-  void initialize(MatrixCSR<K> *const &a, const int neighbors, const int *const list, const int *const sizes, const int *const *const connectivity, MPI_Comm *const &comm = nullptr)
+  void initialize(MatrixCSR<K> *const &a, const int neighbors, const int *const list, const int *const sizes, const int *const *const connectivity,
+                  MPI_Comm *const &comm = nullptr)
   {
     if (comm) communicator_ = *comm;
     else communicator_ = MPI_COMM_WORLD;
@@ -316,7 +319,8 @@ public:
       if (a_->ia_[i] != a_->ia_[i + 1]) {
         if (!a_->sym_) stop = std::distance(a_->ja_, std::upper_bound(a_->ja_ + a_->ia_[i] - shift, a_->ja_ + a_->ia_[i + 1] - shift, i + shift));
         else stop = a_->ia_[i + 1] - shift;
-        if ((a_->sym_ || stop < a_->ia_[i + 1] - shift || a_->ja_[a_->ia_[i + 1] - shift - 1] == i + shift) && a_->ja_[std::max(1U, stop) - 1] == i + shift && std::abs(a_->a_[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
+        if ((a_->sym_ || stop < a_->ia_[i + 1] - shift || a_->ja_[a_->ia_[i + 1] - shift - 1] == i + shift) && a_->ja_[std::max(1U, stop) - 1] == i + shift &&
+            std::abs(a_->a_[stop - 1]) < HPDDM_EPS * HPDDM_PEN)
           for (unsigned int j = a_->ia_[i] - shift; j < stop; ++j) {
             if (std::abs(a_->a_[j] - K(i == a_->ja_[j] - shift)) > HPDDM_EPS) return K();
           }
@@ -439,15 +443,18 @@ public:
       v.emplace_back(" │  " + to_string(global[0]) + " unknown" + (global[0] > 1 ? "s" : ""));
       v.emplace_back(" │  " + to_string(global[1]) + " interprocess unknown" + (global[1] > 1 ? "s" : ""));
       std::stringstream ss;
-      ss << std::fixed << std::setprecision(1) << global[2] / static_cast<float>(global[0]) << " nonzero entr" << (global[2] / static_cast<float>(global[0]) > 1 ? "ies" : "y") << " per unknown";
+      ss << std::fixed << std::setprecision(1) << global[2] / static_cast<float>(global[0]) << " nonzero entr"
+         << (global[2] / static_cast<float>(global[0]) > 1 ? "ies" : "y") << " per unknown";
       v.emplace_back(" │  " + ss.str());
       ss.clear();
       ss.str(std::string());
       MPI_Comm_size(communicator_, &n);
-      ss << std::fixed << std::setprecision(1) << global[3] / static_cast<float>(n) << " neighboring process" << (global[3] / static_cast<float>(n) > 1.0f ? "es" : "") << " (average)";
+      ss << std::fixed << std::setprecision(1) << global[3] / static_cast<float>(n) << " neighboring process"
+         << (global[3] / static_cast<float>(n) > 1.0f ? "es" : "") << " (average)";
       v.emplace_back(" │  " + ss.str());
       v.emplace_back(" └");
-      std::vector<std::string>::const_iterator max = std::max_element(v.cbegin(), v.cend(), [](const std::string &lhs, const std::string &rhs) { return lhs.size() < rhs.size(); });
+      std::vector<std::string>::const_iterator max = std::max_element(v.cbegin(), v.cend(),
+                                                                      [](const std::string &lhs, const std::string &rhs) { return lhs.size() < rhs.size(); });
       Option::output(v, max->size());
     }
 #endif
@@ -511,7 +518,8 @@ public:
           if (removed.find(p.second) == removed.cend()) *(first + p.second) = beginning++;
       }
       if (!map_.empty()) {
-        for (unsigned short i = 0; i < map_.size(); ++i) MPI_Irecv(static_cast<void *>(buff_[i]), map_[i].second.size(), Wrapper<T>::mpi_type(), map_[i].first, 10, communicator_, rq_ + i);
+        for (unsigned short i = 0; i < map_.size(); ++i)
+          MPI_Irecv(static_cast<void *>(buff_[i]), map_[i].second.size(), Wrapper<T>::mpi_type(), map_[i].first, 10, communicator_, rq_ + i);
         for (unsigned short i = 0; i < map_.size(); ++i) {
           T *sbuff = reinterpret_cast<T *>(buff_[map_.size() + i]);
           for (unsigned int j = 0; j < map_[i].second.size(); ++j) sbuff[j] = *(first + map_[i].second[j]);
@@ -554,7 +562,8 @@ public:
       if (col || !std::is_same<K, T>::value) std::cerr << "Not implemented" << std::endl;
       transpose = new std::vector<std::pair<int, int>>[A->n_]();
       for (int i = 0; i < A->n_; ++i)
-        for (int j = A->ia_[i] - (HPDDM_NUMBERING == 'F'); j < A->ia_[i + 1] - (HPDDM_NUMBERING == 'F'); ++j) transpose[A->ja_[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
+        for (int j = A->ia_[i] - (HPDDM_NUMBERING == 'F'); j < A->ia_[i + 1] - (HPDDM_NUMBERING == 'F'); ++j)
+          transpose[A->ja_[j] - (HPDDM_NUMBERING == 'F')].emplace_back(i, j);
       for (int i = 0; i < A->n_; ++i) std::sort(transpose[i].begin(), transpose[i].end());
     }
     if (first != 0 || last != A->n_ || col) {
@@ -577,7 +586,8 @@ public:
             if (transpose[it->second][j].first != it->second) tmp.emplace_back(col[transpose[it->second][j].first], A->a_[transpose[it->second][j].second]);
           }
         }
-        std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(), [](const std::pair<I, T> &lhs, const std::pair<I, T> &rhs) { return lhs.first < rhs.first; });
+        std::sort(tmp.begin() + ia[std::distance(begin, it)], tmp.end(),
+                  [](const std::pair<I, T> &lhs, const std::pair<I, T> &rhs) { return lhs.first < rhs.first; });
         if (A->sym_) {
           const unsigned int row = std::distance(begin, it);
           tmp.erase(std::remove_if(tmp.begin() + ia[row], tmp.end(), [&row](const std::pair<I, T> &x) { return x.first < row; }), tmp.end());

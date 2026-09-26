@@ -102,7 +102,8 @@ int main(int argc, char **argv)
 #else
     int th = 1;
 #endif
-    std::cout << "// " << size << " MPI process" << (size > 1 ? "es" : "") << " x " << th << " thread" << (th > 1 ? "s" : "") << " = " << (size * th) << " worker" << (size * th > 1 ? "s" : "") << std::endl;
+    std::cout << "// " << size << " MPI process" << (size > 1 ? "es" : "") << " x " << th << " thread" << (th > 1 ? "s" : "") << " = " << (size * th)
+              << " worker" << (size * th > 1 ? "s" : "") << std::endl;
   }
   HPDDM::Option &opt = *HPDDM::Option::get();
   opt.parse(argc, argv, false,

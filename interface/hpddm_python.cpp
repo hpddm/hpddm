@@ -54,7 +54,10 @@ const char symCoarse = 'S';
 
 struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
   void (*precond_)(const HPDDM::pod_type<K> *, HPDDM::pod_type<K> *, int, int);
-  CustomOperator(HPDDM::MatrixCSR<K> *A, void (*precond)(const HPDDM::pod_type<K> *, HPDDM::pod_type<K> *, int, int)) : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A), precond_(precond) { }
+  CustomOperator(HPDDM::MatrixCSR<K> *A, void (*precond)(const HPDDM::pod_type<K> *, HPDDM::pod_type<K> *, int, int)) :
+    HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K>(A), precond_(precond)
+  {
+  }
   template <bool>
   int apply(const K *const in, K *const out, const unsigned short &mu = 1, K * = nullptr, const unsigned short & = 0) const
   {
@@ -236,7 +239,8 @@ void schwarzInitialize(void *A, HPDDM::underlying_type<K> *d)
 }
 void *schwarzPreconditioner(void *A)
 {
-  return static_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, K>, K> *>(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> *>(A));
+  return static_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, K>, K> *>(
+    reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> *>(A));
 }
 void schwarzMultiplicityScaling(void *A, HPDDM::underlying_type<K> *d)
 {
@@ -262,7 +266,8 @@ void schwarzBuildCoarseOperator(void *A, MPI_Comm comm)
 }
 void schwarzComputeResidual(void *A, HPDDM::pod_type<K> *sol, HPDDM::pod_type<K> *f, HPDDM::underlying_type<K> *storage, unsigned short mu)
 {
-  reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> *>(A)->computeResidual(reinterpret_cast<K *>(sol), reinterpret_cast<K *>(f), storage, mu);
+  reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> *>(A)->computeResidual(reinterpret_cast<K *>(sol), reinterpret_cast<K *>(f), storage,
+                                                                                                  mu);
 }
 void schwarzDestroy(void **schwarz)
 {
@@ -274,13 +279,16 @@ void schwarzDestroy(void **schwarz)
 
 int solve(void *A, HPDDM::pod_type<K> *f, HPDDM::pod_type<K> *sol, int mu, MPI_Comm *comm)
 {
-  return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> *>(A)), reinterpret_cast<K *>(f), reinterpret_cast<K *>(sol), mu, *comm);
+  return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, K> *>(A)), reinterpret_cast<K *>(f),
+                                       reinterpret_cast<K *>(sol), mu, *comm);
 }
 #else
 unsigned short subdomain = 0;
 #endif
-int CustomOperatorSolve(void *Mat, void (*precond)(const HPDDM::pod_type<K> *, HPDDM::pod_type<K> *, int, int), HPDDM::pod_type<K> *f, HPDDM::pod_type<K> *sol, int mu)
+int CustomOperatorSolve(void *Mat, void (*precond)(const HPDDM::pod_type<K> *, HPDDM::pod_type<K> *, int, int), HPDDM::pod_type<K> *f, HPDDM::pod_type<K> *sol,
+                        int mu)
 {
-  return HPDDM::IterativeMethod::solve(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K> *>(Mat), precond), reinterpret_cast<K *>(f), reinterpret_cast<K *>(sol), mu, MPI_COMM_SELF);
+  return HPDDM::IterativeMethod::solve(CustomOperator(reinterpret_cast<HPDDM::MatrixCSR<K> *>(Mat), precond), reinterpret_cast<K *>(f),
+                                       reinterpret_cast<K *>(sol), mu, MPI_COMM_SELF);
 }
 }

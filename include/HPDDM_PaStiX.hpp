@@ -25,7 +25,8 @@
 #pragma once
 
 #define HPDDM_GENERATE_PASTIX_EXTERN(C, T) \
-  int C##_cscd_redispatch(pastix_int_t, pastix_int_t *, pastix_int_t *, T *, T *, pastix_int_t, pastix_int_t *, pastix_int_t, pastix_int_t **, pastix_int_t **, T **, T **, pastix_int_t *, MPI_Comm, pastix_int_t);
+  int C##_cscd_redispatch(pastix_int_t, pastix_int_t *, pastix_int_t *, T *, T *, pastix_int_t, pastix_int_t *, pastix_int_t, pastix_int_t **, \
+                          pastix_int_t **, T **, T **, pastix_int_t *, MPI_Comm, pastix_int_t);
 
 extern "C" {
 #include <pastix.h>
@@ -38,22 +39,28 @@ HPDDM_GENERATE_PASTIX_EXTERN(z, std::complex<double>)
 #define HPDDM_GENERATE_PASTIX(C, T) \
   template <> \
   struct pstx<T> { \
-    static void dist(pastix_data_t **pastix_data, MPI_Comm pastix_comm, pastix_int_t n, pastix_int_t *colptr, pastix_int_t *row, T *avals, pastix_int_t *loc2glob, pastix_int_t *perm, pastix_int_t *invp, T *b, pastix_int_t rhs, pastix_int_t *iparm, double *dparm) \
+    static void dist(pastix_data_t **pastix_data, MPI_Comm pastix_comm, pastix_int_t n, pastix_int_t *colptr, pastix_int_t *row, T *avals, \
+                     pastix_int_t *loc2glob, pastix_int_t *perm, pastix_int_t *invp, T *b, pastix_int_t rhs, pastix_int_t *iparm, double *dparm) \
     { \
       C##_dpastix(pastix_data, pastix_comm, n, colptr, row, avals, loc2glob, perm, invp, b, rhs, iparm, dparm); \
     } \
-    static void seq(pastix_data_t **pastix_data, MPI_Comm pastix_comm, pastix_int_t n, pastix_int_t *colptr, pastix_int_t *row, T *avals, pastix_int_t *perm, pastix_int_t *invp, T *b, pastix_int_t rhs, pastix_int_t *iparm, double *dparm) \
+    static void seq(pastix_data_t **pastix_data, MPI_Comm pastix_comm, pastix_int_t n, pastix_int_t *colptr, pastix_int_t *row, T *avals, pastix_int_t *perm, \
+                    pastix_int_t *invp, T *b, pastix_int_t rhs, pastix_int_t *iparm, double *dparm) \
     { \
       C##_pastix(pastix_data, pastix_comm, n, colptr, row, avals, perm, invp, b, rhs, iparm, dparm); \
     } \
-    static int cscd_redispatch(pastix_int_t n, pastix_int_t *ia, pastix_int_t *ja, T *a, T *rhs, pastix_int_t nrhs, pastix_int_t *l2g, pastix_int_t dn, pastix_int_t **dia, pastix_int_t **dja, T **da, T **drhs, pastix_int_t *dl2g, MPI_Comm comm, pastix_int_t dof) \
+    static int cscd_redispatch(pastix_int_t n, pastix_int_t *ia, pastix_int_t *ja, T *a, T *rhs, pastix_int_t nrhs, pastix_int_t *l2g, pastix_int_t dn, \
+                               pastix_int_t **dia, pastix_int_t **dja, T **da, T **drhs, pastix_int_t *dl2g, MPI_Comm comm, pastix_int_t dof) \
     { \
       return C##_cscd_redispatch(n, ia, ja, a, rhs, nrhs, l2g, dn, dia, dja, da, drhs, dl2g, comm, dof); \
     } \
     static void         initParam(pastix_int_t *iparm, double *dparm) { C##_pastix_initParam(iparm, dparm); } \
     static pastix_int_t getLocalNodeNbr(pastix_data_t **pastix_data) { return C##_pastix_getLocalNodeNbr(pastix_data); } \
     static pastix_int_t getLocalNodeLst(pastix_data_t **pastix_data, pastix_int_t *nodelst) { return C##_pastix_getLocalNodeLst(pastix_data, nodelst); } \
-    static pastix_int_t setSchurUnknownList(pastix_data_t *pastix_data, pastix_int_t n, pastix_int_t *list) { return C##_pastix_setSchurUnknownList(pastix_data, n, list); } \
+    static pastix_int_t setSchurUnknownList(pastix_data_t *pastix_data, pastix_int_t n, pastix_int_t *list) \
+    { \
+      return C##_pastix_setSchurUnknownList(pastix_data, n, list); \
+    } \
     static pastix_int_t setSchurArray(pastix_data_t *pastix_data, T *array) { return C##_pastix_setSchurArray(pastix_data, array); } \
   };
 

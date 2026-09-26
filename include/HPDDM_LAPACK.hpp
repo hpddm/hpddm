@@ -29,10 +29,13 @@
   U    HPDDM_F77(C##lange)(const char *, const int *, const int *, const T *, const int *, U *) HPDDM_NOEXCEPT; \
   U    HPDDM_F77(C##lan##SYM)(const char *, const char *, const int *, const T *, const int *, U *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##SYM##trd)(const char *, const int *, T *, const int *, U *, U *, T *, T *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##stein)(const int *, const U *, const U *, const int *, const U *, const int *, const int *, T *, const int *, U *, int *, int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##ORT##mtr)(const char *, const char *, const char *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##stein)(const int *, const U *, const U *, const int *, const U *, const int *, const int *, T *, const int *, U *, int *, int *, int *) \
+    HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##ORT##mtr)(const char *, const char *, const char *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, \
+                              const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##gehrd)(const int *, const int *, const int *, T *, const int *, T *, T *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##ORT##mhr)(const char *, const char *, const int *, const int *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##ORT##mhr)(const char *, const char *, const int *, const int *, const int *, const int *, const T *, const int *, const T *, T *, \
+                              const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##getrf)(const int *, const int *, T *, const int *, int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##getrs)(const char *, const int *, const int *, const T *, const int *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##getri)(const int *, T *, const int *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
@@ -43,7 +46,8 @@
   void HPDDM_F77(C##potrs)(const char *, const int *, const int *, const T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##potri)(const char *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##pstrf)(const char *, const int *, T *, const int *, int *, int *, const U *, U *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##trtrs)(const char *, const char *, const char *, const int *, const int *, const T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##trtrs)(const char *, const char *, const char *, const int *, const int *, const T *, const int *, T *, const int *, int *) \
+    HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##posv)(const char *, const int *, const int *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##pptrf)(const char *, const int *, T *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##pptrs)(const char *, const int *, const int *, const T *, T *, const int *, int *) HPDDM_NOEXCEPT; \
@@ -51,31 +55,47 @@
   void HPDDM_F77(C##SYM##sv)(const char *, const int *, const int *, T *, const int *, int *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##geqrf)(const int *, const int *, T *, const int *, T *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##geqrt)(const int *, const int *, const int *, T *, const int *, T *, const int *, T *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##gemqrt)(const char *, const char *, const int *, const int *, const int *, const int *, const T *, const int *, const T *, const int *, T *, const int *, T *, int *) HPDDM_NOEXCEPT;
+  void HPDDM_F77(C##gemqrt)(const char *, const char *, const int *, const int *, const int *, const int *, const T *, const int *, const T *, const int *, \
+                            T *, const int *, T *, int *) HPDDM_NOEXCEPT;
 #define HPDDM_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U) \
   HPDDM_GENERATE_EXTERN_LAPACK(B, U, U, sy, or) \
   HPDDM_GENERATE_EXTERN_LAPACK(C, T, U, he, un) \
-  void HPDDM_F77(B##stebz)(const char *, const char *, const int *, const U *, const U *, const int *, const int *, const U *, const U *, const U *, int *, int *, U *, int *, int *, U *, int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##stebz)(const char *, const char *, const int *, const U *, const U *, const int *, const int *, const U *, const U *, const U *, int *, \
+                           int *, U *, int *, int *, U *, int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(B##pocon)(const char *, const int *, const U *, const int *, const U *, U *, U *, int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##pocon)(const char *, const int *, const T *, const int *, const U *, U *, T *, U *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(B##sygst)(const int *, const char *, const int *, U *, const int *, const U *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##hegst)(const int *, const char *, const int *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(B##geqp3)(const int *, const int *, U *, const int *, int *, U *, U *, const int *, int *) HPDDM_NOEXCEPT; \
   void HPDDM_F77(C##geqp3)(const int *, const int *, T *, const int *, int *, T *, T *, const int *, U *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##ormqr)(const char *, const char *, const int *, const int *, const int *, const U *, const int *, const U *, U *, const int *, U *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##unmqr)(const char *, const char *, const int *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##hseqr)(const char *, const char *, const int *, const int *, const int *, U *, const int *, U *, U *, U *, const int *, U *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##hseqr)(const char *, const char *, const int *, const int *, const int *, T *, const int *, T *, T *, const int *, T *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##hsein)(const char *, const char *, const char *, int *, const int *, const U *, const int *, U *, const U *, U *, const int *, U *, const int *, const int *, int *, U *, int *, int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##hsein)(const char *, const char *, const char *, const int *, const int *, const T *, const int *, T *, T *, const int *, T *, const int *, const int *, int *, T *, U *, int *, int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##geev)(const char *, const char *, const int *, U *, const int *, U *, U *, U *, const int *, U *, const int *, U *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##geev)(const char *, const char *, const int *, T *, const int *, T *, T *, const int *, T *, const int *, T *, const int *, U *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##ggev)(const char *, const char *, const int *, U *, const int *, U *, const int *, U *, U *, U *, U *, const int *, U *, const int *, U *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##ggev)(const char *, const char *, const int *, T *, const int *, T *, const int *, T *, T *, T *, const int *, T *, const int *, T *, const int *, U *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##gesvd)(const char *, const char *, const int *, const int *, U *, const int *, U *, U *, const int *, U *, const int *, U *, const int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##gesvd)(const char *, const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, U *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(B##gesdd)(const char *, const int *, const int *, U *, const int *, U *, U *, const int *, U *, const int *, U *, const int *, int *, int *) HPDDM_NOEXCEPT; \
-  void HPDDM_F77(C##gesdd)(const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, U *, int *, int *) HPDDM_NOEXCEPT;
+  void HPDDM_F77(B##ormqr)(const char *, const char *, const int *, const int *, const int *, const U *, const int *, const U *, U *, const int *, U *, \
+                           const int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##unmqr)(const char *, const char *, const int *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, \
+                           const int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##hseqr)(const char *, const char *, const int *, const int *, const int *, U *, const int *, U *, U *, U *, const int *, U *, const int *, \
+                           int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##hseqr)(const char *, const char *, const int *, const int *, const int *, T *, const int *, T *, T *, const int *, T *, const int *, \
+                           int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##hsein)(const char *, const char *, const char *, int *, const int *, const U *, const int *, U *, const U *, U *, const int *, U *, \
+                           const int *, const int *, int *, U *, int *, int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##hsein)(const char *, const char *, const char *, const int *, const int *, const T *, const int *, T *, T *, const int *, T *, \
+                           const int *, const int *, int *, T *, U *, int *, int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##geev)(const char *, const char *, const int *, U *, const int *, U *, U *, U *, const int *, U *, const int *, U *, const int *, int *) \
+    HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##geev)(const char *, const char *, const int *, T *, const int *, T *, T *, const int *, T *, const int *, T *, const int *, U *, int *) \
+    HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##ggev)(const char *, const char *, const int *, U *, const int *, U *, const int *, U *, U *, U *, U *, const int *, U *, const int *, U *, \
+                          const int *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##ggev)(const char *, const char *, const int *, T *, const int *, T *, const int *, T *, T *, T *, const int *, T *, const int *, T *, \
+                          const int *, U *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##gesvd)(const char *, const char *, const int *, const int *, U *, const int *, U *, U *, const int *, U *, const int *, U *, const int *, \
+                           int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##gesvd)(const char *, const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, \
+                           U *, int *) HPDDM_NOEXCEPT; \
+  void HPDDM_F77(B##gesdd)(const char *, const int *, const int *, U *, const int *, U *, U *, const int *, U *, const int *, U *, const int *, int *, int *) \
+    HPDDM_NOEXCEPT; \
+  void HPDDM_F77(C##gesdd)(const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, U *, int *, \
+                           int *) HPDDM_NOEXCEPT;
 
 #ifndef _MKL_H_
   #ifdef __cplusplus
@@ -140,7 +160,8 @@ struct Lapack {
   static void potrf(const char *, const int *, K *, const int *, int *);
   /* Function: pocon
      *  Estimates the reciprocal of the condition number of a symmetric or Hermitian positive definite matrix. */
-  static void pocon(const char *, const int *, const K *, const int *, underlying_type<K> *, underlying_type<K> *, K *, typename std::conditional<Wrapper<K>::is_complex, underlying_type<K> *, int *>::type, int *);
+  static void pocon(const char *, const int *, const K *, const int *, underlying_type<K> *, underlying_type<K> *, K *,
+                    typename std::conditional<Wrapper<K>::is_complex, underlying_type<K> *, int *>::type, int *);
   /* Function: potrs
      *  Solves a system of linear equations with a Cholesky-factored matrix. */
   static void potrs(const char *, const int *, const int *, const K *, const int *, K *, const int *, int *);
@@ -175,10 +196,12 @@ struct Lapack {
   static void geqrt(const int *, const int *, const int *, K *, const int *, K *, const int *, K *, int *);
   /* Function: gemqrt
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geqrt>. */
-  static void gemqrt(const char *, const char *, const int *, const int *, const int *, const int *, const K *, const int *, const K *, const int *, K *, const int *, K *, int *);
+  static void gemqrt(const char *, const char *, const int *, const int *, const int *, const int *, const K *, const int *, const K *, const int *, K *,
+                     const int *, K *, int *);
   /* Function: mqr
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::geq>. */
-  static void mqr(const char *, const char *, const int *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *, const int *, int *);
+  static void mqr(const char *, const char *, const int *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *, const int *,
+                  int *);
   /* Function: gehrd
      *  Reduces a matrix to an upper Hessenberg matrix. */
   static void gehrd(const int *, const int *, const int *, K *, const int *, K *, K *, const int *, int *);
@@ -187,16 +210,20 @@ struct Lapack {
   static void hseqr(const char *, const char *, const int *, const int *, const int *, K *, const int *, K *, K *, K *, const int *, K *, const int *, int *);
   /* Function: hsein
      *  Computes selected eigenvectors of an upper Hessenberg matrix that correspond to specified eigenvalues. */
-  static void hsein(const char *, const char *, const char *, int *, const int *, K *, const int *, K *, const K *, K *, const int *, K *, const int *, const int *, int *, K *, underlying_type<K> *, int *, int *, int *);
+  static void hsein(const char *, const char *, const char *, int *, const int *, K *, const int *, K *, const K *, K *, const int *, K *, const int *,
+                    const int *, int *, K *, underlying_type<K> *, int *, int *, int *);
   /* Function: mhr
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::gehrd>. */
-  static void mhr(const char *, const char *, const int *, const int *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *, const int *, int *);
+  static void mhr(const char *, const char *, const int *, const int *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *,
+                  const int *, int *);
   /* Function: geev
      *  Computes the eigenvalues and the eigenvectors of a nonsymmetric eigenvalue problem. */
-  static void geev(const char *, const char *, const int *, K *, const int *, K *, K *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *);
+  static void geev(const char *, const char *, const int *, K *, const int *, K *, K *, K *, const int *, K *, const int *, K *, const int *,
+                   underlying_type<K> *, int *);
   /* Function: ggev
      *  Computes the eigenvalues and the eigenvectors of a nonsymmetric generalized eigenvalue problem. */
-  static void ggev(const char *, const char *, const int *, K *, const int *, K *, const int *, K *, K *, K *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *);
+  static void ggev(const char *, const char *, const int *, K *, const int *, K *, const int *, K *, K *, K *, K *, const int *, K *, const int *, K *,
+                   const int *, underlying_type<K> *, int *);
   /* Function: gst
      *  Reduces a symmetric or Hermitian definite generalized eigenvalue problem to a standard form. */
   static void gst(const int *, const char *, const int *, K *, const int *, K *, const int *, int *);
@@ -205,19 +232,25 @@ struct Lapack {
   static void trd(const char *, const int *, K *, const int *, underlying_type<K> *, underlying_type<K> *, K *, K *, const int *, int *);
   /* Function: stein
      *  Computes the eigenvectors corresponding to specified eigenvalues of a symmetric tridiagonal matrix. */
-  static void stein(const int *, const underlying_type<K> *, const underlying_type<K> *, const int *, const underlying_type<K> *, const int *, const int *, K *, const int *, underlying_type<K> *, int *, int *, int *);
+  static void stein(const int *, const underlying_type<K> *, const underlying_type<K> *, const int *, const underlying_type<K> *, const int *, const int *, K *,
+                    const int *, underlying_type<K> *, int *, int *, int *);
   /* Function: stebz
      *  Computes selected eigenvalues of a symmetric tridiagonal matrix by bisection. */
-  static void stebz(const char *, const char *, const int *, const underlying_type<K> *, const underlying_type<K> *, const int *, const int *, const underlying_type<K> *, const underlying_type<K> *, const underlying_type<K> *, int *, int *, underlying_type<K> *, int *, int *, underlying_type<K> *, int *, int *);
+  static void stebz(const char *, const char *, const int *, const underlying_type<K> *, const underlying_type<K> *, const int *, const int *,
+                    const underlying_type<K> *, const underlying_type<K> *, const underlying_type<K> *, int *, int *, underlying_type<K> *, int *, int *,
+                    underlying_type<K> *, int *, int *);
   /* Function: mtr
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with <Lapack::trd>. */
-  static void mtr(const char *, const char *, const char *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *, const int *, int *);
+  static void mtr(const char *, const char *, const char *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *, const int *,
+                  int *);
   /* Function: gesvd
      *  Computes the singular value decomposition of a rectangular matrix. */
-  static void gesvd(const char *, const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *);
+  static void gesvd(const char *, const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *,
+                    const int *, underlying_type<K> *, int *);
   /* Function: gesdd
      *  Computes the singular value decomposition of a rectangular matrix, and optionally the left and/or right singular vectors, using a divide and conquer algorithm. */
-  static void gesdd(const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *, int *);
+  static void gesdd(const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *, const int *,
+                    underlying_type<K> *, int *, int *);
 };
 
 /* Class: QR
@@ -457,17 +490,20 @@ public:
       HPDDM_F77(C##SYM##trd)(uplo, n, a, lda, d, e, tau, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::stein(const int *n, const U *d, const U *e, const int *m, const U *w, const int *iblock, const int *isplit, T *z, const int *ldz, U *work, int *iwork, int *ifailv, int *info) \
+    inline void Lapack<T>::stein(const int *n, const U *d, const U *e, const int *m, const U *w, const int *iblock, const int *isplit, T *z, const int *ldz, \
+                                 U *work, int *iwork, int *ifailv, int *info) \
     { \
       HPDDM_F77(C##stein)(n, d, e, m, w, iblock, isplit, z, ldz, work, iwork, ifailv, info); \
     } \
     template <> \
-    inline void Lapack<T>::stebz(const char *range, const char *order, const int *n, const U *vl, const U *vu, const int *il, const int *iu, const U *abstol, const U *d, const U *e, int *m, int *nsplit, U *w, int *iblock, int *isplit, U *work, int *iwork, int *info) \
+    inline void Lapack<T>::stebz(const char *range, const char *order, const int *n, const U *vl, const U *vu, const int *il, const int *iu, const U *abstol, \
+                                 const U *d, const U *e, int *m, int *nsplit, U *w, int *iblock, int *isplit, U *work, int *iwork, int *info) \
     { \
       HPDDM_F77(B##stebz)(range, order, n, vl, vu, il, iu, abstol, d, e, m, nsplit, w, iblock, isplit, work, iwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::mtr(const char *side, const char *uplo, const char *trans, const int *m, const int *n, const T *a, const int *lda, const T *tau, T *c, const int *ldc, T *work, const int *lwork, int *info) \
+    inline void Lapack<T>::mtr(const char *side, const char *uplo, const char *trans, const int *m, const int *n, const T *a, const int *lda, const T *tau, \
+                               T *c, const int *ldc, T *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(C##ORT##mtr)(side, uplo, trans, m, n, a, lda, tau, c, ldc, work, lwork, info); \
     } \
@@ -482,7 +518,8 @@ public:
       HPDDM_F77(C##getrf)(m, n, a, lda, ipiv, info); \
     } \
     template <> \
-    inline void Lapack<T>::getrs(const char *trans, const int *n, const int *nrhs, const T *a, const int *lda, const int *ipiv, T *b, const int *ldb, int *info) \
+    inline void Lapack<T>::getrs(const char *trans, const int *n, const int *nrhs, const T *a, const int *lda, const int *ipiv, T *b, const int *ldb, \
+                                 int *info) \
     { \
       HPDDM_F77(C##getrs)(trans, n, nrhs, a, lda, ipiv, b, ldb, info); \
     } \
@@ -497,7 +534,8 @@ public:
       HPDDM_F77(C##sytrf)(uplo, n, a, lda, ipiv, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::sytrs(const char *uplo, const int *n, const int *nrhs, const T *a, const int *lda, const int *ipiv, T *b, const int *ldb, int *info) \
+    inline void Lapack<T>::sytrs(const char *uplo, const int *n, const int *nrhs, const T *a, const int *lda, const int *ipiv, T *b, const int *ldb, \
+                                 int *info) \
     { \
       HPDDM_F77(C##sytrs)(uplo, n, nrhs, a, lda, ipiv, b, ldb, info); \
     } \
@@ -527,7 +565,8 @@ public:
       HPDDM_F77(C##pstrf)(uplo, n, a, lda, piv, rank, tol, work, info); \
     } \
     template <> \
-    inline void Lapack<T>::trtrs(const char *uplo, const char *trans, const char *diag, const int *n, const int *nrhs, const T *a, const int *lda, T *b, const int *ldb, int *info) \
+    inline void Lapack<T>::trtrs(const char *uplo, const char *trans, const char *diag, const int *n, const int *nrhs, const T *a, const int *lda, T *b, \
+                                 const int *ldb, int *info) \
     { \
       HPDDM_F77(C##trtrs)(uplo, trans, diag, n, nrhs, a, lda, b, ldb, info); \
     } \
@@ -552,7 +591,8 @@ public:
       HPDDM_F77(C##ppsv)(uplo, n, nrhs, ap, b, ldb, info); \
     } \
     template <> \
-    inline void Lapack<T>::sv(const char *uplo, const int *n, const int *nrhs, T *a, const int *lda, int *ipiv, T *b, const int *ldb, T *work, int *lwork, int *info) \
+    inline void Lapack<T>::sv(const char *uplo, const int *n, const int *nrhs, T *a, const int *lda, int *ipiv, T *b, const int *ldb, T *work, int *lwork, \
+                              int *info) \
     { \
       HPDDM_F77(C##SYM##sv)(uplo, n, nrhs, a, lda, ipiv, b, ldb, work, lwork, info); \
     } \
@@ -567,7 +607,8 @@ public:
       HPDDM_F77(C##geqrt)(m, n, nb, a, lda, t, ldt, work, info); \
     } \
     template <> \
-    inline void Lapack<T>::gemqrt(const char *side, const char *trans, const int *m, const int *n, const int *k, const int *nb, const T *v, const int *ldv, const T *t, const int *ldt, T *c, const int *ldc, T *work, int *info) \
+    inline void Lapack<T>::gemqrt(const char *side, const char *trans, const int *m, const int *n, const int *k, const int *nb, const T *v, const int *ldv, \
+                                  const T *t, const int *ldt, T *c, const int *ldc, T *work, int *info) \
     { \
       HPDDM_F77(C##gemqrt)(side, trans, m, n, k, nb, v, ldv, t, ldt, c, ldc, work, info); \
     }
@@ -595,82 +636,99 @@ public:
       HPDDM_F77(C##geqp3)(m, n, a, lda, jpvt, tau, work, lwork, rwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::mqr(const char *side, const char *trans, const int *m, const int *n, const int *k, const U *a, const int *lda, const U *tau, U *c, const int *ldc, U *work, const int *lwork, int *info) \
+    inline void Lapack<U>::mqr(const char *side, const char *trans, const int *m, const int *n, const int *k, const U *a, const int *lda, const U *tau, U *c, \
+                               const int *ldc, U *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(B##ormqr)(side, trans, m, n, k, a, lda, tau, c, ldc, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::mqr(const char *side, const char *trans, const int *m, const int *n, const int *k, const T *a, const int *lda, const T *tau, T *c, const int *ldc, T *work, const int *lwork, int *info) \
+    inline void Lapack<T>::mqr(const char *side, const char *trans, const int *m, const int *n, const int *k, const T *a, const int *lda, const T *tau, T *c, \
+                               const int *ldc, T *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(C##unmqr)(side, trans, m, n, k, a, lda, tau, c, ldc, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::mhr(const char *side, const char *trans, const int *m, const int *n, const int *ilo, const int *ihi, const U *a, const int *lda, const U *tau, U *c, const int *ldc, U *work, const int *lwork, int *info) \
+    inline void Lapack<U>::mhr(const char *side, const char *trans, const int *m, const int *n, const int *ilo, const int *ihi, const U *a, const int *lda, \
+                               const U *tau, U *c, const int *ldc, U *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(B##ormhr)(side, trans, m, n, ilo, ihi, a, lda, tau, c, ldc, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::mhr(const char *side, const char *trans, const int *m, const int *n, const int *ilo, const int *ihi, const T *a, const int *lda, const T *tau, T *c, const int *ldc, T *work, const int *lwork, int *info) \
+    inline void Lapack<T>::mhr(const char *side, const char *trans, const int *m, const int *n, const int *ilo, const int *ihi, const T *a, const int *lda, \
+                               const T *tau, T *c, const int *ldc, T *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(C##unmhr)(side, trans, m, n, ilo, ihi, a, lda, tau, c, ldc, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::hseqr(const char *job, const char *compz, const int *n, const int *ilo, const int *ihi, U *h, const int *ldh, U *wr, U *wi, U *z, const int *ldz, U *work, const int *lwork, int *info) \
+    inline void Lapack<U>::hseqr(const char *job, const char *compz, const int *n, const int *ilo, const int *ihi, U *h, const int *ldh, U *wr, U *wi, U *z, \
+                                 const int *ldz, U *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(B##hseqr)(job, compz, n, ilo, ihi, h, ldh, wr, wi, z, ldz, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::hseqr(const char *job, const char *compz, const int *n, const int *ilo, const int *ihi, T *h, const int *ldh, T *w, T *, T *z, const int *ldz, T *work, const int *lwork, int *info) \
+    inline void Lapack<T>::hseqr(const char *job, const char *compz, const int *n, const int *ilo, const int *ihi, T *h, const int *ldh, T *w, T *, T *z, \
+                                 const int *ldz, T *work, const int *lwork, int *info) \
     { \
       HPDDM_F77(C##hseqr)(job, compz, n, ilo, ihi, h, ldh, w, z, ldz, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::hsein(const char *side, const char *eigsrc, const char *initv, int *select, const int *n, U *h, const int *ldh, U *wr, const U *wi, U *vl, const int *ldvl, U *vr, const int *ldvr, const int *mm, int *m, U *work, U *, int *ifaill, int *ifailr, int *info) \
+    inline void Lapack<U>::hsein(const char *side, const char *eigsrc, const char *initv, int *select, const int *n, U *h, const int *ldh, U *wr, const U *wi, \
+                                 U *vl, const int *ldvl, U *vr, const int *ldvr, const int *mm, int *m, U *work, U *, int *ifaill, int *ifailr, int *info) \
     { \
       HPDDM_F77(B##hsein)(side, eigsrc, initv, select, n, h, ldh, wr, wi, vl, ldvl, vr, ldvr, mm, m, work, ifaill, ifailr, info); \
     } \
     template <> \
-    inline void Lapack<T>::hsein(const char *side, const char *eigsrc, const char *initv, int *select, const int *n, T *h, const int *ldh, T *w, const T *, T *vl, const int *ldvl, T *vr, const int *ldvr, const int *mm, int *m, T *work, U *rwork, int *ifaill, int *ifailr, int *info) \
+    inline void Lapack<T>::hsein(const char *side, const char *eigsrc, const char *initv, int *select, const int *n, T *h, const int *ldh, T *w, const T *, \
+                                 T *vl, const int *ldvl, T *vr, const int *ldvr, const int *mm, int *m, T *work, U *rwork, int *ifaill, int *ifailr, \
+                                 int *info) \
     { \
       HPDDM_F77(C##hsein)(side, eigsrc, initv, select, n, h, ldh, w, vl, ldvl, vr, ldvr, mm, m, work, rwork, ifaill, ifailr, info); \
     } \
     template <> \
-    inline void Lapack<U>::geev(const char *jobvl, const char *jobvr, const int *n, U *a, const int *lda, U *wr, U *wi, U *vl, const int *ldvl, U *vr, const int *ldvr, U *work, const int *lwork, U *, int *info) \
+    inline void Lapack<U>::geev(const char *jobvl, const char *jobvr, const int *n, U *a, const int *lda, U *wr, U *wi, U *vl, const int *ldvl, U *vr, \
+                                const int *ldvr, U *work, const int *lwork, U *, int *info) \
     { \
       HPDDM_F77(B##geev)(jobvl, jobvr, n, a, lda, wr, wi, vl, ldvl, vr, ldvr, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::geev(const char *jobvl, const char *jobvr, const int *n, T *a, const int *lda, T *w, T *, T *vl, const int *ldvl, T *vr, const int *ldvr, T *work, const int *lwork, U *rwork, int *info) \
+    inline void Lapack<T>::geev(const char *jobvl, const char *jobvr, const int *n, T *a, const int *lda, T *w, T *, T *vl, const int *ldvl, T *vr, \
+                                const int *ldvr, T *work, const int *lwork, U *rwork, int *info) \
     { \
       HPDDM_F77(C##geev)(jobvl, jobvr, n, a, lda, w, vl, ldvl, vr, ldvr, work, lwork, rwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::ggev(const char *jobvl, const char *jobvr, const int *n, U *a, const int *lda, U *b, const int *ldb, U *alphar, U *alphai, U *beta, U *vl, const int *ldvl, U *vr, const int *ldvr, U *work, const int *lwork, U *, int *info) \
+    inline void Lapack<U>::ggev(const char *jobvl, const char *jobvr, const int *n, U *a, const int *lda, U *b, const int *ldb, U *alphar, U *alphai, U *beta, \
+                                U *vl, const int *ldvl, U *vr, const int *ldvr, U *work, const int *lwork, U *, int *info) \
     { \
       HPDDM_F77(B##ggev)(jobvl, jobvr, n, a, lda, b, ldb, alphar, alphai, beta, vl, ldvl, vr, ldvr, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::ggev(const char *jobvl, const char *jobvr, const int *n, T *a, const int *lda, T *b, const int *ldb, T *alpha, T *, T *beta, T *vl, const int *ldvl, T *vr, const int *ldvr, T *work, const int *lwork, U *rwork, int *info) \
+    inline void Lapack<T>::ggev(const char *jobvl, const char *jobvr, const int *n, T *a, const int *lda, T *b, const int *ldb, T *alpha, T *, T *beta, T *vl, \
+                                const int *ldvl, T *vr, const int *ldvr, T *work, const int *lwork, U *rwork, int *info) \
     { \
       HPDDM_F77(C##ggev)(jobvl, jobvr, n, a, lda, b, ldb, alpha, beta, vl, ldvl, vr, ldvr, work, lwork, rwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, U *a, const int *lda, U *s, U *u, const int *ldu, U *vt, const int *ldvt, U *work, const int *lwork, U *, int *info) \
+    inline void Lapack<U>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, U *a, const int *lda, U *s, U *u, const int *ldu, U *vt, \
+                                 const int *ldvt, U *work, const int *lwork, U *, int *info) \
     { \
       HPDDM_F77(B##gesvd)(jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, T *a, const int *lda, U *s, T *u, const int *ldu, T *vt, const int *ldvt, T *work, const int *lwork, U *rwork, int *info) \
+    inline void Lapack<T>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, T *a, const int *lda, U *s, T *u, const int *ldu, T *vt, \
+                                 const int *ldvt, T *work, const int *lwork, U *rwork, int *info) \
     { \
       HPDDM_F77(C##gesvd)(jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, info); \
     } \
     template <> \
-    inline void Lapack<U>::gesdd(const char *jobz, const int *m, const int *n, U *a, const int *lda, U *s, U *u, const int *ldu, U *vt, const int *ldvt, U *work, const int *lwork, U *, int *iwork, int *info) \
+    inline void Lapack<U>::gesdd(const char *jobz, const int *m, const int *n, U *a, const int *lda, U *s, U *u, const int *ldu, U *vt, const int *ldvt, \
+                                 U *work, const int *lwork, U *, int *iwork, int *info) \
     { \
       HPDDM_F77(B##gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, iwork, info); \
     } \
     template <> \
-    inline void Lapack<T>::gesdd(const char *jobz, const int *m, const int *n, T *a, const int *lda, U *s, T *u, const int *ldu, T *vt, const int *ldvt, T *work, const int *lwork, U *rwork, int *iwork, int *info) \
+    inline void Lapack<T>::gesdd(const char *jobz, const int *m, const int *n, T *a, const int *lda, U *s, T *u, const int *ldu, T *vt, const int *ldvt, \
+                                 T *work, const int *lwork, U *rwork, int *iwork, int *info) \
     { \
       HPDDM_F77(C##gesdd)(jobz, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, iwork, info); \
     }
