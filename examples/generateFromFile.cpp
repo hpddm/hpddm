@@ -40,7 +40,8 @@ void assign(std::mt19937 &gen, std::uniform_real_distribution<HPDDM::underlying_
   x = K(dis(gen), dis(gen));
 }
 
-void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::vector<int>> &mapping, int &ndof, HPDDM::MatrixCSR<K> *&Mat, HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&d, K *&f, K *&sol)
+void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::vector<int>> &mapping, int &ndof, HPDDM::MatrixCSR<K> *&Mat,
+              HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&d, K *&f, K *&sol)
 {
   HPDDM::Option            &opt = *HPDDM::Option::get();
   std::vector<unsigned int> idx;
@@ -60,9 +61,11 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       std::for_each(Mat->ja_, Mat->ja_ + Mat->nnz_, [](int &i) { --i; });
     }
 #if METIS_VER_MAJOR >= 5
-    METIS_PartGraphKway(&Mat->n_, const_cast<int *>(&(HPDDM::i_1)), Mat->ia_, Mat->ja_, nullptr, nullptr, nullptr, &sizeWorld, nullptr, nullptr, nullptr, &overlap, part);
+    METIS_PartGraphKway(&Mat->n_, const_cast<int *>(&(HPDDM::i_1)), Mat->ia_, Mat->ja_, nullptr, nullptr, nullptr, &sizeWorld, nullptr, nullptr, nullptr,
+                        &overlap, part);
 #else
-    METIS_PartGraphKway(&Mat->n_, Mat->ia_, Mat->ja_, nullptr, nullptr, const_cast<int *>(&(HPDDM::i_0)), const_cast<int *>(&(HPDDM::i_0)), &sizeWorld, const_cast<int *>(&(HPDDM::i_0)), &overlap, part);
+    METIS_PartGraphKway(&Mat->n_, Mat->ia_, Mat->ja_, nullptr, nullptr, const_cast<int *>(&(HPDDM::i_0)), const_cast<int *>(&(HPDDM::i_0)), &sizeWorld,
+                        const_cast<int *>(&(HPDDM::i_0)), &overlap, part);
 #endif
     if (HPDDM_NUMBERING == 'F') {
       std::for_each(Mat->ja_, Mat->ja_ + Mat->nnz_, [](int &i) { ++i; });

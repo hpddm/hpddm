@@ -81,4 +81,5 @@ const char symCoarse = 'S';
 
 const HPDDM::underlying_type<K> pi = 3.141592653589793238463;
 
-void generate(int, int, std::list<int> &, std::vector<std::vector<int>> &, int &, HPDDM::MatrixCSR<K> *&, HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&, K *&, K *&);
+void generate(int, int, std::list<int> &, std::vector<std::vector<int>> &, int &, HPDDM::MatrixCSR<K> *&, HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&,
+              K *&, K *&);

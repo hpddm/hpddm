@@ -103,7 +103,8 @@ public:
             for (int m = 0; m < bs; ++m) {
               if (S == 'S') {
                 if ((loc2glob[0] + i) * bs + n < J[j] * bs + m) A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs]);
-                else if ((loc2glob[0] + i) * bs + n == J[j] * bs + m) A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs] / 2.0);
+                else if ((loc2glob[0] + i) * bs + n == J[j] * bs + m)
+                  A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs] / 2.0);
               } else A_->QueueUpdate((loc2glob[0] + i) * bs + n, J[j] * bs + m, C[j * bs * bs + m + n * bs]);
             }
     } else {
@@ -113,8 +114,10 @@ public:
           for (int n = 0; n < bs; ++n)
             for (int m = 0; m < bs; ++m) {
               if (S == 'S') {
-                if ((loc2glob[0] + i) * bs + n < j * bs + m) A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_]);
-                else if ((loc2glob[0] + i) * bs + n == j * bs + m) A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_] / 2.0);
+                if ((loc2glob[0] + i) * bs + n < j * bs + m)
+                  A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_]);
+                else if ((loc2glob[0] + i) * bs + n == j * bs + m)
+                  A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_] / 2.0);
               } else A_->QueueUpdate((loc2glob[0] + i) * bs + n, j * bs + m, C[j * bs * bs + m + n * bs + i * bs * bs * DMatrix::n_]);
             }
     }
@@ -159,7 +162,8 @@ public:
   El::Fill(*B_, ElT<K>());
   B_->Reserve((loc2glob_[1] - loc2glob_[0] + 1) * n * bs_);
   for (int j = 0; j < n; ++j) {
-    for (int i = 0; i < (loc2glob_[1] - loc2glob_[0] + 1) * bs_; ++i) B_->QueueUpdate(loc2glob_[0] * bs_ + i, j, rhs[i + (loc2glob_[1] - loc2glob_[0] + 1) * bs_ * j]);
+    for (int i = 0; i < (loc2glob_[1] - loc2glob_[0] + 1) * bs_; ++i)
+      B_->QueueUpdate(loc2glob_[0] * bs_ + i, j, rhs[i + (loc2glob_[1] - loc2glob_[0] + 1) * bs_ * j]);
   }
   B_->ProcessQueues();
   if (type_ == 1) El::cholesky::SolveAfter(El::LOWER, El::NORMAL, *A_, *P_, *B_);

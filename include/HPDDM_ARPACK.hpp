@@ -27,10 +27,14 @@
 #include <cassert>
 
 #define HPDDM_GENERATE_ARPACK_EXTERN(C, T, B, U) \
-  void HPDDM_F77(B##saupd)(int *, const char *, const int *, const char *, const int *, const U *, U *, int *, U *, const int *, int *, int *, U *, U *, int *, int *, int, int); \
-  void HPDDM_F77(B##seupd)(const int *, const char *, int *, U *, U *, const int *, const U *, const char *, const int *, const char *, const int *, const U *, U *, int *, U *, const int *, int *, int *, U *, U *, int *, int *, int, int, int); \
-  void HPDDM_F77(C##naupd)(int *, const char *, const int *, const char *, const int *, const U *, T *, int *, T *, const int *, int *, int *, T *, T *, int *, U *, int *, int, int); \
-  void HPDDM_F77(C##neupd)(const int *, const char *, int *, T *, T *, const int *, const T *, T *, const char *, const int *, const char *, const int *, const U *, T *, int *, T *, const int *, int *, int *, T *, T *, int *, U *, int *, int, int, int);
+  void HPDDM_F77(B##saupd)(int *, const char *, const int *, const char *, const int *, const U *, U *, int *, U *, const int *, int *, int *, U *, U *, \
+                           int *, int *, int, int); \
+  void HPDDM_F77(B##seupd)(const int *, const char *, int *, U *, U *, const int *, const U *, const char *, const int *, const char *, const int *, \
+                           const U *, U *, int *, U *, const int *, int *, int *, U *, U *, int *, int *, int, int, int); \
+  void HPDDM_F77(C##naupd)(int *, const char *, const int *, const char *, const int *, const U *, T *, int *, T *, const int *, int *, int *, T *, T *, \
+                           int *, U *, int *, int, int); \
+  void HPDDM_F77(C##neupd)(const int *, const char *, int *, T *, T *, const int *, const T *, T *, const char *, const int *, const char *, const int *, \
+                           const U *, T *, int *, T *, const int *, int *, int *, T *, T *, int *, U *, int *, int, int, int);
 
 extern "C" {
 HPDDM_GENERATE_ARPACK_EXTERN(c, std::complex<float>, s, float)
@@ -64,10 +68,12 @@ private:
   static constexpr const char *const which_ = "LM";
   /* Function: aupd
          *  Iterates the implicitly restarted Arnoldi method. */
-  static void aupd(int *, const char *, const int *, const char *, const int *, const underlying_type<K> *, K *, int *, K *, int *, int *, K *, K *, int *, underlying_type<K> *, int *);
+  static void aupd(int *, const char *, const int *, const char *, const int *, const underlying_type<K> *, K *, int *, K *, int *, int *, K *, K *, int *,
+                   underlying_type<K> *, int *);
   /* Function: eupd
          *  Post-processes the eigenpairs computed with <Arpack::aupd>. */
-  static void eupd(const int *, const char *, int *, K *, K *, const int *, const K *, K *, const char *, const char *, const int *, const underlying_type<K> *, K *, int *, K *, int *, int *, K *, K *, int *, underlying_type<K> *, int *);
+  static void eupd(const int *, const char *, int *, K *, K *, const int *, const K *, K *, const char *, const char *, const int *, const underlying_type<K> *,
+                   K *, int *, K *, int *, int *, K *, K *, int *, underlying_type<K> *, int *);
 
 public:
   Arpack(int n, int nu) : Eigensolver<K>(n, nu), it_(100) { }
@@ -83,7 +89,8 @@ public:
          *    ev             - Array of eigenvectors.
          *    communicator   - MPI communicator for selecting the threshold criterion. */
   template <template <class> class Solver>
-  void solve(MatrixCSR<K> *const &A, MatrixCSR<K> *const &B, K **&ev, const MPI_Comm &communicator, Solver<K> *const &s = nullptr, std::ios_base::openmode mode = std::ios_base::out)
+  void solve(MatrixCSR<K> *const &A, MatrixCSR<K> *const &B, K **&ev, const MPI_Comm &communicator, Solver<K> *const &s = nullptr,
+             std::ios_base::openmode mode = std::ios_base::out)
   {
     int iparam[11]{1, 0, it_, 1, 0, 0, 3, 0, 0, 0, 0};
     int ipntr[!Wrapper<K>::is_complex ? 11 : 14]{};
@@ -161,7 +168,8 @@ public:
       *ev = new K[static_cast<std::size_t>(Eigensolver<K>::n_) * Eigensolver<K>::nu_];
       for (unsigned short i = 1; i < Eigensolver<K>::nu_; ++i) ev[i] = *ev + i * Eigensolver<K>::n_;
       int *select = new int[ncv];
-      eupd(&i_1, "A", select, evr, *ev, &(Eigensolver<K>::n_), &(Wrapper<K>::d_0), workev, "G", which_, &(Eigensolver<K>::nu_), &(Eigensolver<K>::tol_), vresid, &ncv, vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
+      eupd(&i_1, "A", select, evr, *ev, &(Eigensolver<K>::n_), &(Wrapper<K>::d_0), workev, "G", which_, &(Eigensolver<K>::nu_), &(Eigensolver<K>::tol_), vresid,
+           &ncv, vp, iparam, ipntr, workd, workl, &lworkl, rwork, &info);
       delete[] select;
       std::string name = Eigensolver<K>::dump(evr, ev, communicator, mode);
       if (!name.empty()) {
@@ -187,24 +195,32 @@ public:
 
 #define HPDDM_GENERATE_ARPACK(C, T, B, U) \
   template <> \
-  inline void Arpack<U>::aupd(int *ido, const char *bmat, const int *n, const char *which, const int *nu, const U *tol, U *vresid, int *ncv, U *vp, int *iparam, int *ipntr, U *workd, U *workl, int *lworkl, U *, int *info) \
+  inline void Arpack<U>::aupd(int *ido, const char *bmat, const int *n, const char *which, const int *nu, const U *tol, U *vresid, int *ncv, U *vp, \
+                              int *iparam, int *ipntr, U *workd, U *workl, int *lworkl, U *, int *info) \
   { \
     HPDDM_F77(B##saupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam, ipntr, workd, workl, lworkl, info, 1, 2); \
   } \
   template <> \
-  inline void Arpack<U>::eupd(const int *rvec, const char *HowMny, int *select, U *evr, U *ev, const int *n, const U *sigma, U *, const char *bmat, const char *which, const int *nu, const U *tol, U *vresid, int *necv, U *vp, int *iparam, int *ipntr, U *workd, U *workl, int *lworkl, U *, int *info) \
+  inline void Arpack<U>::eupd(const int *rvec, const char *HowMny, int *select, U *evr, U *ev, const int *n, const U *sigma, U *, const char *bmat, \
+                              const char *which, const int *nu, const U *tol, U *vresid, int *necv, U *vp, int *iparam, int *ipntr, U *workd, U *workl, \
+                              int *lworkl, U *, int *info) \
   { \
-    HPDDM_F77(B##seupd)(rvec, HowMny, select, evr, ev, n, sigma, bmat, n, which, nu, tol, vresid, necv, vp, n, iparam, ipntr, workd, workl, lworkl, info, 1, 1, 2); \
+    HPDDM_F77(B##seupd)(rvec, HowMny, select, evr, ev, n, sigma, bmat, n, which, nu, tol, vresid, necv, vp, n, iparam, ipntr, workd, workl, lworkl, info, 1, \
+                        1, 2); \
   } \
   template <> \
-  inline void Arpack<T>::aupd(int *ido, const char *bmat, const int *n, const char *which, const int *nu, const U *tol, T *vresid, int *ncv, T *vp, int *iparam, int *ipntr, T *workd, T *workl, int *lworkl, U *rwork, int *info) \
+  inline void Arpack<T>::aupd(int *ido, const char *bmat, const int *n, const char *which, const int *nu, const U *tol, T *vresid, int *ncv, T *vp, \
+                              int *iparam, int *ipntr, T *workd, T *workl, int *lworkl, U *rwork, int *info) \
   { \
     HPDDM_F77(C##naupd)(ido, bmat, n, which, nu, tol, vresid, ncv, vp, n, iparam, ipntr, workd, workl, lworkl, rwork, info, 1, 2); \
   } \
   template <> \
-  inline void Arpack<T>::eupd(const int *rvec, const char *HowMny, int *select, T *evr, T *ev, const int *n, const T *sigma, T *workev, const char *bmat, const char *which, const int *nu, const U *tol, T *vresid, int *necv, T *vp, int *iparam, int *ipntr, T *workd, T *workl, int *lworkl, U *rwork, int *info) \
+  inline void Arpack<T>::eupd(const int *rvec, const char *HowMny, int *select, T *evr, T *ev, const int *n, const T *sigma, T *workev, const char *bmat, \
+                              const char *which, const int *nu, const U *tol, T *vresid, int *necv, T *vp, int *iparam, int *ipntr, T *workd, T *workl, \
+                              int *lworkl, U *rwork, int *info) \
   { \
-    HPDDM_F77(C##neupd)(rvec, HowMny, select, evr, ev, n, sigma, workev, bmat, n, which, nu, tol, vresid, necv, vp, n, iparam, ipntr, workd, workl, lworkl, rwork, info, 1, 1, 2); \
+    HPDDM_F77(C##neupd)(rvec, HowMny, select, evr, ev, n, sigma, workev, bmat, n, which, nu, tol, vresid, necv, vp, n, iparam, ipntr, workd, workl, lworkl, \
+                        rwork, info, 1, 1, 2); \
   }
 HPDDM_GENERATE_ARPACK(c, std::complex<float>, s, float)
 HPDDM_GENERATE_ARPACK(z, std::complex<double>, d, double)

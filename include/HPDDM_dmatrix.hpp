@@ -60,7 +60,9 @@ public:
     MPI_Comm_rank(in, &rank);
     if (p > size / 2 && size > 1) {
       p = size / 2;
-      if (rank == 0) std::cout << "WARNING -- the number of main processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p << std::endl;
+      if (rank == 0)
+        std::cout << "WARNING -- the number of main processes was set to a value greater than MPI_Comm_size / 2, the value has been reset to " << p
+                  << std::endl;
     } else if (p < 1) p = 1;
     if (exclude) {
       MPI_Group oldGroup, newGroup;
@@ -70,7 +72,8 @@ public:
       else if (T == 2) {
         float area = size * size / (2.0 * p);
         *pm        = 0;
-        for (unsigned short i = 1; i < p; ++i) pm[i] = std::lround(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)));
+        for (unsigned short i = 1; i < p; ++i)
+          pm[i] = std::lround(size - std::sqrt(std::max(size * size - 2 * size * pm[i - 1] - 2 * area + pm[i - 1] * pm[i - 1], 1.0f)));
       } else
         for (unsigned short i = 0; i < p; ++i) pm[i] = i * (size / p);
       bool excluded = std::binary_search(pm, pm + p, rank);
@@ -246,8 +249,10 @@ protected:
     MPI_Request *rqSend = new MPI_Request[map_send.size() + map_recv.size()];
     MPI_Request *rqRecv = rqSend + map_send.size();
     unsigned int i      = 0;
-    for (typename map_type<K>::iterator it = map_send.begin(); it != map_send.end(); ++it) MPI_Isend(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, communicator_, rqSend + i++);
-    for (typename map_type<K>::iterator it = map_recv.begin(); it != map_recv.end(); ++it) MPI_Irecv(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, communicator_, rqSend + i++);
+    for (typename map_type<K>::iterator it = map_send.begin(); it != map_send.end(); ++it)
+      MPI_Isend(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, communicator_, rqSend + i++);
+    for (typename map_type<K>::iterator it = map_recv.begin(); it != map_recv.end(); ++it)
+      MPI_Irecv(it->second.data(), it->second.size(), Wrapper<K>::mpi_type(), it->first, 4, communicator_, rqSend + i++);
     for (unsigned int i = 0; i < map_recv.size(); ++i) {
       int index;
       MPI_Waitany(map_recv.size(), rqRecv, &index, MPI_STATUS_IGNORE);

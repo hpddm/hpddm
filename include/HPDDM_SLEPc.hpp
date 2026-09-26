@@ -57,7 +57,8 @@ public:
          *    ev             - Array of eigenvectors.
          *    communicator   - MPI communicator for selecting the threshold criterion. */
   template <template <class> class Solver>
-  PetscErrorCode solve(MatrixCSR<K> *const &A, MatrixCSR<K> *const &B, K **&ev, const MPI_Comm &communicator, Solver<K> *const & = nullptr, std::ios_base::openmode mode = std::ios_base::out)
+  PetscErrorCode solve(MatrixCSR<K> *const &A, MatrixCSR<K> *const &B, K **&ev, const MPI_Comm &communicator, Solver<K> *const & = nullptr,
+                       std::ios_base::openmode mode = std::ios_base::out)
   {
     Mat           P, Q;
     EPS           eps;

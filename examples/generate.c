@@ -32,7 +32,8 @@
 #define xx(i) (xdim[0] + dx * (i + 0.5))
 #define yy(j) (ydim[0] + dy * (j + 0.5))
 
-void generate(int rankWorld, int sizeWorld, int *neighbors, int *o, int *sizes, int **connectivity, int *ndofOut, HpddmMatrixCSR **Mat, HpddmMatrixCSR **MatNeumann, underlying_type **d, K **f, K **sol)
+void generate(int rankWorld, int sizeWorld, int *neighbors, int *o, int *sizes, int **connectivity, int *ndofOut, HpddmMatrixCSR **Mat,
+              HpddmMatrixCSR **MatNeumann, underlying_type **d, K **f, K **sol)
 {
   const HpddmOption *const opt     = HpddmOptionGet();
   const int                Nx      = HpddmOptionApp(opt, "Nx");
@@ -52,7 +53,8 @@ void generate(int rankWorld, int sizeWorld, int *neighbors, int *o, int *sizes, 
   int       jEnd   = MIN((y + 1) * Ny / yGrid + overlap, Ny);
   const int ndof   = (iEnd - iStart) * (jEnd - jStart);
   *ndofOut         = ndof;
-  if (iEnd <= iStart || jEnd <= jStart || ndof <= 0 || overlap < 0 || ((iStart != 0 || iEnd != Nx) && overlap > (iEnd - iStart) / 2) || ((jStart != 0 || jEnd != Ny) && overlap > (jEnd - jStart) / 2)) { // LCOV_EXCL_START
+  if (iEnd <= iStart || jEnd <= jStart || ndof <= 0 || overlap < 0 || ((iStart != 0 || iEnd != Nx) && overlap > (iEnd - iStart) / 2) ||
+      ((jStart != 0 || jEnd != Ny) && overlap > (jEnd - jStart) / 2)) { // LCOV_EXCL_START
     fprintf(stderr, "Invalid grid dimensions or overlap for the subdomain\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
     abort();
@@ -168,10 +170,12 @@ void generate(int rankWorld, int sizeWorld, int *neighbors, int *o, int *sizes, 
       sizes[*neighbors]        = 4 * overlap * overlap;
       connectivity[*neighbors] = overlap ? malloc(sizeof(int) * 4 * overlap * overlap) : NULL;
       for (int j = 0, k = 0; j < 2 * overlap; ++j)
-        for (int i = iStart; i < iStart + 2 * overlap; ++i) connectivity[*neighbors][k++] = ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j;
+        for (int i = iStart; i < iStart + 2 * overlap; ++i)
+          connectivity[*neighbors][k++] = ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j;
       for (int j = 0; j < overlap; ++j) {
         for (int i = 0; i < overlap - j; ++i) (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * j] = i / (underlying_type)(overlap);
-        for (int i = overlap - j; i < overlap; ++i) (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * j] = (overlap - 1 - j) / (underlying_type)(overlap);
+        for (int i = overlap - j; i < overlap; ++i)
+          (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * j] = (overlap - 1 - j) / (underlying_type)(overlap);
       }
       (*neighbors)++;
     } else {
@@ -184,22 +188,27 @@ void generate(int rankWorld, int sizeWorld, int *neighbors, int *o, int *sizes, 
     for (int j = 0, k = 0; j < 2 * overlap; ++j)
       for (int i = iStart; i < iEnd; ++i) connectivity[*neighbors][k++] = ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j;
     for (int j = 0; j < overlap; ++j)
-      for (int i = iStart + overlap; i < iEnd - overlap; ++i) (*d)[ndof - overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j] = (overlap - 1 - j) / (underlying_type)(overlap);
+      for (int i = iStart + overlap; i < iEnd - overlap; ++i)
+        (*d)[ndof - overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j] = (overlap - 1 - j) / (underlying_type)(overlap);
     (*neighbors)++;
     if (iEnd != Nx) {
       o[*neighbors]            = rankWorld + xGrid + 1;
       sizes[*neighbors]        = 4 * overlap * overlap;
       connectivity[*neighbors] = overlap ? malloc(sizeof(int) * 4 * overlap * overlap) : NULL;
       for (int j = 0, k = 0; j < 2 * overlap; ++j)
-        for (int i = iStart; i < iStart + 2 * overlap; ++i) connectivity[*neighbors][k++] = ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j + (iEnd - iStart - 2 * overlap);
+        for (int i = iStart; i < iStart + 2 * overlap; ++i)
+          connectivity[*neighbors][k++] = ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j + (iEnd - iStart - 2 * overlap);
       for (int j = 0; j < overlap; ++j) {
-        for (int i = j; i < overlap; ++i) (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - i) / (underlying_type)(overlap);
-        for (int i = 0; i < j; ++i) (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - j) / (underlying_type)(overlap);
+        for (int i = j; i < overlap; ++i)
+          (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - i) / (underlying_type)(overlap);
+        for (int i = 0; i < j; ++i)
+          (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - j) / (underlying_type)(overlap);
       }
       (*neighbors)++;
     } else {
       for (int j = 0; j < overlap; ++j)
-        for (int i = 0; i < overlap; ++i) (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - j - 1) / (underlying_type)(overlap);
+        for (int i = 0; i < overlap; ++i)
+          (*d)[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - j - 1) / (underlying_type)(overlap);
     }
   }
 

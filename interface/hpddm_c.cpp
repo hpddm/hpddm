@@ -43,8 +43,15 @@ struct CustomOperator : public HPDDM::EmptyOperator<cpp_type<K>> {
   const Operator *const A_;
   int (*mv_)(const Operator *const, const K *, K *, int);
   int (*precond_)(const Operator *const, const K *, K *, int);
-  CustomOperator(const Operator *const A, int n, int (*mv)(const Operator *const, const K *, K *, int), int (*precond)(const Operator *const, const K *, K *, int)) : HPDDM::EmptyOperator<cpp_type<K>>(n), A_(A), mv_(mv), precond_(precond) { }
-  int GMV(const cpp_type<K> *const in, cpp_type<K> *const out, const int &mu = 1) const { return mv_(A_, reinterpret_cast<const K *>(in), reinterpret_cast<K *>(out), mu); }
+  CustomOperator(const Operator *const A, int n, int (*mv)(const Operator *const, const K *, K *, int),
+                 int (*precond)(const Operator *const, const K *, K *, int)) :
+    HPDDM::EmptyOperator<cpp_type<K>>(n), A_(A), mv_(mv), precond_(precond)
+  {
+  }
+  int GMV(const cpp_type<K> *const in, cpp_type<K> *const out, const int &mu = 1) const
+  {
+    return mv_(A_, reinterpret_cast<const K *>(in), reinterpret_cast<K *>(out), mu);
+  }
   template <bool>
   int apply(const cpp_type<K> *const in, cpp_type<K> *const out, const unsigned short &mu = 1, cpp_type<K> * = nullptr, const unsigned short & = 0) const
   {
@@ -129,7 +136,8 @@ void HpddmMatrixCSRDestroy(HpddmMatrixCSR *a)
 void HpddmCSRMM(HpddmMatrixCSR *a, const K *const x, K *prod, int m)
 {
   HPDDM::MatrixCSR<cpp_type<K>> *A = reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>> *>(a);
-  HPDDM::Wrapper<cpp_type<K>>::csrmm(A->sym_, &A->n_, &m, A->a_, A->ia_, A->ja_, reinterpret_cast<const cpp_type<K> *>(x), reinterpret_cast<cpp_type<K> *>(prod));
+  HPDDM::Wrapper<cpp_type<K>>::csrmm(A->sym_, &A->n_, &m, A->a_, A->ia_, A->ja_, reinterpret_cast<const cpp_type<K> *>(x),
+                                     reinterpret_cast<cpp_type<K> *>(prod));
 }
 
 #if defined(SUBDOMAIN) && defined(COARSEOPERATOR)
@@ -158,15 +166,18 @@ void HpddmInitializeCoarseOperator(HpddmPreconditioner *A, unsigned short nu)
 }
 void HpddmSetVectors(HpddmPreconditioner *A, K **v)
 {
-  reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(A)->setVectors(reinterpret_cast<cpp_type<K> **>(v));
+  reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(A)->setVectors(
+    reinterpret_cast<cpp_type<K> **>(v));
 }
 void HpddmDestroyVectors(HpddmPreconditioner *A)
 {
-  reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(A)->destroyVectors(std::free);
+  reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(A)->destroyVectors(
+    std::free);
 }
 const MPI_Comm *HpddmGetCommunicator(HpddmPreconditioner *A)
 {
-  return &(reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(A)->getCommunicator());
+  return &(
+    reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(A)->getCommunicator());
 }
 
 HpddmSchwarz *HpddmSchwarzCreate(HpddmMatrixCSR *Mat, int neighbors, int *list, int *sizes, int **connectivity)
@@ -181,7 +192,9 @@ void HpddmSchwarzInitialize(HpddmSchwarz *A, underlying_type *d)
 }
 HpddmPreconditioner *HpddmSchwarzPreconditioner(HpddmSchwarz *A)
 {
-  return reinterpret_cast<HpddmPreconditioner *>(static_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)));
+  return reinterpret_cast<HpddmPreconditioner *>(
+    static_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, cpp_type<K>>, cpp_type<K>> *>(
+      reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)));
 }
 void HpddmSchwarzMultiplicityScaling(HpddmSchwarz *A, underlying_type *d)
 {
@@ -198,7 +211,8 @@ void HpddmSchwarzCallNumfact(HpddmSchwarz *A)
   #ifdef EIGENSOLVER
 void HpddmSchwarzSolveGEVP(HpddmSchwarz *A, HpddmMatrixCSR *neumann)
 {
-  reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)->solveGEVP<EIGENSOLVER>(reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>> *>(neumann));
+  reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)->solveGEVP<EIGENSOLVER>(
+    reinterpret_cast<HPDDM::MatrixCSR<cpp_type<K>> *>(neumann));
 }
   #endif
 void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz *A, MPI_Comm comm)
@@ -207,7 +221,9 @@ void HpddmSchwarzBuildCoarseOperator(HpddmSchwarz *A, MPI_Comm comm)
 }
 void HpddmSchwarzComputeResidual(HpddmSchwarz *A, const K *const sol, const K *const f, underlying_type *storage, unsigned short mu)
 {
-  reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)->computeResidual(reinterpret_cast<const cpp_type<K> *>(sol), reinterpret_cast<const cpp_type<K> *>(f), storage, mu);
+  reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)->computeResidual(reinterpret_cast<const cpp_type<K> *>(sol),
+                                                                                                            reinterpret_cast<const cpp_type<K> *>(f), storage,
+                                                                                                            mu);
 }
 void HpddmSchwarzDestroy(HpddmSchwarz *A)
 {
@@ -221,12 +237,16 @@ void HpddmSchwarzDestroy(HpddmSchwarz *A)
 
 int HpddmSolve(HpddmSchwarz *A, const K *const b, K *const sol, int mu, const MPI_Comm *comm)
 {
-  return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)), reinterpret_cast<const cpp_type<K> *>(b), reinterpret_cast<cpp_type<K> *>(sol), mu, *comm);
+  return HPDDM::IterativeMethod::solve(*(reinterpret_cast<HPDDM::Schwarz<SUBDOMAIN, COARSEOPERATOR, symCoarse, cpp_type<K>> *>(A)),
+                                       reinterpret_cast<const cpp_type<K> *>(b), reinterpret_cast<cpp_type<K> *>(sol), mu, *comm);
 }
 #endif
-int HpddmCustomOperatorSolve(const HpddmCustomOperator *const A, int n, int (*mv)(const HpddmCustomOperator *const, const K *, K *, int), int (*precond)(const HpddmCustomOperator *const, const K *, K *, int), const K *const b, K *const sol, int mu, const MPI_Comm *comm)
+int HpddmCustomOperatorSolve(const HpddmCustomOperator *const A, int n, int (*mv)(const HpddmCustomOperator *const, const K *, K *, int),
+                             int (*precond)(const HpddmCustomOperator *const, const K *, K *, int), const K *const b, K *const sol, int mu,
+                             const MPI_Comm *comm)
 {
-  return HPDDM::IterativeMethod::solve(CustomOperator<HpddmCustomOperator, K>(A, n, mv, precond), reinterpret_cast<const cpp_type<K> *>(b), reinterpret_cast<cpp_type<K> *>(sol), mu, *comm);
+  return HPDDM::IterativeMethod::solve(CustomOperator<HpddmCustomOperator, K>(A, n, mv, precond), reinterpret_cast<const cpp_type<K> *>(b),
+                                       reinterpret_cast<cpp_type<K> *>(sol), mu, *comm);
 }
 
 underlying_type nrm2(const int *n, const K *x, const int *inc)
@@ -235,7 +255,8 @@ underlying_type nrm2(const int *n, const K *x, const int *inc)
 }
 void axpy(const int *n, const K *const a, const K *const x, const int *incx, K *const y, const int *incy)
 {
-  return HPDDM::Blas<cpp_type<K>>::axpy(n, reinterpret_cast<const cpp_type<K> *>(a), reinterpret_cast<const cpp_type<K> *>(x), incx, reinterpret_cast<cpp_type<K> *>(y), incy);
+  return HPDDM::Blas<cpp_type<K>>::axpy(n, reinterpret_cast<const cpp_type<K> *>(a), reinterpret_cast<const cpp_type<K> *>(x), incx,
+                                        reinterpret_cast<cpp_type<K> *>(y), incy);
 }
 
 #if HPDDM_PETSC
