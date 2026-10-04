@@ -410,13 +410,23 @@ private:
   template <bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *infoNeighbor)
   {
-    int m = U ? super::local_ : *infoNeighbor;
-    std::fill_n(work_, m * super::n_, K());
-    for (unsigned short i = 0; i < m; ++i)
-      for (int j = 0; j < super::map_[index].second.size(); ++j)
-        work_[i * super::n_ + super::map_[index].second[j]] = D_[super::map_[index].second[j]] * in[i * super::map_[index].second.size() + j];
-    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &(super::n_), &(Wrapper<K>::d_1), *super::deflation_, &(super::n_), work_, &(super::n_),
-                  &(Wrapper<K>::d_0), work, &(super::local_));
+    const int m = U ? super::local_ : *infoNeighbor;
+    if (super::local_ && m) {
+      const std::vector<int> &intersection = super::map_[index].second;
+      const int               s            = intersection.size();
+      if (s == 0) std::fill_n(work, super::local_ * m, K());
+      else if (s == super::n_) {
+        std::fill_n(work_, super::n_ * m, K());
+        for (unsigned short i = 0; i < m; ++i)
+          for (int j = 0; j < s; ++j) work_[i * s + intersection[j]] = D_[intersection[j]] * in[i * s + j];
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &(super::n_), &(Wrapper<K>::d_1), *super::deflation_, &(super::n_), work_, &(super::n_),
+                      &(Wrapper<K>::d_0), work, &(super::local_));
+      } else {
+        for (unsigned short i = 0; i < super::local_; ++i)
+          for (int j = 0; j < s; ++j) work_[i * s + j] = D_[intersection[j]] * super::deflation_[i][intersection[j]];
+        Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &m, &s, &(Wrapper<K>::d_1), work_, &s, in, &s, &(Wrapper<K>::d_0), work, &(super::local_));
+      }
+    }
   }
 
 public:
