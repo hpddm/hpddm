@@ -854,10 +854,7 @@ public:
         ctx->P->dtor();
         delete ctx->P;
         ctx->P = nullptr;
-      } else {
-        ctx->P->super::dtor();
-        ctx->P->clearBuffer();
-      }
+      } else ctx->P->super::dtor();
     }
     PetscFunctionReturn(PETSC_SUCCESS);
   }
@@ -1167,6 +1164,7 @@ public:
             PetscCall(SVDSetOptionsPrefix(svd, prefix));
             PetscCall(SVDSetType(svd, SVDLANCZOS));
             PetscCall(SVDSetOperators(svd, N, nullptr));
+            if (levels[0]->nu > 0) PetscCall(SVDSetDimensions(svd, levels[0]->nu, PETSC_DETERMINE, PETSC_DETERMINE));
             PetscCall(SVDSetFromOptions(svd));
             PetscCall(SVDGetDimensions(svd, &nev, nullptr, nullptr));
             PetscCall(MatShellGetOperation(N, MATOP_DESTROY, &destroy));
@@ -1295,6 +1293,7 @@ public:
       PetscCall(EPSSetInitialSpace(eps, initial.size(), initial.data()));
       for (Vec &v : initial) PetscCall(VecDestroy(&v));
       std::vector<Vec>().swap(initial);
+      if (levels[0]->nu > 0) PetscCall(EPSSetDimensions(eps, levels[0]->nu, PETSC_DETERMINE, PETSC_DETERMINE));
       PetscCall(EPSSetFromOptions(eps));
       if (weighted || ismatis) {
         if (levels == levels[0]->parent->levels && levels[0]->parent->share) {
@@ -1723,9 +1722,6 @@ public:
       PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, 1));
       PetscCall(VecRestoreArray(out, &array));
     } else PetscCall(VecPointwiseMult(out, out, D)); // out = D ev_ E \ ev_^T D out
-    PetscCall(VecGetArray(out, &array));
-    PetscCallCXX(Subdomain<K>::exchange(array, 1));
-    PetscCall(VecRestoreArray(out, &array));
     PetscFunctionReturn(PETSC_SUCCESS);
   }
   template <bool excluded, bool transpose = false>
@@ -1757,17 +1753,14 @@ public:
     PetscCall(MatDenseRestoreArray(super::uc_, &array));
     if (super::ev_) {
       PetscCall(MatDenseGetSubMatrix(super::uc_, 0, local, 0, mu, &X));
-      PetscCall(MatMatMult(super::ev_, X, MAT_REUSE_MATRIX, PETSC_DETERMINE, &Y)); // Y = ev_ E\ ev_^T D Y
+      PetscCall(MatMatMult(super::ev_, X, MAT_REUSE_MATRIX, PETSC_DETERMINE, &Y)); // Y = ev_ E \ ev_^T D Y
       PetscCall(MatDenseRestoreSubMatrix(super::uc_, &X));
     } else PetscCall(MatZeroEntries(Y));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
       PetscCall(MatDenseGetArray(Y, &array));
       PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, mu));
       PetscCall(MatDenseRestoreArray(Y, &array));
-    } else PetscCall(MatDiagonalScale(Y, D, nullptr)); // Y = D ev_ E\ ev_^T D Y
-    PetscCall(MatDenseGetArray(Y, &array));
-    PetscCallCXX(Subdomain<K>::exchange(array, mu));
-    PetscCall(MatDenseRestoreArray(Y, &array));
+    } else PetscCall(MatDiagonalScale(Y, D, nullptr)); // Y = D ev_ E \ ev_^T D Y
     PetscFunctionReturn(PETSC_SUCCESS);
   }
 #endif
