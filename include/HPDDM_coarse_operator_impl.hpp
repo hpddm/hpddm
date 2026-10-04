@@ -802,7 +802,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
       PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
       PetscCall(KSPGetPC(v.level_->ksp, &pc));
-      if (blocked) PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
+      PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
       PetscCall(KSPSetFromOptions(v.level_->ksp));
       PetscCall(MatDestroy(&E));
       super::s_ = v.level_;
