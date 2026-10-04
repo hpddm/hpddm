@@ -794,6 +794,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       PetscReal filter = -1.0;
       PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
       if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
+      PetscBool spd, set;
+      PetscCall(MatIsSPDKnown(E, &set, &spd));
+      PetscCall(PetscOptionsGetBool(nullptr, v.prefix_.c_str(), "-mat_spd", &spd, &set));
+      if (set) PetscCall(MatSetOption(E, MAT_SPD, spd));
       PetscCall(KSPSetOperators(v.level_->ksp, E, E));
       PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
       PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
@@ -1235,6 +1239,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       PetscReal filter = -1.0;
       PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
       if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
+      PetscBool spd, set;
+      PetscCall(MatIsSPDKnown(E, &set, &spd));
+      PetscCall(PetscOptionsGetBool(nullptr, v.prefix_.c_str(), "-mat_spd", &spd, &set));
+      if (set) PetscCall(MatSetOption(E, MAT_SPD, spd));
       PetscCall(KSPSetOperators(v.level_->ksp, E, E));
       PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
       PC pc = nullptr;
@@ -1570,6 +1578,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscCall(MatViewFromOptions(P, NULL, "-mat_view"));
     PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
     PetscCall(MatPropagateSymmetryOptions(A, P));
+    PetscBool spd, set;
+    PetscCall(MatIsSPDKnown(P, &set, &spd));
+    PetscCall(PetscOptionsGetBool(nullptr, v.prefix_.c_str(), "-mat_spd", &spd, &set));
+    if (set) PetscCall(MatSetOption(P, MAT_SPD, spd));
     PetscCall(KSPCreate(DMatrix::communicator_, &v.level_->ksp));
     PetscCall(KSPSetOperators(v.level_->ksp, P, P));
     PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
