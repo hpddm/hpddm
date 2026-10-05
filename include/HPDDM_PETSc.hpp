@@ -445,6 +445,128 @@ public:
   }
 };
 
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && PetscDefined(HAVE_CUDA)
+class PETScCUDAGMRESOperator : public PETScOperator {
+private:
+  mutable Vec              bdevice_, xdevice_;
+  mutable Mat              Bdevice_[2], Ydevice_[2];
+  mutable PetscObjectState nonzero_;
+
+  PetscErrorCode multiplyCUDA(Mat A, Mat B, Mat Y) const
+  {
+    Mat              productA = nullptr;
+    MatProductType   type, requested = ksp_->transpose_solve ? MATPRODUCT_AtB : MATPRODUCT_AB;
+    PetscObjectState nonzero;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatProductGetType(Y, &type));
+    if (type != MATPRODUCT_UNSPECIFIED) PetscCall(MatProductGetMats(Y, &productA, nullptr, nullptr));
+    PetscCall(MatGetNonzeroState(A, &nonzero));
+    if (productA != A || type != requested || nonzero_ != nonzero) {
+      PetscCall(MatProductClear(Y));
+      PetscCall(MatProductCreateWithMat(A, B, nullptr, Y));
+      PetscCall(MatProductSetType(Y, requested));
+      PetscCall(MatProductSetFromOptions(Y));
+      PetscCall(MatProductSymbolic(Y));
+      nonzero_ = nonzero;
+    }
+    PetscCall(MatProductNumeric(Y));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+
+  PetscErrorCode applyCUDA(const PetscScalar *const in, PetscScalar *const out, const int mu, const bool multiply) const
+  {
+    Mat       A;
+    PetscBool batch = PETSC_TRUE;
+
+    PetscFunctionBeginUser;
+    PetscCall(KSPGetOperators(ksp_, &A, nullptr));
+    if (multiply && mu > 1) {
+      // Other products either stage dense arrays on the host or only loop over columns.
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)A, &batch, MATSEQAIJCUSPARSE, MATMPIAIJCUSPARSE, MATSEQDENSECUDA, ""));
+    }
+    if (mu > 1 && batch) {
+      Mat           &B = Bdevice_[multiply], &Y = Ydevice_[multiply];
+      PetscInt       N, rows = 0, columns = 0;
+      PetscErrorCode ierr, resety = PETSC_SUCCESS, resetb;
+
+      PetscCall(MatGetSize(A, &N, nullptr));
+      if (Y) PetscCall(MatGetSize(Y, &rows, &columns));
+      if (rows != N || columns != mu) {
+        PetscCall(MatDestroy(&Y));
+        PetscCall(MatDestroy(&B));
+        PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), getDof(), PETSC_DECIDE, N, mu, const_cast<PetscScalar *>(in), &B));
+        PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), getDof(), PETSC_DECIDE, N, mu, out, &Y));
+      }
+      PetscCall(MatDenseCUDAPlaceArray(B, in));
+      ierr = MatDenseCUDAPlaceArray(Y, out);
+      if (!ierr) {
+        ierr   = multiply ? multiplyCUDA(A, B, Y) : KSP_PCMatApply(ksp_, B, Y);
+        resety = MatDenseCUDAResetArray(Y);
+      }
+      resetb = MatDenseCUDAResetArray(B);
+      PetscCall(ierr);
+      PetscCall(resety);
+      PetscCall(resetb);
+      PetscFunctionReturn(PETSC_SUCCESS);
+    }
+    if (!bdevice_) {
+      PetscInt N;
+      PetscCall(MatGetSize(A, &N, nullptr));
+      PetscCall(VecCreateMPICUDAWithArray(PetscObjectComm((PetscObject)ksp_), 1, getDof(), N, nullptr, &bdevice_));
+      PetscCall(VecCreateMPICUDAWithArray(PetscObjectComm((PetscObject)ksp_), 1, getDof(), N, nullptr, &xdevice_));
+    }
+    for (int nu = 0; nu < mu; ++nu) {
+      PetscErrorCode ierr, resetx = PETSC_SUCCESS, resetb;
+
+      PetscCall(VecCUDAPlaceArray(bdevice_, getDof() ? in + static_cast<std::size_t>(nu) * getDof() : in));
+      ierr = VecCUDAPlaceArray(xdevice_, getDof() ? out + static_cast<std::size_t>(nu) * getDof() : out);
+      if (!ierr) {
+        ierr   = multiply ? KSP_MatMult(ksp_, A, bdevice_, xdevice_) : KSP_PCApply(ksp_, bdevice_, xdevice_);
+        resetx = VecCUDAResetArray(xdevice_);
+      }
+      resetb = VecCUDAResetArray(bdevice_);
+      PetscCall(ierr);
+      PetscCall(resetx);
+      PetscCall(resetb);
+    }
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+
+public:
+  PETScCUDAGMRESOperator(const KSP &ksp, PetscInt n) : PETScOperator(ksp, n), bdevice_(), xdevice_(), Bdevice_(), Ydevice_(), nonzero_(-1) { }
+  ~PETScCUDAGMRESOperator()
+  {
+    for (unsigned short i = 0; i < 2; ++i) {
+      PetscCallVoid(MatDestroy(Ydevice_ + i));
+      PetscCallVoid(MatDestroy(Bdevice_ + i));
+    }
+    PetscCallVoid(VecDestroy(&xdevice_));
+    PetscCallVoid(VecDestroy(&bdevice_));
+  }
+  template <class K>
+  PetscErrorCode GMV(const K *const in, K *const out, const int &mu = 1) const
+  {
+    static_assert(std::is_same<K, PetscScalar>::value || (PetscDefined(USE_COMPLEX) && std::is_same<K, std::complex<PetscReal>>::value),
+                  "CUDA GMRES requires PETSc scalar precision");
+    static_assert(sizeof(K) == sizeof(PetscScalar), "Incompatible CUDA scalar representation");
+    PetscFunctionBeginUser;
+    PetscCall(applyCUDA(reinterpret_cast<const PetscScalar *>(in), reinterpret_cast<PetscScalar *>(out), mu, true));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  template <bool = false, class K>
+  PetscErrorCode apply(const K *const in, K *const out, const unsigned short &mu = 1, K * = nullptr, const unsigned short & = 0) const
+  {
+    static_assert(std::is_same<K, PetscScalar>::value || (PetscDefined(USE_COMPLEX) && std::is_same<K, std::complex<PetscReal>>::value),
+                  "CUDA GMRES requires PETSc scalar precision");
+    static_assert(sizeof(K) == sizeof(PetscScalar), "Incompatible CUDA scalar representation");
+    PetscFunctionBeginUser;
+    PetscCall(applyCUDA(reinterpret_cast<const PetscScalar *>(in), reinterpret_cast<PetscScalar *>(out), mu, false));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+};
+#endif
+
 template <class K>
 inline PetscErrorCode convert(MatrixCSR<K> *const &A, Mat &P)
 {
