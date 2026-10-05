@@ -290,9 +290,10 @@ private:
     return addSol<excluded>(A, variant, n, x, std::distance(h[0], h[1]) / std::abs(deflated), s, v, hasConverged, mu, work, deflated);
   }
   template <class K>
-  static void computeMin(const K *const *const h, K *const s, const short *const hasConverged, const int &mu, const int &deflated = -1, const int &shift = 0)
+  static void computeMin(const K *const *const h, K *const s, const short *const hasConverged, const int &mu, const int &deflated = -1, const int &shift = 0,
+                         const int leadingDimension = 0)
   {
-    int ldh = std::distance(h[0], h[1]) / std::abs(deflated);
+    int ldh = leadingDimension ? leadingDimension : std::distance(h[0], h[1]) / std::abs(deflated);
     if (deflated != -1) {
       int dim = std::abs(*hasConverged) - deflated * shift;
       int info;
@@ -493,6 +494,65 @@ private:
     }
     return 0;
   }
+  template <bool excluded, class Operator, class K>
+  struct GMRESOperations {
+    int allocate(K *&ptr, const std::size_t count) const
+    {
+      ptr = new K[count];
+      return 0;
+    }
+    int release(K *&ptr) const
+    {
+      delete[] ptr;
+      ptr = nullptr;
+      return 0;
+    }
+    int initializeNorm(const Operator &A, const char variant, const K *const b, K *const x, K *const v, const int n, K *const work,
+                       underlying_type<K> *const norm, const unsigned short mu, bool &allocate) const
+    {
+      return IterativeMethod::initializeNorm<excluded>(A, variant, b, x, v, n, work, norm, mu, 1, allocate);
+    }
+    int axpby(const int n, const K alpha, const K *const x, const K beta, K *const y) const
+    {
+      Blas<K>::axpby(n, alpha, x, 1, beta, y, 1);
+      return 0;
+    }
+    int normSquared(const int n, const K *const x, underlying_type<K> *const norm, const int mu, const underlying_type<K> *const d) const
+    {
+      if (excluded || !n) std::fill_n(norm, mu, underlying_type<K>());
+      else if (d)
+        for (unsigned short nu = 0; nu < mu; ++nu) {
+          norm[nu] = underlying_type<K>();
+          for (int j = 0; j < n; ++j) norm[nu] += d[j] * HPDDM::norm(x[nu * n + j]);
+        }
+      else
+        for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = HPDDM::real(Blas<K>::dot(&n, x + nu * n, &i_1, x + nu * n, &i_1));
+      return 0;
+    }
+    int scale(const int n, const K alpha, K *const x) const
+    {
+      Blas<K>::scal(&n, &alpha, x, &i_1);
+      return 0;
+    }
+    int startCycle(const int, const K *const) const { return 0; }
+    int orthogonalization(const char id, const int n, const int k, const int mu, const K *const B, K *const v, K *const H, const underlying_type<K> *const d,
+                          K *const work, const MPI_Comm &comm) const
+    {
+      IterativeMethod::orthogonalization<excluded>(id, n, k, mu, B, v, H, d, work, comm);
+      return 0;
+    }
+    int arnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const s, underlying_type<K> *const sn, const int n, const int i,
+                const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm) const
+    {
+      return IterativeMethod::Arnoldi<excluded>(id, m, H, v, s, sn, n, i, mu, d, work, comm, *this);
+    }
+    int updateSolution(const Operator &A, const char variant, const int n, K *const x, const int ldh, K *const *const H, K *const s, K *const *const v,
+                       const short *const hasConverged, const int mu, K *const work) const
+    {
+      if (!excluded) IterativeMethod::computeMin(H, s, hasConverged, mu, -1, 0, ldh);
+      return IterativeMethod::addSol<excluded>(A, variant, n, x, ldh, s, v, hasConverged, mu, work);
+    }
+  };
   /* Function: orthogonalization
          *
          *  Orthogonalizes a block of vectors against a contiguous set of block of vectors.
@@ -704,6 +764,51 @@ private:
     }
     return rank;
   }
+  template <class K>
+  static void ArnoldiRotations(const unsigned short m, K *const *const H, K *const s, underlying_type<K> *const sn, const int i, const int mu,
+                               K *const *const save = nullptr, const unsigned short shift = 0)
+  {
+    if (save) Wrapper<K>::template omatcopy<'T'>(i + 2 - shift, mu, H[i] + shift * mu, mu, save[i - shift], m + 1);
+    for (unsigned short k = shift; k < i; ++k) {
+      for (unsigned short nu = 0; nu < mu; ++nu) {
+        K gamma                 = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
+        H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(m + 1) * nu + k + 1] * H[i][(k + 1) * mu + nu];
+        H[i][k * mu + nu]       = gamma;
+      }
+    }
+    for (unsigned short nu = 0; nu < mu; ++nu) {
+      const int          tmp      = 2;
+      underlying_type<K> delta    = Blas<K>::nrm2(&tmp, H[i] + i * mu + nu, &mu);
+      const bool         inactive = delta == underlying_type<K>() && s[i * mu + nu] == K();
+      sn[i * mu + nu]             = inactive ? underlying_type<K>() : HPDDM::real(H[i][(i + 1) * mu + nu]) / delta;
+      H[i][(i + 1) * mu + nu]     = inactive ? K(1.0) : H[i][i * mu + nu] / delta;
+      H[i][i * mu + nu]           = delta;
+      s[(i + 1) * mu + nu]        = -sn[i * mu + nu] * s[i * mu + nu];
+      s[i * mu + nu] *= Wrapper<K>::conj(H[i][(i + 1) * mu + nu]);
+    }
+    if (mu > 1) Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
+  }
+  template <bool excluded, class K, class Operations>
+  static int Arnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const s, underlying_type<K> *const sn, const int n,
+                     const int i, const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm, Operations &ops)
+  {
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
+    PetscCall(PetscLogEventBegin(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
+#endif
+    HPDDM_CALL(ops.orthogonalization(id & 3, n, i + 1, mu, *v, v[i + 1], H[i], d, work, comm));
+    HPDDM_CALL(ops.normSquared(n, v[i + 1], sn + i * mu, mu, d));
+    ignore(MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
+    for (unsigned short nu = 0; nu < mu; ++nu) {
+      H[i][(i + 1) * mu + nu] = HPDDM::sqrt(sn[i * mu + nu]);
+      if (!excluded && i < m - 1 && HPDDM::abs(H[i][(i + 1) * mu + nu]) > underlying_type<K>())
+        HPDDM_CALL(ops.scale(n, K(1.0) / H[i][(i + 1) * mu + nu], v[i + 1] + nu * n));
+    }
+    ArnoldiRotations(m, H, s, sn, i, mu);
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
+    PetscCall(PetscLogEventEnd(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
+#endif
+    return 0;
+  }
   /* Function: Arnoldi
          *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
   template <bool excluded, class K>
@@ -728,24 +833,7 @@ private:
       H[i][(i + 1) * mu + nu] = HPDDM::sqrt(sn[i * mu + nu]);
       if (!excluded && i < m - 1) std::for_each(v[i + 1] + nu * n, v[i + 1] + (nu + 1) * n, [&](K &y) { y /= H[i][(i + 1) * mu + nu]; });
     }
-    if (save) Wrapper<K>::template omatcopy<'T'>(i + 2 - shift, mu, H[i] + shift * mu, mu, save[i - shift], m + 1);
-    for (unsigned short k = shift; k < i; ++k) {
-      for (unsigned short nu = 0; nu < mu; ++nu) {
-        K gamma                 = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
-        H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(m + 1) * nu + k + 1] * H[i][(k + 1) * mu + nu];
-        H[i][k * mu + nu]       = gamma;
-      }
-    }
-    for (unsigned short nu = 0; nu < mu; ++nu) {
-      const int          tmp   = 2;
-      underlying_type<K> delta = Blas<K>::nrm2(&tmp, H[i] + i * mu + nu, &mu);
-      sn[i * mu + nu]          = HPDDM::real(H[i][(i + 1) * mu + nu]) / delta;
-      H[i][(i + 1) * mu + nu]  = H[i][i * mu + nu] / delta;
-      H[i][i * mu + nu]        = delta;
-      s[(i + 1) * mu + nu]     = -sn[i * mu + nu] * s[i * mu + nu];
-      s[i * mu + nu] *= Wrapper<K>::conj(H[i][(i + 1) * mu + nu]);
-    }
-    if (mu > 1) Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
+    ArnoldiRotations(m, H, s, sn, i, mu, save, shift);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
     PetscCallContinue(PetscLogEventEnd(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
@@ -1001,6 +1089,8 @@ public:
          *    comm           - Global MPI communicator. */
   template <bool, class Operator, class K>
   static int GMRES(const Operator &A, const K *const b, K *const x, const int &mu, const MPI_Comm &comm);
+  template <bool, class Operator, class K, class Operations>
+  static int GMRES(const Operator &A, const K *const b, K *const x, const int &mu, const MPI_Comm &comm, Operations &ops);
   template <bool, class Operator, class K>
   static int BGMRES(const Operator &, const K *const, K *const, const int &, const MPI_Comm &);
   template <bool, class Operator, class K>

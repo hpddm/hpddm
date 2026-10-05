@@ -445,6 +445,97 @@ public:
   }
 };
 
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && PetscDefined(HAVE_CUDA)
+class PETScCUDAGMRESOperator : public PETScOperator {
+private:
+  mutable Vec bdevice_, xdevice_;
+  mutable Mat Bdevice_, Ydevice_;
+
+  PetscErrorCode applyCUDA(const PetscScalar *const in, PetscScalar *const out, const int mu, const bool multiply) const
+  {
+    Mat A;
+
+    PetscFunctionBeginUser;
+    PetscCall(KSPGetOperators(ksp_, &A, nullptr));
+    if (!multiply && mu > 1) {
+      PetscInt       N, columns = 0;
+      PetscErrorCode ierr, resety = PETSC_SUCCESS, resetb;
+
+      if (Ydevice_) PetscCall(MatGetSize(Ydevice_, nullptr, &columns));
+      if (columns != mu) {
+        PetscCall(MatDestroy(&Ydevice_));
+        PetscCall(MatDestroy(&Bdevice_));
+        PetscCall(MatGetSize(A, &N, nullptr));
+        PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), getDof(), PETSC_DECIDE, N, mu, const_cast<PetscScalar *>(in), &Bdevice_));
+        PetscCall(MatCreateDenseCUDA(PetscObjectComm((PetscObject)ksp_), getDof(), PETSC_DECIDE, N, mu, out, &Ydevice_));
+      }
+      PetscCall(MatDenseCUDAPlaceArray(Bdevice_, in));
+      ierr = MatDenseCUDAPlaceArray(Ydevice_, out);
+      if (!ierr) {
+        ierr   = KSP_PCMatApply(ksp_, Bdevice_, Ydevice_);
+        resety = MatDenseCUDAResetArray(Ydevice_);
+      }
+      resetb = MatDenseCUDAResetArray(Bdevice_);
+      PetscCall(ierr);
+      PetscCall(resety);
+      PetscCall(resetb);
+      PetscFunctionReturn(PETSC_SUCCESS);
+    }
+    if (!bdevice_) {
+      PetscInt N;
+      PetscCall(MatGetSize(A, &N, nullptr));
+      PetscCall(VecCreateMPICUDAWithArray(PetscObjectComm((PetscObject)ksp_), 1, getDof(), N, nullptr, &bdevice_));
+      PetscCall(VecCreateMPICUDAWithArray(PetscObjectComm((PetscObject)ksp_), 1, getDof(), N, nullptr, &xdevice_));
+    }
+    for (int nu = 0; nu < mu; ++nu) {
+      PetscErrorCode ierr, resetx = PETSC_SUCCESS, resetb;
+
+      PetscCall(VecCUDAPlaceArray(bdevice_, getDof() ? in + static_cast<std::size_t>(nu) * getDof() : in));
+      ierr = VecCUDAPlaceArray(xdevice_, getDof() ? out + static_cast<std::size_t>(nu) * getDof() : out);
+      if (!ierr) {
+        ierr   = multiply ? KSP_MatMult(ksp_, A, bdevice_, xdevice_) : KSP_PCApply(ksp_, bdevice_, xdevice_);
+        resetx = VecCUDAResetArray(xdevice_);
+      }
+      resetb = VecCUDAResetArray(bdevice_);
+      PetscCall(ierr);
+      PetscCall(resetx);
+      PetscCall(resetb);
+    }
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+
+public:
+  PETScCUDAGMRESOperator(const KSP &ksp, PetscInt n) : PETScOperator(ksp, n), bdevice_(), xdevice_(), Bdevice_(), Ydevice_() { }
+  ~PETScCUDAGMRESOperator()
+  {
+    PetscCallVoid(MatDestroy(&Ydevice_));
+    PetscCallVoid(MatDestroy(&Bdevice_));
+    PetscCallVoid(VecDestroy(&xdevice_));
+    PetscCallVoid(VecDestroy(&bdevice_));
+  }
+  template <class K>
+  PetscErrorCode GMV(const K *const in, K *const out, const int &mu = 1) const
+  {
+    static_assert(std::is_same<K, PetscScalar>::value || (PetscDefined(USE_COMPLEX) && std::is_same<K, std::complex<PetscReal>>::value),
+                  "CUDA GMRES requires PETSc scalar precision");
+    static_assert(sizeof(K) == sizeof(PetscScalar), "Incompatible CUDA scalar representation");
+    PetscFunctionBeginUser;
+    PetscCall(applyCUDA(reinterpret_cast<const PetscScalar *>(in), reinterpret_cast<PetscScalar *>(out), mu, true));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  template <bool = false, class K>
+  PetscErrorCode apply(const K *const in, K *const out, const unsigned short &mu = 1, K * = nullptr, const unsigned short & = 0) const
+  {
+    static_assert(std::is_same<K, PetscScalar>::value || (PetscDefined(USE_COMPLEX) && std::is_same<K, std::complex<PetscReal>>::value),
+                  "CUDA GMRES requires PETSc scalar precision");
+    static_assert(sizeof(K) == sizeof(PetscScalar), "Incompatible CUDA scalar representation");
+    PetscFunctionBeginUser;
+    PetscCall(applyCUDA(reinterpret_cast<const PetscScalar *>(in), reinterpret_cast<PetscScalar *>(out), mu, false));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+};
+#endif
+
 template <class K>
 inline PetscErrorCode convert(MatrixCSR<K> *const &A, Mat &P)
 {

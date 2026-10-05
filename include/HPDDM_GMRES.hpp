@@ -30,6 +30,12 @@ namespace HPDDM
 template <bool excluded, class Operator, class K>
 inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const x, const int &mu, const MPI_Comm &comm)
 {
+  GMRESOperations<excluded, Operator, K> ops;
+  return GMRES<excluded>(A, b, x, mu, comm, ops);
+}
+template <bool excluded, class Operator, class K, class Operations>
+inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const x, const int &mu, const MPI_Comm &comm, Operations &ops)
+{
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
   underlying_type<K> tol;
   unsigned short     j, m[2];
@@ -39,51 +45,50 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
   unsigned short *m  = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->scntl;
   char           *id = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->cntl;
 #endif
-  const int n  = excluded ? 0 : A.getDof();
-  K **const H  = new K *[m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 3 : 2) + 1];
-  K **const v  = H + m[0];
-  K *const  s  = new K[mu * ((m[0] + 1) * (m[0] + 1) + n * (2 + m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1)) +
-                             (!Wrapper<K>::is_complex ? m[0] + 1 : (m[0] + 2) / 2))];
-  K *const  Ax = s + mu * (m[0] + 1);
-  *H           = Ax + mu * n;
-  for (unsigned short i = 1; i < m[0]; ++i) H[i] = *H + i * mu * (m[0] + 1);
-  *v = *H + m[0] * mu * (m[0] + 1);
+  if (!m[0] || !HPDDM_MAX_IT(m[1], A)) {
+    HPDDM_IT(j, A) = 0;
+    return HPDDM_RET(0);
+  }
+  const int n   = excluded ? 0 : A.getDof();
+  const int ldh = mu * (m[0] + 1);
+  K **const H   = new K *[m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 3 : 2) + 1];
+  K **const v   = H + m[0];
+  K *const  s   = new K[mu * ((m[0] + 1) * (m[0] + 1) + (!Wrapper<K>::is_complex ? m[0] + 1 : (m[0] + 2) / 2))];
+  K        *Ax  = nullptr;
+  HPDDM_CALL(ops.allocate(Ax, static_cast<std::size_t>(mu) * n * (2 + m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1))));
+  *H = s + ldh;
+  for (unsigned short i = 1; i < m[0]; ++i) H[i] = *H + i * ldh;
+  *v = Ax + mu * n;
   for (unsigned short i = 1; i < m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1; ++i) v[i] = *v + i * mu * n;
-  underlying_type<K> *const       norm         = reinterpret_cast<underlying_type<K> *>(*v + (m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) * mu * n);
+  underlying_type<K> *const       norm         = reinterpret_cast<underlying_type<K> *>(*H + m[0] * ldh);
   underlying_type<K> *const       sn           = norm + mu;
   const underlying_type<K> *const d            = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
   short *const                    hasConverged = new short[mu];
   std::fill_n(hasConverged, mu, -m[0]);
   bool allocate;
-  HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
+  HPDDM_CALL(ops.initializeNorm(A, id[1], b, x, *v, n, Ax, norm, mu, allocate));
   HPDDM_IT(j, A) = 1;
   while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A)) {
     if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
-    Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+    HPDDM_CALL(ops.axpby(mu * n, K(1.0), b, K(-1.0), id[1] == HPDDM_VARIANT_LEFT ? Ax : *v));
     if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
-    if (d)
-      for (unsigned short nu = 0; nu < mu; ++nu) {
-        sn[nu] = 0.0;
-        for (int j = 0; j < n; ++j) sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
-      }
-    else
-      for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i_1, *v + nu * n, &i_1));
+    HPDDM_CALL(ops.normSquared(n, *v, sn, mu, d));
     if (HPDDM_IT(j, A) == 1) {
       ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       for (unsigned short nu = 0; nu < mu; ++nu) {
         norm[nu] = HPDDM::sqrt(norm[nu]);
         if (norm[nu] < underlying_type<K>(HPDDM_EPS)) norm[nu] = 1.0;
-        if (sn[nu] < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2))) {
-          HPDDM_IT(j, A) = 0;
-          break;
-        }
+        if (sn[nu] < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2))) hasConverged[nu] = 0;
       }
+      if (std::find(hasConverged, hasConverged + mu, -m[0]) == hasConverged + mu) HPDDM_IT(j, A) = 0;
     } else ignore(MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     if (HPDDM_IT(j, A) == 0) {
 #if HPDDM_PETSC
       PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
       PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
-      A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
+      A.ksp_->rnorm = PetscReal();
+      PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
+      if (!A.ksp_->reason) A.ksp_->reason = KSP_CONVERGED_ATOL;
 #endif
       std::fill_n(hasConverged, mu, 0);
       break;
@@ -91,7 +96,7 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
     for (unsigned short nu = 0; nu < mu; ++nu) {
       if (hasConverged[nu] > 0) hasConverged[nu] = 0;
       s[nu] = HPDDM::sqrt(sn[nu]);
-      std::for_each(*v + nu * n, *v + (nu + 1) * n, [&](K &y) { y /= s[nu]; });
+      if (HPDDM::abs(s[nu]) > underlying_type<K>()) HPDDM_CALL(ops.scale(n, K(1.0) / s[nu], *v + nu * n));
     }
 #if HPDDM_PETSC
     if (HPDDM_IT(j, A) == 1) {
@@ -103,12 +108,14 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
       if (A.ksp_->reason) {
         delete[] hasConverged;
         A.end(allocate);
+        HPDDM_CALL(ops.release(Ax));
         delete[] s;
         delete[] H;
         return 0;
       }
     }
 #endif
+    HPDDM_CALL(ops.startCycle(mu, s));
     unsigned short i = 0;
     while (i < m[0] && HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A)) {
       if (id[1] == HPDDM_VARIANT_LEFT) {
@@ -118,7 +125,7 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
         HPDDM_CALL(A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, mu, v[i + 1]));
         if (!excluded) HPDDM_CALL(A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, v[i + 1], mu));
       }
-      Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm);
+      HPDDM_CALL(ops.arnoldi(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm));
       checkConvergence<0>(id[0], HPDDM_IT(j, A), i, HPDDM_TOL(tol, A), mu, norm, s + i * mu, hasConverged, m[0]);
 #if HPDDM_PETSC
       A.ksp_->rnorm = static_cast<PetscReal>(
@@ -139,7 +146,7 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
       ++HPDDM_IT(j, A);
     }
     if (HPDDM_IT(j, A) != HPDDM_MAX_IT(m[1], A) + 1 && i == m[0]) {
-      HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), hasConverged, mu, Ax));
+      HPDDM_CALL(ops.updateSolution(A, id[1], n, x, ldh, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), hasConverged, mu, Ax));
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
       if (id[0] > 1) std::cout << "GMRES restart(" << m[0] << ")" << std::endl;
 #endif
@@ -151,10 +158,13 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
       if (d < 0) d = rem > 0 ? rem : -d;
     });
   }
-  HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), hasConverged, mu, Ax));
+  if (std::any_of(hasConverged, hasConverged + mu, [](const short c) { return c != 0; })) {
+    HPDDM_CALL(ops.updateSolution(A, id[1], n, x, ldh, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), hasConverged, mu, Ax));
+  }
   convergence<0>(id[0], HPDDM_IT(j, A), HPDDM_MAX_IT(m[1], A));
   delete[] hasConverged;
   A.end(allocate);
+  HPDDM_CALL(ops.release(Ax));
   delete[] s;
   delete[] H;
   return HPDDM_RET(std::min(HPDDM_IT(j, A), HPDDM_MAX_IT(m[1], A)));
