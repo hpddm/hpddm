@@ -1734,9 +1734,17 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
   #define PetscCallAbort(PETSC_COMM_WORLD, arg) arg
 #endif
 
-HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <bool excluded, bool transpose>
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)
+#if HPDDM_PETSC
+template <bool excluded, char trans>
+#else
+template <bool excluded, bool trans>
+#endif
 inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolver(K *const pt, const unsigned short &mu)
 {
+#if HPDDM_PETSC
+  static_assert(trans == 'N' || trans == 'T' || trans == 'H', "Unsupported value for argument 'trans'");
+#endif
   downscaled_type<K> *rhs = reinterpret_cast<downscaled_type<K> *>(pt);
   if (!std::is_same<downscaled_type<K>, K>::value)
     for (int i = 0; i < mu * local_; ++i) rhs[i] = pt[i];
@@ -1811,13 +1819,13 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
     if (DMatrix::displs_) {
       if (DMatrix::communicator_ != MPI_COMM_NULL) {
         transfer<false>(DMatrix::gatherSplitCounts_, sizeSplit_, mu, rhs);
-        PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(rhs, mu));
+        PetscCallAbort(PETSC_COMM_WORLD, super::template solve<trans>(rhs, mu));
         transfer<true>(DMatrix::gatherSplitCounts_, mu, sizeSplit_, rhs);
       } else {
         MPI_Gatherv(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), 0,
                     gatherComm_);
   #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
-        if (super::s_) PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(nullptr, mu));
+        if (super::s_) PetscCallAbort(PETSC_COMM_WORLD, super::template solve<trans>(nullptr, mu));
   #endif
         MPI_Scatterv(nullptr, nullptr, nullptr, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0,
                      scatterComm_);
@@ -1827,14 +1835,14 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
         MPI_Gather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), 0, gatherComm_);
         Wrapper<downscaled_type<K>>::template cycle<'T'>(sizeSplit_ - (offset_ || excluded), mu, rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0),
                                                          *DMatrix::gatherCounts_);
-        PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu));
+        PetscCallAbort(PETSC_COMM_WORLD, super::template solve<trans>(rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0), mu));
         Wrapper<downscaled_type<K>>::template cycle<'T'>(mu, sizeSplit_ - (offset_ || excluded), rhs + (offset_ || excluded ? mu * *DMatrix::gatherCounts_ : 0),
                                                          *DMatrix::gatherCounts_);
         MPI_Scatter(rhs, mu * *DMatrix::gatherCounts_, Wrapper<downscaled_type<K>>::mpi_type(), MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
       } else {
         MPI_Gather(rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), nullptr, 0, MPI_DATATYPE_NULL, 0, gatherComm_);
   #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
-        if (super::s_) PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(nullptr, mu));
+        if (super::s_) PetscCallAbort(PETSC_COMM_WORLD, super::template solve<trans>(nullptr, mu));
   #endif
         MPI_Scatter(nullptr, 0, Wrapper<downscaled_type<K>>::mpi_type(), rhs, mu * local_, Wrapper<downscaled_type<K>>::mpi_type(), 0, scatterComm_);
       }
@@ -1845,7 +1853,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::callSolve
     if (DMatrix::distribution_ == DMatrix::DISTRIBUTED_SOL) super::template solve<DMatrix::DISTRIBUTED_SOL>(rhs, mu);
     else super::template solve<DMatrix::CENTRALIZED>(rhs, mu);
 #else
-    PetscCallAbort(PETSC_COMM_WORLD, super::template solve<transpose>(rhs, mu));
+    PetscCallAbort(PETSC_COMM_WORLD, super::template solve<trans>(rhs, mu));
 #endif
   }
   if (!std::is_same<downscaled_type<K>, K>::value)

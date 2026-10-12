@@ -271,7 +271,11 @@ public:
          *
          * Parameter:
          *    rhs            - Input right-hand side, solution vector is stored in-place. */
+#if HPDDM_PETSC
+  template <bool, char = 'N'>
+#else
   template <bool, bool = false>
+#endif
   void callSolver(K *const, const unsigned short & = 1);
 #if HPDDM_ICOLLECTIVE
   template <bool>
