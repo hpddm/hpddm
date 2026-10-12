@@ -1691,7 +1691,7 @@ public:
     }
   }
 #else
-  template <bool excluded, bool transpose = false>
+  template <bool excluded, char trans = 'N'>
   PetscErrorCode deflation(Vec out, Vec D) const
   {
     Vec          X;
@@ -1701,16 +1701,19 @@ public:
     static_assert(!excluded, "Not implemented");
     if (!std::is_same<PetscScalar, PetscReal>::value) {
       PetscCall(VecGetArray(out, &array));
-      PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, 1));
+      PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array));
       PetscCall(VecRestoreArray(out, &array));
     } else PetscCall(VecPointwiseMult(out, out, D)); // out = D out
     if (super::ev_) {
       PetscCall(MatDenseGetColumnVecWrite(super::uc_, 0, &X));
-      PetscCall(MatMultHermitianTranspose(super::ev_, out, X)); // X = ev_^T D out
+      if (trans == 'T') PetscCall(MatMultTranspose(super::ev_, out, X)); // X = ev_^T D out
+      else PetscCall(MatMultHermitianTranspose(super::ev_, out, X));
       PetscCall(MatDenseRestoreColumnVecWrite(super::uc_, 0, &X));
     }
     PetscCall(MatDenseGetArray(super::uc_, &array));
-    PetscCallCXX(super::co_->template callSolver<excluded, transpose>(array, 1)); // uc_ = E \ ev_^T D out
+    PetscCallCXX(super::co_->template callSolver<excluded, trans>(array)); // uc_ = E \ ev_^T D out
+    if (PetscDefined(USE_COMPLEX) && trans == 'T')
+      for (PetscInt i = 0; i < super::getLocal(); ++i) array[i] = Wrapper<K>::conj(array[i]);
     PetscCall(MatDenseRestoreArray(super::uc_, &array));
     if (super::ev_) {
       PetscCall(MatDenseGetColumnVecRead(super::uc_, 0, &X));
@@ -1719,17 +1722,19 @@ public:
     } else PetscCall(VecSet(out, 0.0));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
       PetscCall(VecGetArray(out, &array));
-      PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, 1));
+      if (trans == 'T')
+        for (PetscInt i = 0; i < Subdomain<K>::dof_; ++i) array[i] = Wrapper<K>::conj(array[i]) * (d_ ? d_[i] : Wrapper<underlying_type<K>>::d_1);
+      else PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array));
       PetscCall(VecRestoreArray(out, &array));
     } else PetscCall(VecPointwiseMult(out, out, D)); // out = D ev_ E \ ev_^T D out
     PetscFunctionReturn(PETSC_SUCCESS);
   }
-  template <bool excluded, bool transpose = false>
+  template <bool excluded, char trans = 'N'>
   PetscErrorCode deflation(Mat out, Vec D) const
   {
     Mat            X, Y;
     PetscScalar   *array;
-    PetscInt       mu;
+    PetscInt       mu, lda;
     const PetscInt local = super::getLocal();
 
     PetscFunctionBeginUser;
@@ -1737,28 +1742,36 @@ public:
     PetscCall(MatGetSize(out, nullptr, &mu));
     PetscCall(MatDenseGetLocalMatrix(out, &Y));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
+      PetscCall(MatDenseGetLDA(out, &lda));
+      PetscCheck(lda == Subdomain<K>::dof_, PetscObjectComm((PetscObject)out), PETSC_ERR_SUP,
+                 "Leading dimension of Mat different than the number of local unknowns");
       PetscCall(MatDenseGetArray(Y, &array));
       PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, mu));
       PetscCall(MatDenseRestoreArray(Y, &array));
     } else PetscCall(MatDiagonalScale(Y, D, nullptr)); // Y = D Y
     if (super::ev_) {
       PetscCall(MatDenseGetSubMatrix(super::uc_, 0, local, 0, mu, &X));
-      PetscCall(MatConjugate(Y));
-      PetscCall(MatTransposeMatMult(super::ev_, Y, MAT_REUSE_MATRIX, PETSC_DETERMINE, &X)); // X =  ev_^T D Y
-      PetscCall(MatConjugate(X));
+      if (trans != 'T') PetscCall(MatConjugate(Y));
+      PetscCall(MatTransposeMatMult(super::ev_, Y, MAT_REUSE_MATRIX, PETSC_DETERMINE, &X)); // X = ev_^T D Y
+      if (trans != 'T') PetscCall(MatConjugate(X));
       PetscCall(MatDenseRestoreSubMatrix(super::uc_, &X));
     }
     PetscCall(MatDenseGetArray(super::uc_, &array));
-    PetscCallCXX(super::co_->template callSolver<excluded, transpose>(array, mu)); // uc_ = E \ ev_^T D Y
+    PetscCallCXX(super::co_->template callSolver<excluded, trans>(array, mu)); // uc_ = E \ ev_^T D Y
     PetscCall(MatDenseRestoreArray(super::uc_, &array));
     if (super::ev_) {
       PetscCall(MatDenseGetSubMatrix(super::uc_, 0, local, 0, mu, &X));
+      if (trans == 'T') PetscCall(MatConjugate(X));
       PetscCall(MatMatMult(super::ev_, X, MAT_REUSE_MATRIX, PETSC_DETERMINE, &Y)); // Y = ev_ E \ ev_^T D Y
       PetscCall(MatDenseRestoreSubMatrix(super::uc_, &X));
     } else PetscCall(MatZeroEntries(Y));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
       PetscCall(MatDenseGetArray(Y, &array));
-      PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, mu));
+      if (trans == 'T') {
+        for (unsigned short nu = 0; nu < mu; ++nu)
+          for (PetscInt i = 0; i < Subdomain<K>::dof_; ++i)
+            array[i + nu * Subdomain<K>::dof_] = Wrapper<K>::conj(array[i + nu * Subdomain<K>::dof_]) * (d_ ? d_[i] : Wrapper<underlying_type<K>>::d_1);
+      } else PetscCallCXX(Wrapper<K>::diag(Subdomain<K>::dof_, d_, nullptr, array, mu));
       PetscCall(MatDenseRestoreArray(Y, &array));
     } else PetscCall(MatDiagonalScale(Y, D, nullptr)); // Y = D ev_ E \ ev_^T D Y
     PetscFunctionReturn(PETSC_SUCCESS);
