@@ -53,6 +53,10 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
   underlying_type<K> *const       sn           = norm + mu;
   const underlying_type<K> *const d            = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
   short *const                    hasConverged = new short[mu];
+#if HPDDM_PETSC
+  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]());
+  const PetscBool             *locked = nullptr;
+#endif
   std::fill_n(hasConverged, mu, -m[0]);
   bool allocate;
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
@@ -72,34 +76,45 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
       ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       for (unsigned short nu = 0; nu < mu; ++nu) {
         norm[nu] = HPDDM::sqrt(norm[nu]);
+#if !HPDDM_PETSC
         if (norm[nu] < underlying_type<K>(HPDDM_EPS)) norm[nu] = 1.0;
         if (sn[nu] < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2))) {
           HPDDM_IT(j, A) = 0;
           break;
         }
+#endif
       }
     } else ignore(MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
+#if !HPDDM_PETSC
     if (HPDDM_IT(j, A) == 0) {
-#if HPDDM_PETSC
-      PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
-      PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
-      A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
-#endif
       std::fill_n(hasConverged, mu, 0);
       break;
     }
+#endif
     for (unsigned short nu = 0; nu < mu; ++nu) {
       if (hasConverged[nu] > 0) hasConverged[nu] = 0;
       s[nu] = HPDDM::sqrt(sn[nu]);
+#if HPDDM_PETSC
+      if (hasConverged[nu] == -m[0] && HPDDM::abs(s[nu]) != underlying_type<K>()) std::for_each(*v + nu * n, *v + (nu + 1) * n, [&](K &y) { y /= s[nu]; });
+      else {
+        /* freeze a column whose residual is exactly zero, e.g., solved exactly before a restart; its zero residual is then reported to PETSc, which locks it */
+        std::fill_n(*v + nu * n, n, K());
+        hasConverged[nu] = 0;
+      }
+#else
       std::for_each(*v + nu * n, *v + (nu + 1) * n, [&](K &y) { y /= s[nu]; });
+#endif
     }
 #if HPDDM_PETSC
     if (HPDDM_IT(j, A) == 1) {
-      A.ksp_->rnorm = static_cast<PetscReal>(
-        HPDDM::abs(*std::max_element(s, s + mu, [](const K &lhs, const K &rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); })));
-      PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
-      PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-      PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
+      for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = static_cast<PetscReal>(HPDDM::abs(s[nu]));
+      PetscCall(initializeConvergence(A.ksp_, mu, norm, residual.get()));
+      PetscCall(KSPHPDDMConvergenceUpdate_Private(A.ksp_, 0, residual.get(), &locked));
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (locked[nu]) {
+          hasConverged[nu] = 0;
+          std::fill_n(*v + nu * n, n, K());
+        }
       if (A.ksp_->reason || HPDDM_MAX_IT(m[1], A) == 0) {
         HPDDM_IT(j, A) = 0;
         delete[] hasConverged;
@@ -119,21 +134,21 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
         HPDDM_CALL(A.template apply<excluded>(v[i], id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, mu, v[i + 1]));
         if (!excluded) HPDDM_CALL(A.GMV(id[1] == HPDDM_VARIANT_FLEXIBLE ? v[i + m[0] + 1] : Ax, v[i + 1], mu));
       }
+#if HPDDM_PETSC
+      Arnoldi<excluded, K>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm, nullptr, 0, hasConverged);
+      for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = hasConverged[nu] != -m[0] ? PetscReal() : static_cast<PetscReal>(HPDDM::abs(s[i * mu + nu]));
+      PetscCall(KSPHPDDMConvergenceUpdate_Private(A.ksp_, HPDDM_IT(j, A), residual.get(), &locked));
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (hasConverged[nu] == -m[0] && (locked[nu] || A.ksp_->reason)) {
+          hasConverged[nu] = i;
+          std::fill_n(v[i] + nu * n, n, K());
+        }
+      if (A.ksp_->reason) {
+#else
       Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm);
       checkConvergence<0>(id[0], HPDDM_IT(j, A), i, HPDDM_TOL(tol, A), mu, norm, s + i * mu, hasConverged, m[0]);
-#if HPDDM_PETSC
-      A.ksp_->rnorm = static_cast<PetscReal>(
-        HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K &lhs, const K &rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); })));
-      PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
-      PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
-      PetscCall((*A.ksp_->converged)(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
-      if (A.ksp_->reason)
-        std::for_each(hasConverged, hasConverged + mu, [&](short &c) {
-          if (c == -m[0]) c = i;
-        });
-      else if (A.ksp_->converged == KSPConvergedSkip) std::fill_n(hasConverged, mu, -m[0]);
-#endif
       if (std::find(hasConverged, hasConverged + mu, -m[0]) == hasConverged + mu) {
+#endif
         i = 0;
         break;
       }
