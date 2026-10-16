@@ -1,6 +1,8 @@
 #define HPDDM_MIXED_PRECISION 1
 #include <petsc/private/petschpddm.h> /*I "petscksp.h" I*/
 
+static PetscErrorCode KSPHPDDMConvergenceDestroy_Private(KSP);
+
 const char *const KSPHPDDMTypes[]          = {KSPGMRES, "bgmres", KSPCG, "bcg", "gcrodr", "bgcrodr", "bfbcg", KSPPREONLY};
 const char *const HPDDMOrthogonalization[] = {"cgs", "mgs"};
 const char *const HPDDMQR[]                = {"cholqr", "cgs", "mgs"};
@@ -196,6 +198,7 @@ static PetscErrorCode KSPReset_HPDDM(KSP ksp)
   PetscFunctionBegin;
   delete data->op;
   data->op = nullptr;
+  PetscCall(KSPHPDDMConvergenceDestroy_Private(ksp));
   PetscCall(KSPReset_HPDDM_Private(ksp));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -212,12 +215,99 @@ static PetscErrorCode KSPDestroy_HPDDM(KSP ksp)
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+/* KSPConvergedDefault() applied to each right-hand side of a batch, with its own reference norm: a right-hand side is locked once
+   its residual satisfies its own tolerance, and the batch converges once all of them do */
+static PetscErrorCode KSPConverged_HPDDM(KSP ksp, PetscInt it, KSPHPDDMConvergenceCtx *ctx)
+{
+  KSPConvergedDefaultCtx *defaultctx = (KSPConvergedDefaultCtx *)ksp->cnvP;
+  PetscReal               reference;
+  PetscBool               converged = PETSC_TRUE, absolute = PETSC_TRUE, diverged = PETSC_FALSE;
+
+  PetscFunctionBegin;
+  PetscCheck(defaultctx != nullptr, PetscObjectComm((PetscObject)ksp), PETSC_ERR_ARG_NULL, "Convergence context must have been created with KSPConvergedDefaultCreate()");
+  ksp->reason = KSP_CONVERGED_ITERATING;
+  if (defaultctx->convmaxits == PETSC_TRUE && it >= ksp->max_it) {
+    ksp->reason = KSP_CONVERGED_ITS;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  if (ksp->normtype == KSP_NORM_NONE || it <= ksp->chknorm) PetscFunctionReturn(PETSC_SUCCESS);
+  if (PetscIsInfOrNanReal(ksp->rnorm)) {
+    PCFailedReason pcreason;
+
+    PetscCall(PCReduceFailedReason(ksp->pc));
+    PetscCall(PCGetFailedReason(ksp->pc, &pcreason));
+    ksp->reason = pcreason ? KSP_DIVERGED_PC_FAILED : KSP_DIVERGED_NANORINF;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  if (it < ksp->min_it) PetscFunctionReturn(PETSC_SUCCESS);
+  for (PetscInt j = 0; j < ctx->n; ++j) {
+    reference = ctx->norm[j];
+    if (defaultctx->initialrtol == PETSC_TRUE || !reference) reference = ctx->init[j];
+    else if (defaultctx->mininitialrtol == PETSC_TRUE) reference = PetscMin(reference, ctx->init[j]);
+    if (ctx->residual[j] <= PetscMax(ksp->abstol, ksp->rtol * reference)) ctx->locked[j] = PETSC_TRUE;
+    else {
+      converged = PETSC_FALSE;
+      if (ctx->residual[j] >= ksp->divtol * reference) diverged = PETSC_TRUE;
+    }
+    if (ctx->residual[j] >= ksp->abstol) absolute = PETSC_FALSE;
+  }
+  if (converged) ksp->reason = absolute ? KSP_CONVERGED_ATOL : KSP_CONVERGED_RTOL;
+  else if (diverged) ksp->reason = KSP_DIVERGED_DTOL;
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+static PetscErrorCode KSPHPDDMConvergenceDestroy_Private(KSP ksp)
+{
+  KSPHPDDMConvergenceCtx *ctx = &((KSP_HPDDM *)ksp->data)->convergence;
+
+  PetscFunctionBegin;
+  PetscCall(PetscFree4(ctx->norm, ctx->init, ctx->residual, ctx->locked));
+  ctx->n = 0;
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+PetscErrorCode KSPHPDDMConvergenceSetUp_Private(KSP ksp, PetscInt n, const PetscReal norm[], const PetscReal init[])
+{
+  KSPHPDDMConvergenceCtx *ctx = &((KSP_HPDDM *)ksp->data)->convergence;
+
+  PetscFunctionBegin;
+  if (n != ctx->n) {
+    PetscCall(KSPHPDDMConvergenceDestroy_Private(ksp));
+    PetscCall(PetscMalloc4(n, &ctx->norm, n, &ctx->init, n, &ctx->residual, n, &ctx->locked));
+    ctx->n = n;
+  }
+  PetscCall(PetscArraycpy(ctx->norm, norm, n));
+  PetscCall(PetscArraycpy(ctx->init, init, n));
+  PetscCall(PetscArrayzero(ctx->locked, n));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+PetscErrorCode KSPHPDDMConvergenceUpdate_Private(KSP ksp, PetscInt it, const PetscReal residual[], const PetscBool **locked)
+{
+  KSPHPDDMConvergenceCtx *ctx = &((KSP_HPDDM *)ksp->data)->convergence;
+
+  PetscFunctionBegin;
+  ksp->rnorm = 0.0;
+  for (PetscInt j = 0; j < ctx->n; ++j) {
+    if (ctx->locked[j] == PETSC_FALSE) {
+      ctx->residual[j] = residual[j];
+      ctx->locked[j]   = PetscNot(residual[j]); /* an exactly zero residual cannot improve, so it is locked whatever the convergence test */
+    }
+    ksp->rnorm = PetscHypotReal(ksp->rnorm, ctx->residual[j]);
+  }
+  PetscCall(KSPLogResidualHistory(ksp, ksp->rnorm));
+  PetscCall(KSPMonitor(ksp, it, ksp->rnorm));
+  if (ctx->n > 1 && ksp->converged == KSPConvergedDefault) PetscCall(KSPConverged_HPDDM(ksp, it, ctx));
+  else PetscCall((*ksp->converged)(ksp, it, ksp->rnorm, &ksp->reason, ksp->cnvP));
+  *locked = ctx->locked;
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
 template <PetscMemType type = PETSC_MEMTYPE_HOST>
 static inline PetscErrorCode KSPSolve_HPDDM_Private(KSP ksp, const PetscScalar *b, PetscScalar *x, PetscInt n)
 {
-  KSP_HPDDM              *data = (KSP_HPDDM *)ksp->data;
-  KSPConvergedDefaultCtx *ctx  = (KSPConvergedDefaultCtx *)ksp->cnvP;
-  const PetscInt          N    = data->op->getDof() * n;
+  KSP_HPDDM     *data = (KSP_HPDDM *)ksp->data;
+  const PetscInt N    = data->op->getDof() * n;
 #if !PetscDefined(USE_REAL_DOUBLE) || PetscDefined(HAVE_F2CBLASLAPACK___FLOAT128_BINDINGS)
   HPDDM::upscaled_type<PetscScalar> *high[2];
 #endif
@@ -246,10 +336,13 @@ static inline PetscErrorCode KSPSolve_HPDDM_Private(KSP ksp, const PetscScalar *
     it = std::find(list.begin(), list.end(), std::string(vtype));
     PetscCheck(type != PETSC_MEMTYPE_HOST || it == list.end(), PetscObjectComm((PetscObject)ksp), PETSC_ERR_SUP, "MatGetVecType() must return a Vec with the same PetscMemType as the right-hand side and solution, PetscMemType(%s) != %s", vtype, PetscMemTypeToString(type));
   }
-  if (n > 1) {
+  if (n > 1 && data->cntl[0] != HPDDM_KRYLOV_METHOD_GMRES && data->cntl[0] != HPDDM_KRYLOV_METHOD_CG && data->cntl[0] != HPDDM_KRYLOV_METHOD_GCRODR) {
     if (ksp->converged == KSPConvergedDefault) {
-      PetscCheck(!ctx->mininitialrtol, PetscObjectComm((PetscObject)ksp), PETSC_ERR_SUP, "Krylov method %s does not support KSPConvergedDefaultSetUMIRNorm()", ((PetscObject)ksp)->type_name);
-      if (!ctx->initialrtol) {
+      KSPConvergedDefaultCtx *ctx = (KSPConvergedDefaultCtx *)ksp->cnvP;
+
+      PetscCheck(ctx != nullptr, PetscObjectComm((PetscObject)ksp), PETSC_ERR_ARG_NULL, "Convergence context must have been created with KSPConvergedDefaultCreate()");
+      PetscCheck(ctx->mininitialrtol == PETSC_FALSE, PetscObjectComm((PetscObject)ksp), PETSC_ERR_SUP, "Krylov method %s does not support KSPConvergedDefaultSetUMIRNorm()", ((PetscObject)ksp)->type_name);
+      if (ctx->initialrtol == PETSC_FALSE) {
         PetscCall(PetscInfo(ksp, "Forcing KSPConvergedDefaultSetUIRNorm() since KSPConvergedDefault() cannot handle multiple norms\n"));
         ctx->initialrtol = PETSC_TRUE;
       }
@@ -640,6 +733,10 @@ static PetscErrorCode KSPHPDDMGetType_HPDDM(KSP ksp, KSPHPDDMType *type)
                                                              `EPSELEMENTAL` or `EPSSCALAPACK` (only relevant when PETSc is compiled with SLEPc), default is `false`
 
    Level: intermediate
+
+   Notes:
+   With the default convergence test, the pseudo-block GMRES, CG, and GCRODR methods test each
+   right-hand side against its own tolerance and stop updating converged columns. These methods support `KSPConvergedDefaultSetUIRNorm()` and `KSPConvergedDefaultSetUMIRNorm()`.
 
 .seealso: [](ch_ksp), [](sec_flexibleksp), `KSPCreate()`, `KSPSetType()`, `KSPType`, `KSP`, `KSPGMRES`, `KSPCG`, `KSPLGMRES`, `KSPDGMRES`
 M*/
