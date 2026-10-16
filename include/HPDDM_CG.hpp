@@ -55,9 +55,15 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   allocate(res, trash, n, id[1] == HPDDM_VARIANT_FLEXIBLE ? 1 : 0, HPDDM_MAX_IT(it, A), mu);
   std::unique_ptr<underlying_type<K>[]> resStorage(res);
   std::unique_ptr<K[]>                  trashStorage(Wrapper<K>::is_complex ? trash : nullptr);
-  std::unique_ptr<short[]>              convergenceStorage(new short[mu]);
-  short *const                          hasConverged = convergenceStorage.get();
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]());
+  const PetscBool             *locked           = nullptr;
+  const bool                   unpreconditioned = A.ksp_->normtype == KSP_NORM_UNPRECONDITIONED;
+#else
+  std::unique_ptr<short[]> convergenceStorage(new short[mu]);
+  short *const             hasConverged = convergenceStorage.get();
   std::fill(hasConverged, hasConverged + mu, -HPDDM_MAX_IT(it, A));
+#endif
   underlying_type<K> *const       dir      = res + mu;
   K *const                        z        = trash + dim;
   K *const                        r        = z + dim;
@@ -71,43 +77,64 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
   std::unique_ptr<underlying_type<K>[]> normStorage(new underlying_type<K>[mu]);
   underlying_type<K> *const             norm = normStorage.get();
-  PetscCall(A.template apply<excluded>(b, z, mu, trash));
-  Wrapper<K>::diag(n, d, z, trash, mu);
-  for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i_1, trash + n * nu, &i_1));
+  const K                              *rhs  = b;
+  if (!unpreconditioned) {
+    PetscCall(A.template apply<excluded>(b, z, mu, trash));
+    rhs = z;
+  }
+  Wrapper<K>::diag(n, d, rhs, trash, mu);
+  for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = HPDDM::real(Blas<K>::dot(&n, rhs + n * nu, &i_1, trash + n * nu, &i_1));
   ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
   std::for_each(norm, norm + mu, [](underlying_type<K> &y) { y = HPDDM::sqrt(y); });
 #endif
   Wrapper<K>::diag(n, d, p, trash, mu);
-  for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + n * nu, &i_1));
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+  if (unpreconditioned) {
+    Wrapper<K>::diag(n, d, r, z, mu);
+    for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i_1, z + n * nu, &i_1));
+  } else
+#endif
+    for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + n * nu, &i_1));
   ignore(MPI_Allreduce(MPI_IN_PLACE, dir, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
   std::transform(dir, dir + mu, res, [](const underlying_type<K> &d) { return HPDDM::sqrt(d); });
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
-  if (A.ksp_->guess_zero) {
-    A.ksp_->rnorm = static_cast<PetscReal>(*dir / *norm);
-    for (unsigned short nu = 1; nu < mu; ++nu) A.ksp_->rnorm = std::max(A.ksp_->rnorm, PetscReal(dir[nu] / norm[nu]));
-    PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
-    PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-  } else {
-    for (unsigned short nu = 0; nu < mu; ++nu)
-      if (static_cast<PetscReal>(res[nu] / norm[nu]) < A.ksp_->rtol) dir[nu] = std::numeric_limits<underlying_type<K>>::epsilon() / underlying_type<K>(1000.0);
-    A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(res, res + mu));
-    PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
-    PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-  }
-  PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
+  for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = static_cast<PetscReal>(res[nu]);
+  A.ksp_->its = 0;
+  PetscCall(initializeConvergence(A.ksp_, mu, norm, residual.get()));
+  PetscCall(KSPHPDDMConvergenceUpdate_Private(A.ksp_, 0, residual.get(), &locked));
+  for (unsigned short nu = 0; nu < mu; ++nu)
+    if (locked[nu]) {
+      std::fill_n(r + nu * n, n, K());
+      std::fill_n(p + nu * n, n, K());
+      std::fill_n(trash + nu * n, n, K());
+    }
   normStorage.reset();
-  if (A.ksp_->reason) std::fill_n(dir, mu, underlying_type<K>());
-  else if (A.ksp_->converged == KSPConvergedSkip) dir[0] = 1.0;
 #endif
   int i = 0;
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+  if (!A.ksp_->reason) {
+#else
   if (std::find_if(dir, dir + mu, [](const underlying_type<K> &v) {
         return v < static_cast<underlying_type<K>>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2));
       }) == dir + mu) {
+#endif
     while (i < HPDDM_MAX_IT(it, A)) {
-      for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i_1, trash + n * nu, &i_1));
+      for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+        if (locked[nu]) dir[nu] = underlying_type<K>();
+        else
+#endif
+          dir[nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i_1, trash + n * nu, &i_1));
+      }
       if (!excluded) HPDDM_CALL(A.GMV(p, z, mu));
       if (id[1] != HPDDM_VARIANT_FLEXIBLE) Wrapper<K>::diag(n, d, p, trash, mu);
-      for (unsigned short nu = 0; nu < mu; ++nu) dir[mu + nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i_1, trash + n * nu, &i_1));
+      for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+        if (locked[nu]) dir[mu + nu] = underlying_type<K>();
+        else
+#endif
+          dir[mu + nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i_1, trash + n * nu, &i_1));
+      }
       ignore(MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       if (id[1] == HPDDM_VARIANT_FLEXIBLE) {
         std::copy_n(p, dim, p + (i + 1) * dim);
@@ -116,7 +143,11 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
       }
       ++i;
       for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+        if (!locked[nu]) {
+#else
         if (hasConverged[nu] == -HPDDM_MAX_IT(it, A)) {
+#endif
           trash[nu] = dir[nu] / dir[mu + nu];
           Blas<K>::axpy(&n, trash + nu, p + n * nu, &i_1, x + n * nu, &i_1);
           trash[nu] = -trash[nu];
@@ -126,21 +157,50 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
       HPDDM_CALL(A.template apply<excluded>(r, z, mu, trash));
       Wrapper<K>::diag(n, d, z, trash, mu);
       for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+        if (locked[nu]) {
+          dir[nu] = dir[mu + nu] = underlying_type<K>();
+          std::fill_n(z + nu * n, n, K());
+          std::fill_n(trash + nu * n, n, K());
+          continue;
+        }
+#endif
         if (id[1] != HPDDM_VARIANT_FLEXIBLE) dir[mu + nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i_1, trash + n * nu, &i_1)) / dir[nu];
-        dir[nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i_1, trash + n * nu, &i_1));
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+        if (unpreconditioned) {
+          if (d) {
+            dir[nu] = underlying_type<K>();
+            for (int j = 0; j < n; ++j) dir[nu] += d[j] * HPDDM::norm(r[n * nu + j]);
+          } else dir[nu] = HPDDM::real(Blas<K>::dot(&n, r + n * nu, &i_1, r + n * nu, &i_1));
+        } else
+#endif
+          dir[nu] = HPDDM::real(Blas<K>::dot(&n, z + n * nu, &i_1, trash + n * nu, &i_1));
       }
       if (id[1] != HPDDM_VARIANT_FLEXIBLE) {
         ignore(MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
-        for (unsigned short nu = 0; nu < mu; ++nu) Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
+        for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+          if (locked[nu]) continue;
+#endif
+          Blas<K>::axpby(n, 1.0, z + n * nu, 1, dir[mu + nu], p + n * nu, 1);
+        }
       } else {
         for (unsigned short k = 0; k < i; ++k)
-          for (unsigned short nu = 0; nu < mu; ++nu)
-            dir[2 * mu + k * mu + nu] = -HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + (HPDDM_MAX_IT(it, A) + k + 1) * dim + n * nu, &i_1)) /
-                                        dir[(HPDDM_MAX_IT(it, A) + k + 2) * mu + nu];
+          for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+            if (locked[nu]) dir[2 * mu + k * mu + nu] = underlying_type<K>();
+            else
+#endif
+              dir[2 * mu + k * mu + nu] = -HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + (HPDDM_MAX_IT(it, A) + k + 1) * dim + n * nu, &i_1)) /
+                                          dir[(HPDDM_MAX_IT(it, A) + k + 2) * mu + nu];
+          }
         ignore(MPI_Allreduce(MPI_IN_PLACE, dir, (i + 2) * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
         if (!excluded && n) {
           std::copy_n(z, dim, p);
           for (unsigned short nu = 0; nu < mu; ++nu) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+            if (locked[nu]) continue;
+#endif
             for (unsigned short k = 0; k < i; ++k) trash[k] = dir[2 * mu + k * mu + nu];
             Blas<K>::gemv("N", &n, &i, &(Wrapper<K>::d_1), p + dim + n * nu, &dim, trash, &i_1, &(Wrapper<K>::d_1), p + nu * n, &i_1);
           }
@@ -148,28 +208,32 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
         Wrapper<K>::diag(n, d, p, trash, mu);
       }
       std::for_each(dir, dir + mu, [](underlying_type<K> &d) { d = HPDDM::sqrt(d); });
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+      for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = static_cast<PetscReal>(dir[nu]);
+      A.ksp_->its = i;
+      PetscCall(KSPHPDDMConvergenceUpdate_Private(A.ksp_, i, residual.get(), &locked));
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (locked[nu]) {
+          std::fill_n(r + nu * n, n, K());
+          std::fill_n(p + nu * n, n, K());
+          std::fill_n(trash + nu * n, n, K());
+        }
+      if (A.ksp_->reason) break;
+#else
       checkConvergence<2>(id[0], i, i, HPDDM_TOL(tol, A), mu, res, dir, hasConverged, HPDDM_MAX_IT(it, A));
-#if HPDDM_PETSC
-      PetscCall(KSPLogResidualHistory(A.ksp_, static_cast<PetscReal>(*dir)));
-      PetscCall(KSPMonitor(A.ksp_, i, static_cast<PetscReal>(*dir)));
-      PetscCall((*A.ksp_->converged)(A.ksp_, i, static_cast<PetscReal>(*dir), &A.ksp_->reason, A.ksp_->cnvP));
-      if (A.ksp_->reason)
-        std::for_each(hasConverged, hasConverged + mu, [&](short &c) {
-          if (c == -HPDDM_MAX_IT(it, A)) c = i;
-        });
-      else if (A.ksp_->converged == KSPConvergedSkip) std::fill_n(hasConverged, mu, -HPDDM_MAX_IT(it, A));
-#endif
       if (std::find(hasConverged, hasConverged + mu, -HPDDM_MAX_IT(it, A)) == hasConverged + mu) {
         --i;
         break;
       }
+#endif
     }
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+  }
+  A.ksp_->its = i;
+#else
   } else i = -1;
   ++i;
-#if !defined(PETSC_PCHPDDM_MAXLEVELS)
   convergence<2>(id[0], i, HPDDM_MAX_IT(it, A));
-#else
-  A.ksp_->its = i;
 #endif
   A.end(allocate);
   return HPDDM_RET(std::min(static_cast<unsigned short>(i), HPDDM_MAX_IT(it, A)));

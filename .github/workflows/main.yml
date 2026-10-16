@@ -255,7 +255,7 @@ jobs:
               if [ "$PRECISION" = "__float128" ] && { { [ "$TYPE" = "complex" ] || [ "$INT64" = "1" ]; } || [ "${{ matrix.compiler }}" != "gcc" ]; }; then continue; fi
               unset HPDDMFLAGS
               unset EXTERNALPACKAGES
-              export PETSC_CXXPPFLAGS="-Wextra -Wextra-semi -Wpedantic -Wno-sign-compare -DOMPI_SKIP_MPICXX"
+              export PETSC_CXXPPFLAGS="-Wextra -Wextra-semi -Wpedantic -Wno-sign-compare -Werror -DOMPI_SKIP_MPICXX"
               if [ "${{ matrix.compiler }}" = "clang" ]; then
                 export PETSC_CXXPPFLAGS="${PETSC_CXXPPFLAGS} -Wextra-semi-stmt -Wdouble-promotion"
               fi
