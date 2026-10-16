@@ -80,6 +80,11 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
   for (unsigned short i = 1; i < m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1; ++i) v[i] = *v + i * ldv;
   K *const     Ax           = *v + (m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) * ldv;
   short *const hasConverged = new short[mu];
+#if HPDDM_PETSC
+  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]());
+  std::unique_ptr<K[]>         last(new K[ldv]());
+  const PetscBool             *locked = nullptr;
+#endif
   std::fill_n(hasConverged, mu, -m[0]);
   int info;
   HPDDM_IT(j, A)                 = 1;
@@ -146,21 +151,20 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
       ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       for (unsigned short nu = 0; nu < mu; ++nu) {
         norm[nu] = HPDDM::sqrt(norm[nu]);
+#if !HPDDM_PETSC
         if (norm[nu] < underlying_type<K>(HPDDM_EPS)) norm[nu] = 1.0;
         if (sn[nu] < underlying_type<K>(std::pow(std::numeric_limits<underlying_type<K>>::epsilon(), 2))) {
           HPDDM_IT(j, A) = 0;
           break;
         }
-      }
-      if (HPDDM_IT(j, A) == 0) {
-#if HPDDM_PETSC
-        PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
-        PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
-        A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
+      }
+#if !HPDDM_PETSC
+      if (HPDDM_IT(j, A) == 0) {
         std::fill_n(hasConverged, mu, 0);
         break;
       }
+#endif
     } else ignore(MPI_Allreduce(MPI_IN_PLACE, sn, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     for (unsigned short nu = 0; nu < mu; ++nu) {
       if (hasConverged[nu] > 0) hasConverged[nu] = 0;
@@ -169,15 +173,27 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
         sn[mu * i + nu] = sn[nu];
         sn[nu]          = HPDDM::real(s[mu * i + nu]);
       }
+#if HPDDM_PETSC
+      if (hasConverged[nu] == -m[0] && HPDDM::abs(s[mu * i + nu]) != underlying_type<K>())
+        std::for_each(v[i] + nu * n, v[i] + (nu + 1) * n, [&](K &y) { y /= s[mu * i + nu]; });
+      else {
+        std::fill_n(v[i] + nu * n, n, K());
+        hasConverged[nu] = 0;
+      }
+#else
       std::for_each(v[i] + nu * n, v[i] + (nu + 1) * n, [&](K &y) { y /= s[mu * i + nu]; });
+#endif
     }
 #if HPDDM_PETSC
     if (HPDDM_IT(j, A) == 1) {
-      A.ksp_->rnorm = static_cast<PetscReal>(
-        HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K &lhs, const K &rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); })));
-      PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
-      PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-      PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
+      for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = static_cast<PetscReal>(HPDDM::abs(s[i * mu + nu]));
+      PetscCall(initializeConvergence(A.ksp_, mu, norm, residual.get()));
+      PetscCall(KSPHPDDMConvergenceUpdate_Private(A.ksp_, 0, residual.get(), &locked));
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (locked[nu]) {
+          hasConverged[nu] = 0;
+          std::fill_n(v[i] + nu * n, n, K());
+        }
       if (A.ksp_->reason) {
         HPDDM_IT(j, A) = 0;
         break;
@@ -201,21 +217,22 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
         PetscCall(PetscLogEventEnd(KSP_Orthogonalization, A.ksp_, nullptr, nullptr, nullptr));
 #endif
       }
+#if HPDDM_PETSC
+      Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0, hasConverged);
+      for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = hasConverged[nu] != -m[0] ? PetscReal() : static_cast<PetscReal>(HPDDM::abs(s[i * mu + nu]));
+      PetscCall(KSPHPDDMConvergenceUpdate_Private(A.ksp_, HPDDM_IT(j, A), residual.get(), &locked));
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (hasConverged[nu] == -m[0] && (locked[nu] || A.ksp_->reason)) {
+          hasConverged[nu] = i;
+          std::copy_n(v[i] + nu * n, n, last.get() + nu * n);
+          std::fill_n(v[i] + nu * n, n, K());
+        }
+      if (A.ksp_->reason) {
+#else
       Arnoldi<excluded>(id[2], m[0], H, v, s, sn, n, i++, mu, d, Ax, comm, save, U ? k : 0);
       checkConvergence<4>(id[0], HPDDM_IT(j, A), i, HPDDM_TOL(tol, A), mu, norm, s + i * mu, hasConverged, m[0]);
-#if HPDDM_PETSC
-      A.ksp_->rnorm = static_cast<PetscReal>(
-        HPDDM::abs(*std::max_element(s + i * mu, s + (i + 1) * mu, [](const K &lhs, const K &rhs) { return HPDDM::abs(lhs) < HPDDM::abs(rhs); })));
-      PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
-      PetscCall(KSPMonitor(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm));
-      PetscCall((*A.ksp_->converged)(A.ksp_, HPDDM_IT(j, A), A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
-      if (A.ksp_->reason)
-        std::for_each(hasConverged, hasConverged + mu, [&](short &c) {
-          if (c == -m[0]) c = i;
-        });
-      else if (A.ksp_->converged == KSPConvergedSkip) std::fill_n(hasConverged, mu, -m[0]);
-#endif
       if (std::find(hasConverged, hasConverged + mu, -m[0]) == hasConverged + mu) {
+#endif
         i += (U ? m[0] - k : m[0]);
         break;
       }
@@ -239,25 +256,47 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
         }
       }
     }
+#if HPDDM_PETSC
+    for (unsigned short nu = 0; nu < mu; ++nu)
+      if (hasConverged[nu] > 0 && (locked[nu] || A.ksp_->reason)) std::copy_n(last.get() + nu * n, n, v[hasConverged[nu]] + nu * n);
+#endif
     HPDDM_CALL(updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, sn, C, U, hasConverged, k, mu, Ax, comm));
+#if HPDDM_PETSC
+    for (unsigned short nu = 0; nu < mu; ++nu)
+      if (std::abs(hasConverged[nu]) == m[0] && HPDDM::abs(save[m[0] - (U ? k : 0) - 1][m[0] - (U ? k : 0) + nu * (m[0] + 1)]) != underlying_type<K>())
+        std::for_each(v[m[0]] + nu * n, v[m[0]] + (nu + 1) * n, [&](K &y) { y /= save[m[0] - (U ? k : 0) - 1][m[0] - (U ? k : 0) + nu * (m[0] + 1)]; });
+#else
     if (i == m[0]) {
       if (U) i -= k;
       for (unsigned short nu = 0; nu < mu; ++nu) std::for_each(v[m[0]] + nu * n, v[m[0]] + (nu + 1) * n, [&](K &y) { y /= save[i - 1][i + nu * (m[0] + 1)]; });
     }
-#if !HPDDM_PETSC
+#endif
+#if HPDDM_PETSC
+    if (A.ksp_->reason >= 0 && std::any_of(hasConverged, hasConverged + mu, [](short dim) { return dim != 0; }))
+#else
     if (id[4] / 4 <= 1)
 #endif
     {
       if (!U) {
+#if HPDDM_PETSC
+        const int reference = std::distance(hasConverged, std::max_element(hasConverged, hasConverged + mu,
+                                                                           [](short lhs, short rhs) { return std::abs(lhs) < std::abs(rhs); }));
+        int       dim       = std::abs(hasConverged[reference]);
+#else
         int dim = std::abs(*std::min_element(hasConverged, hasConverged + mu, [](const short &lhs, const short &rhs) {
           return lhs == 0 ? false : rhs == 0 ? true : lhs < rhs;
         }));
+#endif
         if (HPDDM_IT(j, A) < k || dim < k) k = dim;
         U = reinterpret_cast<K *>(const_cast<Operator &>(A).allocate(factor * n, mu, k));
         C = U + k * ldv;
         if (!excluded && n) {
           std::fill_n(s, dim * mu, K());
           for (unsigned short nu = 0; nu < mu; ++nu) {
+#if HPDDM_PETSC
+            dim = std::abs(hasConverged[nu]);
+            if (dim < k) continue;
+#endif
             K h = H[dim - 1][(m[0] + 1) * nu + dim] / H[dim - 1][(m[0] + 1) * nu + dim - 1];
             for (i = dim; i-- > 1;) {
               s[i + dim * nu] = H[i - 1][(m[0] + 1) * nu + i] * h;
@@ -327,6 +366,13 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
             delete[] vr;
             delete[] work;
           }
+#if HPDDM_PETSC
+          for (unsigned short nu = 0; nu < mu; ++nu)
+            if (std::abs(hasConverged[nu]) < k) {
+              Wrapper<K>::template omatcopy<'N'>(k, n, U + reference * n, ldv, U + nu * n, ldv);
+              Wrapper<K>::template omatcopy<'N'>(k, n, C + reference * n, ldv, C + nu * n, ldv);
+            }
+#endif
         }
       } else if (HPDDM_IT(j, A) > m[0] - k) {
         const unsigned short  active    = std::count_if(hasConverged, hasConverged + mu, [](short nu) { return nu != 0; });
@@ -360,6 +406,9 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
             ignore(MPI_Allreduce(MPI_IN_PLACE, prod, k * active * (m[0] + 2), Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
             std::for_each(prod + k * active * (m[0] + 1), prod + k * active * (m[0] + 2),
                           [](K &u) { u = underlying_type<K>(1.0) / HPDDM::sqrt(HPDDM::real(u)); });
+#if HPDDM_PETSC
+            if (d) std::copy_n(*v, k * ldv, C);
+#endif
           }
           for (unsigned short nu = 0; nu < active; ++nu) {
             int dim = std::abs(hasConverged[activeSet[nu]]);
