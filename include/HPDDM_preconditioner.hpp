@@ -91,7 +91,7 @@ private:
   }
 
 protected:
-  typedef CoarseOperator co_type;
+  using co_type = CoarseOperator;
   #if !HPDDM_PETSC
   /* Variable: s
          *  Solver used in <Schwarz::callNumfact> and <Schur::callNumfactPreconditioner> or <Schur::computeSchurComplement>. */
@@ -310,7 +310,7 @@ public:
     {
       for (unsigned short nu = 0; nu < mu; ++nu) operator()(in + nu * n, out + nu * n);
     }
-    virtual ~CoarseCorrection() { }
+    virtual ~CoarseCorrection() = default;
   };
   CoarseCorrection *cc_;
   #endif
@@ -426,7 +426,7 @@ protected:
 public:
   /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */
-  typedef Subdomain<K> super;
+  using super = Subdomain<K>;
 #if HPDDM_INEXACT_COARSE_OPERATOR
   template <class Preconditioner, class T>
   friend class MatrixAccumulation;

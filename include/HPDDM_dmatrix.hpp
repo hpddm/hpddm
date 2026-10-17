@@ -100,7 +100,7 @@ protected:
 #ifndef HPDDM_CONTIGUOUS
   /* Typedef: pair_type
          *  std::pair of unsigned integers. */
-  typedef std::pair<unsigned int, unsigned int> pair_type;
+  using pair_type = std::pair<unsigned int, unsigned int>;
   /* Typedef: map_type
          *
          *  std::map of std::vector<T> indexed by unsigned short integers.
@@ -111,40 +111,40 @@ protected:
   using map_type = std::map<unsigned short, std::vector<T>>;
   /* Variable: mapRecv
          *  Values that have to be received to match the distribution of the direct solver and of the user. */
-  map_type<pair_type> *mapRecv_;
+  map_type<pair_type> *mapRecv_{};
   /* Variable: mapSend
          *  Values that have to be sent to match the distribution of the direct solver and of the user. */
-  map_type<pair_type> *mapSend_;
+  map_type<pair_type> *mapSend_{};
   /* Variable: mapOwn
          *  Values that have to remain on this process to match the distribution of the direct solver and of the user. */
-  std::vector<pair_type> *mapOwn_;
+  std::vector<pair_type> *mapOwn_{};
   /* Variable: idistribution */
-  int *idistribution_;
+  int *idistribution_{};
 #endif
   /* Variable: ldistribution
          *  User distribution. */
-  int *ldistribution_;
+  int *ldistribution_{};
   /* Variable: gatherCounts */
-  int *gatherCounts_;
+  int *gatherCounts_{};
   /* Variable: gatherSplitCounts */
-  int *gatherSplitCounts_;
+  int *gatherSplitCounts_{};
   /* Variable: displs */
-  int *displs_;
+  int *displs_{};
   /* Variable: displsSplit */
-  int *displsSplit_;
+  int *displsSplit_{};
   /* Variable: communicator
          *  MPI communicator on which the matrix is distributed. */
-  MPI_Comm communicator_;
+  MPI_Comm communicator_{MPI_COMM_NULL};
   /* Variable: n
          *  Size of the coarse operator. */
-  int n_;
+  int n_{};
   /* Variable: rank
          *  Rank of the current main process in <Coarse operator::communicator>. */
-  int rank_;
+  int rank_{};
 #ifdef DMUMPS
   /* Variable: distribution
          *  <Distribution> used for right-hand sides and solution vectors. */
-  Distribution distribution_;
+  Distribution distribution_{};
 #endif
 #ifndef HPDDM_CONTIGUOUS
   /* Function: initializeMap
@@ -349,27 +349,7 @@ protected:
   }
 #endif
 public:
-  DMatrix() :
-#ifndef HPDDM_CONTIGUOUS
-    mapRecv_(),
-    mapSend_(),
-    mapOwn_(),
-    idistribution_(),
-#endif
-    ldistribution_(),
-    gatherCounts_(),
-    gatherSplitCounts_(),
-    displs_(),
-    displsSplit_(),
-    communicator_(MPI_COMM_NULL),
-    n_(),
-    rank_()
-#ifdef DMUMPS
-    ,
-    distribution_()
-#endif
-  {
-  }
+  DMatrix()                = default;
   DMatrix(const DMatrix &) = delete;
   ~DMatrix()
   {

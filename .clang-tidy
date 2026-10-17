@@ -3,16 +3,20 @@ Checks: >-
   clang-analyzer-*,
   bugprone-*,
   performance-*,
+  modernize-*,
   -bugprone-casting-through-void,
   -bugprone-easily-swappable-parameters,
   -bugprone-exception-escape,
-  -bugprone-implicit-widening-of-multiplication-result,
   -bugprone-macro-parentheses,
   -bugprone-narrowing-conversions,
   -bugprone-signed-bitwise,
   -bugprone-too-small-loop-variable,
   -bugprone-unchecked-string-to-number-conversion,
   -performance-avoid-endl,
-  -performance-no-int-to-ptr
+  -performance-no-int-to-ptr,
+  -modernize-use-auto,
+  -modernize-use-trailing-return-type,
+  -modernize-macro-to-enum,
+  -modernize-use-bool-literals
 HeaderFilterRegex: '(^|/)(include/HPDDM[^/]*|examples/[^/]*|interface/[^/]*)$'
 FormatStyle: file

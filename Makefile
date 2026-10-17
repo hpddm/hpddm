@@ -391,7 +391,7 @@ test_bin/driver: ${TOP_DIR}/${BIN_DIR}/driver
 
 CLANGFORMAT_VERSION = 22
 CLANGFORMAT ?= clang-format
-CLANGTIDY_VERSION = 23
+CLANGTIDY_VERSION = 24
 CLANGTIDY ?= clang-tidy
 CLANGTIDYFLAGS ?= --warnings-as-errors=*
 CLANGTIDY_INCS ?=
@@ -447,7 +447,7 @@ clangtidy: checkclangtidyversion
 		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- ${CFLAGS} ${HPDDMFLAGS} ${INCS} ${CLANGTIDY_INCS}; \
 	done
 	@set -e; for source in ${CLANGTIDY_PETSC_SOURCES}; do \
-		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- -std=c++14 -I./include ${CLANGTIDY_PETSC_INCS} ${CLANGTIDY_INCS}; \
+		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- -std=c++11 -I./include ${CLANGTIDY_PETSC_INCS} ${CLANGTIDY_INCS}; \
 	done
 
 checkclangtidy: clangtidy

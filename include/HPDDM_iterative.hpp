@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 
 #include "HPDDM_LAPACK.hpp"
@@ -50,8 +51,8 @@ namespace HPDDM
 {
 template <class K, class T = int>
 struct EmptyOperator : OptionsPrefix<K> {
-  typedef T integer_type;
-  const T   n_;
+  using integer_type = T;
+  const T n_;
   explicit EmptyOperator(T n) : OptionsPrefix<K>(), n_(n) { }
   constexpr T                          getDof() const { return n_; }
   static constexpr underlying_type<K> *getScaling() { return nullptr; }
@@ -217,8 +218,8 @@ private:
     }
     if (T == 0 || T == 1 || T == 4 || T == 5) {
       id[2] = opt.val<char>(prefix + "orthogonalization", HPDDM_ORTHOGONALIZATION_CGS) + (opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR) << 2);
-      m[0]  = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()),
-                       std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]));
+      m[0]  = std::min(
+        {static_cast<unsigned short>(std::numeric_limits<short>::max()), opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]});
     }
     if (T == 0 || T == 1 || T == 2 || T == 4 || T == 5) id[1] = opt.val<char>(prefix + "variant", HPDDM_VARIANT_RIGHT);
     if (T == 3 || T == 6) id[1] = opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR);

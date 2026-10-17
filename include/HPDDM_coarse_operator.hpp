@@ -76,31 +76,31 @@ HPDDM_CLASS_COARSE_OPERATOR(Solver, S,
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) class CoarseOperator : public coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, downscaled_type<K>)> {
 public:
 #if HPDDM_PETSC
-  typedef PetscErrorCode return_type;
+  using return_type = PetscErrorCode;
 #else
-  typedef std::pair<MPI_Request, const K *> *return_type;
+  using return_type = std::pair<MPI_Request, const K *> *;
 #endif
 private:
   /* Variable: gatherComm
          *  Communicator used for assembling right-hand sides. */
-  MPI_Comm gatherComm_;
+  MPI_Comm gatherComm_{MPI_COMM_NULL};
   /* Variable: scatterComm
          *  Communicator used for distributing solution vectors. */
-  MPI_Comm scatterComm_;
+  MPI_Comm scatterComm_{MPI_COMM_NULL};
   /* Variable: rankWorld
          *  Rank of the current subdomain in the global communicator supplied as an argument of <Coarse operator::constructionCommunicator>. */
-  int rankWorld_;
+  int rankWorld_{};
   /* Variable: sizeWorld
          *  Size of <Subdomain::communicator>. */
-  int sizeWorld_;
-  int sizeSplit_;
+  int sizeWorld_{};
+  int sizeSplit_{};
   /* Variable: local
          *  Local number of coarse degrees of freedom (usually set to <Eigensolver::nu> after a call to <Eigensolver::selectNu>). */
-  int local_;
+  int local_{};
   /* Variable: sizeRHS
          *  Local size of right-hand sides and solution vectors. */
-  unsigned int sizeRHS_;
-  bool         offset_;
+  unsigned int sizeRHS_{};
+  bool         offset_{false};
   /* Function: constructionCommunicator
          *  Builds both <Coarse operator::scatterComm> and <DMatrix::communicator>. */
   template <bool, class Operator>
@@ -240,7 +240,7 @@ private:
   }
 
 public:
-  CoarseOperator() : gatherComm_(MPI_COMM_NULL), scatterComm_(MPI_COMM_NULL), rankWorld_(), sizeWorld_(), sizeSplit_(), local_(), sizeRHS_(), offset_(false)
+  CoarseOperator()
   {
 #if !HPDDM_PETSC
     static_assert(S == 'S' || S == 'G', "Unknown symmetry");
@@ -260,7 +260,7 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Solver>. */
-  typedef coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, downscaled_type<K>)> super;
+  using super = coarse_operator_type<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, downscaled_type<K>)>;
   /* Function: construction
          *  Wrapper function to call all needed subroutines. */
   template <unsigned short, unsigned short, class Operator>

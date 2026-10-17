@@ -308,9 +308,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 
   unsigned int size = 0;
 #if !HPDDM_PETSC
-  typedef int integer_type;
+  using integer_type = int;
 #else
-  typedef PetscInt integer_type;
+  using integer_type = PetscInt;
 #endif
   integer_type *I = nullptr;
   integer_type *J = nullptr;
@@ -1575,7 +1575,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
     PetscCall(MatSetOptionsPrefix(P, v.prefix_.c_str()));
     PetscCall(MatSetFromOptions(P));
-    PetscCall(MatViewFromOptions(P, NULL, "-mat_view"));
+    PetscCall(MatViewFromOptions(P, nullptr, "-mat_view"));
     PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
     PetscCall(MatPropagateSymmetryOptions(A, P));
     PetscBool spd, set;

@@ -61,7 +61,7 @@ typedef std::complex<double> K;
         #define GENERAL_CO
       #endif
     #else
-typedef double K;
+using K = double;
     #endif
   #endif
 #else

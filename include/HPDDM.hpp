@@ -155,8 +155,8 @@ namespace HPDDM
 static constexpr int i_0 = 0;
 static constexpr int i_1 = 1;
 
-typedef std::pair<unsigned short, std::vector<int>> pairNeighbor; // MPI_Comm_size < MAX_UNSIGNED_SHORT
-typedef std::vector<pairNeighbor>                   vectorNeighbor;
+using pairNeighbor   = std::pair<unsigned short, std::vector<int>>; // MPI_Comm_size < MAX_UNSIGNED_SHORT
+using vectorNeighbor = std::vector<pairNeighbor>;
 template <class... T>
 inline void ignore(const T &...)
 {
@@ -239,11 +239,11 @@ using alias = T;
 
 template <class T>
 struct underlying_type_spec {
-  typedef T type;
+  using type = T;
 };
 template <class T>
 struct underlying_type_spec<std::complex<T>> {
-  typedef T type;
+  using type = T;
 };
   #if defined(PETSC_HAVE_CUDA) && (defined(__NVCC__) || defined(__CUDACC__))
 template <class T>
@@ -255,7 +255,7 @@ template <class T>
 using underlying_type = typename underlying_type_spec<T>::type;
 template <class T>
 struct complex_spec {
-  typedef std::complex<T> type;
+  using type = std::complex<T>;
 };
 template <class T>
 using complex = typename complex_spec<T>::type;

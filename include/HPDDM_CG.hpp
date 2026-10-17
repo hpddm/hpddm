@@ -407,7 +407,7 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
   A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(norm, norm + (m[0] <= 1 ? deflated : 1)));
   PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
   PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-  if (A.ksp_->rnorm > PetscReal(10.0) * std::numeric_limits<PetscReal>::epsilon()) {
+  if (A.ksp_->rnorm > static_cast<PetscReal>(10.0) * std::numeric_limits<PetscReal>::epsilon()) {
     if (tol[0] <= static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9) && deflated != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
     else PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
   } else A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
@@ -493,7 +493,7 @@ inline int IterativeMethod::PCG(const Operator &A, const K *const f, K *const x,
   unsigned short     it;
   char               verbosity;
   options<8>(A, &tol, nullptr, &it, &verbosity);
-  typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K **, K *>::type ptr_type;
+  using ptr_type   = typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K **, K *>::type;
   const int n      = std::is_same<ptr_type, K *>::value ? A.getDof() : A.getMult();
   const int offset = std::is_same<ptr_type, K *>::value ? A.getEliminated() : 0;
   ptr_type  storage[std::is_same<ptr_type, K *>::value ? 1 : 2];

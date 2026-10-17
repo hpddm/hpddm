@@ -65,23 +65,23 @@ protected:
   K                                              *o_;
   unsigned short                                  mu_;
 #else
-  typedef PetscErrorCode return_type;
-  typedef PetscInt       integer_type;
-  PC_HPDDM_Level        *s_;
-  PetscInt              *idx_;
+  using return_type  = PetscErrorCode;
+  using integer_type = PetscInt;
+  PC_HPDDM_Level *s_{};
+  PetscInt       *idx_{};
 #endif
   vectorNeighbor                             recv_;
   std::map<unsigned short, std::vector<int>> send_;
   K                                         *da_;
   K                                         *oa_;
-  integer_type                              *di_;
-  integer_type                              *oi_;
+  integer_type                              *di_{};
+  integer_type                              *oi_{};
   integer_type                              *dj_;
   integer_type                              *oj_;
-  integer_type                              *ogj_;
-  unsigned int                              *range_;
+  integer_type                              *ogj_{};
+  unsigned int                              *range_{};
   int                                        dof_;
-  int                                        off_;
+  int                                        off_{};
   int                                        bs_;
   template <char
 #if !HPDDM_PETSC
@@ -687,24 +687,11 @@ public:
   InexactCoarseOperator() :
     OptionsPrefix<K>(),
     super(),
-    s_(),
-#if !HPDDM_PETSC
-    p_(),
-    communicator_(MPI_COMM_NULL),
-    buff_(),
-    rq_(),
-    x_(),
-    mu_()
-#else
-    idx_(),
+
     da_()
 #endif
     ,
-    di_(),
-    oi_(),
-    ogj_(),
-    range_(),
-    off_()
+
   {
   }
   ~InexactCoarseOperator()
@@ -930,8 +917,8 @@ public:
           send.back().second = new K[nnz + (nnz + (off[j].size() * (off[j].size() + 1)) / 2) * bss]();
           int *ja            = reinterpret_cast<int *>(send.back().second + nnz * bss);
           nnz                = 0;
-          for (unsigned int i = 0; i < off[j].size(); ++i) {
-            for (unsigned k = in->oi_[off[j][i]] - (super::numbering_ == 'F'); k < in->oi_[off[j][i] + 1] - (super::numbering_ == 'F'); ++k) {
+          for (unsigned int i : off[j]) {
+            for (unsigned k = in->oi_[i] - (super::numbering_ == 'F'); k < in->oi_[i + 1] - (super::numbering_ == 'F'); ++k) {
               std::copy_n(in->oa_ + k * bss, bss, send.back().second + nnz * bss);
               ja[nnz++] = in->ogj_[k];
             }
@@ -1100,13 +1087,12 @@ public:
     } else if (!sizes.empty()) {
       std::map<unsigned short, unsigned short> nnz;
       rows.reserve(sizes.size());
-      rows.emplace_back(
-        std::make_pair(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first))));
+      rows.emplace_back(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first)));
       for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = sizes.cbegin(); it != sizes.cend(); ++it) {
         if (it->first.first != rows.back().first->first.first)
-          rows.emplace_back(std::make_pair(it, in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(it->first.first, it->first.first))));
+          rows.emplace_back(it, in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(it->first.first, it->first.first)));
       }
-      rows.emplace_back(std::make_pair(sizes.cend(), 0));
+      rows.emplace_back(sizes.cend(), 0);
       unsigned int accumulate = 0;
       for (unsigned short k = 0; k < rows.size() - 1; ++k) {
         unsigned int row = 0;
@@ -1557,8 +1543,8 @@ public:
           std::vector<int>::iterator it = r[j].begin();
           for (unsigned int i = 0; i < displs[j + 1] - displs[j]; ++i)
             for (unsigned int k = 0; k < bs_; ++k) *it++ = (dof_ + displs[j] + i) * bs_ + k;
-          for (unsigned int i = 0; i < p.second.size(); ++i)
-            for (unsigned int k = 0; k < bs_; ++k) *it++ = p.second[i] * bs_ + k;
+          for (int i : p.second)
+            for (unsigned int k = 0; k < bs_; ++k) *it++ = i * bs_ + k;
           ++j;
         }
       }
@@ -1573,15 +1559,15 @@ public:
         } else {
           std::vector<int>::iterator it = r[j].begin();
           if (S != 'S')
-            for (unsigned int i = 0; i < send_[p.first].size(); ++i)
-              for (unsigned int k = 0; k < bs_; ++k) *it++ = send_[p.first][i] * bs_ + k;
+            for (int i : send_[p.first])
+              for (unsigned int k = 0; k < bs_; ++k) *it++ = i * bs_ + k;
           else {
-            for (unsigned int i = 0; i < off[j - send_.size()].size(); ++i) {
-              for (unsigned int k = 0; k < bs_; ++k) *it++ = off[j - send_.size()][i] * bs_ + k;
+            for (unsigned int i : off[j - send_.size()]) {
+              for (unsigned int k = 0; k < bs_; ++k) *it++ = i * bs_ + k;
             }
           }
-          for (unsigned int i = 0; i < p.second.size(); ++i)
-            for (unsigned int k = 0; k < bs_; ++k) *it++ = (dof_ + displs.back() + p.second[i]) * bs_ + k;
+          for (int i : p.second)
+            for (unsigned int k = 0; k < bs_; ++k) *it++ = (dof_ + displs.back() + i) * bs_ + k;
         }
         ++j;
       }

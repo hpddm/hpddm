@@ -78,7 +78,7 @@ public:
   std::string dump(const K *const eigenvalues, const K *const *const eigenvectors, const MPI_Comm &communicator,
                    std::ios_base::openmode mode = std::ios_base::out) const
   {
-    if (n_ <= 0 || nu_ <= 0) return std::string();
+    if (n_ <= 0 || nu_ <= 0) return {};
     int rankWorld;
     MPI_Comm_rank(communicator, &rankWorld);
     const Option &opt      = *Option::get();
@@ -102,7 +102,7 @@ public:
         output << "\n";
       }
       return name;
-    } else return std::string();
+    } else return {};
   }
   /* Function: selectNu
          *

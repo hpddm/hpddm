@@ -40,7 +40,7 @@ typedef std::complex<double> K;
       #define GENERAL_CO
     #endif
   #else
-typedef double K;
+using K = double;
   #endif
 #endif
 
@@ -225,7 +225,7 @@ void *schwarzCreate(void *Mat, PyObject *neighbors, PyObject *connectivity)
   std::vector<std::vector<int>> r;
   r.reserve(o.size());
   for (int i = 0; i < PyList_Size(connectivity); ++i) {
-    r.emplace_back(std::vector<int>());
+    r.emplace_back();
     PyObject *neighbor = PyList_GET_ITEM(connectivity, i);
     r.back().reserve(PyList_Size(neighbor));
     for (int j = 0; j < PyList_Size(neighbor); ++j) r.back().emplace_back(PyLong_AsLong(PyList_GET_ITEM(neighbor, j)));

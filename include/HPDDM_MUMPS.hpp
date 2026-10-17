@@ -211,10 +211,10 @@ template <class K>
 class MumpsSub {
 private:
   typename MUMPS_STRUC_C<K>::trait *id_;
-  int                              *I_;
+  int                              *I_{};
 
 public:
-  MumpsSub() : id_(), I_() { }
+  MumpsSub() : id_() { }
   MumpsSub(const MumpsSub &) = delete;
   ~MumpsSub() { dtor(); }
   static constexpr char numbering_ = 'F';

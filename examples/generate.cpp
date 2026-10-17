@@ -49,7 +49,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   const int      overlap = opt.app()["overlap"];
   const int      mu      = opt.app()["generate_random_rhs"];
   const bool     sym     = opt.app().find("symmetric_csr") != opt.app().cend() && (opt.app()["symmetric_csr"] == 1);
-  int            xGrid   = int(sqrt(sizeWorld));
+  int            xGrid   = static_cast<int>(sqrt(sizeWorld));
   while (sizeWorld % xGrid != 0) --xGrid;
   int yGrid = sizeWorld / xGrid;
 
@@ -104,7 +104,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   if (jStart != 0) {                      // this subdomain doesn't touch the bottom side of %*\color{DarkGreen}{$\Omega$}*)
     if (iStart != 0) {                    // this subd. doesn't touch the left side of %*\color{DarkGreen}{$\Omega$}*)
       o.push_back(rankWorld - xGrid - 1); // subd. on the lower left corner is a neighbor
-      mapping.push_back(std::vector<int>());
+      mapping.emplace_back();
       mapping.back().reserve(4 * overlap * overlap);
       for (int j = 0; j < 2 * overlap; ++j)
         for (int i = iStart; i < iStart + 2 * overlap; ++i) mapping.back().push_back(i - iStart + (iEnd - iStart) * j);
@@ -116,7 +116,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       for (int j = 0; j < overlap; ++j)
         for (int i = 0; i < overlap; ++i) d[i + j * (iEnd - iStart)] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
     o.push_back(rankWorld - xGrid); // subd. below is a neighbor
-    mapping.push_back(std::vector<int>());
+    mapping.emplace_back();
     mapping.back().reserve(2 * overlap * (iEnd - iStart));
     for (int j = 0; j < 2 * overlap; ++j)
       for (int i = iStart; i < iEnd; ++i) mapping.back().push_back(i - iStart + (iEnd - iStart) * j);
@@ -124,7 +124,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       for (int i = iStart + overlap; i < iEnd - overlap; ++i) d[i - iStart + (iEnd - iStart) * j] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
     if (iEnd != Nx) {                     // this subd. doesn't touch the right side of %*\color{DarkGreen}{$\Omega$}*)
       o.push_back(rankWorld - xGrid + 1); // subd. on the lower right corner is a neighbor
-      mapping.push_back(std::vector<int>());
+      mapping.emplace_back();
       mapping.back().reserve(4 * overlap * overlap);
       for (int i = 0; i < 2 * overlap; ++i)
         for (int j = 0; j < 2 * overlap; ++j) mapping.back().push_back((iEnd - iStart) * (i + 1) - 2 * overlap + j);
@@ -139,7 +139,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   /*# StructuresEnd #*/
   if (iStart != 0) {
     o.push_back(rankWorld - 1);
-    mapping.push_back(std::vector<int>());
+    mapping.emplace_back();
     mapping.back().reserve(2 * overlap * (jEnd - jStart));
     for (int i = jStart; i < jEnd; ++i)
       for (int j = 0; j < 2 * overlap; ++j) mapping.back().push_back(j + (i - jStart) * (iEnd - iStart));
@@ -148,7 +148,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   }
   if (iEnd != Nx) {
     o.push_back(rankWorld + 1);
-    mapping.push_back(std::vector<int>());
+    mapping.emplace_back();
     mapping.back().reserve(2 * overlap * (jEnd - jStart));
     for (int i = jStart; i < jEnd; ++i)
       for (int j = 0; j < 2 * overlap; ++j) mapping.back().push_back((iEnd - iStart) * (i + 1 - jStart) - 2 * overlap + j);
@@ -158,7 +158,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
   if (jEnd != Ny) {
     if (iStart != 0) {
       o.push_back(rankWorld + xGrid - 1);
-      mapping.push_back(std::vector<int>());
+      mapping.emplace_back();
       mapping.back().reserve(4 * overlap * overlap);
       for (int j = 0; j < 2 * overlap; ++j)
         for (int i = iStart; i < iStart + 2 * overlap; ++i) mapping.back().push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
@@ -174,7 +174,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
           d[ndof - overlap * (iEnd - iStart) + (iEnd - iStart) * j + i] = (overlap - j - 1) / static_cast<HPDDM::underlying_type<K>>(overlap);
     }
     o.push_back(rankWorld + xGrid);
-    mapping.push_back(std::vector<int>());
+    mapping.emplace_back();
     mapping.back().reserve(2 * overlap * (iEnd - iStart));
     for (int j = 0; j < 2 * overlap; ++j)
       for (int i = iStart; i < iEnd; ++i) mapping.back().push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
@@ -183,7 +183,7 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
         d[ndof - overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j] = (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap);
     if (iEnd != Nx) {
       o.push_back(rankWorld + xGrid + 1);
-      mapping.push_back(std::vector<int>());
+      mapping.emplace_back();
       mapping.back().reserve(4 * overlap * overlap);
       for (int j = 0; j < 2 * overlap; ++j)
         for (int i = iStart; i < iStart + 2 * overlap; ++i)

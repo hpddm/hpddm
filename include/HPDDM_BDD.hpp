@@ -42,14 +42,14 @@ class Bdd : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
 private:
   /* Variable: m
          *  Local partition of unity. */
-  underlying_type<K> *m_;
+  underlying_type<K> *m_{};
 
 public:
-  Bdd() : m_() { }
+  Bdd() = default;
   ~Bdd() { delete[] m_; }
   /* Typedef: super
          *  Type of the immediate parent class <Schur>. */
-  typedef Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
+  using super = Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K>;
   /* Function: initialize
          *  Allocates <Bdd::m> and calls <Schur::initialize>. */
   void initialize()

@@ -155,7 +155,7 @@ public:
       if (!s.empty()) {
         char *endptr = nullptr;
         int   val    = strtol(s.c_str(), &endptr, 10);
-        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(float(val)) && val > 0) return true;
+        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(static_cast<float>(val)) && val > 0) return true;
       }
       if (verbose) std::cerr << "'" << opt << "' requires a positive integer argument ('" << s << "' was supplied)" << std::endl;
       return false;
@@ -165,7 +165,7 @@ public:
       if (!s.empty()) {
         char *endptr = nullptr;
         int   val    = strtol(s.c_str(), &endptr, 10);
-        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(float(val))) return true;
+        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(static_cast<float>(val))) return true;
       }
       if (verbose) std::cerr << "'" << opt << "' requires an integer argument ('" << s << "' was supplied)" << std::endl;
       return false;
@@ -196,7 +196,7 @@ public:
          *    pre            - Prefix to look for. */
   std::string prefix(const std::string &pre, const bool internal = false) const
   {
-    if (!internal && !app_) return std::string();
+    if (!internal && !app_) return {};
     std::unordered_map<std::string, double>::const_iterator pIt[2];
     if (internal) {
       pIt[0] = opt_.cbegin();
@@ -212,7 +212,7 @@ public:
       return match;
     });
     if (it != pIt[1]) return it->first.substr(prefix.size() + 1);
-    else return std::string();
+    else return {};
   }
   /* Function: any_of
          *
@@ -404,17 +404,10 @@ private:
   K *storage_;
 #if !HPDDM_PETSC
 protected:
-  char *prefix_;
+  char *prefix_{};
 #endif
 public:
-  OptionsPrefix() :
-    storage_()
-#if !HPDDM_PETSC
-    ,
-    prefix_()
-#endif
-  {
-  }
+  OptionsPrefix() : storage_() { }
   ~OptionsPrefix()
   {
     delete[] storage_;
@@ -424,7 +417,7 @@ public:
     prefix_ = nullptr;
 #endif
   }
-  typedef K scalar_type;
+  using scalar_type = K;
 #if !HPDDM_PETSC
   void setPrefix(const char *prefix)
   {

@@ -30,7 +30,7 @@ namespace HPDDM
 {
 class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
 public:
-  typedef EmptyOperator<PetscScalar, PetscInt> super;
+  using super = EmptyOperator<PetscScalar, PetscInt>;
   const KSP                                    ksp_;
 
 private:

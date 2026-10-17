@@ -54,13 +54,13 @@ protected:
   vectorNeighbor map_;
   /* Variable: rq
          *  Array of MPI requests to check completion of the MPI transfers with neighboring subdomains. */
-  MPI_Request *rq_;
+  MPI_Request *rq_{};
   /* Variable: communicator
          *  MPI communicator of the subdomain. */
-  MPI_Comm communicator_;
+  MPI_Comm communicator_{MPI_COMM_NULL};
   /* Variable: dof
          *  Number of degrees of freedom in the current subdomain. */
-  int  dof_;
+  int  dof_{};
   void dtor()
   {
     clearBuffer();
@@ -81,10 +81,7 @@ public:
 #endif
     a_(),
     buff_(),
-    map_(),
-    rq_(),
-    communicator_(MPI_COMM_NULL),
-    dof_()
+    map_()
   {
   }
   Subdomain(const Subdomain<K> &s) :
@@ -100,7 +97,7 @@ public:
   {
   }
   ~Subdomain() { dtor(); }
-  typedef int integer_type;
+  using integer_type = int;
   /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
   const MPI_Comm &getCommunicator() const { return communicator_; }
@@ -495,8 +492,8 @@ public:
       local[rankWorld] = (list ? r.size() : std::distance(first, last));
       std::unordered_set<unsigned int> removed;
       removed.reserve(local[rankWorld]);
-      for (unsigned short i = 0; i < map_.size(); ++i)
-        for (const int &j : map_[i].second) {
+      for (const auto &i : map_)
+        for (const int &j : i.second) {
           if (d && d[j] < HPDDM_EPS && removed.find(j) == removed.cend() && (!list || list[j] > 0)) {
             --local[rankWorld];
             removed.insert(j);

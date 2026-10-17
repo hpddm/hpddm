@@ -130,7 +130,7 @@ protected:
         std::vector<unsigned short> neighbors;
         neighbors.reserve(map_.size());
         std::for_each(map_.cbegin(), map_.cend(), [&](const pairNeighbor &n) { neighbors.emplace_back(n.first); });
-        typedef std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator> pairIt;
+        using pairIt = std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator>;
         auto                                                             comp = [](const pairIt &lhs, const pairIt &rhs) { return *lhs.first > *rhs.first; };
         std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)> pq(comp);
         pq.push({neighbors.cbegin(), neighbors.cend()});
@@ -365,7 +365,7 @@ public:
 template <class Preconditioner, class K>
 class UserCoarseOperator : public OperatorBase<'u', Preconditioner, K> {
 private:
-  typedef OperatorBase<'u', Preconditioner, K> super;
+  using super = OperatorBase<'u', Preconditioner, K>;
 #if HPDDM_PETSC
 protected:
   const Mat          A_;
@@ -406,7 +406,7 @@ protected:
   const underlying_type<K> *const D_;
 
 private:
-  typedef OperatorBase<'s', Preconditioner, K> super;
+  using super = OperatorBase<'s', Preconditioner, K>;
   template <bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *infoNeighbor)
   {
@@ -603,10 +603,10 @@ private:
   std::vector<std::vector<std::pair<unsigned short, unsigned short>>>                                       &reduction_;
   std::map<std::pair<unsigned short, unsigned short>, unsigned short>                                       &sizes_;
   std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra_;
-  typedef MatrixMultiplication<Preconditioner, K>                                                            super;
-  int                                                                                                       *ldistribution_;
-  int                                                                                                        size_;
-  unsigned int                                                                                               sb_;
+  using super = MatrixMultiplication<Preconditioner, K>;
+  int         *ldistribution_;
+  int          size_;
+  unsigned int sb_;
 
 public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
@@ -761,20 +761,19 @@ public:
         if (S == 'S' && i < super::signed_) m += (U == 1 ? super::local_ * super::local_ : super::local_ * info[i]);
       } else interior.emplace_back(i);
     }
-    for (unsigned short i = 0; i < overlap.size(); ++i) {
+    for (unsigned short &i : overlap) {
       unsigned short size = 0;
-      for (unsigned short j = 0; j < accumulate[overlap[i]].size(); ++j) {
-        if (getMain(accumulate[overlap[i]][j]) == worker[overlap[i]]) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[overlap[i]][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[overlap[i]][j]) accumulate[overlap[i]][size++] = std::distance(neighbors, pt);
+      for (unsigned short j = 0; j < accumulate[i].size(); ++j) {
+        if (getMain(accumulate[i][j]) == worker[i]) {
+          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[i][size++] = std::distance(neighbors, pt);
         }
-        if (S == 'S' && getMain(accumulate[overlap[i]][j]) == main) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[overlap[i]][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[overlap[i]][j])
-            accumulate[super::map_.size() + overlap[i]].emplace_back(std::distance(neighbors, pt));
+        if (S == 'S' && getMain(accumulate[i][j]) == main) {
+          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[super::map_.size() + i].emplace_back(std::distance(neighbors, pt));
         }
       }
-      accumulate[overlap[i]].resize(size);
+      accumulate[i].resize(size);
     }
     MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
     delete[] neighbors;
@@ -1029,12 +1028,11 @@ public:
           for (unsigned short nu = 0; nu < super::local_; ++nu)
             Wrapper<K>::gthr(omap.size(), super::work_ + nu * super::n_, work + nu * omap.size(), omap.data());
           const std::vector<unsigned short> &r = accumulate[super::map_.size() + overlap[i]];
-          for (unsigned short j = 0; j < r.size(); ++j) {
+          for (unsigned short j : r) {
             for (unsigned short nu = 0; nu < super::local_; ++nu) {
               std::fill_n(tmp[super::map_.size()], omap.size(), K());
-              Wrapper<K>::sctr(nmap[r[j]].size(), buff[r[j]] + nu * nmap[r[j]].size(), nmap[r[j]].data(), tmp[super::map_.size()]);
-              for (unsigned int k = 0; k < nmap[overlap[i]].size(); ++k)
-                work[nmap[overlap[i]][k] + nu * omap.size()] += tmp[super::map_.size()][nmap[overlap[i]][k]];
+              Wrapper<K>::sctr(nmap[j].size(), buff[j] + nu * nmap[j].size(), nmap[j].data(), tmp[super::map_.size()]);
+              for (int &k : nmap[overlap[i]]) work[k + nu * omap.size()] += tmp[super::map_.size()][k];
             }
           }
           const int n = omap.size();
@@ -1051,10 +1049,10 @@ public:
           Wrapper<K>::gthr(super::map_[overlap[i]].second.size(), super::work_ + nu * super::n_, in[overlap[i]] + nu * super::map_[overlap[i]].second.size(),
                            super::map_[overlap[i]].second.data());
         const std::vector<unsigned short> &r = accumulate[overlap[i]];
-        for (unsigned short k = 0; k < r.size(); ++k) {
+        for (unsigned short k : r) {
           for (unsigned short nu = 0; nu < super::local_; ++nu) {
             std::fill_n(work, omap.size(), K());
-            Wrapper<K>::sctr(nmap[r[k]].size(), buff[r[k]] + nu * nmap[r[k]].size(), nmap[r[k]].data(), work);
+            Wrapper<K>::sctr(nmap[k].size(), buff[k] + nu * nmap[k].size(), nmap[k].data(), work);
             for (unsigned int j = 0; j < super::map_[overlap[i]].second.size(); ++j)
               in[overlap[i]][j + nu * super::map_[overlap[i]].second.size()] += work[nmap[overlap[i]][j]];
           }
@@ -1063,10 +1061,10 @@ public:
                   super::p_.getCommunicator(), rs + overlap[i]);
       }
     }
-    for (unsigned short i = 0; i < interior.size(); ++i) {
+    for (unsigned short &i : interior) {
       for (unsigned short k = 0; k < super::local_; ++k)
-        for (unsigned int j = 0; j < super::map_[interior[i]].second.size(); ++j)
-          super::work_[super::map_[interior[i]].second[j] + k * super::n_] += buff[interior[i]][j + k * super::map_[interior[i]].second.size()];
+        for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+          super::work_[super::map_[i].second[j] + k * super::n_] += buff[i][j + k * super::map_[i].second.size()];
     }
     for (unsigned short i = 0; i < interior.size() && interior[i] < super::signed_; ++i) {
       if (U || info[interior[i]]) {
@@ -1092,7 +1090,7 @@ public:
 template <class Preconditioner, FetiPrcndtnr Q, class K>
 class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K> {
 private:
-  typedef OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K> super;
+  using super = OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K>;
   template <char S, bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *info)
   {
@@ -1382,7 +1380,7 @@ private:
   const std::string              &prefix_;
   const underlying_type<K> *const D_;
   #endif
-  typedef OperatorBase<'c', Preconditioner, K> super;
+  using super = OperatorBase<'c', Preconditioner, K>;
   template <char S, bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *info)
   {

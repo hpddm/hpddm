@@ -40,7 +40,7 @@
 #ifdef FORCE_COMPLEX
 typedef std::complex<double> K;
 #else
-typedef double K;
+using K = double;
 #endif
 
 struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {

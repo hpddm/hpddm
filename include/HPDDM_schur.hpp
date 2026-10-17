@@ -149,19 +149,19 @@ protected:
   K *structure_;
   /* Variable: pinv
          *  Solver used in <Schur::callNumfact> and <Bdd::callNumfact> for factorizing <Subdomain::a> or <Schur::schur>. */
-  void *pinv_;
+  void *pinv_{};
   /* Variable: rankWorld
          *  Rank of the current subdomain in <Subdomain::communicator>. */
   int rankWorld_;
   /* Variable: mult
          *  Number of local Lagrange multipliers. */
-  int mult_;
+  int mult_{};
   /* Variable: signed
          *  Number of neighboring subdomains in <Subdomain::communicator> with ranks lower than <rankWorld>. */
-  unsigned short signed_;
+  unsigned short signed_{};
   /* Variable: deficiency
          *  Dimension of the kernel of <Subdomain::a>. */
-  unsigned short deficiency_;
+  unsigned short deficiency_{};
 #if HPDDM_FETI || HPDDM_BDD
   /* Function: solveGEVP
          *
@@ -300,7 +300,7 @@ protected:
   }
 #endif
 public:
-  Schur() : bb_(), ii_(), bi_(), schur_(), work_(), structure_(), pinv_(), mult_(), signed_(), deficiency_() { }
+  Schur() : bb_(), ii_(), bi_(), schur_(), work_(), structure_() { }
   Schur(const Schur &) = delete;
   ~Schur() { dtor(); }
   void dtor()
@@ -326,14 +326,13 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-  typedef Preconditioner<
+  using super = Preconditioner<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     Solver, CoarseOperator,
 #elif HPDDM_PETSC
     DMatrix,
 #endif
-    K>
-    super;
+    K>;
   /* Function: initialize
          *  Sets <Schur::rankWorld> and <Schur::signed>, and allocates <Schur::mult>, <Schur::work>, and <Schur::structure>. */
   template <bool m>

@@ -166,14 +166,13 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-  typedef Preconditioner<
+  using super = Preconditioner<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     Solver, CoarseOperator<CoarseSolver, S, K>,
 #elif HPDDM_PETSC
     CoarseOperator<DMatrix, K>,
 #endif
-    K>
-    super;
+    K>;
   /* Function: initialize
          *  Sets <Schwarz::d>. */
   void initialize(underlying_type<K> *const &d) { d_ = d; }
@@ -322,17 +321,17 @@ public:
       delete[] d;
       int rank;
       MPI_Comm_rank(Subdomain<K>::communicator_, &rank);
-      for (int k = 0; k < p.size(); ++k) {
+      for (int &k : p) {
         bool largest = true;
         for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size && largest; ++i) {
           const std::vector<int> &v  = Subdomain<K>::map_[i].second;
-          unsigned int *const     it = std::lower_bound(idx[i], idx[i] + v.size(), p[k], [&v](unsigned int lhs, int rhs) { return v[lhs] < rhs; });
-          if (std::distance(idx[i], it) != v.size() && v[*it] == p[k]) {
-            const underlying_type<K> v = D[p[k]] - buff[i][*it];
+          unsigned int *const     it = std::lower_bound(idx[i], idx[i] + v.size(), k, [&v](unsigned int lhs, int rhs) { return v[lhs] < rhs; });
+          if (std::distance(idx[i], it) != v.size() && v[*it] == k) {
+            const underlying_type<K> v = D[k] - buff[i][*it];
             largest                    = (v > HPDDM_EPS || (HPDDM::abs(v) < HPDDM_EPS && rank > Subdomain<K>::map_[i].first));
           }
         }
-        D[p[k]] = (largest ? 1.0 : 0.0);
+        D[k] = (largest ? 1.0 : 0.0);
       }
       MPI_Waitall(Subdomain<K>::map_.size(), Subdomain<K>::rq_ + Subdomain<K>::map_.size(), MPI_STATUSES_IGNORE);
       delete[] *buff;
@@ -894,7 +893,7 @@ public:
         PetscCall(ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, Subdomain<K>::dof_ / bs, idx, PETSC_OWN_POINTER, &l2g));
       }
       v.reserve(Subdomain<K>::dof_ / bs);
-      for (PetscInt i = 0; i < Subdomain<K>::dof_; i += bs) v.emplace_back(std::make_pair(ptr[i], i));
+      for (PetscInt i = 0; i < Subdomain<K>::dof_; i += bs) v.emplace_back(ptr[i], i);
       std::sort(v.begin(), v.end());
       PetscInt   nproc;
       PetscInt  *procs;

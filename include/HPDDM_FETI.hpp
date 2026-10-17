@@ -120,7 +120,7 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Schur>. */
-  typedef Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
+  using super = Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K>;
   /* Function: initialize
          *  Allocates <Feti::primal>, <Feti::dual>, and <Feti::m> and calls <Schur::initialize>. */
   void initialize()
