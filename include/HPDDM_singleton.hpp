@@ -27,11 +27,13 @@ namespace HPDDM
 /* Class: Singleton
  *  A base class for creating singletons. */
 class Singleton {
+public:
+  Singleton(const Singleton &) = delete;
+
 protected:
   template <int N>
   class construct_key { };
-  Singleton() { }
-  Singleton(const Singleton &) = delete;
+  Singleton() = default;
   template <class T, int N, class... Args>
   static std::shared_ptr<T> get(const Args &...arguments)
   {

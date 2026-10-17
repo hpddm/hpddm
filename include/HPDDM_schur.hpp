@@ -131,37 +131,37 @@ private:
 protected:
   /* Variable: bb
          *  Local matrix assembled on boundary degrees of freedom. */
-  MatrixCSR<K> *bb_;
+  MatrixCSR<K> *bb_{};
   /* Variable: ii
          *  Local matrix assembled on interior degrees of freedom. */
-  MatrixCSR<K> *ii_;
+  MatrixCSR<K> *ii_{};
   /* Variable: bi
          *  Local matrix assembled on boundary and interior degrees of freedom. */
-  MatrixCSR<K> *bi_;
+  MatrixCSR<K> *bi_{};
   /* Variable: schur
          *  Explicit local Schur complement. */
-  K *schur_;
+  K *schur_{};
   /* Variable: work
          *  Workspace array. */
-  K *work_;
+  K *work_{};
   /* Variable: structure
          *  Workspace array of size lower than or equal to <Subdomain::dof>. */
-  K *structure_;
+  K *structure_{};
   /* Variable: pinv
          *  Solver used in <Schur::callNumfact> and <Bdd::callNumfact> for factorizing <Subdomain::a> or <Schur::schur>. */
-  void *pinv_;
+  void *pinv_{};
   /* Variable: rankWorld
          *  Rank of the current subdomain in <Subdomain::communicator>. */
   int rankWorld_;
   /* Variable: mult
          *  Number of local Lagrange multipliers. */
-  int mult_;
+  int mult_{};
   /* Variable: signed
          *  Number of neighboring subdomains in <Subdomain::communicator> with ranks lower than <rankWorld>. */
-  unsigned short signed_;
+  unsigned short signed_{};
   /* Variable: deficiency
          *  Dimension of the kernel of <Subdomain::a>. */
-  unsigned short deficiency_;
+  unsigned short deficiency_{};
 #if HPDDM_FETI || HPDDM_BDD
   /* Function: solveGEVP
          *
@@ -183,7 +183,7 @@ protected:
       unsigned int size = std::accumulate(Subdomain<K>::map_.cbegin(), Subdomain<K>::map_.cend(), 0, [](unsigned int sum, const pairNeighbor &n) {
         return sum + (L == 'S' ? (n.second.size() * (n.second.size() + 1)) / 2 : n.second.size() * n.second.size());
       });
-      *send             = new K[2 * size];
+      *send             = new K[2 * static_cast<std::size_t>(size)];
       K **recv          = send + Subdomain<K>::map_.size();
       *recv             = *send + size;
       if (L == 'S')
@@ -293,14 +293,14 @@ protected:
   std::pair<MPI_Request, const K *> *buildTwo(Prcndtnr *B, const MPI_Comm &comm)
   {
     if (!Option::get()->set(super::prefix("geneo_nu"))) {
-      if (!super::co_) super::co_ = new typename std::remove_reference<decltype(*super::co_)>::type;
+      if (!super::co_) super::co_ = new std::remove_reference_t<decltype(*super::co_)>;
       super::co_->setLocal(deficiency_);
     }
     return super::template buildTwo<excluded, Operator>(B, comm);
   }
 #endif
 public:
-  Schur() : bb_(), ii_(), bi_(), schur_(), work_(), structure_(), pinv_(), mult_(), signed_(), deficiency_() { }
+  Schur()              = default;
   Schur(const Schur &) = delete;
   ~Schur() { dtor(); }
   void dtor()
@@ -326,14 +326,13 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-  typedef Preconditioner<
+  using super = Preconditioner<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     Solver, CoarseOperator,
 #elif HPDDM_PETSC
     DMatrix,
 #endif
-    K>
-    super;
+    K>;
   /* Function: initialize
          *  Sets <Schur::rankWorld> and <Schur::signed>, and allocates <Schur::mult>, <Schur::work>, and <Schur::structure>. */
   template <bool m>

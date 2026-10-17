@@ -93,37 +93,37 @@ class SuiteSparse : public DMatrix {
 private:
   /* Variable: L
          *  Factors returned by CHOLMOD. */
-  cholmod_factor *L_;
+  cholmod_factor *L_{};
   /* Variable: c
          *  Parameters, statistics, and workspace of CHOLMOD. */
-  cholmod_common *c_;
+  cholmod_common *c_{};
   /* Variable: b
          *  Right-hand side matrix of CHOLMOD. */
-  cholmod_dense *b_;
+  cholmod_dense *b_{};
   /* Variable: x
          *  Solution matrix of CHOLMOD. */
-  cholmod_dense *x_;
+  cholmod_dense *x_{};
   /* Variable: Y
          *  Dense workspace matrix of CHOLMOD. */
-  cholmod_dense *Y_;
+  cholmod_dense *Y_{};
   /* Variable: E
          *  Dense workspace matrix of CHOLMOD. */
-  cholmod_dense *E_;
+  cholmod_dense *E_{};
   /* Variable: numeric
          *  Opaque object for the numerical factorization of UMFPACK. */
-  void *numeric_;
+  void *numeric_{};
   /* Variable: control
          *  Array of double parameters. */
-  double *control_;
+  double *control_{};
   /* Variable: pattern
          *  Workspace integer array of UMFPACK. */
-  int *pattern_;
+  int *pattern_{};
   /* Variable: W
          *  Workspace double array of UMFPACK. */
-  K *W_;
+  K *W_{};
   /* Variable: tmp
          *  Workspace array. */
-  K *tmp_;
+  K *tmp_{};
 
 protected:
   /* Variable: numbering
@@ -131,7 +131,7 @@ protected:
   static constexpr char numbering_ = 'C';
 
 public:
-  SuiteSparse() : L_(), c_(), b_(), x_(), Y_(), E_(), numeric_(), control_(), pattern_(), W_(), tmp_() { }
+  SuiteSparse() = default;
   ~SuiteSparse()
   {
     delete[] tmp_;
@@ -233,20 +233,20 @@ public:
 template <class K>
 class SuiteSparseSub {
 private:
-  cholmod_factor *L_;
-  cholmod_common *c_;
-  cholmod_dense  *b_;
-  cholmod_dense  *x_;
-  cholmod_dense  *Y_;
-  cholmod_dense  *E_;
-  void           *numeric_;
-  double         *control_;
-  int            *pattern_;
-  K              *W_;
-  K              *tmp_;
+  cholmod_factor *L_{};
+  cholmod_common *c_{};
+  cholmod_dense  *b_{};
+  cholmod_dense  *x_{};
+  cholmod_dense  *Y_{};
+  cholmod_dense  *E_{};
+  void           *numeric_{};
+  double         *control_{};
+  int            *pattern_{};
+  K              *W_{};
+  K              *tmp_{};
 
 public:
-  SuiteSparseSub() : L_(), c_(), b_(), x_(), Y_(), E_(), numeric_(), control_(), pattern_(), W_(), tmp_() { }
+  SuiteSparseSub()                       = default;
   SuiteSparseSub(const SuiteSparseSub &) = delete;
   ~SuiteSparseSub() { dtor(); }
   static constexpr char numbering_ = 'C';

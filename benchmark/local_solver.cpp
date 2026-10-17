@@ -44,15 +44,15 @@
 
 #ifdef FORCE_SINGLE
   #ifdef FORCE_COMPLEX
-typedef std::complex<float> K;
+using K = std::complex<float>;
   #else
-typedef float K;
+using K = float;
   #endif
 #else
   #ifdef FORCE_COMPLEX
-typedef std::complex<double> K;
+using K = std::complex<double>;
   #else
-typedef double K;
+using K = double;
   #endif
 #endif
 
@@ -97,8 +97,8 @@ int main(int argc, char **argv)
             });
   int  mu    = opt.app()["rhs"];
   bool solve = opt.app()["solve_phase_only"];
-  K   *rhs   = new K[mu * A->n_];
-  std::fill_n(rhs, mu * A->n_, K(1.0));
+  K   *rhs   = new K[static_cast<std::size_t>(mu) * A->n_];
+  std::fill_n(rhs, mu * A->n_, static_cast<K>(1.0));
   std::streamsize old = std::cout.precision();
   SUBDOMAIN<K>   *S   = new SUBDOMAIN<K>;
   if (solve) S->numfact(A);

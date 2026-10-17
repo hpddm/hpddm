@@ -34,15 +34,15 @@
 
 #ifdef FORCE_SINGLE
   #ifdef FORCE_COMPLEX
-typedef std::complex<float> K;
+using K = std::complex<float>;
   #else
-typedef float K;
+using K = float;
   #endif
 #else
   #ifdef FORCE_COMPLEX
-typedef std::complex<double> K;
+using K = std::complex<double>;
   #else
-typedef double K;
+using K = double;
   #endif
 #endif
 

@@ -82,7 +82,7 @@ int main(int argc, char **argv)
   double *in = malloc(sizeof(double) * mu * op->n);
   // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.rand)
   for (int i = 0; i < mu * op->n; ++i) in[i] = (rand() % 10000) / 100.0;
-  double *out = (double *)calloc(mu * op->n, sizeof(double));
+  double *out = (double *)calloc((size_t)mu * op->n, sizeof(double));
   HpddmCustomOperatorSolve(op, op->n, &mv, &apply, in, out, mu, &op->comm);
   MPI_Comm_free(&op->comm);
   free(out);

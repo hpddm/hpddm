@@ -36,7 +36,7 @@ const char symCoarse = 'S';
 #endif
 
 template <class T>
-using cpp_type = typename std::conditional<std::is_same<T, underlying_type>::value, T, std::complex<underlying_type>>::type;
+using cpp_type = std::conditional_t<std::is_same<T, underlying_type>::value, T, std::complex<underlying_type>>;
 
 template <class Operator, class K>
 struct CustomOperator : public HPDDM::EmptyOperator<cpp_type<K>> {
@@ -61,21 +61,21 @@ struct CustomOperator : public HPDDM::EmptyOperator<cpp_type<K>> {
 
 const HpddmOption *HpddmOptionGet()
 {
-  return (const HpddmOption *)HPDDM::Option::get().get();
+  return reinterpret_cast<const HpddmOption *>(HPDDM::Option::get().get());
 }
 int HpddmOptionParse(const HpddmOption *const option, int argc, char **argv, bool display)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.parse(argc, argv, display);
 }
 int HpddmOptionParseString(const HpddmOption *const option, const char *str)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.parse(str, false);
 }
 int HpddmOptionParseInt(const HpddmOption *const option, int argc, char **argv, char *str, char *desc)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.parse(argc, argv, false, {std::forward_as_tuple(str, desc, HPDDM::Option::Arg::integer)});
 }
 int HpddmOptionParseInts(const HpddmOption *const option, int argc, char **argv, int size, char *str[], char *desc[])
@@ -83,7 +83,7 @@ int HpddmOptionParseInts(const HpddmOption *const option, int argc, char **argv,
   std::vector<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>> pack;
   pack.reserve(size);
   for (int i = 0; i < size; ++i) pack.emplace_back(str[i], desc[i], HPDDM::Option::Arg::integer);
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.parse(argc, argv, false, pack);
 }
 int HpddmOptionParseArgs(const HpddmOption *const option, int argc, char **argv, int size, char *str[], char *desc[])
@@ -91,32 +91,32 @@ int HpddmOptionParseArgs(const HpddmOption *const option, int argc, char **argv,
   std::vector<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>> pack;
   pack.reserve(size);
   for (int i = 0; i < size; ++i) pack.emplace_back(str[i], desc[i], HPDDM::Option::Arg::argument);
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.parse(argc, argv, false, pack);
 }
 bool HpddmOptionSet(const HpddmOption *const option, const char *str)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.set(str);
 }
 void HpddmOptionRemove(const HpddmOption *const option, const char *str)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   opt.remove(str);
 }
 double HpddmOptionVal(const HpddmOption *const option, const char *str)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return opt.val(str);
 }
 double *HpddmOptionAddr(const HpddmOption *const option, const char *str)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   return &opt[str];
 }
 double HpddmOptionApp(const HpddmOption *const option, const char *str)
 {
-  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>((HpddmOption *)option);
+  HPDDM::Option &opt = *reinterpret_cast<HPDDM::Option *>(const_cast<HpddmOption *>(option));
   if (opt.app().find(str) != opt.app().cend()) return opt.app()[str];
   else return 0;
 }

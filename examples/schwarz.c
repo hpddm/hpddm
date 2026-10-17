@@ -21,6 +21,8 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stddef.h>
+
 #ifdef MU_SLEPC
   #include <slepc.h>
 #elif defined(PETSCSUB)
@@ -101,14 +103,14 @@ int main(int argc, char **argv)
       for (unsigned short nu = 0; nu < mu; ++nu) {
         if (nu == 0) printf(" --- residual = ");
         else printf("                ");
-        printf("%e / %e", storage[1 + 2 * nu], storage[2 * nu]);
+        printf("%e / %e", storage[1 + 2 * (ptrdiff_t)nu], storage[2 * (ptrdiff_t)nu]);
         if (mu > 1) printf(" (rhs #%d)", nu + 1);
         printf("\n");
       }
     if (it > (HpddmOptionVal(opt, "krylov_method") == 6 ? 60 : 45)) status = 1;
     else {
       for (unsigned short nu = 0; nu < mu; ++nu)
-        if (storage[1 + 2 * nu] / storage[2 * nu] > 1.0e-2) status = 1;
+        if (storage[1 + 2 * (ptrdiff_t)nu] / storage[2 * (ptrdiff_t)nu] > 1.0e-2) status = 1;
     }
     free(storage);
     if (HpddmOptionVal(opt, "geneo_nu") == 0) HpddmDestroyVectors(HpddmSchwarzPreconditioner(A));
@@ -120,7 +122,7 @@ int main(int argc, char **argv)
     HpddmSubdomainSolve(S, f, sol, mu);
     int              one  = 1;
     underlying_type *nrmb = malloc(sizeof(underlying_type) * 2 * mu);
-    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = nrm2(&ndof, f + nu * ndof, &one);
+    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = nrm2(&ndof, f + (ptrdiff_t)nu * ndof, &one);
     K *tmp = malloc(sizeof(K) * mu * ndof);
     HpddmCSRMM(Mat, sol, tmp, mu);
     K minus = -1;
@@ -129,7 +131,7 @@ int main(int argc, char **argv)
     ndof /= mu;
     underlying_type *nrmAx = nrmb + mu;
     for (unsigned short nu = 0; nu < mu; ++nu) {
-      nrmAx[nu] = nrm2(&ndof, tmp + nu * ndof, &one);
+      nrmAx[nu] = nrm2(&ndof, tmp + (ptrdiff_t)nu * ndof, &one);
       if (nu == 0) printf(" --- residual = ");
       else printf("                ");
       printf("%e / %e", nrmAx[nu], nrmb[nu]);

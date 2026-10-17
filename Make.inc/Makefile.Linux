@@ -6,7 +6,7 @@ MPICC ?= mpicc
 MPIF90 ?= mpif90
 MPIRUN ?= mpirun -np
 
-override CXXFLAGS += -std=c++11 -O3 -fPIC
+override CXXFLAGS += -std=c++14 -O3 -fPIC
 override CFLAGS += -std=c99 -O3
 
 HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'

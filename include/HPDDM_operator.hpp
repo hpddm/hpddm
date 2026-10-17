@@ -43,14 +43,14 @@ class OperatorBase : protected Members<P != 's' && P != 'u'> {
 private:
   HPDDM_HAS_MEMBER(getLDR)
   template <class Q = Preconditioner>
-  typename std::enable_if<has_getLDR<typename std::remove_reference<Q>::type>::value, bool>::type offsetDeflation()
+  std::enable_if_t<has_getLDR<std::remove_reference_t<Q>>::value, bool> offsetDeflation()
   {
     const unsigned int offset = *p_.getLDR() - n_;
     if (deflation_ && offset) std::for_each(const_cast<K **>(deflation_), const_cast<K **>(deflation_) + local_, [&](K *&v) { v -= offset; });
     return true;
   }
   template <class Q = Preconditioner>
-  typename std::enable_if<!has_getLDR<typename std::remove_reference<Q>::type>::value, bool>::type offsetDeflation()
+  std::enable_if_t<!has_getLDR<std::remove_reference_t<Q>>::value, bool> offsetDeflation()
   {
     return false;
   }
@@ -65,7 +65,7 @@ protected:
   unsigned int                max_;
   unsigned short              signed_;
   unsigned short              connectivity_;
-  template <char Q = P, typename std::enable_if<Q == 's' || Q == 'u'>::type * = nullptr>
+  template <char Q = P, std::enable_if_t<Q == 's' || Q == 'u'> * = nullptr>
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
     p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
   {
@@ -73,7 +73,7 @@ protected:
     sparsity_.reserve(map_.size());
     std::transform(map_.cbegin(), map_.cend(), std::back_inserter(sparsity_), [](const pairNeighbor &n) { return n.first; });
   }
-  template <char Q = P, typename std::enable_if<Q != 's' && Q != 'u'>::type * = nullptr>
+  template <char Q = P, std::enable_if_t<Q != 's' && Q != 'u'> * = nullptr>
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
     p_(p),
     deflation_(buildDeflation(p)),
@@ -107,7 +107,7 @@ protected:
       MPI_Request    *rq            = p_.getRq();
       for (unsigned short i = 0; i < map_.size(); ++i) {
         sendSparsity[i] = map_[i].first;
-        recvSparsity[i] = *recvSparsity + connectivity_ * i;
+        recvSparsity[i] = *recvSparsity + static_cast<std::ptrdiff_t>(connectivity_) * i;
         MPI_Irecv(recvSparsity[i], connectivity_, MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.getCommunicator(), rq + i);
       }
       for (unsigned short i = 0; i < map_.size(); ++i)
@@ -130,7 +130,7 @@ protected:
         std::vector<unsigned short> neighbors;
         neighbors.reserve(map_.size());
         std::for_each(map_.cbegin(), map_.cend(), [&](const pairNeighbor &n) { neighbors.emplace_back(n.first); });
-        typedef std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator> pairIt;
+        using pairIt = std::pair<std::vector<unsigned short>::const_iterator, std::vector<unsigned short>::const_iterator>;
         auto                                                             comp = [](const pairIt &lhs, const pairIt &rhs) { return *lhs.first > *rhs.first; };
         std::priority_queue<pairIt, std::vector<pairIt>, decltype(comp)> pq(comp);
         pq.push({neighbors.cbegin(), neighbors.cend()});
@@ -164,16 +164,16 @@ protected:
   ~OperatorBase()
   {
     offsetDeflation();
-    if (!has_getVectors<typename std::remove_reference<Preconditioner>::type>::value) delete[] deflation_;
+    if (!has_getVectors<std::remove_reference_t<Preconditioner>>::value) delete[] deflation_;
   }
   HPDDM_HAS_MEMBER(getVectors)
-  template <class Q = Preconditioner, typename std::enable_if<has_getVectors<typename std::remove_reference<Q>::type>::value>::type * = nullptr>
+  template <class Q = Preconditioner, std::enable_if_t<has_getVectors<std::remove_reference_t<Q>>::value> * = nullptr>
   static const K *const *buildDeflation(const Preconditioner &p)
   {
     return p.getVectors();
   }
 #if HPDDM_PETSC
-  template <class Q = Preconditioner, typename std::enable_if<!has_getVectors<typename std::remove_reference<Q>::type>::value>::type * = nullptr>
+  template <class Q = Preconditioner, std::enable_if_t<!has_getVectors<std::remove_reference_t<Q>>::value> * = nullptr>
   static const K *const *buildDeflation(const Preconditioner &p)
   {
     const Mat           Z         = p.getMat();
@@ -265,7 +265,7 @@ protected:
                                                                Members<true>::rank_),
                                               Members<true>::vecSparsity_[i].cend()) +
                                 !(i < signed_);
-          displs.emplace_back(displs.back() + local_ * size * map_[i].second.size());
+          displs.emplace_back(displs.back() + static_cast<std::size_t>(local_) * size * map_[i].second.size());
         }
       }
     }
@@ -282,7 +282,7 @@ protected:
         }
     } else if (out) *in = nullptr;
   }
-  template <char S, char N, bool U, class T, char Q = P, typename std::enable_if<Q != 's'>::type * = nullptr>
+  template <char S, char N, bool U, class T, char Q = P, std::enable_if_t<Q != 's'> * = nullptr>
   void assembleOperator(T *I, T *J, int coefficients, unsigned int offsetI, unsigned int *offsetJ, unsigned short *const &infoNeighbor)
   {
 #ifdef HPDDM_CSR_CO
@@ -356,7 +356,7 @@ public:
   }
   const std::vector<unsigned short> &getPattern() const { return sparsity_; }
   unsigned short                     getConnectivity() const { return connectivity_; }
-  template <char Q = P, typename std::enable_if<Q != 's'>::type * = nullptr>
+  template <char Q = P, std::enable_if_t<Q != 's'> * = nullptr>
   void initialize(unsigned int, K *&, unsigned short)
   {
   }
@@ -365,11 +365,11 @@ public:
 template <class Preconditioner, class K>
 class UserCoarseOperator : public OperatorBase<'u', Preconditioner, K> {
 private:
-  typedef OperatorBase<'u', Preconditioner, K> super;
+  using super = OperatorBase<'u', Preconditioner, K>;
 #if HPDDM_PETSC
 protected:
   const Mat          A_;
-  Mat                C_;
+  Mat                C_{};
   PC_HPDDM_Level    *level_;
   const std::string &prefix_;
 #endif
@@ -380,7 +380,7 @@ public:
   friend class Schwarz;
   template <typename... Types>
   UserCoarseOperator(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
-    super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix)
+    super(p, c, max), A_(A), level_(level), prefix_(prefix)
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -398,7 +398,7 @@ protected:
   MatrixCSR<K>             *C_;
   #else
   const Mat          A_;
-  Mat                C_;
+  Mat                C_{};
   PC_HPDDM_Level    *level_;
   const std::string &prefix_;
   #endif
@@ -406,7 +406,7 @@ protected:
   const underlying_type<K> *const D_;
 
 private:
-  typedef OperatorBase<'s', Preconditioner, K> super;
+  using super = OperatorBase<'s', Preconditioner, K>;
   template <bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *infoNeighbor)
   {
@@ -434,7 +434,7 @@ public:
   template <typename... Types>
   #if HPDDM_PETSC
   MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
-    super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling())
+    super(p, c, max), A_(A), level_(level), prefix_(prefix), D_(p.getScaling())
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -460,7 +460,7 @@ public:
     PetscCallVoid(MatDiagonalScale(C_, nullptr, D));
     delete[] d;
     PetscCallVoid(VecDestroy(&D));
-    work           = new K[2 * k];
+    work           = new K[2 * static_cast<std::size_t>(k)];
     work_          = work + k;
     super::signed_ = s;
   }
@@ -531,7 +531,7 @@ public:
       }
       C_->nnz_ = nnz;
     }
-    work           = new K[2 * k];
+    work           = new K[2 * static_cast<std::size_t>(k)];
     work_          = work + k;
     super::signed_ = s;
   }
@@ -603,10 +603,10 @@ private:
   std::vector<std::vector<std::pair<unsigned short, unsigned short>>>                                       &reduction_;
   std::map<std::pair<unsigned short, unsigned short>, unsigned short>                                       &sizes_;
   std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra_;
-  typedef MatrixMultiplication<Preconditioner, K>                                                            super;
-  int                                                                                                       *ldistribution_;
-  int                                                                                                        size_;
-  unsigned int                                                                                               sb_;
+  using super = MatrixMultiplication<Preconditioner, K>;
+  int         *ldistribution_;
+  int          size_;
+  unsigned int sb_;
 
 public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
@@ -616,14 +616,14 @@ public:
                      Rest &...args) :
     super(p, c, max, args...), overlap_(arg2), reduction_(arg3), sizes_(arg4), extra_(arg5)
   {
-    static_assert(std::is_same<typename std::remove_pointer<First>::type, typename Preconditioner::super::co_type>::value, "Wrong constructor");
+    static_assert(std::is_same<std::remove_pointer_t<First>, typename Preconditioner::super::co_type>::value, "Wrong constructor");
   }
   #else
   MatrixAccumulation(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, First &,
                      Second &arg2, Third &arg3, Fourth &arg4, Fifth &arg5, Rest &...args) :
     super(p, c, max, A, level, prefix, args...), overlap_(arg2), reduction_(arg3), sizes_(arg4), extra_(arg5)
   {
-    static_assert(std::is_same<typename std::remove_pointer<First>::type, typename Preconditioner::super::co_type>::value, "Wrong constructor");
+    static_assert(std::is_same<std::remove_pointer_t<First>, typename Preconditioner::super::co_type>::value, "Wrong constructor");
   }
   #endif
   static constexpr bool factorize_ = false;
@@ -645,7 +645,7 @@ public:
     int rank, size;
     MPI_Comm_rank(super::p_.getCommunicator(), &rank);
     MPI_Comm_size(super::p_.getCommunicator(), &size);
-    char *pattern = new char[size * size]();
+    char *pattern = new char[static_cast<std::size_t>(size) * size]();
     for (unsigned short i = 0; i < super::map_.size(); ++i) pattern[rank * size + super::map_[i].first] = 1;
     MPI_Allreduce(MPI_IN_PLACE, pattern, size * size, MPI_CHAR, MPI_SUM, super::p_.getCommunicator());
     if (split) {
@@ -695,7 +695,7 @@ public:
   void initialize(unsigned int k, K *&work, unsigned short s)
   {
     sb_  = k;
-    work = new K[2 * sb_];
+    work = new K[2 * static_cast<std::size_t>(sb_)];
   #if !HPDDM_PETSC
     if (HPDDM_NUMBERING != Wrapper<K>::I) {
       if (HPDDM_NUMBERING == 'F') {
@@ -761,20 +761,19 @@ public:
         if (S == 'S' && i < super::signed_) m += (U == 1 ? super::local_ * super::local_ : super::local_ * info[i]);
       } else interior.emplace_back(i);
     }
-    for (unsigned short i = 0; i < overlap.size(); ++i) {
+    for (unsigned short &i : overlap) {
       unsigned short size = 0;
-      for (unsigned short j = 0; j < accumulate[overlap[i]].size(); ++j) {
-        if (getMain(accumulate[overlap[i]][j]) == worker[overlap[i]]) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[overlap[i]][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[overlap[i]][j]) accumulate[overlap[i]][size++] = std::distance(neighbors, pt);
+      for (unsigned short j = 0; j < accumulate[i].size(); ++j) {
+        if (getMain(accumulate[i][j]) == worker[i]) {
+          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[i][size++] = std::distance(neighbors, pt);
         }
-        if (S == 'S' && getMain(accumulate[overlap[i]][j]) == main) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[overlap[i]][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[overlap[i]][j])
-            accumulate[super::map_.size() + overlap[i]].emplace_back(std::distance(neighbors, pt));
+        if (S == 'S' && getMain(accumulate[i][j]) == main) {
+          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[super::map_.size() + i].emplace_back(std::distance(neighbors, pt));
         }
       }
-      accumulate[overlap[i]].resize(size);
+      accumulate[i].resize(size);
     }
     MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
     delete[] neighbors;
@@ -1029,12 +1028,11 @@ public:
           for (unsigned short nu = 0; nu < super::local_; ++nu)
             Wrapper<K>::gthr(omap.size(), super::work_ + nu * super::n_, work + nu * omap.size(), omap.data());
           const std::vector<unsigned short> &r = accumulate[super::map_.size() + overlap[i]];
-          for (unsigned short j = 0; j < r.size(); ++j) {
+          for (unsigned short j : r) {
             for (unsigned short nu = 0; nu < super::local_; ++nu) {
               std::fill_n(tmp[super::map_.size()], omap.size(), K());
-              Wrapper<K>::sctr(nmap[r[j]].size(), buff[r[j]] + nu * nmap[r[j]].size(), nmap[r[j]].data(), tmp[super::map_.size()]);
-              for (unsigned int k = 0; k < nmap[overlap[i]].size(); ++k)
-                work[nmap[overlap[i]][k] + nu * omap.size()] += tmp[super::map_.size()][nmap[overlap[i]][k]];
+              Wrapper<K>::sctr(nmap[j].size(), buff[j] + nu * nmap[j].size(), nmap[j].data(), tmp[super::map_.size()]);
+              for (int &k : nmap[overlap[i]]) work[k + nu * omap.size()] += tmp[super::map_.size()][k];
             }
           }
           const int n = omap.size();
@@ -1051,10 +1049,10 @@ public:
           Wrapper<K>::gthr(super::map_[overlap[i]].second.size(), super::work_ + nu * super::n_, in[overlap[i]] + nu * super::map_[overlap[i]].second.size(),
                            super::map_[overlap[i]].second.data());
         const std::vector<unsigned short> &r = accumulate[overlap[i]];
-        for (unsigned short k = 0; k < r.size(); ++k) {
+        for (unsigned short k : r) {
           for (unsigned short nu = 0; nu < super::local_; ++nu) {
             std::fill_n(work, omap.size(), K());
-            Wrapper<K>::sctr(nmap[r[k]].size(), buff[r[k]] + nu * nmap[r[k]].size(), nmap[r[k]].data(), work);
+            Wrapper<K>::sctr(nmap[k].size(), buff[k] + nu * nmap[k].size(), nmap[k].data(), work);
             for (unsigned int j = 0; j < super::map_[overlap[i]].second.size(); ++j)
               in[overlap[i]][j + nu * super::map_[overlap[i]].second.size()] += work[nmap[overlap[i]][j]];
           }
@@ -1063,10 +1061,10 @@ public:
                   super::p_.getCommunicator(), rs + overlap[i]);
       }
     }
-    for (unsigned short i = 0; i < interior.size(); ++i) {
+    for (unsigned short &i : interior) {
       for (unsigned short k = 0; k < super::local_; ++k)
-        for (unsigned int j = 0; j < super::map_[interior[i]].second.size(); ++j)
-          super::work_[super::map_[interior[i]].second[j] + k * super::n_] += buff[interior[i]][j + k * super::map_[interior[i]].second.size()];
+        for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+          super::work_[super::map_[i].second[j] + k * super::n_] += buff[i][j + k * super::map_[i].second.size()];
     }
     for (unsigned short i = 0; i < interior.size() && interior[i] < super::signed_; ++i) {
       if (U || info[interior[i]]) {
@@ -1092,7 +1090,7 @@ public:
 template <class Preconditioner, FetiPrcndtnr Q, class K>
 class FetiProjection : public OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K> {
 private:
-  typedef OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K> super;
+  using super = OperatorBase<Q == FetiPrcndtnr::SUPERLUMPED ? 'f' : 'c', Preconditioner, K>;
   template <char S, bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *info)
   {
@@ -1377,12 +1375,12 @@ class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 private:
   #if HPDDM_PETSC
   const Mat                       A_;
-  Mat                             C_;
+  Mat                             C_{};
   PC_HPDDM_Level                 *level_;
   const std::string              &prefix_;
   const underlying_type<K> *const D_;
   #endif
-  typedef OperatorBase<'c', Preconditioner, K> super;
+  using super = OperatorBase<'c', Preconditioner, K>;
   template <char S, bool U>
   void applyFromNeighbor(const K *in, unsigned short index, K *&work, unsigned short *info)
   {
@@ -1445,7 +1443,7 @@ public:
   template <typename... Types>
   #if HPDDM_PETSC
   BddProjection(const Preconditioner &p, const unsigned short &c, const int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
-    super(p, c, max), A_(A), C_(), level_(level), prefix_(prefix), D_(p.getScaling())
+    super(p, c, max), A_(A), level_(level), prefix_(prefix), D_(p.getScaling())
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }

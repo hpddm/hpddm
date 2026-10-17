@@ -45,19 +45,19 @@ class Hypre : public DMatrix {
 private:
   /* Variable: A
          *  hypre IJ matrix. */
-  HYPRE_IJMatrix A_;
+  HYPRE_IJMatrix A_{};
   /* Variable: b
          *  hypre IJ right-hand side. */
-  HYPRE_IJVector b_;
+  HYPRE_IJVector b_{};
   /* Variable: x
          *  hypre IJ solution vector. */
-  HYPRE_IJVector x_;
+  HYPRE_IJVector x_{};
   /* Variable: solver
          *  hypre solver. */
-  HYPRE_Solver solver_;
+  HYPRE_Solver solver_{};
   /* Variable: precond
          *  hypre preconditioner (not used when <Hypre::strategy> is set to one). */
-  HYPRE_Solver precond_;
+  HYPRE_Solver precond_{};
   int          local_;
   char         type_;
 
@@ -67,7 +67,7 @@ protected:
   static constexpr char numbering_ = 'C';
 
 public:
-  Hypre() : A_(), b_(), x_(), solver_(), precond_() { }
+  Hypre() = default;
   ~Hypre()
   {
     if (DMatrix::communicator_ != MPI_COMM_NULL) {

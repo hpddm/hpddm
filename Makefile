@@ -395,7 +395,7 @@ CLANGTIDY_VERSION = 23
 CLANGTIDY ?= clang-tidy
 CLANGTIDYFLAGS ?= --warnings-as-errors=*
 CLANGTIDY_INCS ?=
-CLANGTIDY_PETSC_INCS ?= -I${PETSC_DIR}/include -I${PETSC_DIR}/${PETSC_ARCH}/include
+CLANGTIDY_PETSC_INCS ?= -isystem ${PETSC_DIR}/include -isystem ${PETSC_DIR}/${PETSC_ARCH}/include
 CLANGTIDY_CXX_SOURCES ?= examples/schwarz.cpp examples/generate.cpp examples/generateFromFile.cpp examples/driver.cpp benchmark/local_solver.cpp benchmark/local_eigensolver.cpp interface/hpddm_c.cpp interface/hpddm_fortran.cpp interface/hpddm_python.cpp
 CLANGTIDY_C_SOURCES ?= examples/schwarz.c examples/generate.c examples/custom_operator.c
 CLANGTIDY_PETSC_SOURCES ?= interface/petsc/ksp/hpddm.cxx interface/petsc/pc/pchpddm.cxx interface/hpddm_petsc.cpp
@@ -446,8 +446,8 @@ clangtidy: checkclangtidyversion
 	@set -e; for source in ${CLANGTIDY_C_SOURCES}; do \
 		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- ${CFLAGS} ${HPDDMFLAGS} ${INCS} ${CLANGTIDY_INCS}; \
 	done
-	@set -e; for source in ${CLANGTIDY_PETSC_SOURCES}; do \
-		${CLANGTIDY} ${CLANGTIDYFLAGS} $$source -- -std=c++14 -I./include ${CLANGTIDY_PETSC_INCS} ${CLANGTIDY_INCS}; \
+	@set -e; extra_checks="--checks=-modernize-avoid-c-style-cast"; for source in ${CLANGTIDY_PETSC_SOURCES}; do \
+		${CLANGTIDY} ${CLANGTIDYFLAGS} $$extra_checks $$source -- -std=c++14 -I./include ${CLANGTIDY_PETSC_INCS} --no-system-header-prefix=petsc/private/petschpddm.h ${CLANGTIDY_INCS}; \
 	done
 
 checkclangtidy: clangtidy

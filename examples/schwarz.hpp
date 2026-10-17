@@ -47,25 +47,25 @@
 #ifndef PETSCSUB
   #ifdef FORCE_SINGLE
     #ifdef FORCE_COMPLEX
-typedef std::complex<float> K;
+using K = std::complex<float>;
       #ifndef GENERAL_CO
         #define GENERAL_CO
       #endif
     #else
-typedef float K;
+using K = float;
     #endif
   #else
     #ifdef FORCE_COMPLEX
-typedef std::complex<double> K;
+using K = std::complex<double>;
       #ifndef GENERAL_CO
         #define GENERAL_CO
       #endif
     #else
-typedef double K;
+using K = double;
     #endif
   #endif
 #else
-typedef PetscScalar K;
+using K = PetscScalar;
   #ifdef PETSC_USE_COMPLEX
     #ifndef GENERAL_CO
       #define GENERAL_CO
@@ -74,12 +74,12 @@ typedef PetscScalar K;
 #endif
 
 #ifdef GENERAL_CO
-const char symCoarse = 'G';
+constexpr char symCoarse = 'G';
 #else
-const char symCoarse = 'S';
+constexpr char symCoarse = 'S';
 #endif
 
-const HPDDM::underlying_type<K> pi = 3.141592653589793238463;
+constexpr HPDDM::underlying_type<K> pi = 3.141592653589793238463;
 
 void generate(int, int, std::list<int> &, std::vector<std::vector<int>> &, int &, HPDDM::MatrixCSR<K> *&, HPDDM::MatrixCSR<K> *&, HPDDM::underlying_type<K> *&,
               K *&, K *&);

@@ -155,7 +155,7 @@ public:
       if (!s.empty()) {
         char *endptr = nullptr;
         int   val    = strtol(s.c_str(), &endptr, 10);
-        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(float(val)) && val > 0) return true;
+        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(static_cast<float>(val)) && val > 0) return true;
       }
       if (verbose) std::cerr << "'" << opt << "' requires a positive integer argument ('" << s << "' was supplied)" << std::endl;
       return false;
@@ -165,7 +165,7 @@ public:
       if (!s.empty()) {
         char *endptr = nullptr;
         int   val    = strtol(s.c_str(), &endptr, 10);
-        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(float(val))) return true;
+        if (endptr != s.c_str() && *endptr == 0 && !std::isnan(static_cast<float>(val))) return true;
       }
       if (verbose) std::cerr << "'" << opt << "' requires an integer argument ('" << s << "' was supplied)" << std::endl;
       return false;
@@ -196,7 +196,7 @@ public:
          *    pre            - Prefix to look for. */
   std::string prefix(const std::string &pre, const bool internal = false) const
   {
-    if (!internal && !app_) return std::string();
+    if (!internal && !app_) return {};
     std::unordered_map<std::string, double>::const_iterator pIt[2];
     if (internal) {
       pIt[0] = opt_.cbegin();
@@ -212,7 +212,7 @@ public:
       return match;
     });
     if (it != pIt[1]) return it->first.substr(prefix.size() + 1);
-    else return std::string();
+    else return {};
   }
   /* Function: any_of
          *
@@ -227,16 +227,16 @@ public:
     std::unordered_map<std::string, double>::const_iterator it = opt_.find(key);
     return (it != opt_.cend() && std::any_of(list.begin(), list.end(), [&](const T &t) { return t == static_cast<T>(it->second); }));
   }
-  template <class T, typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, const char>::value>::type * = nullptr,
+  template <class T, std::enable_if_t<std::is_same<T, char>::value || std::is_same<T, const char>::value> * = nullptr,
             class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>>
   int parse(int argc, T **argv, bool display = true, const Container &reg = {})
   {
     std::vector<std::string> args(argv, argv + argc);
     return parse(args, display, reg);
   }
-  template <
-    class C, class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>,
-    typename std::enable_if<!std::is_same<Container, bool>::value && !std::is_same<C, int>::value && !std::is_same<C, std::ifstream>::value>::type * = nullptr>
+  template <class C,
+            class Container = std::initializer_list<std::tuple<std::string, std::string, std::function<bool(const std::string &, const std::string &, bool)>>>,
+            std::enable_if_t<!std::is_same<Container, bool>::value && !std::is_same<C, int>::value && !std::is_same<C, std::ifstream>::value> * = nullptr>
   int parse(C &arg, bool display = true, const Container &reg = {})
   {
     std::vector<std::string> args;
@@ -401,20 +401,13 @@ public:
 template <class K>
 class OptionsPrefix {
 private:
-  K *storage_;
+  K *storage_{};
 #if !HPDDM_PETSC
 protected:
-  char *prefix_;
+  char *prefix_{};
 #endif
 public:
-  OptionsPrefix() :
-    storage_()
-#if !HPDDM_PETSC
-    ,
-    prefix_()
-#endif
-  {
-  }
+  OptionsPrefix() = default;
   ~OptionsPrefix()
   {
     delete[] storage_;
@@ -424,7 +417,7 @@ public:
     prefix_ = nullptr;
 #endif
   }
-  typedef K scalar_type;
+  using scalar_type = K;
 #if !HPDDM_PETSC
   void setPrefix(const char *prefix)
   {

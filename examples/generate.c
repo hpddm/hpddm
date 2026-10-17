@@ -63,7 +63,7 @@ void generate(int rankWorld, int sizeWorld, int *neighbors, int *o, int *sizes, 
   /*# InitEnd #*/
   if (!sym) nnz = 2 * nnz - ndof;
   *f                      = malloc(sizeof(K) * MAX(1, mu) * ndof);
-  *sol                    = calloc(MAX(1, mu) * ndof, sizeof(K));
+  *sol                    = calloc((size_t)MAX(1, mu) * ndof, sizeof(K));
   underlying_type xdim[2] = {0.0, 10.0};
   underlying_type ydim[2] = {0.0, 10.0};
   underlying_type dx      = (xdim[1] - xdim[0]) / (underlying_type)(Nx);

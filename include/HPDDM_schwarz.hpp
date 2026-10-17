@@ -33,14 +33,14 @@ PETSC_EXTERN PetscLogEvent PC_HPDDM_PtAP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_PtBP;
 PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
     #include "HPDDM_operator.hpp"
-typedef struct n_Aux *Aux;
+using Aux = struct n_Aux *;
 struct n_Aux {
   Mat V;
   Vec sigma;
   IS  is;
 };
 static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
-typedef struct n_Sum *Sum;
+using Sum = struct n_Sum *;
 struct n_Sum {
   Mat                       A[3];
   void                     *decomposition;
@@ -112,40 +112,20 @@ public:
 protected:
   /* Variable: d
          *  Local partition of unity. */
-  const underlying_type<K> *d_;
+  const underlying_type<K> *d_{};
 #if HPDDM_SCHWARZ
-  std::size_t hash_;
+  std::size_t hash_{};
   /* Variable: type
          *  Type of <Prcndtnr> used in <Schwarz::apply> and <Schwarz::deflation>. */
-  Prcndtnr type_;
+  Prcndtnr type_{Prcndtnr::NO};
 #endif
 public:
-  Schwarz() :
-    d_()
-#if HPDDM_SCHWARZ
-    ,
-    hash_(),
-    type_(Prcndtnr::NO)
-#endif
-  {
-  }
-  explicit Schwarz(const Subdomain<K> &s) :
-    super(s),
-    d_()
-#if HPDDM_SCHWARZ
-    ,
-    hash_(),
-    type_(Prcndtnr::NO)
-#endif
-  {
-  }
+  Schwarz() = default;
+  explicit Schwarz(const Subdomain<K> &s) : super(s) { }
 #if HPDDM_DENSE
   virtual
 #endif
-    ~Schwarz()
-  {
-    d_ = nullptr;
-  }
+    ~Schwarz() = default;
   void operator=(const Schwarz &B)
   {
     if (this == &B) return;
@@ -166,14 +146,13 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-  typedef Preconditioner<
+  using super = Preconditioner<
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
     Solver, CoarseOperator<CoarseSolver, S, K>,
 #elif HPDDM_PETSC
     CoarseOperator<DMatrix, K>,
 #endif
-    K>
-    super;
+    K>;
   /* Function: initialize
          *  Sets <Schwarz::d>. */
   void initialize(underlying_type<K> *const &d) { d_ = d; }
@@ -290,7 +269,7 @@ public:
       unsigned int             **idx  = new unsigned int *[Subdomain<K>::map_.size()];
       underlying_type<K> **const buff = new underlying_type<K> *[2 * Subdomain<K>::map_.size()];
       *idx                            = new unsigned int[n];
-      *buff                           = new underlying_type<K>[2 * n];
+      *buff                           = new underlying_type<K>[2 * static_cast<std::size_t>(n)];
       buff[Subdomain<K>::map_.size()] = *buff + n;
       n                               = 0;
       for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size; ++i) {
@@ -322,17 +301,17 @@ public:
       delete[] d;
       int rank;
       MPI_Comm_rank(Subdomain<K>::communicator_, &rank);
-      for (int k = 0; k < p.size(); ++k) {
+      for (int &k : p) {
         bool largest = true;
         for (unsigned short i = 0, size = Subdomain<K>::map_.size(); i < size && largest; ++i) {
           const std::vector<int> &v  = Subdomain<K>::map_[i].second;
-          unsigned int *const     it = std::lower_bound(idx[i], idx[i] + v.size(), p[k], [&v](unsigned int lhs, int rhs) { return v[lhs] < rhs; });
-          if (std::distance(idx[i], it) != v.size() && v[*it] == p[k]) {
-            const underlying_type<K> v = D[p[k]] - buff[i][*it];
+          unsigned int *const     it = std::lower_bound(idx[i], idx[i] + v.size(), k, [&v](unsigned int lhs, int rhs) { return v[lhs] < rhs; });
+          if (std::distance(idx[i], it) != v.size() && v[*it] == k) {
+            const underlying_type<K> v = D[k] - buff[i][*it];
             largest                    = (v > HPDDM_EPS || (HPDDM::abs(v) < HPDDM_EPS && rank > Subdomain<K>::map_[i].first));
           }
         }
-        D[p[k]] = (largest ? 1.0 : 0.0);
+        D[k] = (largest ? 1.0 : 0.0);
       }
       MPI_Waitall(Subdomain<K>::map_.size(), Subdomain<K>::rq_ + Subdomain<K>::map_.size(), MPI_STATUSES_IGNORE);
       delete[] *buff;
@@ -807,30 +786,33 @@ public:
       for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
         bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
         for (unsigned short nu = 0; nu < mu; ++nu) {
-          if (!boundary) storage[2 * nu + 1] += d_[i] * std::abs(tmp[nu * Subdomain<K>::dof_ + i]);
+          if (!boundary) storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] += d_[i] * std::abs(tmp[nu * Subdomain<K>::dof_ + i]);
           if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN)
-            storage[2 * nu] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
-          else storage[2 * nu] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i]);
+            storage[2 * static_cast<std::ptrdiff_t>(nu)] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
+          else storage[2 * static_cast<std::ptrdiff_t>(nu)] += d_[i] * std::abs(f[nu * Subdomain<K>::dof_ + i]);
         }
       }
     } else if (norm == HPDDM_COMPUTE_RESIDUAL_LINFTY) {
       for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
         bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
         for (unsigned short nu = 0; nu < mu; ++nu) {
-          if (!boundary) storage[2 * nu + 1] = std::max(std::abs(tmp[nu * Subdomain<K>::dof_ + i]), storage[2 * nu + 1]);
+          if (!boundary)
+            storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] = std::max(std::abs(tmp[nu * Subdomain<K>::dof_ + i]),
+                                                                        storage[2 * static_cast<std::ptrdiff_t>(nu) + 1]);
           if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN)
-            storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
-          else storage[2 * nu] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i]), storage[2 * nu]);
+            storage[2 * static_cast<std::ptrdiff_t>(nu)] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN)),
+                                                                    storage[2 * static_cast<std::ptrdiff_t>(nu)]);
+          else storage[2 * static_cast<std::ptrdiff_t>(nu)] = std::max(std::abs(f[nu * Subdomain<K>::dof_ + i]), storage[2 * static_cast<std::ptrdiff_t>(nu)]);
         }
       }
     } else {
       for (unsigned int i = 0; i < Subdomain<K>::dof_; ++i) {
         bool boundary = (std::abs(Subdomain<K>::boundaryCond(i)) > HPDDM_EPS);
         for (unsigned short nu = 0; nu < mu; ++nu) {
-          if (!boundary) storage[2 * nu + 1] += d_[i] * std::norm(tmp[nu * Subdomain<K>::dof_ + i]);
+          if (!boundary) storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] += d_[i] * std::norm(tmp[nu * Subdomain<K>::dof_ + i]);
           if (std::abs(f[nu * Subdomain<K>::dof_ + i]) > HPDDM_EPS * HPDDM_PEN)
-            storage[2 * nu] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
-          else storage[2 * nu] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i]);
+            storage[2 * static_cast<std::ptrdiff_t>(nu)] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i] / underlying_type<K>(HPDDM_PEN));
+          else storage[2 * static_cast<std::ptrdiff_t>(nu)] += d_[i] * std::norm(f[nu * Subdomain<K>::dof_ + i]);
         }
       }
     }
@@ -890,11 +872,11 @@ public:
       if (!ismatis) {
         PetscInt *idx;
         PetscCall(PetscMalloc1(Subdomain<K>::dof_ / bs, &idx));
-        for (PetscInt i = 0; i < Subdomain<K>::dof_ / bs; ++i) idx[i] = ptr[i * bs] / bs;
+        for (PetscInt i = 0; i < Subdomain<K>::dof_ / bs; ++i) idx[i] = ptr[static_cast<std::ptrdiff_t>(i) * bs] / bs;
         PetscCall(ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, Subdomain<K>::dof_ / bs, idx, PETSC_OWN_POINTER, &l2g));
       }
       v.reserve(Subdomain<K>::dof_ / bs);
-      for (PetscInt i = 0; i < Subdomain<K>::dof_; i += bs) v.emplace_back(std::make_pair(ptr[i], i));
+      for (PetscInt i = 0; i < Subdomain<K>::dof_; i += bs) v.emplace_back(ptr[i], i);
       std::sort(v.begin(), v.end());
       PetscInt   nproc;
       PetscInt  *procs;
@@ -1035,9 +1017,9 @@ public:
   #if defined(PETSC_HAVE_HTOOL)
     } else {
       struct ClassWithPtr {
-        typedef Schwarz<PetscScalar> super;
-        const super *const           A_;
-        const PetscScalar *const     E_;
+        using super = Schwarz<PetscScalar>;
+        const super *const       A_;
+        const PetscScalar *const E_;
         ClassWithPtr(const super *const A, const PetscScalar *const E) : A_(A), E_(E) { }
         const MPI_Comm          &getCommunicator() const { return A_->getCommunicator(); }
         const vectorNeighbor    &getMap() const { return A_->getMap(); }
@@ -1132,7 +1114,8 @@ public:
                 m *= m;
               }
               PetscCall(MatDenseGetArrayRead(C, &vals));
-              for (PetscInt i = 0; i < n; ++i) PetscCall(MatSetValuesBlocked(A, n, rows, 1, rows + i, vals + m * n * i, INSERT_VALUES));
+              for (PetscInt i = 0; i < n; ++i)
+                PetscCall(MatSetValuesBlocked(A, n, rows, 1, rows + i, vals + static_cast<std::ptrdiff_t>(m) * n * i, INSERT_VALUES));
               PetscCall(ISBlockRestoreIndices(h->is[4], &rows));
               PetscCall(MatDenseRestoreArrayRead(C, &vals));
               PetscCall(MatDestroy(&C));
@@ -1560,7 +1543,7 @@ public:
     if (i + 1 < *n && levels[i - 1]->P) {
       PetscBool      algebraic;
       char           type[256] = {}; /* same size as in src/ksp/pc/interface/pcset.c */
-      std::string    prefix(((PetscObject)levels[i - 1]->ksp)->prefix);
+      std::string    prefix(reinterpret_cast<PetscObject>(levels[i - 1]->ksp)->prefix);
       unsigned int   pos   = prefix.rfind("levels_", prefix.size() - 1);
       unsigned short level = std::stoi(prefix.substr(pos + 7, prefix.size() - 1));
       prefix               = prefix.substr(0, pos + 7) + std::to_string(level + 1) + "_";

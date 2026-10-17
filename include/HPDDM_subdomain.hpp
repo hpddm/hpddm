@@ -46,21 +46,21 @@ class Subdomain
 protected:
   /* Variable: a
          *  Local matrix. */
-  MatrixCSR<K> *a_;
+  MatrixCSR<K> *a_{};
   /* Variable : buff
          *  Array used as the receiving and receiving buffer for point-to-point communications with neighboring subdomains. */
-  K **buff_;
+  K **buff_{};
   /* Variable: map */
   vectorNeighbor map_;
   /* Variable: rq
          *  Array of MPI requests to check completion of the MPI transfers with neighboring subdomains. */
-  MPI_Request *rq_;
+  MPI_Request *rq_{};
   /* Variable: communicator
          *  MPI communicator of the subdomain. */
-  MPI_Comm communicator_;
+  MPI_Comm communicator_{MPI_COMM_NULL};
   /* Variable: dof
          *  Number of degrees of freedom in the current subdomain. */
-  int  dof_;
+  int  dof_{};
   void dtor()
   {
     clearBuffer();
@@ -75,23 +75,11 @@ protected:
   }
 
 public:
-  Subdomain() :
-#if !HPDDM_PETSC
-    OptionsPrefix<K>(),
-#endif
-    a_(),
-    buff_(),
-    map_(),
-    rq_(),
-    communicator_(MPI_COMM_NULL),
-    dof_()
-  {
-  }
+  Subdomain() = default;
   Subdomain(const Subdomain<K> &s) :
 #if !HPDDM_PETSC
     OptionsPrefix<K>(),
 #endif
-    a_(),
     buff_(new K *[2 * s.map_.size()]),
     map_(s.map_),
     rq_(new MPI_Request[2 * s.map_.size()]),
@@ -100,7 +88,7 @@ public:
   {
   }
   ~Subdomain() { dtor(); }
-  typedef int integer_type;
+  using integer_type = int;
   /* Function: getCommunicator
          *  Returns a reference to <Subdomain::communicator>. */
   const MPI_Comm &getCommunicator() const { return communicator_; }
@@ -129,8 +117,8 @@ public:
       ignore(MPI_Waitall(map_.size(), rq_ + map_.size(), MPI_STATUSES_IGNORE));
     }
   }
-  template <class T, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex &&
-                                             std::is_same<K, underlying_type<T>>::value>::type * = nullptr>
+  template <class T,
+            std::enable_if_t<!HPDDM::Wrapper<K>::is_complex && HPDDM::Wrapper<T>::is_complex && std::is_same<K, underlying_type<T>>::value> * = nullptr>
   void exchange(T *const in, const unsigned short &mu = 1) const
   {
     for (unsigned short nu = 0; nu < mu; ++nu) {
@@ -198,10 +186,10 @@ public:
     }
     if (perm) {
       const int    size  = map_.size();
-      MPI_Request *rq    = new MPI_Request[2 * size];
+      MPI_Request *rq    = new MPI_Request[2 * static_cast<std::size_t>(size)];
       unsigned int space = 0;
       for (unsigned short i = 0; i < size; ++i) space += map_[i].second.size();
-      unsigned char *send = new unsigned char[2 * space];
+      unsigned char *send = new unsigned char[2 * static_cast<std::size_t>(space)];
       unsigned char *recv = send + space;
       space               = 0;
       for (unsigned short i = 0; i < size; ++i) {
@@ -271,7 +259,7 @@ public:
       *buff_   = wk;
       allocate = false;
     } else {
-      *buff_   = new K[2 * n];
+      *buff_   = new K[2 * static_cast<std::size_t>(n)];
       allocate = true;
     }
     buff_[map_.size()] = *buff_ + n;
@@ -495,8 +483,8 @@ public:
       local[rankWorld] = (list ? r.size() : std::distance(first, last));
       std::unordered_set<unsigned int> removed;
       removed.reserve(local[rankWorld]);
-      for (unsigned short i = 0; i < map_.size(); ++i)
-        for (const int &j : map_[i].second) {
+      for (const auto &i : map_)
+        for (const int &j : i.second) {
           if (d && d[j] < HPDDM_EPS && removed.find(j) == removed.cend() && (!list || list[j] > 0)) {
             --local[rankWorld];
             removed.insert(j);
@@ -668,7 +656,7 @@ public:
 };
 
 #if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
-template <bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type *>
+template <bool excluded, class Operator, class K, std::enable_if_t<hpddm_method_id<Operator>::value != 0> *>
 inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *&sb, K *const x, K *&sx, const int &mu, unsigned short &k, const MPI_Comm &comm)
 {
   int size;
@@ -686,7 +674,7 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
     int rank;
     MPI_Comm_rank(A.getCommunicator(), &rank);
     k                              = std::min(k, static_cast<unsigned short>(size));
-    unsigned int           *local  = new unsigned int[2 * k];
+    unsigned int           *local  = new unsigned int[2 * static_cast<std::size_t>(k)];
     unsigned int           *global = local + k;
     const int               n      = excluded ? 0 : A.getDof();
     const vectorNeighbor   &map    = A.getMap();
@@ -719,8 +707,8 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
     }
     if (k > 1) {
       unsigned short *idx = new unsigned short[n];
-      sx                  = new K[k * n]();
-      sb                  = new K[k * n]();
+      sx                  = new K[static_cast<std::size_t>(k) * n]();
+      sb                  = new K[static_cast<std::size_t>(k) * n]();
       const int div       = size / k;
       if (!excluded && n > 0) {
         std::fill_n(idx, n, std::min(rank / div, k - 1) + 1);
@@ -729,8 +717,8 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
           for (const int index : neighbor.second) idx[index] = value;
         }
         for (unsigned int i = 0; i < n; ++i) {
-          sx[i + (idx[i] - 1) * n] = x[i];
-          sb[i + (idx[i] - 1) * n] = b[i];
+          sx[i + (static_cast<std::ptrdiff_t>(idx[i]) - 1) * n] = x[i];
+          sb[i + (static_cast<std::ptrdiff_t>(idx[i]) - 1) * n] = b[i];
         }
       }
       std::function<K *(K *, unsigned int *, unsigned int *, int)> lambda = [&](K *sb, unsigned int *local, unsigned int *swap, int n) {

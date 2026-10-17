@@ -38,9 +38,9 @@
 #include "HPDDM.hpp"
 
 #ifdef FORCE_COMPLEX
-typedef std::complex<double> K;
+using K = std::complex<double>;
 #else
-typedef double K;
+using K = double;
 #endif
 
 struct CustomOperator : HPDDM::CustomOperator<HPDDM::MatrixCSR<K>, K> {
@@ -109,7 +109,7 @@ int main(int argc, char **argv)
       for (unsigned int i = 0; i < nnz; ++i) Mat->a_[i] = HPDDM::template sto<double>(s[3 + i]);
       for (unsigned int i = 0; i < nnz; ++i) Mat->ja_[i] = HPDDM::template sto<int>(s[nnz + 3 + i]);
       for (unsigned int i = 0; i < n + 1; ++i) Mat->ia_[i] = HPDDM::template sto<int>(s[2 * nnz + 3 + i]);
-      rhs = new K[mu * n];
+      rhs = new K[static_cast<std::size_t>(mu) * n];
       for (unsigned int i = 0; i < n; ++i) rhs[i] = HPDDM::template sto<double>(s[2 * nnz + n + 4 + i]);
       t.close();
     }
@@ -117,21 +117,21 @@ int main(int argc, char **argv)
     else {
       A = new CustomOperator(Mat);
     }
-    K *x = new K[mu * Mat->n_]();
+    K *x = new K[static_cast<std::size_t>(mu) * Mat->n_]();
     if (mu > 1)
-      for (unsigned short nu = 1; nu < mu; ++nu) std::copy_n(rhs, Mat->n_, rhs + nu * Mat->n_);
+      for (unsigned short nu = 1; nu < mu; ++nu) std::copy_n(rhs, Mat->n_, rhs + static_cast<std::ptrdiff_t>(nu) * Mat->n_);
     it += HPDDM::IterativeMethod::solve(*A, rhs, x, mu, MPI_COMM_SELF);
-    HPDDM::underlying_type<K> *nrmb = new HPDDM::underlying_type<K>[2 * mu];
+    HPDDM::underlying_type<K> *nrmb = new HPDDM::underlying_type<K>[2 * static_cast<std::size_t>(mu)];
     int                        n    = Mat->n_;
-    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&n, rhs + nu * n, &(HPDDM::i_1));
-    K *tmp = new K[mu * n];
+    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&n, rhs + static_cast<std::ptrdiff_t>(nu) * n, &(HPDDM::i_1));
+    K *tmp = new K[static_cast<std::size_t>(mu) * n];
     HPDDM::Wrapper<K>::csrmm(Mat->sym_, &n, &mu, Mat->a_, Mat->ia_, Mat->ja_, x, tmp);
     n *= mu;
     HPDDM::Blas<K>::axpy(&n, &(HPDDM::Wrapper<K>::d_2), rhs, &(HPDDM::i_1), tmp, &(HPDDM::i_1));
     n /= mu;
     HPDDM::underlying_type<K> *nrmAx = nrmb + mu;
     for (unsigned short nu = 0; nu < mu; ++nu) {
-      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&n, tmp + nu * n, &(HPDDM::i_1));
+      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&n, tmp + static_cast<std::ptrdiff_t>(nu) * n, &(HPDDM::i_1));
       if (nu == 0) std::cout << " --- residual = ";
       else std::cout << "                ";
       std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];

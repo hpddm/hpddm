@@ -41,10 +41,10 @@ namespace HPDDM
 template <class K>
 class DissectionSub {
 private:
-  DissectionSolver<K, underlying_type<K>> *dslv_;
+  DissectionSolver<K, underlying_type<K>> *dslv_{};
 
 public:
-  DissectionSub() : dslv_() { }
+  DissectionSub()                      = default;
   DissectionSub(const DissectionSub &) = delete;
   ~DissectionSub() { dtor(); }
   static constexpr char numbering_ = 'C';

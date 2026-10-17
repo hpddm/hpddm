@@ -225,7 +225,7 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
   std::copy_n(rho, mu * mu, rho + mu * mu);
   int info = -1;
   for (unsigned short i = 0; i < mu && info == -1; ++i)
-    if (HPDDM::abs(rho[(i + 1) * mu]) > underlying_type<K>(10.0) * std::numeric_limits<underlying_type<K>>::epsilon()) info = 0;
+    if (HPDDM::abs(rho[(static_cast<std::ptrdiff_t>(i) + 1) * mu]) > underlying_type<K>(10.0) * std::numeric_limits<underlying_type<K>>::epsilon()) info = 0;
   if (info == 0) info = QR<excluded>(id[1], n, mu, p, gamma, mu, d, trash, comm);
   if (info != mu) {
     A.end(allocate);
@@ -398,7 +398,7 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
     for (unsigned short nu = 0; nu < m[0]; ++nu) Blas<K>::axpy(&(info = nu + 1), &(Wrapper<K>::d_1), gamma + mu * nu, &i_1, trash, &i_1);
     *norm = Blas<K>::nrm2(&(info = m[0]), trash, &i_1);
   }
-  if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) {
+  if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
     Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
     Lapack<K>::lapmt(&i_1, &n, &mu, r, &n, piv);
     if (m[0] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
@@ -407,8 +407,8 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
   A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(norm, norm + (m[0] <= 1 ? deflated : 1)));
   PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
   PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-  if (A.ksp_->rnorm > PetscReal(10.0) * std::numeric_limits<PetscReal>::epsilon()) {
-    if (tol[0] <= static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9) && deflated != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
+  if (A.ksp_->rnorm > static_cast<PetscReal>(10.0) * std::numeric_limits<PetscReal>::epsilon()) {
+    if (tol[0] <= static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && deflated != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
     else PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
   } else A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
   if (A.ksp_->reason) {
@@ -465,21 +465,21 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
         std::swap_ranges(p, p + dim, z);
         Blas<K>::gemm("N", "N", &n, &mu, &deflated, &(Wrapper<K>::d_2), z, &n, alpha, &deflated, &(Wrapper<K>::d_1), p, &n);
       }
-      if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) {
+      if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
         Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
         Lapack<K>::lapmt(&i_0, &n, &mu, p, &n, piv);
         Lapack<K>::lapmt(&i_0, &n, &mu, r, &n, piv);
         if (m[0] <= 1) Lapack<underlying_type<K>>::lapmt(&i_0, &i_1, &mu, norm, &i_1, piv);
       }
       RRQR<excluded>(id[1], n, mu, p, gamma, static_cast<underlying_type<K>>(tol[0]), deflated, piv, d, trash, comm);
-      if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) {
+      if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
         Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
         Lapack<K>::lapmt(&i_1, &n, &mu, r, &n, piv);
         if (m[0] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
       }
     }
   }
-  if (tol[0] > static_cast<typename std::remove_reference<decltype(*tol)>::type>(-0.9)) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
+  if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
   convergence<6>(id[0], HPDDM_IT(i, A), HPDDM_MAX_IT(m[1], A));
 #endif
@@ -493,7 +493,7 @@ inline int IterativeMethod::PCG(const Operator &A, const K *const f, K *const x,
   unsigned short     it;
   char               verbosity;
   options<8>(A, &tol, nullptr, &it, &verbosity);
-  typedef typename std::conditional<std::is_pointer<typename std::remove_reference<decltype(*A.getScaling())>::type>::value, K **, K *>::type ptr_type;
+  using ptr_type   = std::conditional_t<std::is_pointer<std::remove_reference_t<decltype(*A.getScaling())>>::value, K **, K *>;
   const int n      = std::is_same<ptr_type, K *>::value ? A.getDof() : A.getMult();
   const int offset = std::is_same<ptr_type, K *>::value ? A.getEliminated() : 0;
   ptr_type  storage[std::is_same<ptr_type, K *>::value ? 1 : 2];

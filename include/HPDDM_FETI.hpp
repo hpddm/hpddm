@@ -42,13 +42,13 @@ class Feti : public Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> {
 private:
   /* Variable: primal
          *  Storage for local primal unknowns. */
-  K *primal_;
+  K *primal_{};
   /* Variable: dual
          *  Storage for local dual unknowns. */
-  K **dual_;
+  K **dual_{};
   /* Variable: m
          *  Local partition of unity. */
-  underlying_type<K> **m_;
+  underlying_type<K> **m_{};
   /* Function: A
          *
          *  Jump operator.
@@ -93,14 +93,14 @@ private:
       Blas<K>::axpy(&(super::mult_), &(Wrapper<K>::d_1), Subdomain<K>::buff_[0], &i_1, *dual, &i_1);
     }
   }
-  template <class U, typename std::enable_if<!Wrapper<U>::is_complex>::type * = nullptr>
+  template <class U, std::enable_if_t<!Wrapper<U>::is_complex> * = nullptr>
   void allocate(U **&dual, underlying_type<U> **&m)
   {
     static_assert(std::is_same<U, K>::value, "Wrong types");
     dual = new U *[2 * Subdomain<K>::map_.size()];
     m    = dual + Subdomain<K>::map_.size();
   }
-  template <class U, typename std::enable_if<Wrapper<U>::is_complex>::type * = nullptr>
+  template <class U, std::enable_if_t<Wrapper<U>::is_complex> * = nullptr>
   void allocate(U **&dual, underlying_type<U> **&m)
   {
     static_assert(std::is_same<U, K>::value, "Wrong types");
@@ -109,7 +109,7 @@ private:
   }
 
 public:
-  Feti() : primal_(), dual_(), m_() { }
+  Feti() = default;
   ~Feti()
   {
     delete[] super::schur_;
@@ -120,7 +120,7 @@ public:
   }
   /* Typedef: super
          *  Type of the immediate parent class <Schur>. */
-  typedef Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K> super;
+  using super = Schur<Solver, CoarseOperator<CoarseSolver, S, K>, K>;
   /* Function: initialize
          *  Allocates <Feti::primal>, <Feti::dual>, and <Feti::m> and calls <Schur::initialize>. */
   void initialize()

@@ -130,19 +130,19 @@ struct Blas {
      *  Computes a scalar-vector product and adds the result to a vector. */
   static void axpy(const int *const, const K *const, const K *const, const int *const, K *const, const int *const);
   template <class U, class V,
-            typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value)
+            std::enable_if_t<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value)
   #if defined(PETSC_HAVE_REAL___FLOAT128) && !defined(PETSC_SKIP_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
-                                    && !std::is_same<U, __complex128>::value
+                             && !std::is_same<U, __complex128>::value
   #endif
-                                    >::type * = nullptr>
+                             > * = nullptr>
   static void axpy(const int *const n, const K *const a, const U *const x, const int *const incx, V *const y, const int *const incy)
   {
     for (int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) y[k] += static_cast<V>(static_cast<U>(*a) * x[j]);
   }
   #if defined(PETSC_HAVE_REAL___FLOAT128) && !defined(PETSC_SKIP_REAL___FLOAT128) && !(defined(__NVCC__) || defined(__CUDACC__))
   template <class U, class V,
-            typename std::enable_if<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) &&
-                                    std::is_same<U, __complex128>::value>::type * = nullptr>
+            std::enable_if_t<!(std::is_same<U, V>::value && std::is_same<U, K>::value && std::is_same<V, K>::value) && std::is_same<U, __complex128>::value> * =
+              nullptr>
   static void axpy(const int *const n, const K *const a, const U *const x, const int *const incx, V *const y, const int *const incy)
   {
     U alpha;
@@ -165,9 +165,9 @@ struct Blas {
   static void scal(const int *const, const K *const, K *const, const int *const);
   /* Function: nrm2
      *  Computes the Euclidean norm of a vector. */
-  template <class U, typename std::enable_if<!std::is_same<underlying_type<U>, float>::value>::type * = nullptr>
+  template <class U, std::enable_if_t<!std::is_same<underlying_type<U>, float>::value> * = nullptr>
   static underlying_type<U> nrm2(const int *const, const U *const, const int *const);
-  template <class U, typename std::enable_if<std::is_same<underlying_type<U>, float>::value>::type * = nullptr>
+  template <class U, std::enable_if_t<std::is_same<underlying_type<U>, float>::value> * = nullptr>
   static underlying_type<U> nrm2(const int *const n, const U *const x, const int *const incx)
   {
     underlying_type<U> sum = underlying_type<U>();
@@ -176,16 +176,16 @@ struct Blas {
   }
   /* Function: dot
      *  Computes a vector-vector dot product. */
-  template <class U, typename std::enable_if<std::is_same<U, double>::value>::type * = nullptr>
+  template <class U, std::enable_if_t<std::is_same<U, double>::value> * = nullptr>
   static U dot(const int *const, const U *const, const int *const, const U *const, const int *const);
-  template <class U, typename std::enable_if<std::is_same<U, float>::value>::type * = nullptr>
+  template <class U, std::enable_if_t<std::is_same<U, float>::value> * = nullptr>
   static U dot(const int *const n, const U *const x, const int *const incx, const U *const y, const int *const incy)
   {
     U sum = U();
     for (int i = 0, j = 0, k = 0; i < *n; ++i, j += *incx, k += *incy) sum += x[j] * y[k];
     return sum;
   }
-  template <class U, typename std::enable_if<!std::is_same<U, float>::value && !std::is_same<U, double>::value>::type * = nullptr>
+  template <class U, std::enable_if_t<!std::is_same<U, float>::value && !std::is_same<U, double>::value> * = nullptr>
   static U dot(const int *const n, const U *const x, const int *const incx, const U *const y, const int *const incy)
   {
     U sum = U();
@@ -426,9 +426,10 @@ template <class K>
 inline void Blas<K>::axpby(const int &n, const K &alpha, const K *const u, const int &incx, const K &beta, K *const v, const int &incy)
 {
   if (beta == K())
-    for (int i = 0; i < n; ++i) v[i * incy] = alpha * u[i * incx];
+    for (int i = 0; i < n; ++i) v[static_cast<std::ptrdiff_t>(i) * incy] = alpha * u[static_cast<std::ptrdiff_t>(i) * incx];
   else
-    for (int i = 0; i < n; ++i) v[i * incy] = alpha * u[i * incx] + beta * v[i * incy];
+    for (int i = 0; i < n; ++i)
+      v[static_cast<std::ptrdiff_t>(i) * incy] = alpha * u[static_cast<std::ptrdiff_t>(i) * incx] + beta * v[static_cast<std::ptrdiff_t>(i) * incy];
 }
 } // namespace HPDDM
 #endif // __cplusplus
