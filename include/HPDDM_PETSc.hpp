@@ -200,27 +200,14 @@ public:
         PetscCall(MatGetSize(A, &N, nullptr));
         PetscCall(MatDestroy(x));
         PetscCall(MatDestroy(x + 1));
-        if (flg) {
-#if defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES)
-          PCHPDDMCoarseCorrectionType type;
-          PetscCall(PCHPDDMGetCoarseCorrectionType(pc, &type));
-          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE, nullptr, x + 1));
-          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE,
-                                              !std::is_same<PetscScalar, K>::value || PetscMemTypeDevice(mtype) || type == PC_HPDDM_COARSE_CORRECTION_BALANCED
-                                                ? nullptr
-                                                : reinterpret_cast<PetscScalar *>(out),
-                                              x));
-#endif
-        } else {
-          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE,
-                                              std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)
-                                                ? reinterpret_cast<PetscScalar *>(const_cast<K *>(in))
-                                                : nullptr,
-                                              x + 1));
-          PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE,
-                                              std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype) ? reinterpret_cast<PetscScalar *>(out) : nullptr,
-                                              x));
-        }
+        PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE,
+                                            !flg && std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype)
+                                              ? reinterpret_cast<PetscScalar *>(const_cast<K *>(in))
+                                              : nullptr,
+                                            x + 1));
+        PetscCall(MatCreateDenseWithMemType(PetscObjectComm((PetscObject)ksp_), mtype, super::n_, PETSC_DECIDE, N, mu, PETSC_DECIDE,
+                                            std::is_same<PetscScalar, K>::value && PetscMemTypeHost(mtype) ? reinterpret_cast<PetscScalar *>(out) : nullptr,
+                                            x));
         PetscCall(MatProductCreateWithMat(A, X_[1], nullptr, X_[0]));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
         PetscCall(MatProductSetType(X_[0], !ksp_->transpose_solve ? MATPRODUCT_AB : MATPRODUCT_AtB));
