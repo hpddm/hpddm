@@ -129,20 +129,20 @@ int main(int argc, char **argv)
     /*# Solution #*/
     int it = HPDDM::IterativeMethod::solve(A, f, sol, mu, A.getCommunicator());
     /*# SolutionEnd #*/
-    HPDDM::underlying_type<K> *storage = new HPDDM::underlying_type<K>[2 * mu];
+    HPDDM::underlying_type<K> *storage = new HPDDM::underlying_type<K>[2 * static_cast<std::size_t>(mu)];
     A.computeResidual(sol, f, storage, mu);
     if (rankWorld == 0)
       for (unsigned short nu = 0; nu < mu; ++nu) {
         if (nu == 0) std::cout << " --- residual = ";
         else std::cout << "                ";
-        std::cout << std::scientific << storage[1 + 2 * nu] << " / " << storage[2 * nu];
+        std::cout << std::scientific << storage[1 + 2 * static_cast<std::ptrdiff_t>(nu)] << " / " << storage[2 * static_cast<std::ptrdiff_t>(nu)];
         if (mu > 1) std::cout << " (rhs #" << nu + 1 << ")";
         std::cout << std::endl;
       }
     if (it > ((HPDDM_MIXED_PRECISION || opt.val<char>(prefix + "krylov_method", HPDDM_KRYLOV_METHOD_GMRES) == HPDDM_KRYLOV_METHOD_BFBCG) ? 60 : 45)) status = 1;
     else {
       for (unsigned short nu = 0; nu < mu; ++nu)
-        if (storage[1 + 2 * nu] / storage[2 * nu] > 1.0e-2) status = 1;
+        if (storage[1 + 2 * static_cast<std::ptrdiff_t>(nu)] / storage[2 * static_cast<std::ptrdiff_t>(nu)] > 1.0e-2) status = 1;
     }
     delete[] storage;
     char verbosity = opt.val<char>("verbosity", 0);
@@ -161,9 +161,9 @@ int main(int argc, char **argv)
       S.numfact(Mat);
       S.solve(f, sol, mu);
     } else it = HPDDM::IterativeMethod::solve(CustomOperator(Mat), f, sol, mu, MPI_COMM_SELF);
-    HPDDM::underlying_type<K> *nrmb = new HPDDM::underlying_type<K>[2 * mu];
-    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + nu * ndof, &(HPDDM::i_1));
-    K *tmp = new K[mu * ndof];
+    HPDDM::underlying_type<K> *nrmb = new HPDDM::underlying_type<K>[2 * static_cast<std::size_t>(mu)];
+    for (unsigned short nu = 0; nu < mu; ++nu) nrmb[nu] = HPDDM::Blas<K>::nrm2(&ndof, f + static_cast<std::ptrdiff_t>(nu) * ndof, &(HPDDM::i_1));
+    K *tmp = new K[static_cast<std::size_t>(mu) * ndof];
     HPDDM::Wrapper<K>::csrmm(Mat->sym_, &ndof, &mu, Mat->a_, Mat->ia_, Mat->ja_, sol, tmp);
     ndof *= mu;
     float minus = -1.0;
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
     ndof /= mu;
     HPDDM::underlying_type<K> *nrmAx = nrmb + mu;
     for (unsigned short nu = 0; nu < mu; ++nu) {
-      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&ndof, tmp + nu * ndof, &(HPDDM::i_1));
+      nrmAx[nu] = HPDDM::Blas<K>::nrm2(&ndof, tmp + static_cast<std::ptrdiff_t>(nu) * ndof, &(HPDDM::i_1));
       if (nu == 0) std::cout << " --- residual = ";
       else std::cout << "                ";
       std::cout << std::scientific << nrmAx[nu] << " / " << nrmb[nu];

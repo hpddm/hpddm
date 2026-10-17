@@ -161,7 +161,7 @@ struct Lapack {
   /* Function: pocon
      *  Estimates the reciprocal of the condition number of a symmetric or Hermitian positive definite matrix. */
   static void pocon(const char *, const int *, const K *, const int *, underlying_type<K> *, underlying_type<K> *, K *,
-                    typename std::conditional<Wrapper<K>::is_complex, underlying_type<K> *, int *>::type, int *);
+                    std::conditional_t<Wrapper<K>::is_complex, underlying_type<K> *, int *>, int *);
   /* Function: potrs
      *  Solves a system of linear equations with a Cholesky-factored matrix. */
   static void potrs(const char *, const int *, const int *, const K *, const int *, K *, const int *, int *);
@@ -298,7 +298,7 @@ public:
   #endif
     if (cpy)
       for (unsigned int i = 0; i < n_; ++i) {
-        a_[i * (n_ + 1)] = cpy[i * (n_ + 1)];
+        a_[static_cast<std::ptrdiff_t>(i) * (n_ + 1)] = cpy[static_cast<std::ptrdiff_t>(i) * (n_ + 1)];
         for (unsigned int j = i + 1; j < n_; ++j) a_[j * n_ + i] = a_[i * n_ + j] = cpy[i * n_ + j];
       }
   }
@@ -321,16 +321,16 @@ public:
     jpvt.reserve(6);
     underlying_type<K> max = std::abs(a_[0]);
     for (unsigned int i = 1; i < n_; ++i) {
-      if (std::abs(a_[(n_ + 1) * i]) < max * 1.0e-6) jpvt.emplace_back(i);
-      else if (std::abs(a_[(n_ + 1) * i]) > max / 1.0e-6) {
+      if (std::abs(a_[(static_cast<std::ptrdiff_t>(n_) + 1) * i]) < max * 1.0e-6) jpvt.emplace_back(i);
+      else if (std::abs(a_[(static_cast<std::ptrdiff_t>(n_) + 1) * i]) > max / 1.0e-6) {
         jpvt.clear();
-        max = std::abs(a_[(n_ + 1) * i]);
+        max = std::abs(a_[(static_cast<std::ptrdiff_t>(n_) + 1) * i]);
         i   = 0;
-      } else max = std::max(std::abs(a_[(i + 1) * n_]), max);
+      } else max = std::max(std::abs(a_[(static_cast<std::ptrdiff_t>(i) + 1) * n_]), max);
     }
     std::for_each(jpvt.cbegin(), jpvt.cend(), [&](const int i) {
       std::fill_n(a_ + n_ * i, i, K());
-      a_[(n_ + 1) * i] = Wrapper<K>::d_1;
+      a_[(static_cast<std::ptrdiff_t>(n_) + 1) * i] = Wrapper<K>::d_1;
     });
   #endif
   }
@@ -359,13 +359,13 @@ public:
 template <class K>
 class LapackTRSub {
 private:
-  K             *a_;
-  int           *ipiv_;
-  int            n_;
-  unsigned short type_;
+  K             *a_{};
+  int           *ipiv_{};
+  int            n_{};
+  unsigned short type_{};
 
 public:
-  LapackTRSub() : a_(), ipiv_(), n_(), type_() { }
+  LapackTRSub()                    = default;
   LapackTRSub(const LapackTRSub &) = delete;
   ~LapackTRSub() { dtor(); }
   static constexpr char numbering_ = 'F';
@@ -441,7 +441,7 @@ public:
 template <class K>
 class LapackTR : public DMatrix, public LapackTRSub<K> {
 private:
-  typedef LapackTRSub<K> super;
+  using super = LapackTRSub<K>;
 
 protected:
   /* Variable: numbering

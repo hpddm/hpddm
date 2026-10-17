@@ -30,8 +30,8 @@ namespace HPDDM
 {
 class PETScOperator : public EmptyOperator<PetscScalar, PetscInt> {
 public:
-  typedef EmptyOperator<PetscScalar, PetscInt> super;
-  const KSP                                    ksp_;
+  using super = EmptyOperator<PetscScalar, PetscInt>;
+  const KSP ksp_;
 
 private:
   Vec b_, x_;
@@ -480,10 +480,10 @@ inline PetscErrorCode convert(MatrixCSR<K> *const &A, Mat &P)
 template <class K>
 class PetscSub {
 private:
-  PETScOperator *op_;
+  PETScOperator *op_{};
 
 public:
-  PetscSub() : op_() { }
+  PetscSub()                 = default;
   PetscSub(const PetscSub &) = delete;
   ~PetscSub() { dtor(); }
   static constexpr char numbering_ = 'C';

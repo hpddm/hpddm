@@ -22,6 +22,10 @@
 
 #pragma once
 
+#if defined(__cplusplus) && __cplusplus < 201402L && (!defined(_MSVC_LANG) || _MSVC_LANG < 201402L)
+  #error "HPDDM requires C++14 or later"
+#endif
+
 /* Constants: C-style preprocessor variables
  *
  *    HPDDM_VERSION       - Version of the framework.

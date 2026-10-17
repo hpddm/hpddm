@@ -276,7 +276,7 @@ jobs:
                     export EXTERNALPACKAGES="${EXTERNALPACKAGES} --download-triangle --download-suitesparse --download-suitesparse-cmake-arguments=-DCMAKE_CXX_FLAGS_DEBUG:STRING=\"-Wno-error\""
                   fi
                 else
-                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-cxx-dialect=11"
+                  export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-cxx-dialect=14"
                 fi
                 if [ "${{ matrix.compiler }}" = "gcc" ] && [ "$TYPE" = "real" ]; then
                   export EXTERNALPACKAGES="${EXTERNALPACKAGES} --with-f2cblaslapack-dir=`pwd`/arch-packages LDFLAGS=-L`pwd`/arch-packages/lib"

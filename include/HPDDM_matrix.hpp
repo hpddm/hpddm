@@ -34,35 +34,32 @@ class MatrixBase {
 public:
   /* Variable: ia
          *  Array of row pointers. */
-  int *ia_;
+  int *ia_{};
   /* Variable: ja
          *  Array of column indices. */
-  int *ja_;
+  int *ja_{};
   /* Variable: n
          *  Number of rows. */
-  int n_;
+  int n_{};
   /* Variable: m
          *  Number of columns. */
-  int m_;
+  int m_{};
   /* Variable: nnz
          *  Number of nonzero entries. */
-  int nnz_;
+  int nnz_{};
   /* Variable: sym
          *  Symmetry of the matrix. */
-  bool sym_;
+  bool sym_{true};
 
 protected:
   /* Variable: free
          *  Sentinel value for knowing if the pointers <MatrixBase::ia>, <MatrixBase::ja> have to be freed. */
-  bool free_;
+  bool free_{true};
 
 public:
-  MatrixBase() : ia_(), ja_(), n_(0), m_(0), nnz_(0), sym_(true), free_(true) { }
-  MatrixBase(const int &n, const int &m, const bool &sym) : ia_(new int[n + 1]), ja_(), n_(n), m_(m), nnz_(0), sym_(sym), free_(true) { }
-  MatrixBase(const int &n, const int &m, const int &nnz, const bool &sym) :
-    ia_(new int[n + 1]), ja_(new int[nnz]), n_(n), m_(m), nnz_(nnz), sym_(sym), free_(true)
-  {
-  }
+  MatrixBase() = default;
+  MatrixBase(const int &n, const int &m, const bool &sym) : ia_(new int[n + 1]), n_(n), m_(m), sym_(sym) { }
+  MatrixBase(const int &n, const int &m, const int &nnz, const bool &sym) : ia_(new int[n + 1]), ja_(new int[nnz]), n_(n), m_(m), nnz_(nnz), sym_(sym) { }
   MatrixBase(const int &n, const int &m, const int &nnz, int *const &ia, int *const &ja, const bool &sym, const bool &takeOwnership = false) :
     ia_(ia), ja_(ja), n_(n), m_(m), nnz_(nnz), sym_(sym), free_(takeOwnership)
   {
@@ -100,7 +97,7 @@ public:
     hash_range(seed, ja_, ja_ + nnz_);
     return seed;
   }
-  template <bool I, class T, typename std::enable_if<!Wrapper<T>::is_complex>::type * = nullptr>
+  template <bool I, class T, std::enable_if_t<!Wrapper<T>::is_complex> * = nullptr>
   static bool scan(const char *str, int *row, int *col, T *val)
   {
     double x;
@@ -108,7 +105,7 @@ public:
     *val       = x;
     return ret != 3;
   }
-  template <bool I, class T, typename std::enable_if<Wrapper<T>::is_complex>::type * = nullptr>
+  template <bool I, class T, std::enable_if_t<Wrapper<T>::is_complex> * = nullptr>
   static bool scan(const char *str, int *row, int *col, T *val)
   {
     double re, im;
@@ -165,9 +162,9 @@ class MatrixCSR : public MatrixBase<K> {
 public:
   /* Variable: a
          *  Array of data. */
-  K *a_;
-  MatrixCSR() : MatrixBase<K>(), a_() { }
-  MatrixCSR(const int &n, const int &m, const bool &sym) : MatrixBase<K>(n, m, sym), a_() { }
+  K *a_{};
+  MatrixCSR() = default;
+  MatrixCSR(const int &n, const int &m, const bool &sym) : MatrixBase<K>(n, m, sym) { }
   MatrixCSR(const int &n, const int &m, const int &nnz, const bool &sym) : MatrixBase<K>(n, m, nnz, sym), a_(new K[nnz]) { }
   MatrixCSR(const int &n, const int &m, const int &nnz, K *const &a, int *const &ia, int *const &ja, const bool &sym, const bool &takeOwnership = false) :
     MatrixBase<K>(n, m, nnz, ia, ja, sym, takeOwnership), a_(a)
@@ -180,7 +177,7 @@ public:
     std::copy_n(B.a_, MatrixBase<K>::nnz_, a_);
   }
 #if !HPDDM_PETSC
-  explicit MatrixCSR(std::ifstream &file) : a_()
+  explicit MatrixCSR(std::ifstream &file)
   {
     if (!file.good()) {
       a_                 = nullptr;

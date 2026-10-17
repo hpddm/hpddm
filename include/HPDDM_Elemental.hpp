@@ -44,7 +44,7 @@ template <class K>
 class Elemental : public DMatrix {
 private:
   template <class T>
-  using ElT = typename std::conditional<Wrapper<T>::is_complex, typename El::Complex<underlying_type<T>>, T>::type;
+  using ElT = std::conditional_t<Wrapper<T>::is_complex, typename El::Complex<underlying_type<T>>, T>;
   El::Grid               *grid_;
   El::DistMatrix<ElT<K>> *A_;
   El::DistMatrix<ElT<K>> *B_;

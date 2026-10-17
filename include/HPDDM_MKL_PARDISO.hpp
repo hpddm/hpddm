@@ -57,30 +57,30 @@ class MklPardiso : public DMatrix {
 private:
   /* Variable: pt
          *  Internal data pointer. */
-  void *pt_[64];
+  void *pt_[64]{};
   /* Variable: a
          *  Array of data. */
-  K *C_;
+  K *C_{};
   /* Variable: I
          *  Array of row pointers. */
-  int *I_;
+  int *I_{};
   /* Variable: J
          *  Array of column indices. */
-  int *J_;
+  int *J_{};
   #if !HPDDM_INEXACT_COARSE_OPERATOR
   /* Variable: w
          *  Workspace array. */
-  K *w_;
+  K *w_{};
   #endif
   /* Variable: mtype
          *  Matrix type. */
-  int mtype_;
+  int mtype_{};
   /* Variable: iparm
          *  Array of parameters. */
-  mutable int iparm_[64];
+  mutable int iparm_[64]{};
   /* Variable: comm
          *  MPI communicator. */
-  int comm_;
+  int comm_{-1};
 
 protected:
   /* Variable: numbering
@@ -88,19 +88,7 @@ protected:
   static constexpr char numbering_ = 'F';
 
 public:
-  MklPardiso() :
-    pt_(),
-    C_(),
-    I_(),
-    J_(),
-  #if !HPDDM_INEXACT_COARSE_OPERATOR
-    w_(),
-  #endif
-    mtype_(),
-    iparm_(),
-    comm_(-1)
-  {
-  }
+  MklPardiso() = default;
   ~MklPardiso()
   {
   #if !HPDDM_INEXACT_COARSE_OPERATOR
@@ -218,18 +206,18 @@ public:
 template <class K>
 class MklPardisoSub {
 private:
-  void       *pt_[64];
-  K          *C_;
-  int        *I_;
-  int        *J_;
-  K          *w_;
-  int         mtype_;
-  mutable int iparm_[64];
-  int         n_;
-  int         partial_;
+  void       *pt_[64]{};
+  K          *C_{};
+  int        *I_{};
+  int        *J_{};
+  K          *w_{};
+  int         mtype_{};
+  mutable int iparm_[64]{};
+  int         n_{};
+  int         partial_{};
 
 public:
-  MklPardisoSub() : pt_(), C_(), I_(), J_(), w_(), mtype_(), iparm_(), n_(), partial_() { }
+  MklPardisoSub()                      = default;
   MklPardisoSub(const MklPardisoSub &) = delete;
   ~MklPardisoSub() { dtor(); }
   static constexpr char numbering_ = 'F';

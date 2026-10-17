@@ -91,7 +91,7 @@ private:
   }
 
 protected:
-  typedef CoarseOperator co_type;
+  using co_type = CoarseOperator;
   #if !HPDDM_PETSC
   /* Variable: s
          *  Solver used in <Schwarz::callNumfact> and <Schur::callNumfactPreconditioner> or <Schur::computeSchurComplement>. */
@@ -99,16 +99,16 @@ protected:
   #endif
   /* Variable: co
          *  Pointer to a <Coarse operator>. */
-  CoarseOperator *co_;
+  CoarseOperator *co_{};
   #if !HPDDM_PETSC
   /* Variable: ev
          *  Array of deflation vectors as needed by <Preconditioner::co>. */
-  K **ev_;
+  K **ev_{};
   /* Variable: uc
          *  Workspace array of size <Coarse operator::local>. */
-  K *uc_;
+  K *uc_{};
   #else
-  Mat ev_, uc_;
+  Mat ev_{}, uc_{};
   #endif
   /* Function: buildTwo
          *
@@ -310,27 +310,17 @@ public:
     {
       for (unsigned short nu = 0; nu < mu; ++nu) operator()(in + nu * n, out + nu * n);
     }
-    virtual ~CoarseCorrection() { }
+    virtual ~CoarseCorrection() = default;
   };
-  CoarseCorrection *cc_;
+  CoarseCorrection *cc_{};
   #endif
-  Preconditioner() :
-    co_(),
-    ev_(),
-    uc_()
-  #if HPDDM_SCHWARZ
-    ,
-    cc_()
-  #endif
-  {
-  }
+  Preconditioner()                       = default;
   Preconditioner(const Preconditioner &) = delete;
-  ~Preconditioner()
-  {
   #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
-    dtor();
+  ~Preconditioner() { dtor(); }
+  #else
+  ~Preconditioner() = default;
   #endif
-  }
   /* Function: initialize
          *
          *  Initializes a two-level preconditioner.
@@ -380,23 +370,10 @@ public:
   const int *getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i_0; }
 #else
 protected:
-  Preconditioner() { }
+  Preconditioner() = default;
 #endif
 protected:
-  explicit Preconditioner(const Subdomain<K> &s) :
-    super(s)
-#if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
-    ,
-    co_(),
-    ev_(),
-    uc_()
-  #if HPDDM_SCHWARZ
-    ,
-    cc_()
-  #endif
-#endif
-  {
-  }
+  explicit Preconditioner(const Subdomain<K> &s) : super(s) { }
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
   void dtor()
   {
@@ -426,7 +403,7 @@ protected:
 public:
   /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */
-  typedef Subdomain<K> super;
+  using super = Subdomain<K>;
 #if HPDDM_INEXACT_COARSE_OPERATOR
   template <class Preconditioner, class T>
   friend class MatrixAccumulation;

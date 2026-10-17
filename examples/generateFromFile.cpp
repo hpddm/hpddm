@@ -21,20 +21,22 @@
    along with HPDDM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstddef>
+
 extern "C" {
-typedef int idxtype;
+using idxtype = int;
 #include <metis.h>
 }
 
 #define HPDDM_MINIMAL
 #include "schwarz.hpp"
 
-template <class K, typename std::enable_if<!HPDDM::Wrapper<K>::is_complex>::type * = nullptr>
+template <class K, std::enable_if_t<!HPDDM::Wrapper<K>::is_complex> * = nullptr>
 void assign(std::mt19937 &gen, std::uniform_real_distribution<K> &dis, K &x)
 {
   x = dis(gen);
 }
-template <class K, typename std::enable_if<HPDDM::Wrapper<K>::is_complex>::type * = nullptr>
+template <class K, std::enable_if_t<HPDDM::Wrapper<K>::is_complex> * = nullptr>
 void assign(std::mt19937 &gen, std::uniform_real_distribution<HPDDM::underlying_type<K>> &dis, K &x)
 {
   x = K(dis(gen), dis(gen));
@@ -71,16 +73,18 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       std::for_each(Mat->ja_, Mat->ja_ + Mat->nnz_, [](int &i) { ++i; });
       std::for_each(Mat->ia_, Mat->ia_ + Mat->n_ + 1, [](int &i) { ++i; });
     }
-    K *indicator = new K[sizeWorld * Mat->n_]();
-    for (unsigned int i = 0; i < sizeWorld; ++i) std::transform(part, part + Mat->n_, indicator + i * Mat->n_, [&](const int &p) { return p == i; });
+    K *indicator = new K[static_cast<std::size_t>(sizeWorld) * Mat->n_]();
+    for (unsigned int i = 0; i < sizeWorld; ++i)
+      std::transform(part, part + Mat->n_, indicator + static_cast<std::ptrdiff_t>(i) * Mat->n_, [&](const int &p) { return p == i; });
     delete[] part;
     K *val = new K[Mat->nnz_]();
     std::fill_n(val, Mat->nnz_, 1.0);
     overlap = opt.app()["overlap"];
-    K *z    = new K[Mat->n_ * sizeWorld];
+    K *z    = new K[static_cast<std::size_t>(Mat->n_) * sizeWorld];
     for (unsigned short i = 0; i < overlap; ++i) {
       HPDDM::Wrapper<K>::csrmm(Mat->sym_, &Mat->n_, &sizeWorld, val, Mat->ia_, Mat->ja_, indicator, z);
-      std::transform(indicator, indicator + sizeWorld * Mat->n_, z, z, [](const K &a, const K &b) { return (b > 0.5) - (a > 0.5); });
+      std::transform(indicator, indicator + static_cast<std::ptrdiff_t>(sizeWorld) * Mat->n_, z, z,
+                     [](const K &a, const K &b) { return (b > 0.5) - (a > 0.5); });
       K alpha = i + 2;
       n       = Mat->n_ * sizeWorld;
       HPDDM::Blas<K>::axpy(&n, &alpha, z, &(HPDDM::i_1), indicator, &(HPDDM::i_1));

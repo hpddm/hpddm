@@ -6,7 +6,7 @@ SUBSOLVER ?= MUMPS
 EIGENSOLVER ?= ARPACK
 MPIRUN ?= mpirun.openmpi --oversubscribe --mca btl_base_warn_component_unused 0 -np
 
-override CXXFLAGS += -std=c++11 -O3 -fPIC
+override CXXFLAGS += -std=c++14 -O3 -fPIC
 override CFLAGS += -std=c99 -O3
 
 HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'C\'
@@ -24,7 +24,7 @@ METIS_INCS = -I/usr/include
 PYTHON_INCS = -I${pythonLocation}/include/python3.14
 
 CLANGTIDY_INCS = $(shell mpicxx.openmpi --showme:compile) -DOMPI_SKIP_MPICXX
-CLANGTIDY_PETSC_INCS = -I../petsc/include -I${RUNNER_TEMP}/clang-tidy-petsc-include
+CLANGTIDY_PETSC_INCS = -isystem ../petsc/include -isystem ${RUNNER_TEMP}/clang-tidy-petsc-include
 
 BLAS_LIBS = -L/usr/lib/x86_64-linux-gnu -lblas -llapack
 ARPACK_LIBS = -L/usr/lib/x86_64-linux-gnu -larpack

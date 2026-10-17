@@ -89,28 +89,28 @@ class Pastix : public DMatrix {
 private:
   /* Variable: data
          *  Internal data pointer. */
-  pastix_data_t *data_;
+  pastix_data_t *data_{};
   /* Variable: values2
          *  Array of data. */
-  K *values2_;
+  K *values2_{};
   /* Variable: dparm
          *  Array of double-precision floating-point parameters. */
-  double *dparm_;
+  double *dparm_{};
   /* Variable: ncol2
          *  Number of local rows. */
   pastix_int_t ncol2_;
   /* Variable: colptr2
          *  Array of row pointers. */
-  pastix_int_t *colptr2_;
+  pastix_int_t *colptr2_{};
   /* Variable: rows2
          *  Array of column indices. */
-  pastix_int_t *rows2_;
+  pastix_int_t *rows2_{};
   /* Variable: loc2glob2
          *  Local to global numbering. */
-  pastix_int_t *loc2glob2_;
+  pastix_int_t *loc2glob2_{};
   /* Variable: iparm
          *  Array of integer parameters. */
-  pastix_int_t *iparm_;
+  pastix_int_t *iparm_{};
 
 protected:
   /* Variable: numbering
@@ -118,7 +118,7 @@ protected:
   static constexpr char numbering_ = 'F';
 
 public:
-  Pastix() : data_(), values2_(), dparm_(), colptr2_(), rows2_(), loc2glob2_(), iparm_() { }
+  Pastix() = default;
   ~Pastix()
   {
     free(rows2_);
@@ -233,16 +233,16 @@ public:
 template <class K>
 class PastixSub {
 private:
-  pastix_data_t *data_;
-  K             *values_;
-  double        *dparm_;
+  pastix_data_t *data_{};
+  K             *values_{};
+  double        *dparm_{};
   pastix_int_t   ncol_;
-  pastix_int_t  *colptr_;
-  pastix_int_t  *rows_;
-  pastix_int_t  *iparm_;
+  pastix_int_t  *colptr_{};
+  pastix_int_t  *rows_{};
+  pastix_int_t  *iparm_{};
 
 public:
-  PastixSub() : data_(), values_(), dparm_(), colptr_(), rows_(), iparm_() { }
+  PastixSub()                  = default;
   PastixSub(const PastixSub &) = delete;
   ~PastixSub() { dtor(); }
   static constexpr char numbering_ = 'F';

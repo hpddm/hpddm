@@ -40,15 +40,14 @@ class Dense :
 public:
   Dense() : super() { }
   Dense(const Subdomain<K> &s) : super(s) { super::d_ = nullptr; }
-  virtual ~Dense() { super::d_ = nullptr; }
+  virtual ~Dense() = default;
   /* Typedef: super
          *  Type of the immediate parent class <Preconditioner>. */
-  typedef Schwarz<
+  using super = Schwarz<
 #if HPDDM_DENSE
     Solver, CoarseSolver,
 #endif
-    S, K>
-    super;
+    S, K>;
   template <class Neighbor, class Mapping>
   void initialize(const int &n, const bool sym, K *const &p, const Neighbor &o, const Mapping &r, MPI_Comm *const &comm = nullptr)
   {
@@ -170,12 +169,11 @@ public:
   std::pair<MPI_Request, const K *> *buildTwo(const MPI_Comm &comm, const K *const E)
   {
     struct ClassWithPtr {
-      typedef Schwarz<
+      using super = Schwarz<
 #if HPDDM_DENSE
         Solver, CoarseSolver,
 #endif
-        S, K>
-        super;
+        S, K>;
       const Dense<
 #if HPDDM_DENSE
         Solver, CoarseSolver,
@@ -204,8 +202,8 @@ public:
 #if defined(__GNUC__)
   #pragma GCC diagnostic pop
 #endif
-  static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
-  virtual int                                          GMV(const K *const in, K *const out, const int &mu = 1) const override = 0;
+  static std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
+  virtual int                                GMV(const K *const in, K *const out, const int &mu = 1) const override = 0;
 };
 
 template <

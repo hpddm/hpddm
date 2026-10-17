@@ -99,7 +99,7 @@ struct Wrapper {
      *  Returns the MPI operation of the template parameter of <Wrapper>. */
   static MPI_Op mpi_op(const MPI_Op &);
 #endif
-  static constexpr bool is_complex = !std::is_same<typename std::remove_const<K>::type, underlying_type<K>>::value;
+  static constexpr bool is_complex = !std::is_same<std::remove_const_t<K>, underlying_type<K>>::value;
   /* Variable: transc
      *  Transposed real operators or Hermitian transposed complex operators. */
   static constexpr char transc = is_complex ? 'C' : 'T';
@@ -171,12 +171,12 @@ struct Wrapper {
   static void diag(const int &, const underlying_type<K> *const, const K *const, K *const, const int & = 1);
   /* Function: conj
      *  Conjugates a real or complex number. */
-  template <class T, typename std::enable_if<!Wrapper<T>::is_complex>::type * = nullptr>
-  static T conj(const T &x)
+  template <class T, std::enable_if_t<!Wrapper<T>::is_complex> * = nullptr>
+  static constexpr T conj(const T &x)
   {
     return x;
   }
-  template <class T, typename std::enable_if<Wrapper<T>::is_complex>::type * = nullptr>
+  template <class T, std::enable_if_t<Wrapper<T>::is_complex> * = nullptr>
   static T conj(const T &x)
   {
     return HPDDM::conj(x);
@@ -843,7 +843,7 @@ inline void Wrapper<K>::bsrcoo(const int n, const unsigned short bs, K *const a,
       if (ja[ia[i] - (N == 'F')] - (N == 'F') == i + shift) nnz -= (bs * (bs - 1)) / 2;
     b = new K[nnz];
   }
-  ib  = new int[2 * nnz];
+  ib  = new int[2 * static_cast<std::size_t>(nnz)];
   jb  = ib + nnz;
   nnz = 0;
   for (unsigned int i = 0; i < n; ++i) {

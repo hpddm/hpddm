@@ -64,7 +64,7 @@ class Mumps : public DMatrix {
 private:
   /* Variable: id
          *  Internal data pointer. */
-  typename MUMPS_STRUC_C<K>::trait *id_;
+  typename MUMPS_STRUC_C<K>::trait *id_{};
 
 protected:
   /* Variable: numbering
@@ -74,7 +74,7 @@ protected:
   std::pair<unsigned int, unsigned int> range_;
   #endif
 public:
-  Mumps() : id_() { }
+  Mumps() = default;
   ~Mumps()
   {
     if (id_) {
@@ -157,7 +157,7 @@ public:
       id_->icntl[20] = 1;
       int  info      = id_->info[22];
       int *isol_loc  = new int[info];
-      K   *sol_loc   = new K[n * info];
+      K   *sol_loc   = new K[static_cast<std::size_t>(n) * info];
       id_->sol_loc   = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type *>(sol_loc);
       id_->lsol_loc  = info;
       id_->isol_loc  = isol_loc;
@@ -210,11 +210,11 @@ public:
 template <class K>
 class MumpsSub {
 private:
-  typename MUMPS_STRUC_C<K>::trait *id_;
-  int                              *I_;
+  typename MUMPS_STRUC_C<K>::trait *id_{};
+  int                              *I_{};
 
 public:
-  MumpsSub() : id_(), I_() { }
+  MumpsSub()                 = default;
   MumpsSub(const MumpsSub &) = delete;
   ~MumpsSub() { dtor(); }
   static constexpr char numbering_ = 'F';

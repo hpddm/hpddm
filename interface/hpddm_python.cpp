@@ -26,21 +26,21 @@
 
 #ifdef FORCE_SINGLE
   #ifdef FORCE_COMPLEX
-typedef std::complex<float> K;
+using K = std::complex<float>;
     #ifndef GENERAL_CO
       #define GENERAL_CO
     #endif
   #else
-typedef float K;
+using K = float;
   #endif
 #else
   #ifdef FORCE_COMPLEX
-typedef std::complex<double> K;
+using K = std::complex<double>;
     #ifndef GENERAL_CO
       #define GENERAL_CO
     #endif
   #else
-typedef double K;
+using K = double;
   #endif
 #endif
 
@@ -204,10 +204,10 @@ void setVectors(void *A, int nu, HPDDM::pod_type<K> *v)
 {
   K **array = new K *[nu];
   int dof   = reinterpret_cast<HPDDM::Subdomain<K> *>(A)->getDof();
-  *array    = new K[nu * dof];
+  *array    = new K[static_cast<std::size_t>(nu) * dof];
   for (int i = 0; i < nu; ++i) {
-    array[i] = *array + i * dof;
-    std::copy_n(reinterpret_cast<K *>(v + i * dof), dof, array[i]);
+    array[i] = *array + static_cast<std::ptrdiff_t>(i) * dof;
+    std::copy_n(reinterpret_cast<K *>(v + static_cast<std::ptrdiff_t>(i) * dof), dof, array[i]);
   }
   reinterpret_cast<HPDDM::Preconditioner<SUBDOMAIN, HPDDM::CoarseOperator<COARSEOPERATOR, symCoarse, K>, K> *>(A)->setVectors(array);
 }
@@ -225,7 +225,7 @@ void *schwarzCreate(void *Mat, PyObject *neighbors, PyObject *connectivity)
   std::vector<std::vector<int>> r;
   r.reserve(o.size());
   for (int i = 0; i < PyList_Size(connectivity); ++i) {
-    r.emplace_back(std::vector<int>());
+    r.emplace_back();
     PyObject *neighbor = PyList_GET_ITEM(connectivity, i);
     r.back().reserve(PyList_Size(neighbor));
     for (int j = 0; j < PyList_Size(neighbor); ++j) r.back().emplace_back(PyLong_AsLong(PyList_GET_ITEM(neighbor, j)));

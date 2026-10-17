@@ -67,13 +67,13 @@ inline __float128 pow(__float128 x, int p)
 } // namespace std
 namespace HPDDM
 {
-template <class K, typename std::enable_if<!std::is_same<K, __complex128>::value>::type * = nullptr>
+template <class K, std::enable_if_t<!std::is_same<K, __complex128>::value> * = nullptr>
 void assign(K &v, const underlying_type<K> &re, const underlying_type<K> &im)
 {
   v.real(re);
   v.imag(im);
 }
-template <class K, typename std::enable_if<std::is_same<K, __complex128>::value>::type * = nullptr>
+template <class K, std::enable_if_t<std::is_same<K, __complex128>::value> * = nullptr>
 void assign(K &v, const underlying_type<K> &re, const underlying_type<K> &im)
 {
   __real__ v = re;

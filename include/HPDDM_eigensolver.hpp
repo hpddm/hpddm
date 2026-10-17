@@ -40,12 +40,12 @@ namespace HPDDM
 template <class K>
 class Eigensolver {
 private:
-  template <class T, typename std::enable_if<Wrapper<T>::is_complex>::type * = nullptr>
+  template <class T, std::enable_if_t<Wrapper<T>::is_complex> * = nullptr>
   void imag(T &t, underlying_type<T> v)
   {
     t.imag(v);
   }
-  template <class T, typename std::enable_if<!Wrapper<T>::is_complex>::type * = nullptr>
+  template <class T, std::enable_if_t<!Wrapper<T>::is_complex> * = nullptr>
   void imag(T &, underlying_type<T>)
   {
   }
@@ -65,20 +65,20 @@ public:
   /* Variable: nu
          *  Number of desired eigenvalues. */
   int nu_;
-  explicit Eigensolver(int n) : tol_(), threshold_(), n_(n), nu_() { }
+  explicit constexpr Eigensolver(int n) : tol_(), threshold_(), n_(n), nu_() { }
   Eigensolver(int n, int nu) : tol_(Option::get()->val("eigensolver_tol", 1.0e-6)), threshold_(), n_(n), nu_(std::min(nu, n)) { }
   Eigensolver(underlying_type<K> threshold, int n, int nu) :
     tol_(threshold > 0.0 ? HPDDM_EPS : Option::get()->val("eigensolver_tol", 1.0e-6)), threshold_(threshold), n_(n), nu_(std::min(nu, n))
   {
   }
-  Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) :
+  constexpr Eigensolver(underlying_type<K> tol, underlying_type<K> threshold, int n, int nu) :
     tol_(threshold > 0.0 ? HPDDM_EPS : tol), threshold_(threshold), n_(n), nu_(std::min(nu, n))
   {
   }
   std::string dump(const K *const eigenvalues, const K *const *const eigenvectors, const MPI_Comm &communicator,
                    std::ios_base::openmode mode = std::ios_base::out) const
   {
-    if (n_ <= 0 || nu_ <= 0) return std::string();
+    if (n_ <= 0 || nu_ <= 0) return {};
     int rankWorld;
     MPI_Comm_rank(communicator, &rankWorld);
     const Option &opt      = *Option::get();
@@ -102,7 +102,7 @@ public:
         output << "\n";
       }
       return name;
-    } else return std::string();
+    } else return {};
   }
   /* Function: selectNu
          *
@@ -136,7 +136,7 @@ public:
       MPI_Allreduce(MPI_IN_PLACE, &nev, 1, MPI_UNSIGNED_SHORT, MPI_MAX, communicator);
       if (nev > nu_) {
         K **basis = new K *[nev];
-        *basis    = new K[nev * n_];
+        *basis    = new K[static_cast<std::size_t>(nev) * n_];
         for (unsigned short i = 1; i < nev; ++i) basis[i] = *basis + i * n_;
         std::random_device                                 rd;
         std::default_random_engine                         generator(rd());
@@ -175,7 +175,7 @@ public:
   }
   /* Function: getTol
          *  Returns the value of <Eigensolver::tol>. */
-  underlying_type<K> getTol() const { return tol_; }
+  constexpr underlying_type<K> getTol() const { return tol_; }
 };
 } // namespace HPDDM
 #endif

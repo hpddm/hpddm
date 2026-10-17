@@ -50,8 +50,8 @@ namespace HPDDM
 {
 template <class K, class T = int>
 struct EmptyOperator : OptionsPrefix<K> {
-  typedef T integer_type;
-  const T   n_;
+  using integer_type = T;
+  const T n_;
   explicit EmptyOperator(T n) : OptionsPrefix<K>(), n_(n) { }
   constexpr T                          getDof() const { return n_; }
   static constexpr underlying_type<K> *getScaling() { return nullptr; }
@@ -60,8 +60,8 @@ struct EmptyOperator : OptionsPrefix<K> {
   {
     return false;
   }
-  static constexpr std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
-  static constexpr bool                                end(const bool) { return false; }
+  static std::unordered_map<unsigned int, K> boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
+  static constexpr bool                      end(const bool) { return false; }
 };
 template <class Operator, class K, class T = int>
 struct CustomOperator : EmptyOperator<K> {
@@ -217,8 +217,8 @@ private:
     }
     if (T == 0 || T == 1 || T == 4 || T == 5) {
       id[2] = opt.val<char>(prefix + "orthogonalization", HPDDM_ORTHOGONALIZATION_CGS) + (opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR) << 2);
-      m[0]  = std::min(static_cast<unsigned short>(std::numeric_limits<short>::max()),
-                       std::min(opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]));
+      m[0]  = std::min(
+        {static_cast<unsigned short>(std::numeric_limits<short>::max()), opt.val<unsigned short>(prefix + "gmres_restart", 40), m[T == 1 || T == 5 ? 2 : 1]});
     }
     if (T == 0 || T == 1 || T == 2 || T == 4 || T == 5) id[1] = opt.val<char>(prefix + "variant", HPDDM_VARIANT_RIGHT);
     if (T == 3 || T == 6) id[1] = opt.val<char>(prefix + "qr", HPDDM_QR_CHOLQR);
@@ -243,26 +243,26 @@ private:
   }
   /* Function: allocate
          *  Allocates workspace arrays for <Iterative method::CG>. */
-  template <class K, typename std::enable_if<!Wrapper<K>::is_complex>::type * = nullptr>
+  template <class K, std::enable_if_t<!Wrapper<K>::is_complex> * = nullptr>
   static void allocate(K *&dir, K *&p, const int &n, const unsigned short extra = 0, const unsigned short it = 1, const unsigned short mu = 1)
   {
     if (extra == 0) {
-      dir = new K[(3 + std::max(1, 4 * n)) * mu];
+      dir = new K[(3 + std::max<std::size_t>(1, 4 * static_cast<std::size_t>(n))) * mu];
       p   = dir + 3 * mu;
     } else {
-      dir = new K[(3 + 2 * it + std::max(1, (4 + 2 * it) * n)) * mu];
-      p   = dir + (3 + 2 * it) * mu;
+      dir = new K[(3 + 2 * it + std::max<std::size_t>(1, (4 + 2 * it) * static_cast<std::size_t>(n))) * mu];
+      p   = dir + (3 + 2 * it) * static_cast<std::ptrdiff_t>(mu);
     }
   }
-  template <class K, typename std::enable_if<Wrapper<K>::is_complex>::type * = nullptr>
+  template <class K, std::enable_if_t<Wrapper<K>::is_complex> * = nullptr>
   static void allocate(underlying_type<K> *&dir, K *&p, const int &n, const unsigned short extra = 0, const unsigned short it = 1, const unsigned short mu = 1)
   {
     if (extra == 0) {
-      dir = new underlying_type<K>[3 * mu];
-      p   = new K[std::max(1, 4 * n) * mu];
+      dir = new underlying_type<K>[3 * static_cast<std::size_t>(mu)];
+      p   = new K[std::max<std::size_t>(1, 4 * static_cast<std::size_t>(n)) * mu];
     } else {
-      dir = new underlying_type<K>[(3 + 2 * it) * mu];
-      p   = new K[std::max(1, (4 + 2 * it) * n) * mu];
+      dir = new underlying_type<K>[(3 + 2 * it) * static_cast<std::size_t>(mu)];
+      p   = new K[std::max<std::size_t>(1, (4 + 2 * it) * static_cast<std::size_t>(n)) * mu];
     }
   }
   /* Function: updateSol
@@ -285,7 +285,7 @@ private:
   static int updateSol(const Operator &A, const char variant, const int &n, K *const x, const K *const *const h, K *const s, T *const *const v,
                        const short *const hasConverged, const int &mu, K *const work, const int &deflated = -1)
   {
-    static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
+    static_assert(std::is_same<K, std::remove_const_t<T>>::value, "Wrong types");
     if (!excluded) computeMin(h, s, hasConverged, mu, deflated);
     return addSol<excluded>(A, variant, n, x, std::distance(h[0], h[1]) / std::abs(deflated), s, v, hasConverged, mu, work, deflated);
   }
@@ -307,7 +307,7 @@ private:
   static int addSol(const Operator &A, const char variant, const int &n, K *const x, const int &ldh, const K *const s, T *const *const v,
                     const short *const hasConverged, const int &mu, K *const work, const int &deflated = -1)
   {
-    static_assert(std::is_same<K, typename std::remove_const<T>::type>::value, "Wrong types");
+    static_assert(std::is_same<K, std::remove_const_t<T>>::value, "Wrong types");
     K *const correction = (variant == HPDDM_VARIANT_RIGHT
                              ? (std::is_const<T>::value ? (work + mu * n) : const_cast<K *>(v[ldh / (deflated == -1 ? mu : deflated) - 1]))
                              : work);
@@ -406,55 +406,55 @@ private:
         int diff = *hasConverged - deflated * shift;
         Blas<K>::gemm("N", "N", &bK, &deflated, &diff, &(Wrapper<K>::d_2), h[shift], &ldh, s + shift * deflated, &ldh, &beta, s, &ldh);
       }
-      std::copy_n(U, shift * ldv, v[dim * (variant == HPDDM_VARIANT_FLEXIBLE)]);
+      std::copy_n(U, shift * ldv, v[variant == HPDDM_VARIANT_FLEXIBLE ? dim : 0]);
       return addSol<excluded>(A, variant, n, x, ldh, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work,
                               deflated);
     } else
       return updateSol<excluded>(A, variant, n, x, h, s, static_cast<const K *const *>(v + dim * (variant == HPDDM_VARIANT_FLEXIBLE)), hasConverged, mu, work,
                                  deflated);
   }
-  template <class T, typename std::enable_if<std::is_pointer<T>::value>::type * = nullptr>
+  template <class T, std::enable_if_t<std::is_pointer<T>::value> * = nullptr>
   static void clean(T *const &pt)
   {
     delete[] *pt;
     delete[] pt;
   }
-  template <class T, typename std::enable_if<!std::is_pointer<T>::value>::type * = nullptr>
+  template <class T, std::enable_if_t<!std::is_pointer<T>::value> * = nullptr>
   static void clean(T *const &pt)
   {
     delete[] pt;
   }
-  template <class K, class T, typename std::enable_if<std::is_pointer<T>::value>::type * = nullptr>
+  template <class K, class T, std::enable_if_t<std::is_pointer<T>::value> * = nullptr>
   static void axpy(const int *const n, const K *const a, const T *const x, const int *const incx, T *const y, const int *const incy)
   {
-    static_assert(std::is_same<typename std::remove_pointer<T>::type, K>::value, "Wrong types");
-    Blas<typename std::remove_pointer<T>::type>::axpy(n, a, *x, incx, *y, incy);
+    static_assert(std::is_same<std::remove_pointer_t<T>, K>::value, "Wrong types");
+    Blas<std::remove_pointer_t<T>>::axpy(n, a, *x, incx, *y, incy);
   }
-  template <class K, class T, typename std::enable_if<std::is_pointer<T>::value>::type * = nullptr>
+  template <class K, class T, std::enable_if_t<std::is_pointer<T>::value> * = nullptr>
   static void axpy(const int *const, const K *const, const T *const, const int *const, T const, const int *const)
   {
   }
-  template <class K, class T, typename std::enable_if<!std::is_pointer<T>::value>::type * = nullptr>
+  template <class K, class T, std::enable_if_t<!std::is_pointer<T>::value> * = nullptr>
   static void axpy(const int *const n, const K *const a, const T *const x, const int *const incx, T *const y, const int *const incy)
   {
     static_assert(std::is_same<T, K>::value, "Wrong types");
     Blas<T>::axpy(n, a, x, incx, y, incy);
   }
-  template <class T, typename std::enable_if<std::is_pointer<T>::value>::type * = nullptr>
-  static typename std::remove_pointer<T>::type dot(const int *const n, const T *const x, const int *const incx, const T *const y, const int *const incy)
+  template <class T, std::enable_if_t<std::is_pointer<T>::value> * = nullptr>
+  static std::remove_pointer_t<T> dot(const int *const n, const T *const x, const int *const incx, const T *const y, const int *const incy)
   {
-    return Blas<typename std::remove_pointer<T>::type>::dot(n, *x, incx, *y, incy) / 2.0;
+    return Blas<std::remove_pointer_t<T>>::dot(n, *x, incx, *y, incy) / 2.0;
   }
-  template <class T, typename std::enable_if<!std::is_pointer<T>::value>::type * = nullptr>
+  template <class T, std::enable_if_t<!std::is_pointer<T>::value> * = nullptr>
   static T dot(const int *const n, const T *const x, const int *const incx, const T *const y, const int *const incy)
   {
     return Blas<T>::dot(n, x, incx, y, incy);
   }
-  template <class T, class U, typename std::enable_if<std::is_pointer<T>::value>::type * = nullptr>
+  template <class T, class U, std::enable_if_t<std::is_pointer<T>::value> * = nullptr>
   static void diag(const int &, const U *const *const, T *const, T *const = nullptr)
   {
   }
-  template <class T, typename std::enable_if<!std::is_pointer<T>::value>::type * = nullptr>
+  template <class T, std::enable_if_t<!std::is_pointer<T>::value> * = nullptr>
   static void diag(const int &n, const underlying_type<T> *const d, T *const in, T *const out = nullptr)
   {
     if (out) Wrapper<T>::diag(n, d, in, out);
@@ -626,7 +626,7 @@ private:
       VR<excluded>(n, k, 1, Q, R, k, d, work, comm);
       int info;
       Lapack<K>::pstrf("U", &k, R, &k, piv, &rank, &(Wrapper<underlying_type<K>>::d_0), reinterpret_cast<underlying_type<K> *>(work), &info);
-      while (rank > 1 && HPDDM::abs(R[(rank - 1) * (k + 1)] / R[0]) <= tol) --rank;
+      while (rank > 1 && HPDDM::abs(R[(static_cast<std::ptrdiff_t>(rank) - 1) * (k + 1)] / R[0]) <= tol) --rank;
       Lapack<K>::lapmt(&i_1, &n, &k, Q, &n, piv);
       if (!excluded && n) Blas<K>::trsm("R", "U", "N", "N", &n, &rank, &(Wrapper<K>::d_1), R, &k, Q, &n);
       return true;
@@ -642,7 +642,7 @@ private:
         std::cout << *R;
         if (k > 1) {
           if (k > 2) std::cout << "\t...";
-          std::cout << "\t" << R[(k - 1) * (k + 1)];
+          std::cout << "\t" << R[(static_cast<std::ptrdiff_t>(k) - 1) * (k + 1)];
         }
         std::cout << std::endl;
       } else {
@@ -650,7 +650,7 @@ private:
         std::cout << *R << " (" << *piv << ")";
         if (k > 1) {
           if (k > 2) std::cout << "\t...";
-          std::cout << "\t" << R[(k - 1) * (k + 1)] << " (" << piv[k - 1] << ")";
+          std::cout << "\t" << R[(static_cast<std::ptrdiff_t>(k) - 1) * (k + 1)] << " (" << piv[k - 1] << ")";
         }
         std::cout << std::endl;
       }
@@ -813,23 +813,23 @@ private:
       ignore(MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm));
     }
   }
-  template <bool, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type * = nullptr>
+  template <bool, class Operator, class K, std::enable_if_t<hpddm_method_id<Operator>::value != 0> * = nullptr>
   static void preprocess(const Operator &, const K *const, K *&, K *const, K *&, const int &, unsigned short &, const MPI_Comm &);
-  template <bool excluded, class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value == 0>::type * = nullptr>
+  template <bool excluded, class Operator, class K, std::enable_if_t<hpddm_method_id<Operator>::value == 0> * = nullptr>
   static void preprocess(const Operator &A, const K *const b, K *&sb, K *const x, K *&sx, const int &mu, unsigned short &k, const MPI_Comm &comm)
   {
     static_assert(!excluded, "Not implemented");
     int size;
     MPI_Comm_size(comm, &size);
-    if (k < 2 || size == 1 || mu > 1) {
+    if (k < 2 || size < 2 || mu > 1) {
       sx = x;
       sb = const_cast<K *>(b);
       k  = 1;
     } else {
       int rank;
       MPI_Comm_rank(comm, &rank);
-      k                    = std::min(k, static_cast<unsigned short>(size));
-      unsigned int *local  = new unsigned int[2 * k];
+      k                    = std::min<int>(k, size);
+      unsigned int *local  = new unsigned int[2 * static_cast<std::size_t>(k)];
       unsigned int *global = local + k;
       const int     n      = A.getDof();
       assert(n >= 0);
@@ -855,10 +855,10 @@ private:
         }
       }
       if (k > 1) {
-        sx = new K[k * n]();
-        sb = new K[k * n]();
-        std::copy_n(x, n, sx + j * n);
-        std::copy_n(b, n, sb + j * n);
+        sx = new K[static_cast<std::size_t>(k) * n]();
+        sb = new K[static_cast<std::size_t>(k) * n]();
+        std::copy_n(x, n, sx + static_cast<std::ptrdiff_t>(j) * n);
+        std::copy_n(b, n, sb + static_cast<std::ptrdiff_t>(j) * n);
         std::function<K *(K *, unsigned int *, unsigned int *, int)> lambda = [](K *sb, unsigned int *local, unsigned int *swap, int n) {
           return static_cast<K *>(std::find_if(sb + std::distance(local, swap) * n, sb + (std::distance(local, swap) + 1) * n,
                                                [](const K &v) { return HPDDM::abs(v) > underlying_type<K>(HPDDM_EPS); }));
@@ -899,8 +899,6 @@ private:
       const int n = A.getDof();
       std::fill_n(x, n, K());
       for (unsigned short j = 0; j < k; ++j) Blas<K>::axpy(&n, &(Wrapper<K>::d_1), sx + j * n, &i_1, x, &i_1);
-      delete[] sb;
-      delete[] sx;
     }
   }
 #if !HPDDM_PETSC
@@ -928,17 +926,18 @@ private:
       if (mu > 1) std::cout << " (rhs #1)\n";
       else std::cout << "\n";
       for (unsigned short nu = 1; nu < mu; ++nu)
-        std::cout << std::string(header.size(), ' ') << storage[2 * nu + 1] << " / " << storage[2 * nu] << " (rhs #" << (nu + 1) << ")\n";
+        std::cout << std::string(header.size(), ' ') << storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] << " / "
+                  << storage[2 * static_cast<std::ptrdiff_t>(nu)] << " (rhs #" << (nu + 1) << ")\n";
     }
     delete[] storage;
   }
-  template <class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value != 0>::type * = nullptr>
+  template <class Operator, class K, std::enable_if_t<hpddm_method_id<Operator>::value != 0> * = nullptr>
   static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu,
                               const unsigned short norm)
   {
     A.computeResidual(x, b, storage, mu, norm);
   }
-  template <class Operator, class K, typename std::enable_if<hpddm_method_id<Operator>::value == 0>::type * = nullptr>
+  template <class Operator, class K, std::enable_if_t<hpddm_method_id<Operator>::value == 0> * = nullptr>
   static void computeResidual(const Operator &A, const K *const b, const K *const x, underlying_type<K> *const storage, const unsigned short mu,
                               const unsigned short norm)
   {
@@ -951,26 +950,29 @@ private:
     if (norm == HPDDM_COMPUTE_RESIDUAL_L1) {
       for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
-          storage[2 * nu + 1] += std::abs(tmp[nu * n + i]);
-          if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] += std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
-          else storage[2 * nu] += std::abs(b[nu * n + i]);
+          storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] += std::abs(tmp[nu * n + i]);
+          if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
+            storage[2 * static_cast<std::ptrdiff_t>(nu)] += std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+          else storage[2 * static_cast<std::ptrdiff_t>(nu)] += std::abs(b[nu * n + i]);
         }
       }
     } else if (norm == HPDDM_COMPUTE_RESIDUAL_LINFTY) {
       for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
-          storage[2 * nu + 1] = std::max(std::abs(tmp[nu * n + i]), storage[2 * nu + 1]);
+          storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] = std::max(std::abs(tmp[nu * n + i]), storage[2 * static_cast<std::ptrdiff_t>(nu) + 1]);
           if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
-            storage[2 * nu] = std::max(std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN)), storage[2 * nu]);
-          else storage[2 * nu] = std::max(std::abs(b[nu * n + i]), storage[2 * nu]);
+            storage[2 * static_cast<std::ptrdiff_t>(nu)] = std::max(std::abs(b[nu * n + i] / underlying_type<K>(HPDDM_PEN)),
+                                                                    storage[2 * static_cast<std::ptrdiff_t>(nu)]);
+          else storage[2 * static_cast<std::ptrdiff_t>(nu)] = std::max(std::abs(b[nu * n + i]), storage[2 * static_cast<std::ptrdiff_t>(nu)]);
         }
       }
     } else {
       for (int i = 0; i < n; ++i) {
         for (unsigned short nu = 0; nu < mu; ++nu) {
-          storage[2 * nu + 1] += std::norm(tmp[nu * n + i]);
-          if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN) storage[2 * nu] += std::norm(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
-          else storage[2 * nu] += std::norm(b[nu * n + i]);
+          storage[2 * static_cast<std::ptrdiff_t>(nu) + 1] += std::norm(tmp[nu * n + i]);
+          if (std::abs(b[nu * n + i]) > HPDDM_EPS * HPDDM_PEN)
+            storage[2 * static_cast<std::ptrdiff_t>(nu)] += std::norm(b[nu * n + i] / underlying_type<K>(HPDDM_PEN));
+          else storage[2 * static_cast<std::ptrdiff_t>(nu)] += std::norm(b[nu * n + i]);
         }
       }
     }
@@ -1069,8 +1071,7 @@ public:
   template <bool excluded = false, class Operator, class K>
   static int PCG(const Operator &A, const K *const b, K *const x, const MPI_Comm &comm);
 #if !HPDDM_PETSC || defined(PETSC_PCHPDDM_MAXLEVELS)
-  template <bool excluded = false, class Operator = void, class K = double,
-            typename std::enable_if<!is_substructuring_method<Operator>::value>::type * = nullptr>
+  template <bool excluded = false, class Operator = void, class K = double, std::enable_if_t<!is_substructuring_method<Operator>::value> * = nullptr>
   static
   #if !defined(PETSC_PCHPDDM_MAXLEVELS)
     int
@@ -1111,7 +1112,9 @@ public:
     sb = const_cast<K *>(b);
     k  = 1;
   }
-  int it;
+  std::unique_ptr<K[]> sbStorage(sb != b ? sb : nullptr);
+  std::unique_ptr<K[]> sxStorage(sx != x ? sx : nullptr);
+  int                  it;
   switch (method) {
   case HPDDM_KRYLOV_METHOD_NONE: {
     const bool allocate = A.template start<excluded>(sb, sx, k * mu);
@@ -1171,7 +1174,7 @@ public:
 }
 #endif
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
-template <bool excluded = false, class Operator = void, class K = double, typename std::enable_if<is_substructuring_method<Operator>::value>::type * = nullptr>
+template <bool excluded = false, class Operator = void, class K = double, std::enable_if_t<is_substructuring_method<Operator>::value> * = nullptr>
 static int solve(const Operator &A, const K *const b, K *const x, const int &, const MPI_Comm &comm)
 {
   std::ios_base::fmtflags ff(std::cout.flags());

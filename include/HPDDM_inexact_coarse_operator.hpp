@@ -54,35 +54,35 @@ HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) class InexactCoarseOperator :
 {
 protected:
 #if !HPDDM_PETSC
-  typedef typename Subdomain<K>::integer_type     integer_type;
-  typedef void                                    return_type;
-  Schwarz<SUBDOMAIN, COARSEOPERATOR, S, K>       *s_;
-  const Schwarz<SUBDOMAIN, COARSEOPERATOR, S, K> *p_;
-  MPI_Comm                                        communicator_;
-  K                                             **buff_;
-  MPI_Request                                    *rq_;
-  K                                              *x_;
-  K                                              *o_;
-  unsigned short                                  mu_;
+  using integer_type = typename Subdomain<K>::integer_type;
+  using return_type  = void;
+  Schwarz<SUBDOMAIN, COARSEOPERATOR, S, K>       *s_{};
+  const Schwarz<SUBDOMAIN, COARSEOPERATOR, S, K> *p_{};
+  MPI_Comm                                        communicator_{MPI_COMM_NULL};
+  K                                             **buff_{};
+  MPI_Request                                    *rq_{};
+  K                                              *x_{};
+  K                                              *o_{};
+  unsigned short                                  mu_{};
 #else
-  typedef PetscErrorCode return_type;
-  typedef PetscInt       integer_type;
-  PC_HPDDM_Level        *s_;
-  PetscInt              *idx_;
+  using return_type  = PetscErrorCode;
+  using integer_type = PetscInt;
+  PC_HPDDM_Level *s_{};
+  PetscInt       *idx_{};
 #endif
   vectorNeighbor                             recv_;
   std::map<unsigned short, std::vector<int>> send_;
-  K                                         *da_;
-  K                                         *oa_;
-  integer_type                              *di_;
-  integer_type                              *oi_;
-  integer_type                              *dj_;
-  integer_type                              *oj_;
-  integer_type                              *ogj_;
-  unsigned int                              *range_;
-  int                                        dof_;
-  int                                        off_;
-  int                                        bs_;
+  K                                         *da_{};
+  K                                         *oa_{};
+  integer_type                              *di_{};
+  integer_type                              *oi_{};
+  integer_type                              *dj_{};
+  integer_type                              *oj_{};
+  integer_type                              *ogj_{};
+  unsigned int                              *range_{};
+  int                                        dof_{};
+  int                                        off_{};
+  int                                        bs_{};
   template <char
 #if !HPDDM_PETSC
               T
@@ -130,7 +130,7 @@ protected:
           MPI_Group_free(&world);
           bool               r = false;
           std::vector<int *> range;
-          range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * nrow);
+          range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * static_cast<std::size_t>(nrow));
           range.emplace_back(J);
           int *R = new int[nrow + 1];
           R[0]   = (super::numbering_ == 'F');
@@ -228,7 +228,7 @@ protected:
       std::map<unsigned short, unsigned int> allocation;
       bool                                   r = false;
       std::vector<int *>                     range;
-      range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * nrow);
+      range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * static_cast<std::size_t>(nrow));
       range.emplace_back(J);
       for (unsigned int i = 0; i < nrow; ++i) {
         di_[i + 1] = di_[i];
@@ -281,7 +281,7 @@ protected:
           delete[] D;
         }
         recv_.reserve(allocation.size());
-        for (const std::pair<unsigned short, unsigned int> &p : allocation) {
+        for (const std::pair<const unsigned short, unsigned int> &p : allocation) {
           recv_.emplace_back(p.first, std::vector<int>());
           recv_.back().second.reserve(p.second);
         }
@@ -370,15 +370,15 @@ protected:
         accumulate = std::accumulate(recv_.cbegin(), recv_.cend(), 0,
                                      [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
         accumulate = std::accumulate(send_.cbegin(), send_.cend(), accumulate,
-                                     [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
-        *buff_     = new K[accumulate * bs_];
+                                     [](unsigned int init, const std::pair<const unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
+        *buff_     = new K[static_cast<std::size_t>(accumulate) * bs_];
         accumulate = 0;
         off_       = 0;
         for (const std::pair<unsigned short, std::vector<int>> &i : recv_) {
           buff_[off_++] = *buff_ + accumulate * bs_;
           accumulate += i.second.size();
         }
-        for (const std::pair<unsigned short, std::vector<int>> &i : send_) {
+        for (const std::pair<const unsigned short, std::vector<int>> &i : send_) {
           buff_[off_++] = *buff_ + accumulate * bs_;
           accumulate += i.second.size();
         }
@@ -427,7 +427,7 @@ protected:
       K                          *a;
       bool                        r = false;
       std::vector<integer_type *> range;
-      range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * nrow);
+      range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * static_cast<std::size_t>(nrow));
       range.emplace_back(J);
       int *R = new int[nrow + 1];
       R[0]   = (super::numbering_ == 'F');
@@ -495,7 +495,7 @@ protected:
     std::unordered_map<unsigned short, std::set<int>> exchange;
     bool                                              r = false;
     std::vector<integer_type *>                       range;
-    range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * nrow);
+    range.reserve((S == 'S' ? 1 : (T == 1 ? 8 : 4)) * static_cast<std::size_t>(nrow));
     range.emplace_back(J);
     for (unsigned int i = 0; i < nrow; ++i) {
       di_[i + 1] = di_[i];
@@ -684,29 +684,7 @@ protected:
   }
 
 public:
-  InexactCoarseOperator() :
-    OptionsPrefix<K>(),
-    super(),
-    s_(),
-#if !HPDDM_PETSC
-    p_(),
-    communicator_(MPI_COMM_NULL),
-    buff_(),
-    rq_(),
-    x_(),
-    mu_()
-#else
-    idx_(),
-    da_()
-#endif
-    ,
-    di_(),
-    oi_(),
-    ogj_(),
-    range_(),
-    off_()
-  {
-  }
+  InexactCoarseOperator() = default;
   ~InexactCoarseOperator()
   {
 #if !HPDDM_PETSC
@@ -746,19 +724,15 @@ public:
     vectorNeighbor().swap(recv_);
   }
   constexpr int getDof() const { return dof_ * bs_; }
-#if HPDDM_PETSC
-  template <char trans>
-#else
-  template <bool trans>
-#endif
+  template <std::conditional_t<HPDDM_PETSC, char, bool> trans>
   return_type solve(K *rhs, const unsigned short &mu)
   {
 #if !HPDDM_PETSC
     if (s_) {
       K                 *in, *out;
       const unsigned int n = s_->getDof();
-      in                   = new K[mu * n];
-      out                  = new K[mu * n]();
+      in                   = new K[static_cast<std::size_t>(mu) * n];
+      out                  = new K[static_cast<std::size_t>(mu) * n]();
       for (unsigned short i = 0; i < mu; ++i) {
         std::copy_n(rhs + i * dof_ * bs_, dof_ * bs_, in + i * n);
         std::fill(in + i * n + dof_ * bs_, in + (i + 1) * n, K());
@@ -773,7 +747,7 @@ public:
     } else {
       if (mu_ != mu) {
         delete[] x_;
-        x_  = new K[mu * dof_ * bs_]();
+        x_  = new K[static_cast<std::size_t>(mu) * dof_ * bs_]();
         mu_ = mu;
       }
       const std::string prefix = OptionsPrefix<K>::prefix();
@@ -825,7 +799,7 @@ public:
           !opt.val<unsigned short>(prefix + "recycle_same_system"))
         k = std::max(opt.val<int>(prefix + "recycle", 1), 1);
       K **ptr = const_cast<K **>(&o_);
-      *ptr    = new K[mu * k * off_ * bs_]();
+      *ptr    = new K[static_cast<std::size_t>(mu) * k * off_ * bs_]();
       return true;
     } else return false;
   }
@@ -834,9 +808,9 @@ public:
     if (free) delete[] o_;
   }
 #endif
-  static constexpr underlying_type<K>                              *getScaling() { return nullptr; }
-  static constexpr std::unordered_map<unsigned int, K>              boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
-  typename std::conditional<HPDDM_PETSC, Mat, MatrixCSR<K> *>::type buildMatrix(
+  static constexpr underlying_type<K>                 *getScaling() { return nullptr; }
+  static std::unordered_map<unsigned int, K>           boundaryConditions() { return std::unordered_map<unsigned int, K>(); }
+  std::conditional_t<HPDDM_PETSC, Mat, MatrixCSR<K> *> buildMatrix(
     const InexactCoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)> *in, const std::vector<unsigned int> &displs, const unsigned int *const ranges,
     const std::vector<std::vector<unsigned int>>                              &off,
     const std::vector<std::vector<std::pair<unsigned short, unsigned short>>> &reduction =
@@ -875,15 +849,14 @@ public:
       }
     } else {
       if (in != this) {
-        for (std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::const_iterator it = extra.cbegin();
-             it != extra.cend(); ++it) {
-          if (bss > 1) std::for_each(di + std::get<1>(it->second) + 1, di + in->dof_ + 1, [&](integer_type &k) { k += std::get<2>(it->second).size(); });
+        for (const auto &it : extra) {
+          if (bss > 1) std::for_each(di + std::get<1>(it.second) + 1, di + in->dof_ + 1, [&](integer_type &k) { k += std::get<2>(it.second).size(); });
           else {
             unsigned int row = 0;
-            for (const unsigned short &p : std::get<2>(it->second)) row += sizes.at(std::make_pair(p, p));
-            for (unsigned short i = 0; i < std::get<0>(it->second); ++i) di[std::get<1>(it->second) + i + 1] += (i + 1) * row;
-            std::for_each(di + std::get<1>(it->second) + std::get<0>(it->second) + 1, di + in->dof_ + 1,
-                          [&](integer_type &k) { k += std::get<0>(it->second) * row; });
+            for (const unsigned short &p : std::get<2>(it.second)) row += sizes.at(std::make_pair(p, p));
+            for (unsigned short i = 0; i < std::get<0>(it.second); ++i) di[std::get<1>(it.second) + i + 1] += (i + 1) * row;
+            std::for_each(di + std::get<1>(it.second) + std::get<0>(it.second) + 1, di + in->dof_ + 1,
+                          [&](integer_type &k) { k += std::get<0>(it.second) * row; });
           }
         }
       }
@@ -914,8 +887,9 @@ public:
         send.reserve(in->recv_.size());
         std::map<unsigned short, std::vector<int>>::const_iterator it = in->send_.cbegin();
         for (unsigned short i = 0; i < in->send_.size(); ++i) {
-          recv[1].emplace_back(std::make_pair(new int[2 * (displs[i + 1] - displs[i])], nullptr));
-          MPI_Irecv(recv[1].back().first, 2 * (displs[i + 1] - displs[i]), MPI_INT, it->first, 11, in->communicator_, rqRecv + i);
+          const std::size_t count = 2 * static_cast<std::size_t>(displs[i + 1] - displs[i]);
+          recv[1].emplace_back(std::make_pair(new int[count], nullptr));
+          MPI_Irecv(recv[1].back().first, static_cast<int>(count), MPI_INT, it->first, 11, in->communicator_, rqRecv + i);
           ++it;
         }
         for (unsigned short j = 0; j < in->recv_.size(); ++j) {
@@ -930,8 +904,8 @@ public:
           send.back().second = new K[nnz + (nnz + (off[j].size() * (off[j].size() + 1)) / 2) * bss]();
           int *ja            = reinterpret_cast<int *>(send.back().second + nnz * bss);
           nnz                = 0;
-          for (unsigned int i = 0; i < off[j].size(); ++i) {
-            for (unsigned k = in->oi_[off[j][i]] - (super::numbering_ == 'F'); k < in->oi_[off[j][i] + 1] - (super::numbering_ == 'F'); ++k) {
+          for (unsigned int i : off[j]) {
+            for (unsigned k = in->oi_[i] - (super::numbering_ == 'F'); k < in->oi_[i + 1] - (super::numbering_ == 'F'); ++k) {
               std::copy_n(in->oa_ + k * bss, bss, send.back().second + nnz * bss);
               ja[nnz++] = in->ogj_[k];
             }
@@ -974,21 +948,23 @@ public:
               else {
                 bool kept = false;
                 for (unsigned int i = index + 1; i < in->send_.size() && !kept; ++i) {
-                  if (ja[accumulate] >= ranges[2 * i] && ja[accumulate] <= ranges[2 * i + 1]) {
+                  const std::ptrdiff_t offset = 2 * static_cast<std::ptrdiff_t>(i);
+                  if (ja[accumulate] >= ranges[offset] && ja[accumulate] <= ranges[offset + 1]) {
                     const int *pt = std::lower_bound(recv[1][i].first + displs[i + 1] - displs[i], recv[1][i].first + 2 * (displs[i + 1] - displs[i]),
-                                                     ja[accumulate] - ranges[2 * i]);
-                    if (pt != recv[1][i].first + 2 * (displs[i + 1] - displs[i]) && *pt == ja[accumulate] - ranges[2 * i])
+                                                     ja[accumulate] - ranges[offset]);
+                    if (pt != recv[1][i].first + 2 * (displs[i + 1] - displs[i]) && *pt == ja[accumulate] - ranges[offset])
                       oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs[i] +
                                                                       std::distance(recv[1][i].first + displs[i + 1] - displs[i],
                                                                                     std::lower_bound(recv[1][i].first + displs[i + 1] - displs[i],
                                                                                                      recv[1][i].first + 2 * (displs[i + 1] - displs[i]),
-                                                                                                     ja[accumulate] - ranges[2 * i])),
+                                                                                                     ja[accumulate] - ranges[offset])),
                                                                     recv[1][index].second + accumulate * bss);
                     kept = true;
                   }
                 }
                 for (unsigned int i = in->send_.size(); i < in->send_.size() + in->recv_.size() && !kept; ++i) {
-                  if (ja[accumulate] >= ranges[2 * i] && ja[accumulate] <= ranges[2 * i + 1]) {
+                  const std::ptrdiff_t offset = 2 * static_cast<std::ptrdiff_t>(i);
+                  if (ja[accumulate] >= ranges[offset] && ja[accumulate] <= ranges[offset + 1]) {
                     std::vector<int>::const_iterator pt = std::lower_bound(nnz.cbegin(), nnz.cend(), ja[accumulate] - (super::numbering_ == 'F'));
                     if (pt != nnz.cend() && *pt == ja[accumulate] - (super::numbering_ == 'F'))
                       oa[in->dof_ + displs[index] + j].emplace_back(in->dof_ + displs.back() + std::distance(nnz.cbegin(), pt),
@@ -1052,7 +1028,7 @@ public:
         MPI_Isend(send.back().first, 2 * p.second.size(), MPI_INT, p.first, 322, in->communicator_, rqSend);
         unsigned int accumulate = 0;
         for (unsigned int i = 0; i < p.second.size(); ++i) accumulate += send.back().first[2 * i] + send.back().first[2 * i + 1];
-        send.back().second = new K[accumulate * (1 + bss)];
+        send.back().second = new K[static_cast<std::size_t>(accumulate) * (1 + bss)];
         accumulate         = 0;
         for (unsigned int i = 0; i < p.second.size(); ++i) {
           std::copy_n(col.cbegin() + accumulate, send.back().first[2 * i], send.back().second + accumulate * (1 + bss));
@@ -1071,7 +1047,7 @@ public:
         int index;
         MPI_Waitany(in->recv_.size(), rqRecv, &index, MPI_STATUS_IGNORE);
         unsigned int nnz      = std::accumulate(recv[0][index].first, recv[0][index].first + 2 * in->recv_[index].second.size(), 0);
-        recv[0][index].second = new K[nnz * (1 + bss)];
+        recv[0][index].second = new K[static_cast<std::size_t>(nnz) * (1 + bss)];
         MPI_Irecv(recv[0][index].second, nnz * (1 + bss), Wrapper<K>::mpi_type(), in->recv_[index].first, 323, in->communicator_,
                   rqRecv + in->recv_.size() + index);
       }
@@ -1100,13 +1076,12 @@ public:
     } else if (!sizes.empty()) {
       std::map<unsigned short, unsigned short> nnz;
       rows.reserve(sizes.size());
-      rows.emplace_back(
-        std::make_pair(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first))));
+      rows.emplace_back(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first)));
       for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = sizes.cbegin(); it != sizes.cend(); ++it) {
         if (it->first.first != rows.back().first->first.first)
-          rows.emplace_back(std::make_pair(it, in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(it->first.first, it->first.first))));
+          rows.emplace_back(it, in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(it->first.first, it->first.first)));
       }
-      rows.emplace_back(std::make_pair(sizes.cend(), 0));
+      rows.emplace_back(sizes.cend(), 0);
       unsigned int accumulate = 0;
       for (unsigned short k = 0; k < rows.size() - 1; ++k) {
         unsigned int row = 0;
@@ -1128,7 +1103,7 @@ public:
       }
     }
     integer_type *dj = new integer_type[di[in->dof_ + in->off_ + displs.back()]];
-    K            *da = new K[di[in->dof_ + in->off_ + displs.back()] * bss]();
+    K            *da = new K[static_cast<std::size_t>(di[in->dof_ + in->off_ + displs.back()]) * bss]();
     for (unsigned int i = 0; i < in->dof_; ++i) {
       for (unsigned int j = in->di_[i]; j < in->di_[i + 1]; ++j)
         dj[di[i] + j - in->di_[i]] = in->dj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F');
@@ -1258,9 +1233,9 @@ public:
         MPI_Waitany(reduction.size(), std::get<2>(transfer), &index, &st);
         if (st.MPI_TAG != MPI_ANY_TAG && st.MPI_SOURCE != MPI_ANY_SOURCE) {
           unsigned int accumulate = std::get<0>(transfer)[index];
-          for (unsigned short j = 0; j < reduction[index].size(); ++j) {
-            const unsigned short r1  = reduction[index][j].first;
-            const unsigned short r2  = reduction[index][j].second;
+          for (const auto &j : reduction[index]) {
+            const unsigned short r1  = j.first;
+            const unsigned short r2  = j.second;
             const unsigned int   row = std::distance(di, std::lower_bound(di + in->dof_, di + in->dof_ + in->off_ + displs.back(), loc[key(r1, r2)])) -
                                        (S == 'S' ? 0 : 1);
             if (in->bs_ == 1) {
@@ -1325,20 +1300,21 @@ public:
     MatrixCSR<K> *ret = new MatrixCSR<K>(in->dof_ + in->off_ + displs.back(), in->dof_ + in->off_ + displs.back(), di[in->dof_ + in->off_ + displs.back()], da,
                                          di, dj, S == 'S', true);
     if (bss > 1) {
-      int *di = new int[ret->n_ * in->bs_ + 1];
+      int *di = new int[static_cast<std::size_t>(ret->n_) * in->bs_ + 1];
       for (int i = 0; i < ret->n_; ++i)
         for (int k = 0; k < in->bs_; ++k)
-          di[i * in->bs_ + k] = ret->ia_[i] * bss + (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ * k -
-                                (S == 'S' ? i * (in->bs_ * (in->bs_ - 1)) / 2 + (k * (k - 1)) / 2 : 0);
+          di[static_cast<std::ptrdiff_t>(i) * in->bs_ + k] = ret->ia_[i] * bss + (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ * k -
+                                                             (S == 'S' ? i * (in->bs_ * (in->bs_ - 1)) / 2 + (k * (k - 1)) / 2 : 0);
       ret->nnz_ *= bss;
       if (S == 'S') ret->nnz_ -= ret->n_ * (in->bs_ * (in->bs_ - 1)) / 2;
-      di[ret->n_ * in->bs_] = ret->nnz_;
-      int *dj               = new int[ret->nnz_];
+      di[static_cast<std::ptrdiff_t>(ret->n_) * in->bs_] = ret->nnz_;
+      int *dj                                            = new int[ret->nnz_];
       for (int i = 0; i < ret->n_; ++i) {
+        const std::ptrdiff_t offset = static_cast<std::ptrdiff_t>(i) * in->bs_;
         for (int j = ret->ia_[i]; j < ret->ia_[i + 1]; ++j)
-          for (int k = 0; k < in->bs_; ++k) dj[di[i * in->bs_] + (j - ret->ia_[i]) * in->bs_ + k] = ret->ja_[j] * in->bs_ + k;
+          for (int k = 0; k < in->bs_; ++k) dj[di[offset] + (j - ret->ia_[i]) * in->bs_ + k] = ret->ja_[j] * in->bs_ + k;
         for (int k = 1; k < in->bs_; ++k)
-          std::copy_n(dj + di[i * in->bs_] + (S == 'S' ? k : 0), (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ - (S == 'S' ? k : 0), dj + di[i * in->bs_ + k]);
+          std::copy_n(dj + di[offset] + (S == 'S' ? k : 0), (ret->ia_[i + 1] - ret->ia_[i]) * in->bs_ - (S == 'S' ? k : 0), dj + di[offset + k]);
       }
       K *da = new K[ret->nnz_];
       if (S != 'S') {
@@ -1410,11 +1386,11 @@ public:
 #endif
     return ret;
   }
-  typedef Solver
+  using super = Solver
 #if !HPDDM_PETSC
     <K>
 #endif
-      super;
+    ;
 
   return_type buildThree(CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)> *const                                                &A,
                          const std::vector<std::vector<std::pair<unsigned short, unsigned short>>>                                       &reduction,
@@ -1451,7 +1427,7 @@ public:
         if (S == 'S') {
           std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::const_iterator it = extra.find(i);
           if (it != extra.cend()) {
-            if (bs_ > 1) std::get<0>(transfer)[i + 1] += bs_ * bs_ * std::get<2>(it->second).size();
+            if (bs_ > 1) std::get<0>(transfer)[i + 1] += static_cast<std::size_t>(bs_) * bs_ * std::get<2>(it->second).size();
             else {
               for (std::vector<unsigned short>::const_iterator p = std::get<2>(it->second).cbegin(); p != std::get<2>(it->second).cend(); ++p)
                 std::get<0>(transfer)[i + 1] += std::get<0>(it->second) * sizes.at(std::make_pair(*p, *p));
@@ -1511,22 +1487,24 @@ public:
                 off[i].emplace_back(j);
             }
           }
-          s[3 * i]     = off[i].size();
-          s[3 * i + 1] = range_[0];
-          s[3 * i + 2] = range_[1];
+          const std::ptrdiff_t offset = 3 * static_cast<std::ptrdiff_t>(i);
+          s[offset]                   = off[i].size();
+          s[offset + 1]               = range_[0];
+          s[offset + 2]               = range_[1];
 #if !HPDDM_PETSC
-          MPI_Isend(s + 3 * i, 3, MPI_UNSIGNED, recv_[i].first, 13, communicator_, rq++);
+          MPI_Isend(s + offset, 3, MPI_UNSIGNED, recv_[i].first, 13, communicator_, rq++);
 #else
-          MPI_Isend(s + 3 * i, 3, MPI_UNSIGNED, recv_[i].first, 13, DMatrix::communicator_, rq++);
+          MPI_Isend(s + offset, 3, MPI_UNSIGNED, recv_[i].first, 13, DMatrix::communicator_, rq++);
 #endif
         }
         rq -= 2 * (recv_.size() + send_.size());
         MPI_Waitall(send_.size(), rq, MPI_STATUSES_IGNORE);
         displs[0] = 0;
         for (unsigned short i = 0; i < send_.size(); ++i) {
-          displs[i + 1]     = displs[i] + s[3 * (recv_.size() + i)];
-          ranges[2 * i]     = s[3 * (recv_.size() + i) + 1];
-          ranges[2 * i + 1] = s[3 * (recv_.size() + i) + 2];
+          const std::ptrdiff_t offset = 2 * static_cast<std::ptrdiff_t>(i);
+          displs[i + 1]               = displs[i] + s[3 * (recv_.size() + i)];
+          ranges[offset]              = s[3 * (recv_.size() + i) + 1];
+          ranges[offset + 1]          = s[3 * (recv_.size() + i) + 2];
         }
         MPI_Waitall(send_.size() + 2 * recv_.size(), rq + send_.size(), MPI_STATUSES_IGNORE);
         delete[] rq;
@@ -1557,8 +1535,8 @@ public:
           std::vector<int>::iterator it = r[j].begin();
           for (unsigned int i = 0; i < displs[j + 1] - displs[j]; ++i)
             for (unsigned int k = 0; k < bs_; ++k) *it++ = (dof_ + displs[j] + i) * bs_ + k;
-          for (unsigned int i = 0; i < p.second.size(); ++i)
-            for (unsigned int k = 0; k < bs_; ++k) *it++ = p.second[i] * bs_ + k;
+          for (int i : p.second)
+            for (unsigned int k = 0; k < bs_; ++k) *it++ = i * bs_ + k;
           ++j;
         }
       }
@@ -1573,15 +1551,15 @@ public:
         } else {
           std::vector<int>::iterator it = r[j].begin();
           if (S != 'S')
-            for (unsigned int i = 0; i < send_[p.first].size(); ++i)
-              for (unsigned int k = 0; k < bs_; ++k) *it++ = send_[p.first][i] * bs_ + k;
+            for (int i : send_[p.first])
+              for (unsigned int k = 0; k < bs_; ++k) *it++ = i * bs_ + k;
           else {
-            for (unsigned int i = 0; i < off[j - send_.size()].size(); ++i) {
-              for (unsigned int k = 0; k < bs_; ++k) *it++ = off[j - send_.size()][i] * bs_ + k;
+            for (unsigned int i : off[j - send_.size()]) {
+              for (unsigned int k = 0; k < bs_; ++k) *it++ = i * bs_ + k;
             }
           }
-          for (unsigned int i = 0; i < p.second.size(); ++i)
-            for (unsigned int k = 0; k < bs_; ++k) *it++ = (dof_ + displs.back() + p.second[i]) * bs_ + k;
+          for (int i : p.second)
+            for (unsigned int k = 0; k < bs_; ++k) *it++ = (dof_ + displs.back() + i) * bs_ + k;
         }
         ++j;
       }
@@ -1754,12 +1732,12 @@ private:
           ++i;
         }
       else
-        for (const std::pair<unsigned short, std::vector<int>> &p : send_) {
+        for (const std::pair<const unsigned short, std::vector<int>> &p : send_) {
           MPI_Irecv(buff_[i], p.second.size() * bs_, Wrapper<K>::mpi_type(), p.first, 20, communicator_, rq_ + i);
           ++i;
         }
       if (T == 'N')
-        for (const std::pair<unsigned short, std::vector<int>> &p : send_) {
+        for (const std::pair<const unsigned short, std::vector<int>> &p : send_) {
           for (unsigned int j = 0; j < p.second.size(); ++j) std::copy_n(in + (nu * dof_ + p.second[j]) * bs_, bs_, buff_[i] + j * bs_);
           MPI_Isend(buff_[i], p.second.size() * bs_, Wrapper<K>::mpi_type(), p.first, 10, communicator_, rq_ + i);
           ++i;

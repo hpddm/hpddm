@@ -5,7 +5,7 @@ MPICXX ?= powerpc64-bgq-linux-g++
 MPICC ?= powerpc64-bgq-linux-gcc
 MPIRUN ?= runjob --ranks-per-node 8 --np
 
-override CXXFLAGS += -std=c++11 -O0 -fPIC
+override CXXFLAGS += -std=c++14 -O0 -fPIC
 override CFLAGS += -std=c99 -O0
 
 HPDDMFLAGS ?= -DHPDDM_NUMBERING=\'F\'
