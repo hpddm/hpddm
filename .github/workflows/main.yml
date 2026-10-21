@@ -27,7 +27,7 @@ jobs:
           exclude-regex: '\/petsc\/'
       - id: petsc-branch
         run: |
-          export PETSC_BRANCH=`git ls-remote --heads https://gitlab.com/petsc/petsc.git "refs/heads/jolivet/*-ci" | tail -n 1 | cut -d'/' -f3-`
+          export PETSC_BRANCH=ksphpddm_stopping_fix
           if [ "$PETSC_BRANCH" = "" ]; then export PETSC_BRANCH="main"; fi
           echo "var=${PETSC_BRANCH}" >> $GITHUB_OUTPUT
       - id: hpddm-branch-push
@@ -159,7 +159,7 @@ jobs:
     - name: Fetch PETSc and data files
       id: datafiles
       run: |
-        cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/petsc/petsc.git && cd petsc || exit 1
+        cd .. && git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} --single-branch https://gitlab.com/boris-martin/petsc.git && cd petsc || exit 1
         OUTPUT=$(for SRC in ksp/impls/hpddm/hpddm.cxx ksp/impls/hpddm/cuda/hpddm.cu pc/impls/hpddm/pchpddm.cxx;
         do
           diff --suppress-common-lines -y -W 900 src/ksp/${SRC} ../${{ github.event.repository.name }}/interface/petsc/`echo ${SRC} | cut -d'/' -f1,4-` | sed '/LCOV_/d' | if [ $(wc -c) -gt "0" ]; then echo ${SRC} file has diverged; fi
@@ -355,7 +355,7 @@ jobs:
     - name: Fetch PETSc and data files
       run: |
         rm -rf petsc ${{ github.event.repository.name }} petsc_datafiles.tar.xz coverage_nvcc.info coverage_nvcc_complex.info
-        git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} https://gitlab.com/petsc/petsc.git
+        git clone --depth=1 -b ${{ needs.variables.outputs.petsc-branch }} https://gitlab.com/boris-martin/petsc.git
         git clone --depth=1 -b ${{ needs.variables.outputs.hpddm-branch }} git@github.com:${{ github.event.pull_request.head.repo.full_name || github.repository }}
         wget -nv https://joliv.et/petsc_datafiles.tar.xz && tar xJf petsc_datafiles.tar.xz || exit 1
       if: matrix.runs_on != env.UBUNTU_RUNNER
