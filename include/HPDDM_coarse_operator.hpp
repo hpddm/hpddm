@@ -237,6 +237,10 @@ private:
       std::for_each(counts, counts + 2 * static_cast<std::ptrdiff_t>(m), [&](int &i) { i /= n; });
     }
   }
+#if HPDDM_PETSC
+  static PetscErrorCode setMatrixOptions(Mat, const char *);
+  PetscErrorCode        setMumpsBlk(PC, const char *, PetscInt, const unsigned short *) const;
+#endif
 
 public:
   CoarseOperator()
