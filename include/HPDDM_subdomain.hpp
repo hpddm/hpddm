@@ -241,8 +241,7 @@ public:
     while (j < neighbors) {
       if (sizes[idx[j]] > 0) {
         map_.emplace_back(list[idx[j]], typename decltype(map_)::value_type::second_type());
-        map_.back().second.reserve(sizes[idx[j]]);
-        for (int k = 0; k < sizes[idx[j]]; ++k) map_.back().second.emplace_back(connectivity[idx[j]][k]);
+        map_.back().second.assign(connectivity[idx[j]], connectivity[idx[j]] + sizes[idx[j]]);
       }
       ++j;
     }
@@ -477,8 +476,8 @@ public:
     }
     if (sizeWorld > 1) {
       setBuffer();
-      T between = 0;
-      for (unsigned short i = 0; i < map_.size() && map_[i].first < rankWorld; ++i) ++between;
+      T  between       = std::distance(map_.cbegin(), std::lower_bound(map_.cbegin(), map_.cend(), rankWorld,
+                                                                       [](const pairNeighbor &neighbor, int rank) { return neighbor.first < rank; }));
       T *local         = new T[sizeWorld];
       local[rankWorld] = (list ? r.size() : std::distance(first, last));
       std::unordered_set<unsigned int> removed;
@@ -691,9 +690,7 @@ inline void IterativeMethod::preprocess(const Operator &A, const K *const b, K *
       MPI_Allreduce(local, global, k, MPI_UNSIGNED, MPI_SUM, comm);
     };
     if (!excluded)
-      for (const auto &i : map) {
-        for (const int &k : i.second) redundant.emplace(k);
-      }
+      for (const pairNeighbor &i : map) redundant.insert(i.second.cbegin(), i.second.cend());
     check_size();
     {
       unsigned int max = 0;

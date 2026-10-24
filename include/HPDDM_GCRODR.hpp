@@ -421,7 +421,7 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
             info = std::accumulate(q.cbegin(), q.cbegin() + k, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
             for (i = k; info != (k * (k - 1)) / 2 && i < dim; ++i) info += q[i].first;
             int *perm = new int[i];
-            for (unsigned short j = 0; j < i; ++j) perm[j] = q[j].first + 1;
+            std::transform(q.cbegin(), q.cbegin() + i, perm, [](typename decltype(q)::const_reference p) { return p.first + 1; });
             decltype(q)().swap(q);
             Lapack<K>::lapmt(&i_1, &dim, &(info = i), vr, &dim, perm);
             row = diff + 1;
@@ -750,7 +750,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
           info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
           for (i = bK; info != (bK * (bK - 1)) / 2 && i < dim; ++i) info += q[i].first;
           int *perm = new int[i];
-          for (unsigned short j = 0; j < i; ++j) perm[j] = q[j].first + 1;
+          std::transform(q.cbegin(), q.cbegin() + i, perm, [](typename decltype(q)::const_reference p) { return p.first + 1; });
           decltype(q)().swap(q);
           Lapack<K>::lapmt(&i_1, &dim, &(info = i), vr, &dim, perm);
           delete[] perm;
@@ -880,7 +880,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
           info = std::accumulate(q.cbegin(), q.cbegin() + bK, 0, [](int a, typename decltype(q)::const_reference b) { return a + b.first; });
           for (i = bK; info != (bK * (bK - 1)) / 2 && i < bDim; ++i) info += q[i].first;
           int *perm = new int[i];
-          for (unsigned short j = 0; j < i; ++j) perm[j] = q[j].first + 1;
+          std::transform(q.cbegin(), q.cbegin() + i, perm, [](typename decltype(q)::const_reference p) { return p.first + 1; });
           decltype(q)().swap(q);
           Lapack<K>::lapmt(&i_1, &bDim, &(info = i), vr, &bDim, perm);
 #else

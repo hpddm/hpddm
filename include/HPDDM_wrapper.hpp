@@ -717,7 +717,7 @@ inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const
     else if (beta != &d_1) Blas<K>::scal(&ldc, beta, y, &i_1);
     if (Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
       K *const c = const_cast<K *>(a);
-      for (int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i) c[i] = conj(c[i]);
+      std::transform(c, c + *bs * *bs * (ia[*m] - (N == 'F')), c, [](const K &v) { return conj(v); });
     }
     if (sym) {
       for (int i = 0; i < *m; ++i) {
@@ -735,7 +735,7 @@ inline void Wrapper<K>::bsrmv(const char *const trans, const int *const m, const
     }
     if (Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
       K *const c = const_cast<K *>(a);
-      for (int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i) c[i] = conj(c[i]);
+      std::transform(c, c + *bs * *bs * (ia[*m] - (N == 'F')), c, [](const K &v) { return conj(v); });
     }
   }
 }
@@ -804,7 +804,7 @@ inline void Wrapper<K>::bsrmm(const char *const trans, const int *const m, const
       else if (beta != &d_1) Blas<K>::scal(&j, beta, y, &i_1);
       if (Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
         K *const c = const_cast<K *>(a);
-        for (int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i) c[i] = conj(c[i]);
+        std::transform(c, c + *bs * *bs * (ia[*m] - (N == 'F')), c, [](const K &v) { return conj(v); });
       }
       if (sym) {
         for (int i = 0; i < *m; ++i) {
@@ -822,7 +822,7 @@ inline void Wrapper<K>::bsrmm(const char *const trans, const int *const m, const
       }
       if (Wrapper<K>::is_complex && *trans == 'C' && (sym || N == 'C')) {
         K *const c = const_cast<K *>(a);
-        for (int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i) c[i] = conj(c[i]);
+        std::transform(c, c + *bs * *bs * (ia[*m] - (N == 'F')), c, [](const K &v) { return conj(v); });
       }
     }
   }
@@ -920,7 +920,7 @@ inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, 
         else if (beta != &d_1) Blas<T>::scal(&j, beta, y, &i_1); \
         if (Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) { \
           T *const c = const_cast<T *>(a); \
-          for (int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i) c[i] = conj(c[i]); \
+          std::transform(c, c + *bs * *bs * (ia[*m] - (N == 'F')), c, [](const T &v) { return conj(v); }); \
         } \
         if (sym) { \
           for (int i = 0; i < *m; ++i) { \
@@ -938,7 +938,7 @@ inline void Wrapper<K>::bsrmm(bool sym, const int *const n, const int *const m, 
         } \
         if (Wrapper<T>::is_complex && *trans == 'C' && (sym || N == 'C')) { \
           T *const c = const_cast<T *>(a); \
-          for (int i = 0; i < *bs * *bs * (ia[*m] - (N == 'F')); ++i) c[i] = conj(c[i]); \
+          std::transform(c, c + *bs * *bs * (ia[*m] - (N == 'F')), c, [](const T &v) { return conj(v); }); \
         } \
       } \
     }
