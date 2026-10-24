@@ -91,10 +91,7 @@ protected:
     int rank;
     MPI_Comm_rank(p_.getCommunicator(), &rank);
     Members<true>::rank_ = rank;
-    signed_              = 0;
-    for (const pairNeighbor &neighbor : map_) {
-      if (neighbor.first < rank) ++signed_;
-    }
+    signed_ = static_cast<unsigned short>(std::count_if(map_.cbegin(), map_.cend(), [rank](const pairNeighbor &neighbor) { return neighbor.first < rank; }));
     constexpr unsigned int offset = 0;
 #endif
     Members<true>::consolidate_ = 0;

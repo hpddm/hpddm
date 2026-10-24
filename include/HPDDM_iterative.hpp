@@ -325,7 +325,8 @@ private:
         } else {
           for (unsigned short nu = 0; nu < mu; ++nu) {
             int dim = std::abs(hasConverged[nu]);
-            Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d_1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d_0), work + nu * n, &i_1);
+            if (dim) Blas<K>::gemv("N", &n, &dim, &(Wrapper<K>::d_1), *v + nu * n, &ldv, s + nu, &mu, &(Wrapper<K>::d_0), work + nu * n, &i_1);
+            else std::fill_n(work + nu * n, n, K());
           }
           if (variant == HPDDM_VARIANT_RIGHT) HPDDM_CALL(A.template apply<excluded>(work, correction, mu));
           for (unsigned short nu = 0; nu < mu; ++nu)
@@ -376,7 +377,8 @@ private:
               if (std::abs(hasConverged[nu])) {
                 K alpha = norm[nu];
                 Blas<K>::gemv(&(Wrapper<K>::transc), &n, &shift, &alpha, C + nu * n, &ldv, pt + nu * n, &i_1, &(Wrapper<K>::d_0), s + nu, &mu);
-              }
+              } else
+                for (int i = 0; i < shift; ++i) s[i * mu + nu] = K();
             }
           } else std::fill_n(s, shift * mu, K());
           ignore(MPI_Allreduce(MPI_IN_PLACE, s, shift * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
@@ -460,6 +462,24 @@ private:
     if (out) Wrapper<T>::diag(n, d, in, out);
     else Wrapper<T>::diag(n, d, in);
   }
+#if HPDDM_PETSC
+  static PetscErrorCode initializeConvergence(KSP ksp, const int mu, const PetscReal *const norm, const PetscReal *const residual)
+  {
+    PetscFunctionBegin;
+    PetscCall(KSPHPDDMConvergenceSetUp_Private(ksp, mu, norm, residual));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  template <class K>
+  static PetscErrorCode initializeConvergence(KSP ksp, const int mu, const K *const norm, const PetscReal *const residual)
+  {
+    std::unique_ptr<PetscReal[]> buffer(new PetscReal[mu]);
+
+    PetscFunctionBegin;
+    for (unsigned short nu = 0; nu < mu; ++nu) buffer[nu] = static_cast<PetscReal>(norm[nu]);
+    PetscCall(initializeConvergence(ksp, mu, buffer.get(), residual));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+#endif
   template <bool excluded, class Operator, class K>
   static int initializeNorm(const Operator &A, const char variant, const K *const b, K *const x, K *const v, const int n, K *work,
                             underlying_type<K> *const norm, const unsigned short mu, const unsigned short k, bool &allocate)
@@ -705,12 +725,16 @@ private:
     return rank;
   }
   /* Function: Arnoldi
-         *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space. */
+         *  Computes one iteration of the Arnoldi method for generating one basis vector of a Krylov space.
+         *  If hasConverged is provided, the columns nu with hasConverged[nu] != -m are locked. */
   template <bool excluded, class K>
   static void Arnoldi(const char id, const unsigned short m, K *const *const H, K *const *const v, K *const s, underlying_type<K> *const sn, const int n,
                       const int i, const int mu, const underlying_type<K> *const d, K *const work, const MPI_Comm &comm, K *const *const save = nullptr,
-                      const unsigned short shift = 0)
+                      const unsigned short shift = 0, const short *const hasConverged = nullptr)
   {
+    if (hasConverged)
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (hasConverged[nu] != -m) std::fill_n(v[i + 1] + nu * n, n, K());
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
     PetscCallContinue(PetscLogEventBegin(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
@@ -725,24 +749,34 @@ private:
       for (unsigned short nu = 0; nu < mu; ++nu) sn[i * mu + nu] = HPDDM::real(Blas<K>::dot(&n, v[i + 1] + nu * n, &i_1, v[i + 1] + nu * n, &i_1));
     ignore(MPI_Allreduce(MPI_IN_PLACE, sn + i * mu, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
     for (unsigned short nu = 0; nu < mu; ++nu) {
+      if (hasConverged && hasConverged[nu] != -m) continue; /* locked column, zeroed by the caller, so v[i + 1] is zero as well */
       H[i][(i + 1) * mu + nu] = HPDDM::sqrt(sn[i * mu + nu]);
-      if (!excluded && i < m - 1) std::for_each(v[i + 1] + nu * n, v[i + 1] + (nu + 1) * n, [&](K &y) { y /= H[i][(i + 1) * mu + nu]; });
+      if (!excluded && i < m - 1) {
+        if (hasConverged && HPDDM::abs(H[i][(i + 1) * mu + nu]) == underlying_type<K>()) std::fill_n(v[i + 1] + nu * n, n, K());
+        else std::for_each(v[i + 1] + nu * n, v[i + 1] + (nu + 1) * n, [&](K &y) { y /= H[i][(i + 1) * mu + nu]; });
+      }
     }
     if (save) Wrapper<K>::template omatcopy<'T'>(i + 2 - shift, mu, H[i] + shift * mu, mu, save[i - shift], m + 1);
     for (unsigned short k = shift; k < i; ++k) {
       for (unsigned short nu = 0; nu < mu; ++nu) {
-        K gamma                 = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
+        K gamma;
+
+        if (hasConverged && hasConverged[nu] != -m) continue;
+        gamma                   = Wrapper<K>::conj(H[k][(m + 1) * nu + k + 1]) * H[i][k * mu + nu] + sn[k * mu + nu] * H[i][(k + 1) * mu + nu];
         H[i][(k + 1) * mu + nu] = -sn[k * mu + nu] * H[i][k * mu + nu] + H[k][(m + 1) * nu + k + 1] * H[i][(k + 1) * mu + nu];
         H[i][k * mu + nu]       = gamma;
       }
     }
     for (unsigned short nu = 0; nu < mu; ++nu) {
-      const int          tmp   = 2;
-      underlying_type<K> delta = Blas<K>::nrm2(&tmp, H[i] + i * mu + nu, &mu);
-      sn[i * mu + nu]          = HPDDM::real(H[i][(i + 1) * mu + nu]) / delta;
-      H[i][(i + 1) * mu + nu]  = H[i][i * mu + nu] / delta;
-      H[i][i * mu + nu]        = delta;
-      s[(i + 1) * mu + nu]     = -sn[i * mu + nu] * s[i * mu + nu];
+      const int          tmp = 2;
+      underlying_type<K> delta;
+
+      if (hasConverged && hasConverged[nu] != -m) continue;
+      delta                   = Blas<K>::nrm2(&tmp, H[i] + i * mu + nu, &mu);
+      sn[i * mu + nu]         = HPDDM::real(H[i][(i + 1) * mu + nu]) / delta;
+      H[i][(i + 1) * mu + nu] = H[i][i * mu + nu] / delta;
+      H[i][i * mu + nu]       = delta;
+      s[(i + 1) * mu + nu]    = -sn[i * mu + nu] * s[i * mu + nu];
       s[i * mu + nu] *= Wrapper<K>::conj(H[i][(i + 1) * mu + nu]);
     }
     if (mu > 1) Wrapper<K>::template imatcopy<'T'>(i + 2, mu, H[i], mu, m + 1);
