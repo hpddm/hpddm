@@ -225,7 +225,7 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
   std::copy_n(rho, mu * mu, rho + mu * mu);
   int info = -1;
   for (unsigned short i = 0; i < mu && info == -1; ++i)
-    if (HPDDM::abs(rho[(static_cast<std::ptrdiff_t>(i) + 1) * mu]) > underlying_type<K>(10.0) * std::numeric_limits<underlying_type<K>>::epsilon()) info = 0;
+    if (rho[static_cast<std::ptrdiff_t>(i) * (mu + 1)] != K()) info = 0;
   if (info == 0) info = QR<excluded>(id[1], n, mu, p, gamma, mu, d, trash, comm);
   if (info != mu) {
     A.end(allocate);
@@ -387,7 +387,17 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
   diagonal<6>(id[0], gamma, mu, pivoted ? tol[0] : underlying_type<K>(-1.0), piv);
 #else
-  ignore(pivoted);
+  if (!deflated || (!pivoted && deflated != mu)) {
+    const bool zero = !deflated && isZero(p, dim, comm);
+    A.ksp_->reason  = zero ? KSP_CONVERGED_HAPPY_BREAKDOWN : KSP_DIVERGED_BREAKDOWN;
+    if (zero) {
+      A.ksp_->rnorm = PetscReal();
+      PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
+      PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
+    }
+    A.end(allocate);
+    return 0;
+  }
 #endif
   std::unique_ptr<underlying_type<K>[]> normStorage(new underlying_type<K>[mu]);
   underlying_type<K> *const             norm = normStorage.get();
@@ -398,24 +408,20 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
     for (unsigned short nu = 0; nu < m[0]; ++nu) Blas<K>::axpy(&(info = nu + 1), &(Wrapper<K>::d_1), gamma + mu * nu, &i_1, trash, &i_1);
     *norm = Blas<K>::nrm2(&(info = m[0]), trash, &i_1);
   }
-  if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
-    Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
-    Lapack<K>::lapmt(&i_1, &n, &mu, r, &n, piv);
-    if (m[0] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
-  }
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
   A.ksp_->rnorm = static_cast<PetscReal>(*std::max_element(norm, norm + (m[0] <= 1 ? deflated : 1)));
   PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
   PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-  if (A.ksp_->rnorm > static_cast<PetscReal>(10.0) * std::numeric_limits<PetscReal>::epsilon()) {
-    if (tol[0] <= static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && deflated != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
-    else PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
-  } else A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
+  PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
   if (A.ksp_->reason) {
     A.end(allocate);
     return 0;
   }
 #endif
+  if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
+    Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
+    Lapack<K>::lapmt(&i_1, &n, &mu, r, &n, piv);
+  }
   HPDDM_IT(i, A) = (deflated != 0 ? 1 : 0);
   while (HPDDM_IT(i, A) <= HPDDM_MAX_IT(m[1], A) && deflated != 0) {
     if (!excluded) HPDDM_CALL(A.GMV(p, q, deflated));

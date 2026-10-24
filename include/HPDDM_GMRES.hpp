@@ -57,7 +57,7 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
   bool allocate;
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
   HPDDM_IT(j, A) = 1;
-  while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A)) {
+  while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A) || (HPDDM_PETSC && HPDDM_IT(j, A) == 1)) {
     if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
     Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
     if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
@@ -100,7 +100,8 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
       PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
       PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
       PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
-      if (A.ksp_->reason) {
+      if (A.ksp_->reason || HPDDM_MAX_IT(m[1], A) == 0) {
+        HPDDM_IT(j, A) = 0;
         delete[] hasConverged;
         A.end(allocate);
         delete[] s;
@@ -209,9 +210,12 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
     if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
     if (N == 0) {
 #if HPDDM_PETSC
-      PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
-      PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
-      A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
+      if (isZero(*v, n * mu, comm)) {
+        A.ksp_->rnorm = PetscReal();
+        PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
+        PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
+        A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
+      } else A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
       HPDDM_IT(j, A) = 0;
       break;

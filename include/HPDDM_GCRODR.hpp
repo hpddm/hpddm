@@ -64,9 +64,20 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
   const int                       ldv = mu * n;
   K                              *U = reinterpret_cast<K *>(A.storage()), *C = nullptr;
   if (U) {
-    std::pair<unsigned short, unsigned short> storage = A.k();
-    k                                                 = (storage.first >= mu ? storage.second : (storage.second * storage.first) / mu);
-    C                                                 = U + storage.first * storage.second * n;
+    const std::pair<unsigned short, unsigned short> storage = A.k();
+    k                                                       = storage.second;
+    if (storage.first != mu) {
+      using S                 = std::remove_pointer_t<decltype(A.storage())>;
+      const std::size_t    ld = static_cast<std::size_t>(storage.first) * n, rows = 2 * static_cast<std::size_t>(k), size = rows * ldv;
+      std::unique_ptr<K[]> work(new K[size]);
+      for (std::size_t i = 0; i < rows; ++i)
+        for (unsigned short nu = 0; nu < mu; ++nu)
+          std::copy_n(U + static_cast<std::ptrdiff_t>(nu % storage.first) * n + i * ld, n, work.get() + static_cast<std::ptrdiff_t>(nu) * n + i * ldv);
+      U = reinterpret_cast<K *>(
+        const_cast<Operator &>(A).allocate(static_cast<int>((static_cast<std::size_t>(n) * sizeof(K) + sizeof(S) - 1) / sizeof(S)), mu, k));
+      std::copy_n(work.get(), size, U);
+    }
+    C = U + k * ldv;
   }
   K *const s = new K[mu * ((m[0] + 1) * (m[0] + 1) + n * ((id[1] == HPDDM_VARIANT_RIGHT ? 3 : 2) + m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1)) +
                            (!Wrapper<K>::is_complex ? m[0] + 1 : (m[0] + 2) / 2)) +
@@ -89,7 +100,7 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
   underlying_type<K> *const sn = norm + mu;
   bool                      allocate;
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
-  while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A)) {
+  while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A) || (HPDDM_PETSC && HPDDM_IT(j, A) == 1)) {
     unsigned short i = (U ? k : 0);
     if (!excluded) {
       HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], mu));
@@ -178,7 +189,7 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
       PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
       PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
       PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
-      if (A.ksp_->reason) {
+      if (A.ksp_->reason || HPDDM_MAX_IT(m[1], A) == 0) {
         HPDDM_IT(j, A) = 0;
         break;
       }
@@ -574,9 +585,12 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
     RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, static_cast<underlying_type<K>>(tol[0]), N, piv, d, Ax, comm);
     if (N == 0) {
 #if HPDDM_PETSC
-      PetscCall(KSPLogResidualHistory(A.ksp_, PetscReal()));
-      PetscCall(KSPMonitor(A.ksp_, 0, PetscReal()));
-      A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
+      if (isZero(*v, n * mu, comm)) {
+        A.ksp_->rnorm = PetscReal();
+        PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
+        PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
+        A.ksp_->reason = KSP_CONVERGED_HAPPY_BREAKDOWN;
+      } else A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
 #endif
       HPDDM_IT(j, A) = 0;
       break;
@@ -704,7 +718,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
       if (!U) {
         int dim = std::min(static_cast<unsigned short>(HPDDM_IT(j, A)), m[0]);
         if (dim < k) k = dim;
-        U = reinterpret_cast<K *>(const_cast<Operator &>(A).allocate(n, mu, k));
+        U = reinterpret_cast<K *>(const_cast<Operator &>(A).allocate(n, deflated, k));
         C = U + k * ldv;
         if (!excluded && n) {
           std::fill_n(s, deflated * ldh, K());
