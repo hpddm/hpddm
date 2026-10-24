@@ -86,7 +86,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
       // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
       tmp = (i == p) ? sizeWorld_ - DMatrix::ldistribution_[i - 1] : DMatrix::ldistribution_[i] - DMatrix::ldistribution_[i - 1];
       ps  = new int[tmp];
-      for (unsigned int j = 0; j < tmp; ++j) ps[j] = DMatrix::ldistribution_[i - 1] + j;
+      std::iota(ps, ps + tmp, DMatrix::ldistribution_[i - 1]);
     }
 #ifndef HPDDM_CONTIGUOUS
     else if (T == 1) {
@@ -1160,16 +1160,12 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 #endif
 #if HPDDM_INEXACT_COARSE_OPERATOR
     if (S != 'S' && (blocked || local_)) {
-      int *backup = new int[!blocked ? local_ : 1];
       for (std::pair<const unsigned short, std::vector<int>> &i : super::send_) {
         if (i.second.size() > (!blocked ? local_ : 1) && *(i.second.end() - (!blocked ? local_ : 1) - 1) > *(i.second.end() - (!blocked ? local_ : 1))) {
           std::vector<int>::iterator it = std::lower_bound(i.second.begin(), i.second.end(), *(i.second.end() - (!blocked ? local_ : 1)));
-          std::copy(i.second.end() - (!blocked ? local_ : 1), i.second.end(), backup);
-          std::copy_backward(it, i.second.end() - (!blocked ? local_ : 1), i.second.end());
-          std::copy_n(backup, !blocked ? local_ : 1, it);
+          std::rotate(it, i.second.end() - (!blocked ? local_ : 1), i.second.end());
         }
       }
-      delete[] backup;
     }
     rank = DMatrix::n_;
   #if !HPDDM_PETSC

@@ -109,19 +109,18 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       for (int j = 0; j < 2 * overlap; ++j)
         for (int i = iStart; i < iStart + 2 * overlap; ++i) mapping.back().push_back(i - iStart + (iEnd - iStart) * j);
       for (int j = 0; j < overlap; ++j) {
-        for (int i = 0; i < overlap - j; ++i) d[i + j + j * (iEnd - iStart)] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
+        std::fill_n(d + j + j * (iEnd - iStart), overlap - j, j / static_cast<HPDDM::underlying_type<K>>(overlap));
         for (int i = 0; i < j; ++i) d[i + j * (iEnd - iStart)] = i / static_cast<HPDDM::underlying_type<K>>(overlap);
       }
     } else // this subd. touches the left side of %*\color{DarkGreen}{$\Omega$}*)
-      for (int j = 0; j < overlap; ++j)
-        for (int i = 0; i < overlap; ++i) d[i + j * (iEnd - iStart)] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
+      for (int j = 0; j < overlap; ++j) std::fill_n(d + j * (iEnd - iStart), overlap, j / static_cast<HPDDM::underlying_type<K>>(overlap));
     o.push_back(rankWorld - xGrid); // subd. below is a neighbor
     mapping.emplace_back();
-    mapping.back().reserve(2 * static_cast<std::size_t>(overlap) * (iEnd - iStart));
-    for (int j = 0; j < 2 * overlap; ++j)
-      for (int i = iStart; i < iEnd; ++i) mapping.back().push_back(i - iStart + (iEnd - iStart) * j);
-    for (int j = 0; j < overlap; ++j)
-      for (int i = iStart + overlap; i < iEnd - overlap; ++i) d[i - iStart + (iEnd - iStart) * j] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
+    mapping.back().resize(2 * static_cast<std::size_t>(overlap) * (iEnd - iStart));
+    std::iota(mapping.back().begin(), mapping.back().end(), 0);
+    if (iEnd - iStart > 2 * overlap)
+      for (int j = 0; j < overlap; ++j)
+        std::fill_n(d + overlap + (iEnd - iStart) * j, iEnd - iStart - 2 * overlap, j / static_cast<HPDDM::underlying_type<K>>(overlap));
     if (iEnd != Nx) {                     // this subd. doesn't touch the right side of %*\color{DarkGreen}{$\Omega$}*)
       o.push_back(rankWorld - xGrid + 1); // subd. on the lower right corner is a neighbor
       mapping.emplace_back();
@@ -129,12 +128,11 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       for (int i = 0; i < 2 * overlap; ++i)
         for (int j = 0; j < 2 * overlap; ++j) mapping.back().push_back((iEnd - iStart) * (i + 1) - 2 * overlap + j);
       for (int j = 0; j < overlap; ++j) {
-        for (int i = 0; i < overlap - j; ++i) d[(iEnd - iStart) * (j + 1) - overlap + i] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
+        std::fill_n(d + (iEnd - iStart) * (j + 1) - overlap, overlap - j, j / static_cast<HPDDM::underlying_type<K>>(overlap));
         for (int i = 0; i < j; ++i) d[(iEnd - iStart) * (j + 1) - i - 1] = i / static_cast<HPDDM::underlying_type<K>>(overlap);
       }
     } else
-      for (int j = 0; j < overlap; ++j)
-        for (int i = 0; i < overlap; ++i) d[(iEnd - iStart) * (j + 1) - overlap + i] = j / static_cast<HPDDM::underlying_type<K>>(overlap);
+      for (int j = 0; j < overlap; ++j) std::fill_n(d + (iEnd - iStart) * (j + 1) - overlap, overlap, j / static_cast<HPDDM::underlying_type<K>>(overlap));
   }
   /*# StructuresEnd #*/
   if (iStart != 0) {
@@ -165,22 +163,21 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       for (int j = 0; j < overlap; ++j) {
         for (int i = 0; i < overlap - j; ++i)
           d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * j] = i / static_cast<HPDDM::underlying_type<K>>(overlap);
-        for (int i = overlap - j; i < overlap; ++i)
-          d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * j] = (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap);
+        std::fill_n(d + ndof - overlap * (iEnd - iStart) + overlap - j + (iEnd - iStart) * j, j,
+                    (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap));
       }
     } else {
       for (int j = 0; j < overlap; ++j)
-        for (int i = 0; i < overlap; ++i)
-          d[ndof - overlap * (iEnd - iStart) + (iEnd - iStart) * j + i] = (overlap - j - 1) / static_cast<HPDDM::underlying_type<K>>(overlap);
+        std::fill_n(d + ndof - overlap * (iEnd - iStart) + (iEnd - iStart) * j, overlap, (overlap - j - 1) / static_cast<HPDDM::underlying_type<K>>(overlap));
     }
     o.push_back(rankWorld + xGrid);
     mapping.emplace_back();
-    mapping.back().reserve(2 * static_cast<std::size_t>(overlap) * (iEnd - iStart));
-    for (int j = 0; j < 2 * overlap; ++j)
-      for (int i = iStart; i < iEnd; ++i) mapping.back().push_back(ndof - 2 * overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j);
-    for (int j = 0; j < overlap; ++j)
-      for (int i = iStart + overlap; i < iEnd - overlap; ++i)
-        d[ndof - overlap * (iEnd - iStart) + i - iStart + (iEnd - iStart) * j] = (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap);
+    mapping.back().resize(2 * static_cast<std::size_t>(overlap) * (iEnd - iStart));
+    std::iota(mapping.back().begin(), mapping.back().end(), ndof - 2 * overlap * (iEnd - iStart));
+    if (iEnd - iStart > 2 * overlap)
+      for (int j = 0; j < overlap; ++j)
+        std::fill_n(d + ndof - overlap * (iEnd - iStart) + overlap + (iEnd - iStart) * j, iEnd - iStart - 2 * overlap,
+                    (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap));
     if (iEnd != Nx) {
       o.push_back(rankWorld + xGrid + 1);
       mapping.emplace_back();
@@ -191,13 +188,13 @@ void generate(int rankWorld, int sizeWorld, std::list<int> &o, std::vector<std::
       for (int j = 0; j < overlap; ++j) {
         for (int i = j; i < overlap; ++i)
           d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - i) / static_cast<HPDDM::underlying_type<K>>(overlap);
-        for (int i = 0; i < j; ++i)
-          d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap);
+        std::fill_n(d + ndof - overlap * (iEnd - iStart) + (iEnd - iStart) * (j + 1) - overlap, j,
+                    (overlap - 1 - j) / static_cast<HPDDM::underlying_type<K>>(overlap));
       }
     } else {
       for (int j = 0; j < overlap; ++j)
-        for (int i = 0; i < overlap; ++i)
-          d[ndof - overlap * (iEnd - iStart) + i + (iEnd - iStart) * (j + 1) - overlap] = (overlap - j - 1) / static_cast<HPDDM::underlying_type<K>>(overlap);
+        std::fill_n(d + ndof - overlap * (iEnd - iStart) + (iEnd - iStart) * (j + 1) - overlap, overlap,
+                    (overlap - j - 1) / static_cast<HPDDM::underlying_type<K>>(overlap));
     }
   }
 
