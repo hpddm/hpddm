@@ -153,7 +153,7 @@ endif
 
 LIST_COMPILATION ?= cpp c python fortran
 
-.PHONY: all cpp c python fortran clean test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarzFromFile_cpp test_bin/driver force \
+.PHONY: all cpp c python fortran clean test test_cpp test_c test_python test_bin/schwarz_cpp test_bin/schwarz_c test_examples/schwarz.py test_bin/schwarz_cpp_custom_operator test_bin/schwarz_cpp_enlarge test_bin/schwarzFromFile_cpp test_bin/driver force \
         checkgitclean checkclangversion checkclangformatversion checkclangtidyversion clangformat checkclangformat clangtidy checkclangtidy
 
 .PRECIOUS: ${TOP_DIR}/${BIN_DIR}/%_cpp.o ${TOP_DIR}/${BIN_DIR}/%_c.o ${TOP_DIR}/${BIN_DIR}/%.o
@@ -279,7 +279,7 @@ lib: $(addprefix ${TOP_DIR}/${LIB_DIR}/libhpddm_, $(addsuffix .${EXTENSION_LIB},
 
 test: all $(addprefix test_, ${LIST_COMPILATION})
 
-test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_operator
+test_cpp: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp test_bin/schwarz_cpp test_bin/schwarz_cpp_custom_operator test_bin/schwarz_cpp_enlarge
 test_c: ${TOP_DIR}/${BIN_DIR}/schwarz_c test_bin/schwarz_c
 test_python: python test_examples/schwarz.py
 test_fortran: examples/hpddm_f90.cfg ${TOP_DIR}/${BIN_DIR}/custom_operator_fortran
@@ -352,10 +352,19 @@ ifdef EIGENSOLVER
 endif
 
 test_bin/schwarz_cpp_custom_operator: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
+	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 1 -Ny 3 -generate_random_rhs 2 -hpddm_krylov_method bgmres -hpddm_qr mgs
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10 -hpddm_krylov_method bgmres
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10 ---hpddm_krylov_method bgmres
+
+test_bin/schwarz_cpp_enlarge: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
+	${MPIRUN} 4 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -Nx 20 -Ny 20 -hpddm_verbosity -hpddm_krylov_method bgmres -hpddm_enlarge_krylov_subspace 2
+	@if [ -z "$(findstring -DHPDDM_MIXED_PRECISION=1, ${HPDDMFLAGS})" ] && [ -z "$(findstring -DFORCE_SINGLE, ${HPDDMFLAGS})" ] && [ -z "$(findstring -DFORCE_COMPLEX, ${HPDDMFLAGS})" ]; then \
+		CMD="${MPIRUN} 4 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -Nx 20 -Ny 20 -symmetric_csr -hpddm_schwarz_method asm -hpddm_enlarge_krylov_subspace 2 -hpddm_verbosity -hpddm_krylov_method bfbcg"; \
+		echo "$${CMD}"; \
+		$${CMD} || exit; \
+	fi
 
 test_bin/schwarzFromFile_cpp: ${TOP_DIR}/${BIN_DIR}/schwarzFromFile_cpp
 	@if [ -f ./examples/data/mini.tar.gz ]; then \

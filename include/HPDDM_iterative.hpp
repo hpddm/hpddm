@@ -139,7 +139,9 @@ private:
     if (T == 3 || T == 6) {
       for (unsigned short nu = 0; nu < mu / t; ++nu) {
         pt[nu] = HPDDM::sqrt(HPDDM::real(res[nu]));
-        if (((tol > underlying_type<K>() && pt[nu] / norm[nu] <= tol) || (tol < underlying_type<K>() && pt[nu] <= -tol))) ++conv;
+        if (((tol > underlying_type<K>() && (norm[nu] != underlying_type<K>() ? pt[nu] / norm[nu] <= tol : pt[nu] == underlying_type<K>())) ||
+             (tol < underlying_type<K>() && pt[nu] <= -tol)))
+          ++conv;
       }
     } else if (t <= 1) {
       conv = mu - d;
@@ -615,6 +617,13 @@ private:
         std::copy_backward(work + nu * (k * (k + 1)) / 2 + (xi * (xi - 1)) / 2, work + nu * (k * (k + 1)) / 2 + (xi * (xi + 1)) / 2,
                            R + nu * k * k + xi * ldr - (ldr - xi));
   }
+  template <class K>
+  static bool isZero(const K *const entries, const int n, const MPI_Comm &comm)
+  {
+    int nonzero = n > 0 && std::any_of(entries, entries + n, [](const K &y) { return y != K(); });
+    ignore(MPI_Allreduce(MPI_IN_PLACE, &nonzero, 1, MPI_INT, MPI_MAX, comm));
+    return nonzero == 0;
+  }
   template <bool excluded, class K>
   static bool RRQR(const char id, const int n, const int k, K *const Q, K *const R, const underlying_type<K> tol, int &rank, int *const piv,
                    const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
@@ -762,8 +771,16 @@ private:
 #endif
     int ldh = (m + 1) * mu;
     blockOrthogonalization<excluded>(id & 3, n, i + 1 - shift, mu, v[shift], v[i + 1], H[i] + shift * mu, ldh, d, work, comm);
-    int info = QR<excluded>((id >> 2) & 7, n, mu, v[i + 1], H[i] + (i + 1) * mu, ldh, d, work, comm, i < m - 1);
-    if (info != mu) return true;
+    int        info  = QR<excluded>((id >> 2) & 7, n, mu, v[i + 1], H[i] + (i + 1) * mu, ldh, d, work, comm, i < m - 1);
+    const bool happy = info == 0 && isZero(v[i + 1], n * mu, comm);
+    if (info != mu && !happy) {
+#if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
+      PetscCallContinue(PetscLogEventEnd(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
+#endif
+      return true;
+    }
+    if (happy)
+      for (unsigned short nu = 0; nu < mu; ++nu) std::fill_n(H[i] + (i + 1) * mu + nu * ldh, mu, K());
     for (unsigned short nu = 0; nu < mu; ++nu) std::fill(H[i] + (i + 1) * mu + nu * ldh + nu + 1, H[i] + (nu + 1) * ldh, K());
     if (save)
       for (unsigned short nu = 0; nu < mu; ++nu) std::copy_n(H[i] + shift * mu + nu * ldh, (i + 1 - shift) * mu + nu + 1, save[i - shift] + nu * ldh);
@@ -771,11 +788,15 @@ private:
     for (unsigned short k = shift; k < i; ++k)
       Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[k] + k * mu, &ldh, tau + k * N, H[i] + k * mu, &ldh, work, &lwork, &info);
     Lapack<K>::geqrf(&N, &mu, H[i] + i * mu, &ldh, tau + i * N, work, &lwork, &info);
-    Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
+    bool breakdown = false;
+    if (happy)
+      for (unsigned short nu = 0; nu < mu; ++nu)
+        if (H[i][i * mu + nu * (ldh + 1)] == K()) breakdown = true;
+    if (!breakdown) Lapack<K>::mqr("L", &(Wrapper<K>::transc), &N, &mu, &N, H[i] + i * mu, &ldh, tau + i * N, s + i * mu, &ldh, work, &lwork, &info);
 #if defined(PETSC_PCHPDDM_MAXLEVELS) && defined(PETSC_USE_LOG)
     PetscCallContinue(PetscLogEventEnd(KSP_Orthogonalization, nullptr, nullptr, nullptr, nullptr));
 #endif
-    return false;
+    return breakdown;
   }
   template <bool excluded, class K>
   static void equilibrate(int n, K *sb, K *sx, std::function<K *(K *, unsigned int *, unsigned int *, int)> &lambda, unsigned int *local, unsigned short k,
