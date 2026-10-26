@@ -1,4 +1,6 @@
 #define HPDDM_MIXED_PRECISION 1
+#include <petscoptions.h>
+#include <petscviewer.h>
 #include <petsc/private/petschpddm.h> /*I "petscksp.h" I*/
 
 const char *const KSPHPDDMTypes[]          = {KSPGMRES, "bgmres", KSPCG, "bcg", "gcrodr", "bgcrodr", "bfbcg", KSPPREONLY};

@@ -1,4 +1,5 @@
 #define HPDDM_MIXED_PRECISION 1
+#include <petscoptions.h>
 #include <petsc/private/petschpddm.h>
 #include <petscdevice_cuda.h>
 #include <thrust/device_ptr.h>
