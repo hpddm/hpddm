@@ -56,7 +56,7 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   std::unique_ptr<underlying_type<K>[]> resStorage(res);
   std::unique_ptr<K[]>                  trashStorage(Wrapper<K>::is_complex ? trash : nullptr);
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
-  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]());
+  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]);
   const PetscBool             *locked           = nullptr;
   const bool                   unpreconditioned = A.ksp_->normtype == KSP_NORM_UNPRECONDITIONED;
 #else
@@ -70,22 +70,24 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   K *const                        p        = r + dim;
   const underlying_type<K> *const d        = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
   bool                            allocate = A.template start<excluded>(b, x, mu);
-  if (!excluded) HPDDM_CALL(A.GMV(x, z, mu));
   std::copy_n(b, dim, r);
-  Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), z, &i_1, r, &i_1);
+  if (!HPDDM_GUESS_ZERO(A)) {
+    if (!excluded) HPDDM_CALL(A.GMV(x, z, mu));
+    Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), z, &i_1, r, &i_1);
+  }
   HPDDM_CALL(A.template apply<excluded>(r, p, mu, z));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
-  std::unique_ptr<underlying_type<K>[]> normStorage(new underlying_type<K>[mu]);
-  underlying_type<K> *const             norm = normStorage.get();
-  const K                              *rhs  = b;
+  underlying_type<K> *const norm = dir + mu;
+  const K                  *rhs  = b;
   if (!unpreconditioned) {
-    PetscCall(A.template apply<excluded>(b, z, mu, trash));
-    rhs = z;
+    if (HPDDM_GUESS_ZERO(A)) rhs = p;
+    else {
+      PetscCall(A.template apply<excluded>(b, z, mu, trash));
+      rhs = z;
+    }
   }
   Wrapper<K>::diag(n, d, rhs, trash, mu);
   for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = HPDDM::real(Blas<K>::dot(&n, rhs + n * nu, &i_1, trash + n * nu, &i_1));
-  ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
-  std::for_each(norm, norm + mu, [](underlying_type<K> &y) { y = HPDDM::sqrt(y); });
 #endif
   Wrapper<K>::diag(n, d, p, trash, mu);
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -95,7 +97,12 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   } else
 #endif
     for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + n * nu, &i_1));
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+  ignore(MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
+  std::for_each(norm, norm + mu, [](underlying_type<K> &y) { y = HPDDM::sqrt(y); });
+#else
   ignore(MPI_Allreduce(MPI_IN_PLACE, dir, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
+#endif
   std::transform(dir, dir + mu, res, [](const underlying_type<K> &d) { return HPDDM::sqrt(d); });
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
   for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = static_cast<PetscReal>(res[nu]);
@@ -108,7 +115,6 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
       std::fill_n(p + nu * n, n, K());
       std::fill_n(trash + nu * n, n, K());
     }
-  normStorage.reset();
 #endif
   int i = 0;
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -263,7 +269,7 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
   const int                       n    = excluded ? 0 : A.getDof();
   const int                       dim  = n * mu;
   const unsigned int              size = 4 * (dim + mu * mu);
-  std::unique_ptr<K[]>            trashStorage(new K[size]);
+  std::unique_ptr<K[]>            trashStorage(new K[size + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)]);
   K *const                        trash    = trashStorage.get();
   K *const                        p        = trash + dim;
   K *const                        z        = p + dim;
@@ -273,9 +279,11 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
   K *const                        gamma    = rhs + mu * mu;
   const underlying_type<K> *const d        = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
   bool                            allocate = A.template start<excluded>(b, x, mu);
-  if (!excluded) HPDDM_CALL(A.GMV(x, z, mu));
   std::copy_n(b, dim, r);
-  Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), z, &i_1, r, &i_1);
+  if (!HPDDM_GUESS_ZERO(A)) {
+    if (!excluded) HPDDM_CALL(A.GMV(x, z, mu));
+    Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), z, &i_1, r, &i_1);
+  }
   HPDDM_CALL(A.template apply<excluded>(r, p, mu, z));
   Wrapper<K>::diag(n, d, p, trash, mu);
   if (!excluded && n) {
@@ -301,8 +309,7 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
   diagonal<3>(id[0], gamma, mu);
 #endif
-  std::unique_ptr<underlying_type<K>[]> normStorage(new underlying_type<K>[mu]);
-  underlying_type<K> *const             norm = normStorage.get();
+  underlying_type<K> *const norm = reinterpret_cast<underlying_type<K> *>(trash + size);
   if (m[0] <= 1)
     for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = Blas<K>::nrm2(&(info = nu + 1), gamma + mu * nu, &i_1);
   else {
@@ -358,10 +365,10 @@ inline int IterativeMethod::BCG(const Operator &A, const K *const b, K *const x,
         rho[2 * mu * mu - 1] = HPDDM::real(Blas<K>::dot(&n, trash, &i_1, trash + n, &i_1));
       }
     } else std::fill_n(rho + (2 * mu - 1) * mu, mu + (mu * (mu + 1)) / 2, K());
-    ignore(MPI_Allreduce(MPI_IN_PLACE, rhs - mu / (m[0] <= 1 ? mu : 1), mu / (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(),
+    ignore(MPI_Allreduce(MPI_IN_PLACE, rhs - (m[0] <= 1 ? mu : 1), (m[0] <= 1 ? mu : 1) + (mu * (mu + 1)) / 2, Wrapper<K>::mpi_type(),
                          Wrapper<K>::mpi_op(MPI_SUM), comm));
-    bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - mu / (m[0] <= 1 ? mu : 1), 0,
-                                                     trash, (m[0] <= 1 ? mu : 1)));
+    bool converged = (mu == checkBlockConvergence<3>(id[0], HPDDM_IT(i, A), HPDDM_TOL(tol, A), mu, mu, norm, rho + 2 * mu * mu - (m[0] <= 1 ? mu : 1), 0, trash,
+                                                     (m[0] <= 1 ? 1 : mu)));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
     A.ksp_->rnorm = static_cast<PetscReal>(
       *std::max_element(reinterpret_cast<underlying_type<K> *>(trash), reinterpret_cast<underlying_type<K> *>(trash) + (m[0] <= 1 ? mu : 1)));
@@ -428,9 +435,10 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
   unsigned short *m   = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->scntl;
   char           *id  = reinterpret_cast<KSP_HPDDM *>(A.ksp_->data)->cntl;
 #endif
-  const int                       n   = excluded ? 0 : A.getDof();
-  const int                       dim = n * mu;
-  std::unique_ptr<K[]>            trashStorage(new K[5 * dim + (mu * (3 * mu + 1)) / 2 + mu / m[0]]);
+  const int                       n    = excluded ? 0 : A.getDof();
+  const int                       dim  = n * mu;
+  const unsigned int              size = 5 * dim + (mu * (3 * mu + 1)) / 2 + mu / m[0];
+  std::unique_ptr<K[]>            trashStorage(new K[size + (Wrapper<K>::is_complex ? (mu + 1) / 2 : mu)]);
   K *const                        trash    = trashStorage.get();
   K *const                        q        = trash + dim;
   K *const                        r        = q + dim;
@@ -439,13 +447,15 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
   K *const                        gamma    = z + dim;
   const underlying_type<K> *const d        = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
   bool                            allocate = A.template start<excluded>(b, x, mu);
-  std::unique_ptr<int[]>          pivotStorage(new int[mu]);
+  std::unique_ptr<int[]>          pivotStorage(static_cast<underlying_type<K>>(tol[0]) < underlying_type<K>(-0.9) ? nullptr : new int[mu]);
   int *const                      piv      = pivotStorage.get();
   int                             deflated = -1;
   int                             info;
-  if (!excluded) HPDDM_CALL(A.GMV(x, trash, mu));
   std::copy_n(b, dim, r);
-  Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), trash, &i_1, r, &i_1);
+  if (!HPDDM_GUESS_ZERO(A)) {
+    if (!excluded) HPDDM_CALL(A.GMV(x, trash, mu));
+    Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), trash, &i_1, r, &i_1);
+  }
   HPDDM_CALL(A.template apply<excluded>(r, p, mu, trash));
   const bool pivoted = RRQR<excluded>(id[1], n, mu, p, gamma, static_cast<underlying_type<K>>(tol[0]), deflated, piv, d, trash, comm);
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -463,8 +473,7 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
     return 0;
   }
 #endif
-  std::unique_ptr<underlying_type<K>[]> normStorage(new underlying_type<K>[mu]);
-  underlying_type<K> *const             norm = normStorage.get();
+  underlying_type<K> *const norm = reinterpret_cast<underlying_type<K> *>(trash + size);
   if (m[0] <= 1)
     for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = Blas<K>::nrm2(&(info = nu + 1), gamma + mu * nu, &i_1);
   else {
@@ -482,7 +491,7 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
     return 0;
   }
 #endif
-  if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
+  if (pivoted) {
     Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
     Lapack<K>::lapmt(&i_1, &n, &mu, r, &n, piv);
   }
@@ -535,21 +544,21 @@ inline int IterativeMethod::BFBCG(const Operator &A, const K *const b, K *const 
         std::swap_ranges(p, p + dim, z);
         Blas<K>::gemm("N", "N", &n, &mu, &deflated, &(Wrapper<K>::d_2), z, &n, alpha, &deflated, &(Wrapper<K>::d_1), p, &n);
       }
-      if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
+      if (pivoted) {
         Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
         Lapack<K>::lapmt(&i_0, &n, &mu, p, &n, piv);
         Lapack<K>::lapmt(&i_0, &n, &mu, r, &n, piv);
         if (m[0] <= 1) Lapack<underlying_type<K>>::lapmt(&i_0, &i_1, &mu, norm, &i_1, piv);
       }
       RRQR<excluded>(id[1], n, mu, p, gamma, static_cast<underlying_type<K>>(tol[0]), deflated, piv, d, trash, comm);
-      if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
+      if (pivoted) {
         Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
         Lapack<K>::lapmt(&i_1, &n, &mu, r, &n, piv);
         if (m[0] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
       }
     }
   }
-  if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
+  if (pivoted) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
   convergence<6>(id[0], HPDDM_IT(i, A), HPDDM_MAX_IT(m[1], A));
 #endif

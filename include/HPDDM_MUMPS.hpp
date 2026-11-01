@@ -65,6 +65,9 @@ private:
   /* Variable: id
          *  Internal data pointer. */
   typename MUMPS_STRUC_C<K>::trait *id_{};
+  #if HPDDM_INEXACT_COARSE_OPERATOR
+  mutable unsigned short n_{};
+  #endif
 
 protected:
   /* Variable: numbering
@@ -79,7 +82,7 @@ public:
   {
     if (id_) {
   #if HPDDM_INEXACT_COARSE_OPERATOR
-      if (id_->nrhs) delete[] id_->rhs;
+      if (n_) delete[] reinterpret_cast<K *>(id_->rhs);
   #endif
       id_->job = -2;
       MUMPS_STRUC_C<K>::mumps_c(id_);
@@ -183,11 +186,12 @@ public:
   #else
   void solve(const K *const rhs, K *const x, const unsigned short &n) const
   {
-    if (n > id_->nrhs) {
-      if (id_->nrhs) delete[] reinterpret_cast<K *>(id_->rhs);
-      id_->rhs  = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type *>(new K[n * id_->n]);
-      id_->nrhs = n;
+    if (n > n_) {
+      if (n_) delete[] reinterpret_cast<K *>(id_->rhs);
+      id_->rhs = reinterpret_cast<typename MUMPS_STRUC_C<K>::mumps_type *>(new K[static_cast<std::size_t>(n) * id_->n]);
+      n_       = n;
     }
+    id_->nrhs = n;
     std::fill_n(reinterpret_cast<K *>(id_->rhs), n * id_->n, K());
     for (unsigned short i = 0; i < n; ++i)
       std::copy_n(rhs + i * (range_.second - range_.first), range_.second - range_.first, reinterpret_cast<K *>(id_->rhs) + i * id_->n + range_.first);

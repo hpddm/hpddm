@@ -493,7 +493,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         size += local_ * (local_ + 1) / 2;
       }
     }
-    if (local_ && (rankSplit || !Operator::factorize_)) {
+    if ((local_ && rankSplit) || !Operator::factorize_) {
       if (excluded == 0) std::copy_n(sparsity.cbegin() + (Operator::factorize_ ? first : 0), info[0], info + (U != 1 ? 3 : 1));
       else {
         if (T != 1) {
@@ -835,7 +835,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       PetscInt zero = 0;
       PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
       PetscCall(KSPCreate(extended, &v.level_->ksp));
-      PetscCall(MatCreate(extended, &E));
+      PetscCall(MatCreate(PetscObjectComm((PetscObject)v.level_->ksp), &E));
       PetscCall(MatSetOptionsPrefix(E, v.prefix_.c_str()));
       if (blocked) PetscCall(MatSetBlockSizes(E, local_, local_));
       PetscCall(MatSetFromOptions(E));
@@ -1123,6 +1123,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                                                                                             U == 1 ? nullptr : (offsetArray[index] + 1), work,
                                                                                             U == 1 ? nullptr : infoNeighbor + first + index);
 #if HPDDM_INEXACT_COARSE_OPERATOR
+            if (U != 1 && !infoNeighbor[first + index]) continue;
             if (T == 1 && M[first + index].first < p) neighbors[offset] = M[first + index].first;
             else if (blocked || offset < size)
               neighbors[offset] = std::distance(DMatrix::ldistribution_ + 1,
@@ -1272,7 +1273,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     #endif
       if (extended != MPI_COMM_NULL) PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
       PetscCall(KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &v.level_->ksp));
-      PetscCall(MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &E));
+      PetscCall(MatCreate(PetscObjectComm((PetscObject)v.level_->ksp), &E));
       PetscCall(MatSetOptionsPrefix(E, v.prefix_.c_str()));
       if (blocked) PetscCall(MatSetBlockSizes(E, local_, local_));
       PetscCall(MatSetFromOptions(E));

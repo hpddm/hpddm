@@ -365,7 +365,7 @@ protected:
         ogj_ = new int[I[nrow] - (super::numbering_ == 'F' ? 1 : 0)];
         std::copy_n(J + di_[nrow] - (super::numbering_ == 'F' ? 1 : 0), I[nrow] - (super::numbering_ == 'F' ? 1 : 0), ogj_);
         std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0),
-                      [&](int &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
+                      [&](int &i) { i = g2l[i - (super::numbering_ == 'F')] + (super::numbering_ == 'F'); });
         buff_      = new K *[send_.size() + recv_.size()];
         accumulate = std::accumulate(recv_.cbegin(), recv_.cend(), 0,
                                      [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
@@ -667,7 +667,7 @@ protected:
     ogj_ = new integer_type[I[nrow] - (super::numbering_ == 'F' ? 1 : 0)];
     std::copy_n(J + di_[nrow] - (super::numbering_ == 'F' ? 1 : 0), I[nrow] - (super::numbering_ == 'F' ? 1 : 0), ogj_);
     std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0),
-                  [&](integer_type &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
+                  [&](integer_type &i) { i = g2l[i - (super::numbering_ == 'F')] + (super::numbering_ == 'F'); });
     oi_  = I;
     oa_  = C + (di_[nrow] - (super::numbering_ == 'F')) * bs_ * bs_;
     oj_  = J + di_[nrow] - (super::numbering_ == 'F');
@@ -840,7 +840,7 @@ public:
     std::vector<std::vector<std::pair<int, K *>>> to;
     if (S != 'S') {
       to.resize(in->off_);
-      for (unsigned int i = 0; i < in->dof_ + 1; ++i)
+      for (unsigned int i = 0; i < in->dof_; ++i)
         for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j)
           to[in->oj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F')].emplace_back(i, in->oa_ + (j - (super::numbering_ == 'F')) * bss);
       for (unsigned int i = 0; i < in->off_; ++i) {
@@ -848,7 +848,7 @@ public:
         di[in->dof_ + i + 1] = di[in->dof_ + i] + to[i].size();
       }
     } else {
-      if (in != this) {
+      if (in != this && (in->off_ || displs.back())) {
         for (const auto &it : extra) {
           if (bss > 1) std::for_each(di + std::get<1>(it.second) + 1, di + in->dof_ + 1, [&](integer_type &k) { k += std::get<2>(it.second).size(); });
           else {
@@ -1073,7 +1073,7 @@ public:
         else delete[] send[index - in->send_.size()].second;
       }
       delete[] rqRecv;
-    } else if (!sizes.empty()) {
+    } else if (!sizes.empty() && (in->off_ || displs.back())) {
       std::map<unsigned short, unsigned short> nnz;
       rows.reserve(sizes.size());
       rows.emplace_back(sizes.cbegin(), in->bs_ > 1 ? in->bs_ : sizes.at(std::make_pair(sizes.cbegin()->first.first, sizes.cbegin()->first.first)));
@@ -1125,7 +1125,7 @@ public:
           }
           shift[0] = oa[i].size();
           shift[1] = displs.back();
-        } else if (!extra.empty()) {
+        } else if (!extra.empty() && (in->off_ || displs.back())) {
           std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>>::const_iterator it = extra.cbegin();
           while (it != extra.cend()) {
             if (std::get<1>(it->second) <= i && i < (std::get<1>(it->second) + std::get<0>(it->second))) break;
@@ -1206,7 +1206,8 @@ public:
         return static_cast<size_t>(i) << 32 | static_cast<size_t>(j);
       };
       std::unordered_map<size_t, unsigned int> loc;
-      for (unsigned short k = 0; k < rows.size() - 1; ++k) {
+      for (unsigned short k = 0; k + 1 < rows.size(); ++k) {
+        if (rows[k].second == 0) continue;
         unsigned int col = 0;
         for (std::map<std::pair<unsigned short, unsigned short>, unsigned short>::const_iterator it = rows[k].first; it != rows[k + 1].first; ++it) {
           loc[key(rows[k].first->first.first, it->first.second)] = di[in->dof_ + map[rows[k].first->first.first]] + (S != 'S' ? to[row].size() : 0) + col;
@@ -1231,7 +1232,7 @@ public:
         int        index;
         MPI_Status st;
         MPI_Waitany(reduction.size(), std::get<2>(transfer), &index, &st);
-        if (st.MPI_TAG != MPI_ANY_TAG && st.MPI_SOURCE != MPI_ANY_SOURCE) {
+        if (st.MPI_TAG != MPI_ANY_TAG && st.MPI_SOURCE != MPI_ANY_SOURCE && (in->off_ || displs.back())) {
           unsigned int accumulate = std::get<0>(transfer)[index];
           for (const auto &j : reduction[index]) {
             const unsigned short r1  = j.first;

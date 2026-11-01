@@ -54,7 +54,7 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
   const underlying_type<K> *const d            = reinterpret_cast<const underlying_type<K> *>(A.getScaling());
   short *const                    hasConverged = new short[mu];
 #if HPDDM_PETSC
-  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]());
+  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]);
   const PetscBool             *locked = nullptr;
 #endif
   std::fill_n(hasConverged, mu, -m[0]);
@@ -62,16 +62,21 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
   HPDDM_IT(j, A) = 1;
   while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A) || (HPDDM_PETSC && HPDDM_IT(j, A) == 1)) {
-    if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
-    Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
-    if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
-    if (d)
-      for (unsigned short nu = 0; nu < mu; ++nu) {
-        sn[nu] = 0.0;
-        for (int j = 0; j < n; ++j) sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
-      }
-    else
-      for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i_1, *v + nu * n, &i_1));
+    if (HPDDM_IT(j, A) == 1 && HPDDM_GUESS_ZERO(A)) {
+      if (id[1] != HPDDM_VARIANT_LEFT) Blas<K>::axpby(mu * n, 1.0, b, 1, K(), *v, 1);
+      std::copy_n(norm, mu, sn);
+    } else {
+      if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
+      Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+      if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
+      if (d)
+        for (unsigned short nu = 0; nu < mu; ++nu) {
+          sn[nu] = 0.0;
+          for (int j = 0; j < n; ++j) sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
+        }
+      else
+        for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i_1, *v + nu * n, &i_1));
+    }
     if (HPDDM_IT(j, A) == 1) {
       ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       for (unsigned short nu = 0; nu < mu; ++nu) {
@@ -203,7 +208,7 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
   K *const                  tau         = s + mu * ldh;
   K *const                  Ax          = tau + m[0] * N;
   underlying_type<K> *const norm        = reinterpret_cast<underlying_type<K> *>(Ax + lwork);
-  bool                      allocate;
+  bool                      allocate, pivoted = false;
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, m[1], allocate));
   ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu / m[1], Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
   for (unsigned short nu = 0; nu < mu / m[1]; ++nu) {
@@ -212,17 +217,21 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
   }
   HPDDM_IT(j, A)      = 1;
   short      dim      = mu * m[0];
-  int *const piv      = new int[mu];
+  int *const piv      = static_cast<underlying_type<K>>(tol[0]) < underlying_type<K>(-0.9) ? nullptr : new int[mu];
   int        deflated = -1;
   while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[2], A)) {
-    if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
-    Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
-    if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
-    RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, static_cast<underlying_type<K>>(tol[0]), N, piv, d, Ax, comm);
+    if (HPDDM_IT(j, A) == 1 && HPDDM_GUESS_ZERO(A)) {
+      if (id[1] != HPDDM_VARIANT_LEFT) std::copy_n(b, mu * n, *v);
+    } else {
+      if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
+      Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+      if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
+    }
+    pivoted = RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, static_cast<underlying_type<K>>(tol[0]), N, piv, d, Ax, comm);
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
     diagonal<1>(id[0], s, mu, tol[0], piv);
 #endif
-    if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
+    if (pivoted && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
     if (N == 0) {
 #if HPDDM_PETSC
       if (isZero(*v, n * mu, comm)) {
@@ -241,7 +250,7 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
       for (unsigned short nu = 1; nu < mu; ++nu) A.ksp_->rnorm = std::max(A.ksp_->rnorm, PetscReal(HPDDM::abs(s[static_cast<std::ptrdiff_t>(nu) * (mu + 1)])));
       PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
       PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-      if (tol[0] <= static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && N != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
+      if (!pivoted && N != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
       else PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
       if (A.ksp_->reason) {
         HPDDM_IT(j, A) = 0;
@@ -299,10 +308,10 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
       }
       ++HPDDM_IT(j, A);
     }
-    if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
+    if (pivoted) Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
     if (HPDDM_IT(j, A) != HPDDM_MAX_IT(m[2], A) + 1 && i == m[0]) {
       HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), &dim, mu, Ax, deflated));
-      if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) {
+      if (pivoted) {
         Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
         if (m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_0, &i_1, &mu, norm, &i_1, piv);
       }
@@ -317,7 +326,7 @@ inline int IterativeMethod::BGMRES(const Operator &A, const K *const b, K *const
   }
   if (HPDDM_IT(j, A) != 0 && deflated != -1) {
     HPDDM_CALL(updateSol<excluded>(A, id[1], n, x, H, s, v + (id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0), &dim, mu, Ax, deflated));
-    if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
+    if (pivoted) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
   }
   delete[] piv;
   A.end(allocate);

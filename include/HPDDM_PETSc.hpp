@@ -424,6 +424,7 @@ public:
     PetscFunctionReturn(PETSC_SUCCESS);
   }
 #endif
+  // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
   std::string prefix() const
   {
     const char *prefix = nullptr;
@@ -529,7 +530,7 @@ public:
   {
     PetscFunctionBeginUser;
     if (op_) {
-      K *b = new K[n * op_->super::n_];
+      K *b = new K[static_cast<std::size_t>(n) * op_->super::n_];
       PetscCallCXX(std::copy_n(x, n * op_->super::n_, b));
       PetscCall(op_->apply(b, x, n));
       delete[] b;

@@ -257,6 +257,9 @@ ${TOP_DIR}/${BIN_DIR}/custom_operator_%: ${TOP_DIR}/${BIN_DIR}/custom_operator_%
 test_bin/custom_operator_c: ${TOP_DIR}/${BIN_DIR}/custom_operator_c
 	${MPIRUN} 4 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 1000 -mu 4 -hpddm_krylov_method bcg
 	${MPIRUN} 4 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 1000 -mu 4 -hpddm_krylov_method cg -hpddm_variant flexible
+	${MPIRUN} 4 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 100 -mu 3 -hpddm_krylov_method bgcrodr -hpddm_gmres_restart 2 -hpddm_recycle 1 -hpddm_deflation_tol 0.01 -hpddm_tol 1e-10
+	OPTS="-mu 2 -hpddm_krylov_method bgmres -hpddm_orthogonalization mgs -hpddm_tol 1e-10 -hpddm_max_it 9"; \
+	PMIX_MCA_mca_base_param_files=none ${MPIRUN} 1 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 100 $${OPTS} : -np 1 ${TOP_DIR}/${BIN_DIR}/custom_operator_c -n 0 $${OPTS}
 
 benchmark/local_solver:
 	@if [ -z ${MTX_FILE} ]; then \
@@ -352,6 +355,7 @@ ifdef EIGENSOLVER
 endif
 
 test_bin/schwarz_cpp_custom_operator: ${TOP_DIR}/${BIN_DIR}/schwarz_cpp
+	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_schwarz_method none -Nx 10 -Ny 10 -hpddm_krylov_method bgcrodr -hpddm_gmres_restart 8 -hpddm_recycle 2
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 1 -Ny 3 -generate_random_rhs 2 -hpddm_krylov_method bgmres -hpddm_qr mgs
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -hpddm_verbosity -hpddm_schwarz_method none -Nx 10 -Ny 10
 	${MPIRUN} 1 ${SEP} ${TOP_DIR}/${BIN_DIR}/schwarz_cpp -symmetric_csr -hpddm_verbosity -hpddm_schwarz_method=none -Nx 10 -Ny 10
