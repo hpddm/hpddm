@@ -26,6 +26,7 @@
 #pragma once
 
 #if HPDDM_PETSC
+  #include <petscpkg_version.h>
   #include "HPDDM_dmatrix.hpp"
   #include "HPDDM_coarse_operator_impl.hpp"
   #if HPDDM_SLEPC
@@ -35,9 +36,9 @@ PETSC_EXTERN PetscLogEvent PC_HPDDM_Next;
     #include "HPDDM_operator.hpp"
 using Aux = struct n_Aux *;
 struct n_Aux {
-  Mat V;
-  Vec sigma;
-  IS  is;
+  Mat        V;
+  Vec        v[4];
+  VecScatter scatter;
 };
 static PetscErrorCode MatMult_Aux(Mat, Vec, Vec);
 using Sum = struct n_Sum *;
@@ -833,7 +834,6 @@ public:
     if (ctx->P && ctx->P->dof_ != -1) {
       if (all) {
         if (!std::is_same<K, PetscReal>::value) delete[] ctx->P->d_;
-        ctx->P->dtor();
         delete ctx->P;
         ctx->P = nullptr;
       } else ctx->P->super::dtor();
@@ -1076,8 +1076,8 @@ public:
       if (flg && N == weighted && !rhs) {
         for (Vec &v : initial) PetscCall(VecDestroy(&v));
         std::vector<Vec>().swap(initial);
+        PetscCall(MatShellGetContext(N, static_cast<void *>(&h)));
         if (solve == 1) {
-          PetscCall(MatShellGetContext(N, static_cast<void *>(&h)));
           if (h->A[1]) {
             Mat     A;
             VecType type;
@@ -1096,7 +1096,7 @@ public:
               PetscCall(MatShift(A, 1.0));
               PetscCall(MatMatMult(N, A, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &B));
               PetscCall(MatDestroy(&A));
-              PetscCall(MatCreateSubMatrix(h->A[1], h->is[3], h->is[3], MAT_INITIAL_MATRIX, &local));
+              PetscCall(MatCreateSubMatrix(h->A[1], h->is[1], h->is[1], MAT_INITIAL_MATRIX, &local));
               PetscCall(MatPtAP(local, B, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &C));
               PetscCall(MatGetLocalSize(C, nullptr, &n));
               PetscCall(MatDestroy(&local));
@@ -1105,8 +1105,8 @@ public:
               PetscCall(MatSetType(A, buffer));
               PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
               PetscCall(MatSetSizes(A, m, m, m, m));
-              PetscCall(ISBlockGetIndices(h->is[4], &rows));
-              PetscCall(ISGetBlockSize(h->is[4], &m));
+              PetscCall(ISBlockGetIndices(h->is[2], &rows));
+              PetscCall(ISGetBlockSize(h->is[2], &m));
               if (m > 1) {
                 PetscCall(MatSetBlockSize(A, m));
                 PetscCall(MatSetOption(A, MAT_ROW_ORIENTED, PETSC_FALSE));
@@ -1116,20 +1116,22 @@ public:
               PetscCall(MatDenseGetArrayRead(C, &vals));
               for (PetscInt i = 0; i < n; ++i)
                 PetscCall(MatSetValuesBlocked(A, n, rows, 1, rows + i, vals + static_cast<std::ptrdiff_t>(m) * n * i, INSERT_VALUES));
-              PetscCall(ISBlockRestoreIndices(h->is[4], &rows));
+              PetscCall(ISBlockRestoreIndices(h->is[2], &rows));
               PetscCall(MatDenseRestoreArrayRead(C, &vals));
               PetscCall(MatDestroy(&C));
               PetscCall(MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY));
               PetscCall(MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY));
             } else {
-              std::tuple<Harmonic, Mat, Vec[4]> *p;
-              PetscInt                           m;
+              std::tuple<Harmonic, Mat, Vec[4], VecScatter[2]> *p;
+              PetscInt                                          m;
               PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
               PetscCall(PetscNew(&p));
               std::get<0>(*p) = h;
               std::get<1>(*p) = N;
               PetscCall(MatCreateVecs(h->A[1], std::get<2>(*p) + 2, std::get<2>(*p) + 3));
               PetscCall(MatCreateVecs(N, std::get<2>(*p), std::get<2>(*p) + 1));
+              PetscCall(VecScatterCreate(std::get<2>(*p)[2], h->is[2], std::get<2>(*p)[0], nullptr, std::get<3>(*p)));
+              PetscCall(VecScatterCreate(std::get<2>(*p)[2], h->is[1], std::get<2>(*p)[1], nullptr, std::get<3>(*p) + 1));
               PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, p, &A));
               PetscCall(MatShellSetOperation(A, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Harmonic));
               PetscCall(MatShellSetOperation(A, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_Harmonic));
@@ -1172,9 +1174,10 @@ public:
             } else levels[0]->nu = std::min(nconv, nev);
             PetscCall(PetscInfo(svd, "HPDDM: Using %" PetscInt_FMT " out of %" PetscInt_FMT " converged singular vectors\n", levels[0]->nu, nconv));
             if (levels[0]->nu) {
-              Harmonic h;
-              Vec      u, col;
-              VecType  type;
+              Harmonic   h;
+              Vec        u, col;
+              VecScatter scatter;
+              VecType    type;
               PetscCall(MatGetVecType(N, &type));
               PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, Subdomain<K>::dof_, levels[0]->nu, Subdomain<K>::dof_, levels[0]->nu, PETSC_DECIDE,
                                                   nullptr, &(super::ev_)));
@@ -1183,9 +1186,12 @@ public:
               for (PetscInt i = 0; i < levels[0]->nu; ++i) {
                 PetscCall(SVDGetSingularTriplet(svd, i, nullptr, u, nullptr));
                 PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
-                PetscCall(VecISCopy(col, h->is[2], SCATTER_FORWARD, u));
+                if (!i) PetscCall(VecScatterCreate(col, h->is[0], u, nullptr, &scatter));
+                PetscCall(VecScatterBegin(scatter, u, col, INSERT_VALUES, SCATTER_REVERSE));
+                PetscCall(VecScatterEnd(scatter, u, col, INSERT_VALUES, SCATTER_REVERSE));
                 PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
               }
+              PetscCall(VecScatterDestroy(&scatter));
               PetscCall(VecDestroy(&u));
             }
             PetscCall(SVDDestroy(&svd));
@@ -1203,6 +1209,8 @@ public:
             PetscCall(VecSet(col, Wrapper<K>::d_1));
             PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, 0, &col));
           } else if (solve == 0) levels[0]->nu = 0;
+          for (PetscInt i = 0; i < 3; ++i) PetscCall(ISDestroy(h->is + i));
+          PetscCall(PetscFree(h->is));
           PetscFunctionReturn(PETSC_SUCCESS);
         }
       }
@@ -1218,8 +1226,8 @@ public:
           SVD          svd;
           PetscScalar *values;
           PetscInt     m, p;
+          VecType      type;
           PetscCall(PetscNew(&aux));
-          aux->is = is;
           PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
           PetscCall(SVDSetOptionsPrefix(svd, prefix));
           PetscCall(SVDSetOperators(svd, compact, nullptr));
@@ -1228,9 +1236,13 @@ public:
           PetscCall(SVDSetUp(svd));
           PetscCall(SVDSolve(svd));
           PetscCall(MatGetLocalSize(compact, &m, &p));
-          PetscCall(VecCreateSeq(PETSC_COMM_SELF, m, &aux->sigma));
-          PetscCall(MatCreateSeqDense(PETSC_COMM_SELF, p, m, nullptr, &aux->V));
-          PetscCall(VecGetArrayWrite(aux->sigma, &values));
+          PetscCall(MatGetVecType(N, &type));
+          PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, p, m, PETSC_DECIDE, PETSC_DECIDE, PETSC_DECIDE, nullptr, &aux->V));
+          PetscCall(MatCreateVecs(aux->V, aux->v, aux->v + 1));
+          PetscCall(VecDuplicate(aux->v[0], aux->v + 2));
+          PetscCall(VecDuplicate(aux->v[1], aux->v + 3));
+          PetscCall(VecScatterCreate(aux->v[0], nullptr, aux->v[1], is, &aux->scatter));
+          PetscCall(VecGetArrayWrite(aux->v[0], &values));
           for (PetscInt n = 0; n < m; ++n) {
             PetscReal s;
             Vec       v;
@@ -1240,8 +1252,9 @@ public:
             PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
           }
           PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
+          PetscCall(MatSetVecType(N, type));
           PetscCall(MatShellSetOperation(N, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Aux));
-          PetscCall(VecRestoreArrayWrite(aux->sigma, &values));
+          PetscCall(VecRestoreArrayWrite(aux->v[0], &values));
           PetscCall(SVDDestroy(&svd));
         }
         if (weighted && !h) PetscCall(EPSSetOperators(eps, N, weighted));
@@ -1312,8 +1325,7 @@ public:
                 PetscCall(PCSetFromOptions(pc));
               } else PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
             }
-  #if PetscDefined(HAVE_MUMPS)
-            if (flg) {
+            if (PetscDefined(HAVE_MUMPS) && flg) {
               PetscCall(PCFactorGetMatrix(pc, &F));
               PetscCall(MatMumpsGetIcntl(F, 13, &val));
               PetscCall(MatMumpsSetIcntl(F, 13, 1));
@@ -1321,9 +1333,7 @@ public:
               PetscCall(PCFactorGetMatrix(pc, &F));
               PetscCall(MatMumpsSetIcntl(F, 13, val));
               PetscCall(MatMumpsGetInfog(F, 12, &val));
-            } else
-  #endif
-            {
+            } else {
               PetscCall(PCSetUp(pc));
               PetscCall(PCFactorGetMatrix(pc, &F));
               PetscCall(MatGetInertia(F, &val, nullptr, nullptr));
@@ -1381,7 +1391,7 @@ public:
         PetscReal relative = 1.0;
         for (levels[0]->nu = 0; levels[0]->nu < nconv; ++levels[0]->nu) {
           PetscReal re, im;
-  #if defined(PETSC_USE_COMPLEX)
+  #if PetscDefined(USE_COMPLEX)
           PetscScalar eig;
           PetscCall(EPSGetEigenvalue(eps, levels[0]->nu, &eig, nullptr));
           re = PetscRealPart(eig);
@@ -1430,7 +1440,8 @@ public:
                                           &(super::ev_)));
     }
     if (!levels[0]->parent->deflation) {
-      Vec col;
+      Vec        col;
+      VecScatter scatter = nullptr;
       if (solve == 2) {
         levels[0]->nu = 0;
         PetscCall(MatDenseGetColumnVecWrite(super::ev_, 0, &col));
@@ -1450,24 +1461,29 @@ public:
             PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
           } else {
             PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
-            PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : col));
+            PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vreduced));
             PetscCall(VecISCopy(col, sub[0], SCATTER_FORWARD, vreduced));
             PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
           }
         } else {
           PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vreduced));
           PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
-          PetscCall(VecISCopy(vreduced, h->is[2], SCATTER_REVERSE, col));
+          if (!i) PetscCall(VecScatterCreate(vreduced, h->is[0], col, nullptr, &scatter));
+          PetscCall(VecScatterBegin(scatter, vreduced, col, INSERT_VALUES, SCATTER_FORWARD));
+          PetscCall(VecScatterEnd(scatter, vreduced, col, INSERT_VALUES, SCATTER_FORWARD));
           PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
         }
-  #if !defined(PETSC_USE_COMPLEX)
-        if (!flg) {
+        if (!PetscDefined(USE_COMPLEX) && !flg) {
           PetscScalar eigi;
           PetscCall(EPSGetEigenvalue(eps, i, nullptr, &eigi));
-          if (HPDDM::abs(eigi) > std::numeric_limits<PetscReal>::epsilon()) flg = PETSC_TRUE;
+          if (eigi != PetscScalar()) flg = PETSC_TRUE;
         } else flg = PETSC_FALSE;
-  #endif
       }
+      if (h) {
+        for (PetscInt i = 0; i < 3; ++i) PetscCall(ISDestroy(h->is + i));
+        PetscCall(PetscFree(h->is));
+      }
+      PetscCall(VecScatterDestroy(&scatter));
       if (ctx) {
         ctx->status = 'b';
         while (!ctx->work->empty() || ctx->status != 'c') PetscCall(MatMult_Sum(weighted, nullptr, nullptr));
@@ -1488,7 +1504,8 @@ public:
           if (!rhs) PetscCall(MatDestroy(&weighted));
           if (aux) {
             PetscCall(MatDestroy(&aux->V));
-            PetscCall(VecDestroy(&aux->sigma));
+            for (std::size_t i = 0; i < PETSC_STATIC_ARRAY_LENGTH(aux->v); ++i) PetscCall(VecDestroy(aux->v + i));
+            PetscCall(VecScatterDestroy(&aux->scatter));
             PetscCall(PetscFree(aux));
             PetscCall(MatDestroy(&N));
           }
@@ -1800,24 +1817,20 @@ PETSC_EXTERN PetscErrorCode PCHPDDM_Internal(HPDDM::Schwarz<PetscScalar> *const 
 static PetscErrorCode MatMult_Aux(Mat A, Vec x, Vec y)
 {
   Aux aux;
-  Vec left, right, leftEcon;
 
   PetscFunctionBeginUser;
   PetscCall(MatShellGetContext(A, static_cast<void *>(&aux)));
-  PetscCall(MatCreateVecs(aux->V, &right, &left));
-  PetscCall(MatCreateVecs(aux->V, nullptr, &leftEcon));
-  PetscCall(VecSet(left, 0.0));
-  PetscCall(VecISCopy(left, aux->is, SCATTER_FORWARD, x));
-  PetscCall(MatMultTranspose(aux->V, left, right));
-  PetscCall(MatMult(aux->V, right, leftEcon));
-  PetscCall(VecAXPY(leftEcon, -1.0, left));
-  PetscCall(VecPointwiseMult(y, aux->sigma, right));
-  PetscCall(MatMult(aux->V, y, left));
-  PetscCall(VecAXPY(left, static_cast<PetscReal>(-1.0) / PETSC_SMALL, leftEcon));
-  PetscCall(VecISCopy(left, aux->is, SCATTER_REVERSE, y));
-  PetscCall(VecDestroy(&left));
-  PetscCall(VecDestroy(&right));
-  PetscCall(VecDestroy(&leftEcon));
+  PetscCall(VecSet(aux->v[1], 0.0));
+  PetscCall(VecScatterBegin(aux->scatter, x, aux->v[1], INSERT_VALUES, SCATTER_FORWARD));
+  PetscCall(VecScatterEnd(aux->scatter, x, aux->v[1], INSERT_VALUES, SCATTER_FORWARD));
+  PetscCall(MatMultTranspose(aux->V, aux->v[1], aux->v[2]));
+  PetscCall(MatMult(aux->V, aux->v[2], aux->v[3]));
+  PetscCall(VecAXPY(aux->v[3], -1.0, aux->v[1]));
+  PetscCall(VecPointwiseMult(y, aux->v[0], aux->v[2]));
+  PetscCall(MatMult(aux->V, y, aux->v[1]));
+  PetscCall(VecAXPY(aux->v[1], static_cast<PetscReal>(-1.0) / PETSC_SMALL, aux->v[3]));
+  PetscCall(VecScatterBegin(aux->scatter, aux->v[1], y, INSERT_VALUES, SCATTER_REVERSE));
+  PetscCall(VecScatterEnd(aux->scatter, aux->v[1], y, INSERT_VALUES, SCATTER_REVERSE));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
@@ -1887,9 +1900,9 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
     }
   }
   if (!p->work->empty() || p->status == 'a') {
-    for (std::set<unsigned short>::const_iterator it = p->work->cbegin(); it != p->work->cend(); ++it)
-      HPDDM::Wrapper<PetscScalar>::sctr(map[*it].second.size(), buffer[*it], map[*it].second.data(),
-                                        work + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n);
+    std::ptrdiff_t column = (p->status == 'a');
+    for (const unsigned short neighbor : *p->work)
+      HPDDM::Wrapper<PetscScalar>::sctr(map[neighbor].second.size(), buffer[neighbor], map[neighbor].second.data(), work + column++ * n);
     PetscCall(MatDenseRestoreArrayWrite(p->A[1], &work));
     PetscCall(MatProductNumeric(p->A[2]));
     PetscCall(MatDenseGetArrayRead(p->A[2], &in));
@@ -1898,14 +1911,15 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
     PetscCallMPI(MPI_Waitall(map.size(), rq + map.size(), MPI_STATUSES_IGNORE));
     if (p->status == 'b') p->status = 'c';
   }
+  std::set<unsigned short>::const_iterator it     = p->work->cbegin();
+  std::ptrdiff_t                           column = (p->status == 'a');
   for (unsigned short i = 0, size = map.size(); i < size; ++i) {
     if (p->status == 'a')
       PetscCallMPI(MPI_Irecv(buffer[i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + i));
-    std::set<unsigned short>::const_iterator it = p->work->find(i);
-    if (it != p->work->cend()) {
-      HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + (std::distance(p->work->cbegin(), it) + (p->status == 'a')) * n, buffer[size + i],
-                                        map[i].second.data());
+    if (it != p->work->cend() && *it == i) {
+      HPDDM::Wrapper<PetscScalar>::gthr(map[i].second.size(), in + column++ * n, buffer[size + i], map[i].second.data());
       PetscCallMPI(MPI_Isend(buffer[size + i], map[i].second.size(), HPDDM::Wrapper<PetscScalar>::mpi_type(), map[i].first, 661, communicator, rq + size + i));
+      ++it;
     } else rq[size + i] = MPI_REQUEST_NULL;
   }
   if (p->status == 'a') {
@@ -1925,27 +1939,32 @@ static PetscErrorCode MatMult_Sum(Mat A, Vec x, Vec y)
 }
 static PetscErrorCode MatMult_Harmonic(Mat A, Vec x, Vec y)
 {
-  std::tuple<Harmonic, Mat, Vec[4]> *p;
+  std::tuple<Harmonic, Mat, Vec[4], VecScatter[2]> *p;
 
   PetscFunctionBeginUser;
   PetscCall(MatShellGetContext(A, static_cast<void *>(&p)));
-  PetscCall(VecISCopy(x, std::get<0>(*p)->is[4], SCATTER_REVERSE, std::get<2>(*p)[0]));
+  PetscCall(VecScatterBegin(std::get<3>(*p)[0], x, std::get<2>(*p)[0], INSERT_VALUES, SCATTER_FORWARD));
+  PetscCall(VecScatterEnd(std::get<3>(*p)[0], x, std::get<2>(*p)[0], INSERT_VALUES, SCATTER_FORWARD));
   PetscCall(MatMult(std::get<1>(*p), std::get<2>(*p)[0], std::get<2>(*p)[1]));
   PetscCall(VecSet(std::get<2>(*p)[2], 0.0));
-  PetscCall(VecISCopy(std::get<2>(*p)[2], std::get<0>(*p)->is[3], SCATTER_FORWARD, std::get<2>(*p)[1]));
+  PetscCall(VecScatterBegin(std::get<3>(*p)[1], std::get<2>(*p)[1], std::get<2>(*p)[2], INSERT_VALUES, SCATTER_REVERSE));
+  PetscCall(VecScatterEnd(std::get<3>(*p)[1], std::get<2>(*p)[1], std::get<2>(*p)[2], INSERT_VALUES, SCATTER_REVERSE));
   PetscCall(MatMult(std::get<0>(*p)->A[1], std::get<2>(*p)[2], std::get<2>(*p)[3]));
-  PetscCall(VecISCopy(std::get<2>(*p)[3], std::get<0>(*p)->is[3], SCATTER_REVERSE, std::get<2>(*p)[1]));
+  PetscCall(VecScatterBegin(std::get<3>(*p)[1], std::get<2>(*p)[3], std::get<2>(*p)[1], INSERT_VALUES, SCATTER_FORWARD));
+  PetscCall(VecScatterEnd(std::get<3>(*p)[1], std::get<2>(*p)[3], std::get<2>(*p)[1], INSERT_VALUES, SCATTER_FORWARD));
   PetscCall(MatMultTranspose(std::get<1>(*p), std::get<2>(*p)[1], std::get<2>(*p)[0]));
   PetscCall(VecSet(y, 0.0));
-  PetscCall(VecISCopy(y, std::get<0>(*p)->is[4], SCATTER_FORWARD, std::get<2>(*p)[0]));
+  PetscCall(VecScatterBegin(std::get<3>(*p)[0], std::get<2>(*p)[0], y, INSERT_VALUES, SCATTER_REVERSE));
+  PetscCall(VecScatterEnd(std::get<3>(*p)[0], std::get<2>(*p)[0], y, INSERT_VALUES, SCATTER_REVERSE));
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 static PetscErrorCode MatDestroy_Harmonic(Mat A)
 {
-  std::tuple<Harmonic, Mat, Vec[4]> *p;
+  std::tuple<Harmonic, Mat, Vec[4], VecScatter[2]> *p;
 
   PetscFunctionBeginUser;
   PetscCall(MatShellGetContext(A, static_cast<void *>(&p)));
+  for (PetscInt i = 0; i < 2; ++i) PetscCall(VecScatterDestroy(std::get<3>(*p) + i));
   for (PetscInt i = 0; i < 4; ++i) PetscCall(VecDestroy(std::get<2>(*p) + i));
   PetscCall(PetscFree(p));
   PetscFunctionReturn(PETSC_SUCCESS);

@@ -62,16 +62,24 @@ inline int IterativeMethod::GMRES(const Operator &A, const K *const b, K *const 
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
   HPDDM_IT(j, A) = 1;
   while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A) || (HPDDM_PETSC && HPDDM_IT(j, A) == 1)) {
-    if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
-    Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
-    if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
-    if (d)
-      for (unsigned short nu = 0; nu < mu; ++nu) {
-        sn[nu] = 0.0;
-        for (int j = 0; j < n; ++j) sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
-      }
-    else
-      for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i_1, *v + nu * n, &i_1));
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+    if (HPDDM_IT(j, A) == 1 && A.ksp_->guess_zero) {
+      if (id[1] != HPDDM_VARIANT_LEFT) Blas<K>::axpby(mu * n, 1.0, b, 1, K(), *v, 1);
+      std::copy_n(norm, mu, sn);
+    } else
+#endif
+    {
+      if (!excluded) HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
+      Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+      if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
+      if (d)
+        for (unsigned short nu = 0; nu < mu; ++nu) {
+          sn[nu] = 0.0;
+          for (int j = 0; j < n; ++j) sn[nu] += d[j] * HPDDM::norm(v[0][nu * n + j]);
+        }
+      else
+        for (unsigned short nu = 0; nu < mu; ++nu) sn[nu] = HPDDM::real(Blas<K>::dot(&n, *v + nu * n, &i_1, *v + nu * n, &i_1));
+    }
     if (HPDDM_IT(j, A) == 1) {
       ignore(MPI_Allreduce(MPI_IN_PLACE, norm, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
       for (unsigned short nu = 0; nu < mu; ++nu) {
