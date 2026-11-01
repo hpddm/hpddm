@@ -26,6 +26,7 @@
 #pragma once
 
 #if HPDDM_PETSC
+  #include <petscpkg_version.h>
   #include "HPDDM_dmatrix.hpp"
   #include "HPDDM_coarse_operator_impl.hpp"
   #if HPDDM_SLEPC
