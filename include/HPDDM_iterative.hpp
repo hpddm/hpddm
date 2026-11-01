@@ -38,12 +38,14 @@
   #define HPDDM_MAX_IT(max, A) max
   #define HPDDM_IT(i, A)       i
   #define HPDDM_RET(i)         i
+  #define HPDDM_GUESS_ZERO(A)  false
 #else
   #define HPDDM_CALL(arg)      PetscCall(PetscErrorCode(arg))
   #define HPDDM_TOL(tol, A)    (static_cast<underlying_type<K>>(A.ksp_->rtol))
   #define HPDDM_MAX_IT(max, A) (A.ksp_->max_it)
   #define HPDDM_IT(i, A)       (A.ksp_->its)
   #define HPDDM_RET(i)         0
+  #define HPDDM_GUESS_ZERO(A)  (A.ksp_->guess_zero)
 #endif
 
 namespace HPDDM
@@ -574,13 +576,14 @@ private:
                                      const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
   {
     if (excluded || !n) {
-      std::fill_n(work, k * mu * mu, K());
       if (id == 1)
         for (unsigned short i = 0; i < k; ++i) {
+          std::fill_n(work, mu * mu, K());
           ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
           Wrapper<K>::template omatcopy<'N'>(mu, mu, work, mu, H + mu * i, ldh);
         }
       else {
+        std::fill_n(work, k * mu * mu, K());
         ignore(MPI_Allreduce(MPI_IN_PLACE, work, k * mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         Wrapper<K>::template omatcopy<'N'>(mu, k * mu, work, k * mu, H, ldh);
       }

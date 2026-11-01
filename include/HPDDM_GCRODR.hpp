@@ -92,7 +92,7 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
   K *const     Ax           = *v + (m[0] * (id[1] == HPDDM_VARIANT_FLEXIBLE ? 2 : 1) + 1) * ldv;
   short *const hasConverged = new short[mu];
 #if HPDDM_PETSC
-  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]());
+  std::unique_ptr<PetscReal[]> residual(new PetscReal[mu]);
   std::unique_ptr<K[]>         last(new K[ldv]());
   const PetscBool             *locked = nullptr;
 #endif
@@ -107,11 +107,16 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
   HPDDM_CALL(initializeNorm<excluded>(A, id[1], b, x, *v, n, Ax, norm, mu, 1, allocate));
   while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[1], A) || (HPDDM_PETSC && HPDDM_IT(j, A) == 1)) {
     unsigned short i = (U ? k : 0);
-    if (!excluded) {
-      HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], mu));
-      Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], 1);
+    if (HPDDM_IT(j, A) == 1 && HPDDM_GUESS_ZERO(A)) {
+      if (id[1] != HPDDM_VARIANT_LEFT) std::copy_n(b, ldv, v[i]);
+      else if (i) std::copy_n(*v, ldv, v[i]);
+    } else {
+      if (!excluded) {
+        HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], mu));
+        Blas<K>::axpby(ldv, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : v[i], 1);
+      }
+      if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, v[i], mu));
     }
-    if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, v[i], mu));
     if (HPDDM_IT(j, A) == 1 && U) {
       K *pt;
       if (id[1] == HPDDM_VARIANT_RIGHT) {
@@ -589,14 +594,18 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
   }
   HPDDM_IT(j, A)      = 1;
   short      dim      = mu * m[0];
-  int *const piv      = new int[mu];
+  int *const piv      = static_cast<underlying_type<K>>(tol[0]) < underlying_type<K>(-0.9) ? nullptr : new int[mu];
   int        deflated = -1;
   while (HPDDM_IT(j, A) <= HPDDM_MAX_IT(m[2], A)) {
-    if (!excluded) {
-      HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
-      Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+    if (HPDDM_IT(j, A) == 1 && HPDDM_GUESS_ZERO(A)) {
+      if (id[1] != HPDDM_VARIANT_LEFT) std::copy_n(b, ldv, *v);
+    } else {
+      if (!excluded) {
+        HPDDM_CALL(A.GMV(x, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, mu));
+        Blas<K>::axpby(mu * n, 1.0, b, 1, -1.0, id[1] == HPDDM_VARIANT_LEFT ? Ax : *v, 1);
+      }
+      if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
     }
-    if (id[1] == HPDDM_VARIANT_LEFT) HPDDM_CALL(A.template apply<excluded>(Ax, *v, mu));
     if (HPDDM_IT(j, A) == 1 && U) {
       K        *pt;
       const int bK = mu * k;
@@ -631,7 +640,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
         Blas<K>::axpy(&ldv, &(Wrapper<K>::d_1), pt, &i_1, x, &i_1);
       }
     }
-    RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, static_cast<underlying_type<K>>(tol[0]), N, piv, d, Ax, comm);
+    const bool pivoted = RRQR<excluded>((id[2] >> 2) & 7, n, mu, *v, s, static_cast<underlying_type<K>>(tol[0]), N, piv, d, Ax, comm);
     if (N == 0) {
 #if HPDDM_PETSC
       if (isZero(*v, n * mu, comm)) {
@@ -653,7 +662,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
       for (unsigned short nu = 1; nu < mu; ++nu) A.ksp_->rnorm = std::max(A.ksp_->rnorm, PetscReal(HPDDM::abs(s[static_cast<std::ptrdiff_t>(nu) * (mu + 1)])));
       PetscCall(KSPLogResidualHistory(A.ksp_, A.ksp_->rnorm));
       PetscCall(KSPMonitor(A.ksp_, 0, A.ksp_->rnorm));
-      if (tol[0] <= static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && N != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
+      if (!pivoted && N != mu) A.ksp_->reason = KSP_DIVERGED_BREAKDOWN;
       else PetscCall((*A.ksp_->converged)(A.ksp_, 0, A.ksp_->rnorm, &A.ksp_->reason, A.ksp_->cnvP));
       if (A.ksp_->reason) {
         HPDDM_IT(j, A) = 0;
@@ -661,7 +670,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
       }
     }
 #endif
-    if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
+    if (pivoted && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_1, &i_1, &mu, norm, &i_1, piv);
     if (N != mu) {
       int nrhs = mu - N;
       Lapack<K>::trtrs("U", "N", "N", &N, &nrhs, s, &mu, s + N * mu, &mu, &info);
@@ -670,6 +679,10 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
 #endif
     }
     if (N != deflated) {
+      if (U && N != (deflated == -1 ? mu : deflated)) {
+        const_cast<Operator &>(A).destroy();
+        U = C = nullptr;
+      }
       deflated = N;
       dim      = deflated * (HPDDM_IT(j, A) - 1 + m[0] > HPDDM_MAX_IT(m[2], A) ? HPDDM_MAX_IT(m[2], A) - HPDDM_IT(j, A) + 1 : m[0]);
       ldh      = deflated * (m[0] + 1);
@@ -731,23 +744,20 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
       ++HPDDM_IT(j, A);
     }
     bool converged;
-    if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
+    if (pivoted) Lapack<K>::lapmt(&i_1, &n, &mu, x, &n, piv);
     if (HPDDM_IT(j, A) != HPDDM_MAX_IT(m[2], A) + 1 && i == m[0]) {
       converged = false;
-      if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9) && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_0, &i_1, &mu, norm, &i_1, piv);
+      if (pivoted && m[1] <= 1) Lapack<underlying_type<K>>::lapmt(&i_0, &i_1, &mu, norm, &i_1, piv);
 #if !defined(PETSC_PCHPDDM_MAXLEVELS)
       if (id[0] > 1) std::cout << "BGCRODR restart(" << m[0] << ", " << k << ")" << std::endl;
 #endif
     } else {
       if (i == 0 && HPDDM_IT(j, A) == 0) break;
       converged = true;
-      if (!excluded && HPDDM_IT(j, A) != 0 && HPDDM_IT(j, A) == HPDDM_MAX_IT(m[2], A) + 1) {
-        const int rem = (U ? (HPDDM_MAX_IT(m[2], A) - m[0]) % (m[0] - k) : HPDDM_MAX_IT(m[2], A) % m[0]);
-        if (rem) dim = deflated * (rem + (U ? k : 0));
-      }
+      if (HPDDM_IT(j, A) == HPDDM_MAX_IT(m[2], A) + 1) dim = deflated * i;
     }
     HPDDM_CALL(updateSolRecycling<excluded>(A, id[1], n, x, H, s, v, s, C, U, &dim, k, mu, Ax, comm, deflated));
-    if (tol[0] > static_cast<std::remove_reference_t<decltype(*tol)>>(-0.9)) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
+    if (pivoted) Lapack<K>::lapmt(&i_0, &n, &mu, x, &n, piv);
     if (i == m[0] && ((id[2] >> 2) & 7) == 0) {
       if (U) i -= k;
       if (!excluded && n) Blas<K>::trsm("R", "U", "N", "N", &n, &deflated, &(Wrapper<K>::d_1), save[i - 1] + i * deflated, &ldh, v[m[0]], &n);
@@ -765,7 +775,8 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
       constexpr bool symmetric = false;
 #endif
       if (!U) {
-        int dim = std::min(static_cast<unsigned short>(HPDDM_IT(j, A)), m[0]);
+        info    = dim / deflated;
+        int dim = info;
         if (dim < k) k = dim;
         U = reinterpret_cast<K *>(const_cast<Operator &>(A).allocate(n, deflated, k));
         C = U + k * ldv;
@@ -797,14 +808,15 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
           K *work = new K[std::max(2, lwork)];
           Lapack<K>::geev("N", "V", &dim, *H, &ldh, w, w + dim, nullptr, &i_1, vr, &dim, work, &lwork, rwork, &info);
           delete[] rwork;
+          delete[] work;
           lwork = -1;
 #else
-          K *work = new K[2];
+          K *work;
 #endif
-          Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, &lwork, &info);
-          Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, &lwork, &info);
-          lwork = std::max(HPDDM::real(work[0]), HPDDM::real(work[1]));
-          delete[] work;
+          K query[2];
+          Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, query, &lwork, &info);
+          Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, query + 1, &lwork, &info);
+          lwork = std::max(HPDDM::real(query[0]), HPDDM::real(query[1]));
 #if !(defined(PETSC_HAVE_SLEPC) && defined(PETSC_HAVE_DYNAMIC_LIBRARIES) && defined(PETSC_USE_SHARED_LIBRARIES))
           std::vector<std::pair<unsigned short, HPDDM::complex<underlying_type<K>>>> q;
           q.reserve(dim);
@@ -821,6 +833,9 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
           K *vr = new K[static_cast<std::size_t>(bK) * dim]();
           if (!loadedKSPSym) {
             PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, nullptr, "KSPHPDDM_Internal", (void **)&loadedKSPSym));
+            if (!loadedKSPSym)
+              PetscCall(
+                PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, "${PETSC_LIB_DIR}/libhpddm_petsc", "KSPHPDDM_Internal", (void **)&loadedKSPSym));
             PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
           }
   #if !defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -946,10 +961,15 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
           std::transform(q.cbegin(), q.cbegin() + i, perm, [](typename decltype(q)::const_reference p) { return p.first + 1; });
           decltype(q)().swap(q);
           Lapack<K>::lapmt(&i_1, &bDim, &(info = i), vr, &bDim, perm);
+          delete[] perm;
+          delete[] work;
 #else
           K *vr = new K[static_cast<std::size_t>(bK) * dim]();
           if (!loadedKSPSym) { // LCOV_EXCL_START
             PetscCall(PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, nullptr, "KSPHPDDM_Internal", (void **)&loadedKSPSym));
+            if (!loadedKSPSym)
+              PetscCall(
+                PetscDLLibrarySym(PETSC_COMM_SELF, &PetscDLLibrariesLoaded, "${PETSC_LIB_DIR}/libhpddm_petsc", "KSPHPDDM_Internal", (void **)&loadedKSPSym));
             PetscCheck(loadedKSPSym, PETSC_COMM_SELF, PETSC_ERR_PLIB, "KSPHPDDM_Internal symbol not found in loaded libhpddm_petsc");
           } // LCOV_EXCL_STOP
   #if !defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -962,8 +982,7 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
                                      reinterpret_cast<PetscScalar *>(a), bDim, reinterpret_cast<PetscScalar *>(B), row, static_cast<PetscInt>(bK),
                                      reinterpret_cast<PetscScalar *>(vr), symmetric));
   #endif
-          int *perm = new int[1];
-          K   *work = new K[2];
+          K *work;
 #endif
           delete[] B;
           delete[] a;
@@ -974,13 +993,12 @@ inline int IterativeMethod::BGCRODR(const Operator &A, const K *const b, K *cons
             for (i = 0; i < bK; ++i) Blas<K>::scal(&bK, prod + bK * (dim + deflated) + i, *H + i, &ldh);
           Blas<K>::gemm("N", "N", &bK, &bK, &diff, &(Wrapper<K>::d_1), H[k], &ldh, vr + bK, &bDim, &(Wrapper<K>::d_1), *H, &ldh);
           row   = dim + deflated;
-          *perm = -1;
-          Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, work, perm, &info);
-          Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, work + 1, perm, &info);
-          delete[] perm;
-          lwork = std::max(HPDDM::real(work[0]), HPDDM::real(work[1]));
-          delete[] work;
-          work = new K[lwork];
+          lwork = -1;
+          K query[2];
+          Lapack<K>::geqrf(&row, &bK, nullptr, &ldh, nullptr, query, &lwork, &info);
+          Lapack<K>::mqr("R", "N", &n, &row, &bK, nullptr, &ldh, nullptr, nullptr, &n, query + 1, &lwork, &info);
+          lwork = std::max(HPDDM::real(query[0]), HPDDM::real(query[1]));
+          work  = new K[lwork];
           Lapack<K>::geqrf(&row, &bK, *H, &ldh, Ax, work, &lwork, &info);
           if (d) std::copy_n(*v, k * ldv, C);
           std::copy_n(U, k * ldv, v[id[1] == HPDDM_VARIANT_FLEXIBLE ? m[0] + 1 : 0]);

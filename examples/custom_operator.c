@@ -22,7 +22,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <stdint.h>
 
 #include <HPDDM.h>
 
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
   HpddmOptionParseString(opt, "-hpddm_verbosity 4");
   {
     char *val  = "mu=<2>";
-    char *desc = "Number of generated random right-hand sides.";
+    char *desc = "Number of right-hand sides.";
     HpddmOptionParseInt(opt, argc, argv, val, desc);
     val  = "n=<100>";
     desc = "Size of the local matrices.";
@@ -70,24 +70,36 @@ int main(int argc, char **argv)
   if (mu < 1) mu = 2;
   HpddmCustomOperator *op = (HpddmCustomOperator *)malloc(sizeof(HpddmCustomOperator));
   op->n                   = HpddmOptionApp(opt, "n");
-  if (op->n < 1) op->n = 1;
+  if (op->n < 0) op->n = 1;
+  const int n = op->n;
   MPI_Comm_dup(MPI_COMM_WORLD, &op->comm);
-  int  rank, size, length;
-  char name[MPI_MAX_PROCESSOR_NAME];
+  int rank;
   MPI_Comm_rank(op->comm, &rank);
   if (rank != 0) HpddmOptionRemove(opt, "verbosity");
-  MPI_Comm_size(op->comm, &size);
-  MPI_Get_processor_name(name, &length);
-  srand((unsigned)time(NULL) + rank * size + length);
-  double *in = malloc(sizeof(double) * mu * op->n);
-  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.rand)
-  for (int i = 0; i < mu * op->n; ++i) in[i] = (rand() % 10000) / 100.0;
-  double *out = (double *)calloc((size_t)mu * op->n, sizeof(double));
+  size_t   size = n ? (size_t)mu * n : 1;
+  double  *in   = malloc(sizeof(double) * size);
+  uint32_t seed = 17 + rank;
+  for (int i = 0; i < mu * n; ++i) {
+    seed  = 1664525U * seed + 1013904223U;
+    in[i] = (seed % 10000) / 100.0;
+  }
+  double *out = (double *)calloc(size, sizeof(double));
   HpddmCustomOperatorSolve(op, op->n, &mv, &apply, in, out, mu, &op->comm);
+  double                   *res = malloc(sizeof(double) * size), norms[2] = {0.0, 0.0};
+  const HpddmCustomOperator residual = {op->comm, n};
+  mv(&residual, out, res, mu);
+  for (int i = 0; i < mu * n; ++i) {
+    norms[0] += (res[i] - in[i]) * (res[i] - in[i]);
+    norms[1] += in[i] * in[i];
+  }
+  MPI_Allreduce(MPI_IN_PLACE, norms, 2, MPI_DOUBLE, MPI_SUM, op->comm);
+  if (rank == 0) printf(" --- squared residual = %e / %e\n", norms[0], norms[1]);
+  int status = !(norms[0] <= 1.0e-10 * norms[1]);
+  free(res);
   MPI_Comm_free(&op->comm);
   free(out);
   free(in);
   free(op);
   MPI_Finalize();
-  return 0;
+  return status;
 }

@@ -633,7 +633,7 @@ inline void hash_range(std::size_t &seed, T begin, T end)
     #endif
 
     #if !HPDDM_MPI
-      #define MPI_Allreduce(a, b, c, d, e, f) (void)f
+      #define MPI_Allreduce(a, b, c, d, e, f) ((void)(f), 0)
       #define MPI_Comm_size(a, b)             *b = 1
       #define MPI_Comm_rank(a, b)             *b = 0
       #define MPI_COMM_SELF                   0
