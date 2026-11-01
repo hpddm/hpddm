@@ -1123,6 +1123,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                                                                                             U == 1 ? nullptr : (offsetArray[index] + 1), work,
                                                                                             U == 1 ? nullptr : infoNeighbor + first + index);
 #if HPDDM_INEXACT_COARSE_OPERATOR
+            if (U != 1 && !infoNeighbor[first + index]) continue;
             if (T == 1 && M[first + index].first < p) neighbors[offset] = M[first + index].first;
             else if (blocked || offset < size)
               neighbors[offset] = std::distance(DMatrix::ldistribution_ + 1,

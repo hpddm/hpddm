@@ -736,10 +736,9 @@ public:
     for (unsigned short i = 0; i < super::map_.size(); ++i)
       MPI_Irecv(accumulate[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + i);
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      int        index;
+      int        index, count;
       MPI_Status st;
       MPI_Waitany(super::map_.size(), rq, &index, &st);
-      int count;
       MPI_Get_count(&st, MPI_UNSIGNED_SHORT, &count);
       accumulate[index].resize(count);
     }
@@ -858,9 +857,10 @@ public:
     *buff = new K[m];
     m     = 0;
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      buff[i] = *buff + m;
-      MPI_Irecv(buff[i], super::map_[i].second.size() * (U == 1 ? super::local_ : info[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 20,
-                super::p_.getCommunicator(), rq + i);
+      const std::size_t count = super::map_[i].second.size() * (U == 1 ? super::local_ : info[i]);
+      buff[i]                 = *buff + m;
+      if (count) MPI_Irecv(buff[i], count, Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.getCommunicator(), rq + i);
+      else rq[i] = MPI_REQUEST_NULL;
       m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     }
     if (super::local_) Wrapper<K>::diag(super::n_, super::D_, *super::deflation_, *tmp, super::local_);
@@ -869,8 +869,10 @@ public:
       for (unsigned short j = 0; j < super::local_; ++j)
         Wrapper<K>::gthr(super::map_[i].second.size(), *tmp + j * super::n_, buff[super::map_.size() + i] + j * super::map_[i].second.size(),
                          super::map_[i].second.data());
-      MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 20,
-                super::p_.getCommunicator(), rq + super::map_.size() + i);
+      if (super::local_ && !super::map_[i].second.empty())
+        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 20,
+                  super::p_.getCommunicator(), rq + super::map_.size() + i);
+      else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
       m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     }
   #if !HPDDM_PETSC
@@ -914,11 +916,15 @@ public:
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       int index;
       MPI_Waitany(super::map_.size(), rq, &index, MPI_STATUS_IGNORE);
+      if (index == MPI_UNDEFINED) break;
       for (unsigned short k = 0; k < (U ? super::local_ : info[index]); ++k)
         Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), tmp[index] + k * omap.size());
     }
-    for (unsigned short i = 0; i < super::map_.size(); ++i)
-      MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(), rq + i);
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      if (super::local_ && !super::map_[i].second.empty())
+        MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(), rq + i);
+      else rq[i] = MPI_REQUEST_NULL;
+    }
     m = std::distance(tmp[0], tmp[super::map_.size()]) / omap.size();
   #if !HPDDM_PETSC
     {
@@ -988,8 +994,10 @@ public:
       m = (U == 1 ? super::local_ : info[i]);
       for (unsigned short j = 0; j < m; ++j)
         Wrapper<K>::gthr(nmap[i].size(), tmp[super::map_.size() + i] + j * omap.size(), buff[super::map_.size() + i] + j * nmap[i].size(), nmap[i].data());
-      MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(),
-                rq + super::map_.size() + i);
+      if (m && !super::map_[i].second.empty())
+        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(),
+                  rq + super::map_.size() + i);
+      else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
     }
     K *pt = overlap_.data();
     for (unsigned short i = 0; i < overlap.size(); ++i) {
@@ -1056,7 +1064,7 @@ public:
         }
         MPI_Isend(in[overlap[i]], super::map_[overlap[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[overlap[i]].first, 2,
                   super::p_.getCommunicator(), rs + overlap[i]);
-      }
+      } else rs[overlap[i]] = MPI_REQUEST_NULL;
     }
     for (unsigned short &i : interior) {
       for (unsigned short k = 0; k < super::local_; ++k)
@@ -1070,7 +1078,7 @@ public:
                            super::map_[interior[i]].second.data());
         MPI_Isend(in[interior[i]], super::map_[interior[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[interior[i]].first, 2,
                   super::p_.getCommunicator(), rs + interior[i]);
-      }
+      } else rs[interior[i]] = MPI_REQUEST_NULL;
     }
     rs += super::signed_;
     delete[] accumulate;

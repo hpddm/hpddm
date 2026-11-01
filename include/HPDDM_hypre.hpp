@@ -58,8 +58,8 @@ private:
   /* Variable: precond
          *  hypre preconditioner (not used when <Hypre::strategy> is set to one). */
   HYPRE_Solver precond_{};
-  int          local_;
-  char         type_;
+  int          local_{};
+  char         type_{};
 
 protected:
   /* Variable: numbering
@@ -104,7 +104,7 @@ public:
     HYPRE_IJMatrixSetObjectType(A_, HYPRE_PARCSR);
     HYPRE_IJMatrixSetRowSizes(A_, I + 1);
     local_             = ncol;
-    int *rows          = new int[3 * local_]();
+    int *rows          = new int[3 * static_cast<std::size_t>(local_)]();
     int *diag_sizes    = rows + local_;
     int *offdiag_sizes = diag_sizes + local_;
     rows[0]            = I[0];

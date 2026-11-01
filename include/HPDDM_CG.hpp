@@ -75,17 +75,14 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   Blas<K>::axpy(&dim, &(Wrapper<K>::d_2), z, &i_1, r, &i_1);
   HPDDM_CALL(A.template apply<excluded>(r, p, mu, z));
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
-  std::unique_ptr<underlying_type<K>[]> normStorage(new underlying_type<K>[mu]);
-  underlying_type<K> *const             norm = normStorage.get();
-  const K                              *rhs  = b;
+  underlying_type<K> *const norm = dir + mu;
+  const K                  *rhs  = b;
   if (!unpreconditioned) {
     PetscCall(A.template apply<excluded>(b, z, mu, trash));
     rhs = z;
   }
   Wrapper<K>::diag(n, d, rhs, trash, mu);
   for (unsigned short nu = 0; nu < mu; ++nu) norm[nu] = HPDDM::real(Blas<K>::dot(&n, rhs + n * nu, &i_1, trash + n * nu, &i_1));
-  ignore(MPI_Allreduce(MPI_IN_PLACE, norm, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
-  std::for_each(norm, norm + mu, [](underlying_type<K> &y) { y = HPDDM::sqrt(y); });
 #endif
   Wrapper<K>::diag(n, d, p, trash, mu);
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
@@ -95,7 +92,12 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
   } else
 #endif
     for (unsigned short nu = 0; nu < mu; ++nu) dir[nu] = HPDDM::real(Blas<K>::dot(&n, trash + n * nu, &i_1, p + n * nu, &i_1));
+#if defined(PETSC_PCHPDDM_MAXLEVELS)
+  ignore(MPI_Allreduce(MPI_IN_PLACE, dir, 2 * mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
+  std::for_each(norm, norm + mu, [](underlying_type<K> &y) { y = HPDDM::sqrt(y); });
+#else
   ignore(MPI_Allreduce(MPI_IN_PLACE, dir, mu, Wrapper<K>::mpi_underlying_type(), Wrapper<underlying_type<K>>::mpi_op(MPI_SUM), comm));
+#endif
   std::transform(dir, dir + mu, res, [](const underlying_type<K> &d) { return HPDDM::sqrt(d); });
 #if defined(PETSC_PCHPDDM_MAXLEVELS)
   for (unsigned short nu = 0; nu < mu; ++nu) residual[nu] = static_cast<PetscReal>(res[nu]);
@@ -108,7 +110,6 @@ inline int IterativeMethod::CG(const Operator &A, const K *const b, K *const x, 
       std::fill_n(p + nu * n, n, K());
       std::fill_n(trash + nu * n, n, K());
     }
-  normStorage.reset();
 #endif
   int i = 0;
 #if defined(PETSC_PCHPDDM_MAXLEVELS)

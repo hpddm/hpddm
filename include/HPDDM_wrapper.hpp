@@ -191,10 +191,11 @@ struct Wrapper {
       std::vector<char> b((size >> 3) + 1);
       b[0] |= 1;
       b[size >> 3] |= 1 << (size & 7);
-      int i = 1;
+      std::vector<K> t(k);
+      int            i = 1;
       while (i < size) {
-        int            it = i;
-        std::vector<K> t(ab + i * k, ab + (i + 1) * k);
+        int it = i;
+        std::copy_n(ab + i * k, k, t.begin());
         do {
           int next = (i * n) % size;
           std::swap_ranges(ab + next * k, ab + (next + 1) * k, t.begin());
@@ -202,7 +203,7 @@ struct Wrapper {
           i = next;
         } while (i != it);
 
-        for (i = 1; i < size && (b[i >> 3] & (1 << (i & 7))) != 0; ++i);
+        for (++i; i < size && (b[i >> 3] & (1 << (i & 7))) != 0; ++i);
       }
       if (ldb > n) {
         if (O == 'C' && is_complex) {
@@ -877,7 +878,7 @@ inline void Wrapper<K>::diag(const int &m, const underlying_type<K> *const d, co
         for (int j = 0; j < m; ++j) out[j + i * m] = d[j] * in[j + i * m];
     else
       for (int i = 0; i < n; ++i)
-        for (int j = 0; j < m; ++j) out[j + i * m] *= d[j];
+        for (int j = 0; j < m; ++j) out[j + i * m] *= d[j]; // NOLINT(clang-analyzer-security.ArrayBound)
   } else if (in) std::copy_n(in, n * m, out);
 }
 template <class K>

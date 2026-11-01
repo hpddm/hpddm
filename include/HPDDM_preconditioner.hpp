@@ -295,10 +295,16 @@ public:
     PetscFunctionBeginUser;
     PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(const_cast<Mat *>(&uc_)));
     if (n) {
-      const PetscInt m = (mu * p + n - 1) / n;
-      VecType        type;
+      VecType      type;
+      PetscBool    host;
+      PetscScalar *array = nullptr;
+
       PetscCallAbort(PETSC_COMM_WORLD, MatGetVecType(ev_, &type));
-      PetscCallAbort(PETSC_COMM_WORLD, MatCreateDenseFromVecType(PETSC_COMM_SELF, type, n, m, n, m, PETSC_DECIDE, nullptr, const_cast<Mat *>(&uc_)));
+      PetscCallAbort(PETSC_COMM_WORLD, PetscObjectTypeCompareAny((PetscObject)ev_, &host, MATSEQDENSE, MATMPIDENSE, ""));
+      if (p > n) PetscCallAbort(PETSC_COMM_WORLD, PetscMalloc1(static_cast<std::size_t>(mu) * p, &array));
+      PetscCallAbort(PETSC_COMM_WORLD,
+                     MatCreateDenseFromVecType(PETSC_COMM_SELF, type, n, mu, n, mu, PETSC_DECIDE, host ? array : nullptr, const_cast<Mat *>(&uc_)));
+      if (array) PetscCallAbort(PETSC_COMM_WORLD, MatDenseReplaceArray(uc_, array));
     } else PetscCallAbort(PETSC_COMM_WORLD, MatCreateSeqDense(PETSC_COMM_SELF, p, mu, nullptr, const_cast<Mat *>(&uc_)));
     PetscFunctionReturnVoid();
   #endif
@@ -371,6 +377,10 @@ public:
 #else
 protected:
   Preconditioner() = default;
+
+public:
+  Preconditioner(const Preconditioner &)            = delete;
+  Preconditioner &operator=(const Preconditioner &) = delete;
 #endif
 protected:
   explicit Preconditioner(const Subdomain<K> &s) : super(s) { }

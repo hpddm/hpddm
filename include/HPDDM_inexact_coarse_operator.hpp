@@ -365,7 +365,7 @@ protected:
         ogj_ = new int[I[nrow] - (super::numbering_ == 'F' ? 1 : 0)];
         std::copy_n(J + di_[nrow] - (super::numbering_ == 'F' ? 1 : 0), I[nrow] - (super::numbering_ == 'F' ? 1 : 0), ogj_);
         std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0),
-                      [&](int &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
+                      [&](int &i) { i = g2l[i - (super::numbering_ == 'F')] + (super::numbering_ == 'F'); });
         buff_      = new K *[send_.size() + recv_.size()];
         accumulate = std::accumulate(recv_.cbegin(), recv_.cend(), 0,
                                      [](unsigned int init, const std::pair<unsigned short, std::vector<int>> &i) { return init + i.second.size(); });
@@ -667,7 +667,7 @@ protected:
     ogj_ = new integer_type[I[nrow] - (super::numbering_ == 'F' ? 1 : 0)];
     std::copy_n(J + di_[nrow] - (super::numbering_ == 'F' ? 1 : 0), I[nrow] - (super::numbering_ == 'F' ? 1 : 0), ogj_);
     std::for_each(J, J + I[nrow] + di_[nrow] - (super::numbering_ == 'F' ? 2 : 0),
-                  [&](integer_type &i) { i = g2l[i - (this->numbering_ == 'F')] + (this->numbering_ == 'F'); });
+                  [&](integer_type &i) { i = g2l[i - (super::numbering_ == 'F')] + (super::numbering_ == 'F'); });
     oi_  = I;
     oa_  = C + (di_[nrow] - (super::numbering_ == 'F')) * bs_ * bs_;
     oj_  = J + di_[nrow] - (super::numbering_ == 'F');
@@ -840,7 +840,7 @@ public:
     std::vector<std::vector<std::pair<int, K *>>> to;
     if (S != 'S') {
       to.resize(in->off_);
-      for (unsigned int i = 0; i < in->dof_ + 1; ++i)
+      for (unsigned int i = 0; i < in->dof_; ++i)
         for (unsigned int j = in->oi_[i]; j < in->oi_[i + 1]; ++j)
           to[in->oj_[j - (super::numbering_ == 'F')] - (super::numbering_ == 'F')].emplace_back(i, in->oa_ + (j - (super::numbering_ == 'F')) * bss);
       for (unsigned int i = 0; i < in->off_; ++i) {

@@ -574,13 +574,14 @@ private:
                                      const underlying_type<K> *const d, K *const work, const MPI_Comm &comm)
   {
     if (excluded || !n) {
-      std::fill_n(work, k * mu * mu, K());
       if (id == 1)
         for (unsigned short i = 0; i < k; ++i) {
+          std::fill_n(work, mu * mu, K());
           ignore(MPI_Allreduce(MPI_IN_PLACE, work, mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
           Wrapper<K>::template omatcopy<'N'>(mu, mu, work, mu, H + mu * i, ldh);
         }
       else {
+        std::fill_n(work, k * mu * mu, K());
         ignore(MPI_Allreduce(MPI_IN_PLACE, work, k * mu * mu, Wrapper<K>::mpi_type(), Wrapper<K>::mpi_op(MPI_SUM), comm));
         Wrapper<K>::template omatcopy<'N'>(mu, k * mu, work, k * mu, H, ldh);
       }

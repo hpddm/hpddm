@@ -455,7 +455,7 @@ public:
     MatrixCSR<K> *E;
     if (I == nullptr && J == nullptr) E = new MatrixCSR<K>(n, n, n * n, C, nullptr, nullptr, S == 'S');
     else E = new MatrixCSR<K>(n, n, I[n] - (numbering_ == 'F'), C, I, J, S == 'S');
-    this->super::template numfact<numbering_, true>(E);
+    super::template numfact<numbering_, true>(E);
     delete E;
     delete[] I;
   }
