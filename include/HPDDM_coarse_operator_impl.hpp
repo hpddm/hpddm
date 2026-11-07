@@ -110,6 +110,11 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
   {
     PetscInt n = 1;
     PetscCallAbort(PETSC_COMM_WORLD, PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
+    PetscCheckAbort(n >= 1 && n <= sizeWorld_, PETSC_COMM_WORLD, PETSC_ERR_ARG_OUTOFRANGE,
+                    "-%sp %" PetscInt_FMT " must be between 1 and the number of subdomain leaders %d", v.prefix_.c_str(), n, sizeWorld_);
+    PetscCheckAbort(n <= std::numeric_limits<unsigned short>::max(), PETSC_COMM_WORLD, PETSC_ERR_ARG_OUTOFRANGE,
+                    "-%sp %" PetscInt_FMT " exceeds the supported maximum %d", v.prefix_.c_str(), n,
+                    static_cast<int>(std::numeric_limits<unsigned short>::max()));
     p = n;
   }
 #endif
@@ -394,6 +399,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscInt n = 1;
     PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-mat_mumps_use_omp_threads", &n, nullptr));
     if (n > 1) {
+      PetscCheck(n <= sizeWorld_ / p, v.p_.getCommunicator(), PETSC_ERR_ARG_OUTOFRANGE,
+                 "-%smat_mumps_use_omp_threads %" PetscInt_FMT " must not exceed the number of subdomains per coarse process %d", v.prefix_.c_str(), n,
+                 sizeWorld_ / p);
       int *group = new int[static_cast<std::size_t>(n) * p];
       for (unsigned short i = 0; i < p; ++i)
         std::iota(group + static_cast<std::ptrdiff_t>(n) * i, group + static_cast<std::ptrdiff_t>(n) * (i + 1), DMatrix::ldistribution_[i]);
