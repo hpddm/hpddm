@@ -280,8 +280,13 @@ private:
     }
   }
 #if HPDDM_PETSC
-  static PetscErrorCode setMatrixOptions(Mat, const char *);
-  PetscErrorCode        setMumpsBlk(PC, const char *, PetscInt, const unsigned short *) const;
+  static PetscErrorCode propagateRealSymmetryOptions(Mat, Mat);
+  static PetscErrorCode setMatrixOptions(Mat, Mat &, const char *);
+  template <class Operator>
+  PetscErrorCode setupDenseCoarseKSP(Operator &, const K *);
+  PetscErrorCode setMumpsBlk(PC, const char *, PetscInt, const unsigned short *) const;
+  template <bool, class Int, class Value, class Level>
+  static PetscErrorCode setupCoarseKSP(MPI_Comm, PetscInt, PetscInt, PetscInt, Int *, Int *, Value *, bool, const std::string &, Level *, PC * = nullptr);
 #endif
 
 public:

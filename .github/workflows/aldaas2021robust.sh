@@ -55,6 +55,14 @@ cat << EOF >> ../aldaas2021robust/sparse_ls.c
         args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat -pc_use_qr -pc_hpddm_levels_1_sub_pc_type qr -pc_hidden_setup {{true false}shared output}
         output_file: ../../../../../aldaas2021robust/output/sparse_ls_ksp_type-lsqr_mat_name-mesh_deform_pc_type-hpddm_pc_use_qr.out
 
+   test:
+      suffix: shared_subdomains
+      requires: hpddm mumps double !complex !defined(PETSC_USE_64BIT_INDICES)
+      nsize: 8
+      args: -options_file \${wPETSC_DIR}/../aldaas2021robust/default.rc -mat_name \${wPETSC_DIR}/../aldaas2021robust/datafiles/mesh_deform.dat -pc_type hpddm -pc_hidden_setup true -pc_hpddm_total_subdomains 4 -pc_hpddm_levels_1_pc_gasm_type basic -pc_hpddm_levels_1_sub_pc_factor_mat_solver_type mumps -ksp_error_if_not_converged
+      filter: sed -n '/DIVERGED/p'
+      output_file: output/empty.out
+
 TEST*/
 EOF
 cp ../aldaas2021robust/sparse_ls.c src/ksp/ksp/tutorials

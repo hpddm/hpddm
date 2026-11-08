@@ -29,6 +29,10 @@
 #include <map>
 #include <cassert>
 
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+  #include <petsc/private/vecimpl.h>
+#endif
+
 namespace HPDDM
 {
 #ifdef PETSC_PCHPDDM_MAXLEVELS
@@ -99,8 +103,27 @@ protected:
          *  MPI communicator of the subdomain. */
   MPI_Comm communicator_{MPI_COMM_NULL};
   /* Variable: dof
-         *  Number of degrees of freedom in the current subdomain. */
+         *  Number of degrees of freedom in the current subdomain (in PCHPDDM, number of degrees of freedom of the subdomain held by the current process). */
   int dof_{};
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+  MPI_Comm       subCommunicator_        = MPI_COMM_NULL;
+  MPI_Comm       coarseCommunicator_     = MPI_COMM_NULL;
+  bool           ownsCoarseCommunicator_ = false;
+  vectorNeighbor coarseMap_;
+  bool           hasCoarseMap_ = false;
+  std::vector<std::pair<int, int>>
+               subdomainOfRank_; /* (rank, subdomain id) of this process and its neighbors, sorted by rank, empty if all subdomains are on a single process */
+  int          id_             = -1;
+  int          globalDof_      = -1;
+  bool         leader_         = true;
+  Vec          scaling_        = nullptr;
+  Vec          scalingBase_    = nullptr;
+  Vec          work_           = nullptr;
+  PetscMemType workMemoryType_ = PETSC_MEMTYPE_HOST;
+
+public:
+  Mat ev_ = nullptr;
+#endif
 
 public:
   void dtor()
@@ -113,6 +136,8 @@ public:
     buff_ = nullptr;
 #ifndef PETSC_PCHPDDM_MAXLEVELS
     destroyMatrix(nullptr);
+#else
+    destroyDistribution();
 #endif
   }
 
@@ -705,14 +730,293 @@ public:
     PetscFunctionReturn(PETSC_SUCCESS);
   }
   void forceDof(int dof) { dof_ = dof; }
-  void resetDistribution(unsigned short neighbors)
+  void allocateDistribution(unsigned short neighbors)
   {
-    assert(!buff_ && !rq_ && "resetDistribution() must not be called twice");
     map_.resize(neighbors);
     buff_ = new K *[2 * map_.size()]();
     rq_   = new MPI_Request[2 * map_.size()];
   }
   vectorNeighbor &getMapMutable() { return map_; }
+  MPI_Comm        getSubCommunicator() const { return subCommunicator_ != MPI_COMM_NULL ? subCommunicator_ : PETSC_COMM_SELF; }
+  bool            isDistributed() const
+  {
+    int size = 1;
+    if (subCommunicator_ != MPI_COMM_NULL) MPI_Comm_size(subCommunicator_, &size);
+    return size > 1;
+  }
+  bool                  isLeader() const { return leader_; }
+  const MPI_Comm       &getCoarseCommunicator() const { return coarseCommunicator_ != MPI_COMM_NULL ? coarseCommunicator_ : communicator_; }
+  const vectorNeighbor &getCoarseMap() const { return hasCoarseMap_ ? coarseMap_ : map_; }
+  int                   getSubdomainOfRank(int rank) const
+  {
+    if (subdomainOfRank_.empty()) return rank;
+    const std::vector<std::pair<int, int>>::const_iterator it    = std::lower_bound(subdomainOfRank_.cbegin(), subdomainOfRank_.cend(), rank,
+                                                                                    [](const std::pair<int, int> &lhs, int rhs) { return lhs.first < rhs; });
+    const bool                                             found = it != subdomainOfRank_.cend() && it->first == rank;
+    PetscAssertAbort(found, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Process %d is neither this process nor one of its neighbors", rank);
+    return it->second;
+  }
+  int            getGlobalDof() const { return globalDof_ >= 0 ? globalDof_ : dof_; }
+  int            getId() const { return id_; }
+  Vec            getScalingVec() const { return scaling_; }
+  PetscErrorCode setScalingVec(Vec D, PetscLayout layout = nullptr)
+  {
+    PetscFunctionBeginUser;
+    PetscCall(PetscObjectReference((PetscObject)D));
+    if (D && isDistributed()) {
+      PetscScalar *array, *oldarray;
+      PetscLayout  map = nullptr, old;
+      PetscInt     bs, oldbs;
+      PetscBool    cuda, hip, reuse = PETSC_FALSE, rebind = PETSC_TRUE;
+      VecType      type;
+
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)D, &cuda, VECSEQCUDA, VECMPICUDA, ""));
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)D, &hip, VECSEQHIP, VECMPIHIP, ""));
+      type = cuda ? VECMPICUDA : hip ? VECMPIHIP : VECMPI;
+      PetscCall(VecGetBlockSize(D, &bs));
+      if (!layout && scaling_ && scaling_ != scalingBase_) PetscCall(VecGetLayout(scaling_, &layout));
+      if (scaling_ && scaling_ != scalingBase_ && scalingBase_ == D) {
+        PetscCall(PetscObjectTypeCompare((PetscObject)scaling_, type, &reuse));
+        if (reuse && layout) {
+          PetscCall(VecGetLayout(scaling_, &old));
+          PetscCall(PetscLayoutCompare(old, layout, &reuse));
+          PetscCall(PetscLayoutGetBlockSize(old, &oldbs));
+          reuse = PetscBool(reuse && bs == oldbs);
+        }
+      }
+      if (reuse) PetscCall(VecGetLayout(scaling_, &layout));
+      if (layout) {
+        PetscCall(PetscLayoutGetBlockSize(layout, &oldbs));
+        if (bs != oldbs) {
+          PetscCall(PetscLayoutDuplicate(layout, &map));
+          PetscCall(PetscLayoutSetBlockSize(map, bs));
+        } else PetscCall(PetscLayoutReference(layout, &map));
+      }
+      PetscCall(VecGetArray(D, &array));
+      if (reuse) {
+        /* D owns the host values; discard stale device values before rebinding its array. */
+        PetscCall(VecGetArrayWrite(scaling_, &oldarray));
+        rebind = PetscBool(oldarray != array);
+        PetscCall(VecRestoreArrayWrite(scaling_, &oldarray));
+        if (rebind) PetscCall(VecResetArray(scaling_));
+        PetscCall(VecDestroy(&scalingBase_));
+      } else {
+        PetscCall(destroyScalingVec());
+        if (map) PetscCall(VecCreateMPIWithLayoutAndArray_Private(map, array, &scaling_));
+        else PetscCall(VecCreateMPIWithArray(subCommunicator_, bs, dof_, getGlobalDof(), array, &scaling_));
+        PetscCall(VecSetType(scaling_, type));
+      }
+      PetscCall(PetscLayoutDestroy(&map));
+      if (rebind) PetscCall(VecPlaceArray(scaling_, array));
+      PetscCall(VecRestoreArray(D, &array));
+      scalingBase_ = D;
+    } else {
+      PetscCall(destroyScalingVec());
+      scalingBase_ = scaling_ = D;
+    }
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode destroyScalingVec()
+  {
+    PetscFunctionBeginUser;
+    if (scaling_ != scalingBase_) PetscCall(VecDestroy(&scaling_));
+    PetscCall(VecDestroy(&scalingBase_));
+    scaling_ = nullptr;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode getSubdomainVec(Vec local, Vec *v)
+  {
+    PetscScalar *array;
+    PetscMemType mtype;
+
+    PetscFunctionBeginUser;
+    if (!isDistributed()) {
+      *v = local;
+      PetscFunctionReturn(PETSC_SUCCESS);
+    }
+    PetscCall(VecGetArrayAndMemType(local, &array, &mtype));
+    workMemoryType_ = mtype;
+    PetscCheck(PetscMemTypeHost(mtype) || PetscMemTypeCUDA(mtype) || PetscMemTypeHIP(mtype), PETSC_COMM_SELF, PETSC_ERR_SUP,
+               "Unsupported vector memory type %s", PetscMemTypeToString(mtype));
+    if (!work_) {
+      PetscLayout layout;
+      PetscBool   cuda, hip, kokkos;
+
+      PetscCall(VecGetLayout(scaling_, &layout));
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)local, &cuda, VECSEQCUDA, VECMPICUDA, ""));
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)local, &hip, VECSEQHIP, VECMPIHIP, ""));
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)local, &kokkos, VECSEQKOKKOS, VECMPIKOKKOS, ""));
+      cuda = PetscBool(cuda || (kokkos && PetscDefined(HAVE_MACRO_KOKKOS_ENABLE_CUDA)));
+      hip  = PetscBool(hip || (kokkos && PetscDefined(HAVE_MACRO_KOKKOS_ENABLE_HIP)));
+      PetscCall(VecCreateMPIWithLayoutAndArray_Private(layout, nullptr, &work_));
+      PetscCall(VecSetType(work_, cuda ? VECMPICUDA : hip ? VECMPIHIP : VECMPI));
+    }
+    if (PetscMemTypeCUDA(mtype)) PetscCall(VecCUDAPlaceArray(work_, array));
+    else if (PetscMemTypeHIP(mtype)) PetscCall(VecHIPPlaceArray(work_, array));
+    else PetscCall(VecPlaceArray(work_, array));
+    *v = work_;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode restoreSubdomainVec(Vec local, Vec *v)
+  {
+    PetscFunctionBeginUser;
+    if (*v != local) {
+      PetscScalar *array;
+
+      if (PetscMemTypeHost(workMemoryType_)) {
+        PetscCall(VecGetArray(*v, &array));
+        PetscCall(VecRestoreArray(*v, &array));
+        PetscCall(VecResetArray(*v));
+      } else if (PetscMemTypeCUDA(workMemoryType_)) {
+        PetscCall(VecCUDAGetArray(*v, &array));
+        PetscCall(VecCUDARestoreArray(*v, &array));
+        PetscCall(VecCUDAResetArray(*v));
+      } else if (PetscMemTypeHIP(workMemoryType_)) {
+        PetscCall(VecHIPGetArray(*v, &array));
+        PetscCall(VecHIPRestoreArray(*v, &array));
+        PetscCall(VecHIPResetArray(*v));
+      }
+      PetscCall(VecRestoreArrayAndMemType(local, nullptr));
+    }
+    *v = nullptr;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode createDeflation(VecType type, PetscInt nu)
+  {
+    PetscBool standard, cuda, hip;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatDestroy(&ev_));
+    PetscCall(PetscStrcmpAny(type, &standard, VECSTANDARD, VECSEQ, VECMPI, ""));
+    PetscCall(PetscStrcmpAny(type, &cuda, VECCUDA, VECSEQCUDA, VECMPICUDA, ""));
+    PetscCall(PetscStrcmpAny(type, &hip, VECHIP, VECSEQHIP, VECMPIHIP, ""));
+    if (isDistributed() && (standard || cuda || hip)) {
+      PetscLayout rows, cols;
+
+      PetscCall(MatCreate(getSubCommunicator(), &ev_));
+      PetscCall(MatSetSizes(ev_, dof_, leader_ ? nu : 0, getGlobalDof(), nu));
+      PetscCall(MatSetType(ev_, cuda ? MATDENSECUDA : hip ? MATDENSEHIP : MATDENSE));
+      PetscCall(VecGetLayout(scaling_, &rows));
+      PetscCall(MatGetLayouts(ev_, nullptr, &cols));
+      PetscCall(MatSetLayouts(ev_, rows, cols));
+      if (standard) PetscCall(MatMPIDenseSetPreallocation(ev_, nullptr));
+  #if PetscDefined(HAVE_CUDA)
+      else if (cuda) PetscCall(MatDenseCUDASetPreallocation(ev_, nullptr));
+  #endif
+  #if PetscDefined(HAVE_HIP)
+      else if (hip) PetscCall(MatDenseHIPSetPreallocation(ev_, nullptr));
+  #endif
+      PetscCall(MatSetVecType(ev_, cuda ? VECCUDA : hip ? VECHIP : VECSTANDARD));
+    } else PetscCall(MatCreateDenseFromVecType(getSubCommunicator(), type, dof_, leader_ ? nu : 0, getGlobalDof(), nu, PETSC_DECIDE, nullptr, &ev_));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode setDistribution(MPI_Comm sub, PetscBool distributed, PetscInt N)
+  {
+    int rank, subRank, subSize;
+
+    PetscFunctionBeginUser;
+    destroyDistribution();
+    PetscCall(PetscCommDuplicate(sub, &subCommunicator_, nullptr));
+    PetscCallMPI(MPI_Comm_rank(communicator_, &rank));
+    PetscCallMPI(MPI_Comm_size(subCommunicator_, &subSize));
+    PetscCallMPI(MPI_Comm_rank(subCommunicator_, &subRank));
+    leader_ = (subRank == 0);
+    if (!distributed) {
+      coarseCommunicator_     = communicator_;
+      ownsCoarseCommunicator_ = false;
+      id_                     = rank;
+      globalDof_              = dof_;
+      PetscFunctionReturn(PETSC_SUCCESS);
+    } else {
+      PetscCallMPI(MPI_Comm_split(communicator_, leader_ ? 0 : MPI_UNDEFINED, rank, &coarseCommunicator_));
+      ownsCoarseCommunicator_ = (coarseCommunicator_ != MPI_COMM_NULL);
+      if (leader_) PetscCallMPI(MPI_Comm_rank(coarseCommunicator_, &id_));
+      PetscCallMPI(MPI_Bcast(&id_, 1, MPI_INT, 0, subCommunicator_));
+    }
+    subdomainOfRank_.assign(1, std::make_pair(rank, id_));
+    if (subSize > 1) PetscCall(PetscMPIIntCast(N, &globalDof_));
+    else globalDof_ = dof_;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode getSubdomainRanks(std::vector<int> &ranks) const
+  {
+    MPI_Group        sub, world;
+    std::vector<int> local;
+    int              size;
+
+    PetscFunctionBeginUser;
+    PetscCallMPI(MPI_Comm_size(getSubCommunicator(), &size));
+    local.resize(size);
+    std::iota(local.begin(), local.end(), 0);
+    ranks.resize(size);
+    PetscCallMPI(MPI_Comm_group(getSubCommunicator(), &sub));
+    PetscCallMPI(MPI_Comm_group(communicator_, &world));
+    PetscCallMPI(MPI_Group_translate_ranks(sub, size, local.data(), world, ranks.data()));
+    PetscCallMPI(MPI_Group_free(&sub));
+    PetscCallMPI(MPI_Group_free(&world));
+    std::sort(ranks.begin(), ranks.end());
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode exchangeSubdomainIds()
+  {
+    PetscFunctionBeginUser;
+    if (subdomainOfRank_.empty()) PetscFunctionReturn(PETSC_SUCCESS);
+    const unsigned short size = map_.size();
+    std::vector<int>     ids(size);
+    for (unsigned short i = 0; i < size; ++i) {
+      PetscCallMPI(MPI_Irecv(ids.data() + i, 1, MPI_INT, map_[i].first, 6, communicator_, rq_ + i));
+      PetscCallMPI(MPI_Isend(&id_, 1, MPI_INT, map_[i].first, 6, communicator_, rq_ + size + i));
+    }
+    PetscCallMPI(MPI_Waitall(2 * size, rq_, MPI_STATUSES_IGNORE));
+    subdomainOfRank_.reserve(1 + size);
+    for (unsigned short i = 0; i < size; ++i) subdomainOfRank_.emplace_back(map_[i].first, ids[i]);
+    std::sort(subdomainOfRank_.begin(), subdomainOfRank_.end());
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscErrorCode buildCoarseMap()
+  {
+    PetscMPIInt *local, *all, n = 0, total;
+    PetscInt     m;
+
+    PetscFunctionBeginUser;
+    if (subdomainOfRank_.empty()) PetscFunctionReturn(PETSC_SUCCESS);
+    PetscCall(PetscMalloc1(map_.size(), &local));
+    for (const pairNeighbor &p : map_) {
+      const PetscMPIInt id = getSubdomainOfRank(p.first);
+      if (id != id_) local[n++] = id;
+    }
+    m = n;
+    PetscCall(PetscSortRemoveDupsMPIInt(&m, local));
+    PetscCall(PetscMPIIntCast(m, &n));
+    PetscCall(allgatherConcat(local, n, MPI_INT, getSubCommunicator(), &total, &all));
+    m = total;
+    PetscCall(PetscSortRemoveDupsMPIInt(&m, all));
+    vectorNeighbor().swap(coarseMap_);
+    coarseMap_.reserve(m);
+    for (PetscInt i = 0; i < m; ++i) coarseMap_.emplace_back(static_cast<unsigned short>(all[i]), std::vector<int>());
+    hasCoarseMap_ = true;
+    PetscCall(PetscFree(all));
+    PetscCall(PetscFree(local));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  void destroyDistribution()
+  {
+    /* coarseCommunicator_ is a new split, not a PETSc communicator shared with other objects, so it is not reference counted */
+    if (ownsCoarseCommunicator_ && coarseCommunicator_ != MPI_COMM_NULL) MPI_Comm_free(&coarseCommunicator_);
+    coarseCommunicator_     = MPI_COMM_NULL;
+    ownsCoarseCommunicator_ = false;
+    vectorNeighbor().swap(coarseMap_);
+    hasCoarseMap_ = false;
+    std::vector<std::pair<int, int>>().swap(subdomainOfRank_);
+    id_        = -1;
+    globalDof_ = -1;
+    leader_    = true;
+    PetscCallAbort(PETSC_COMM_SELF, destroyScalingVec());
+    PetscCallAbort(PETSC_COMM_SELF, VecDestroy(&work_));
+    workMemoryType_ = PETSC_MEMTYPE_HOST;
+    PetscCallAbort(PETSC_COMM_SELF, MatDestroy(&ev_));
+    PetscCallAbort(PETSC_COMM_SELF, PetscCommDestroy(&subCommunicator_));
+  }
 #endif
 };
 

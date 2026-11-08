@@ -145,6 +145,10 @@ static PetscErrorCode KSPSetUp_HPDDM(KSP ksp)
   PetscCall(MatGetBlockSize(A, &bs));
   PetscCall(PetscObjectTypeCompareAny((PetscObject)A, &match, MATSEQKAIJ, MATMPIKAIJ, ""));
   if (match) n /= bs;
+#if PetscDefined(HAVE_CUDA) && PetscDefined(HAVE_HPDDM)
+  delete data->cudaop;
+  data->cudaop = nullptr;
+#endif
   data->op = new HPDDM::PETScOperator(ksp, n);
   if (PetscUnlikely(!ksp->setfromoptionscalled || data->cntl[0] == static_cast<char>(PETSC_DECIDE))) { /* what follows is basically a copy/paste of KSPSetFromOptions_HPDDM, with no call to PetscOptions() */
     PetscCall(PetscInfo(ksp, "KSPSetFromOptions() not called or uninitialized internal structure, hardwiring default KSPHPDDM options\n"));
@@ -199,7 +203,12 @@ static PetscErrorCode KSPReset_HPDDM(KSP ksp)
   PetscFunctionBegin;
   delete data->op;
   data->op = nullptr;
+#if PetscDefined(HAVE_CUDA) && PetscDefined(HAVE_HPDDM)
+  delete data->cudaop;
+  data->cudaop = nullptr;
+#endif
   PetscCall(KSPHPDDMConvergenceDestroy_Private(ksp));
+  if (PetscDefined(HAVE_CUDA)) PetscCall(PetscObjectCompose((PetscObject)ksp, "_HPDDM_CUDA_GMRES_reduction", nullptr));
   PetscCall(KSPReset_HPDDM_Private(ksp));
   PetscFunctionReturn(PETSC_SUCCESS);
 }

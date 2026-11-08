@@ -119,7 +119,7 @@ protected:
          *  Workspace array of size <Coarse operator::local>. */
   K *uc_{};
   #else
-  Mat ev_{}, uc_{};
+  Mat uc_{};
   #endif
   /* Function: buildTwo
          *
@@ -150,7 +150,11 @@ protected:
     constexpr unsigned short N = std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3
                                                                                                                                                            : 4;
     unsigned short           allUniform[N + 1];
+    #ifdef PETSC_PCHPDDM_MAXLEVELS
+    allUniform[0] = subdomain.getCoarseMap().size();
+    #else
     allUniform[0] = subdomain.getMap().size();
+    #endif
     #if !HPDDM_PETSC
     Option              &opt    = *Option::get();
     const std::string    prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
@@ -231,27 +235,38 @@ protected:
         if (!opt.set("verbosity") && verbosity) opt["verbosity"] = verbosity;
       }
     #endif
+    #ifdef PETSC_PCHPDDM_MAXLEVELS
+      {
+        Operator op(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0], A, levels[n + 1], prefixC, args...);
+        if ((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
+          ret = co->template construction<1, excluded>(std::move(op), comm);
+        else if (N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))
+          ret = co->template construction<2, excluded>(std::move(op), comm);
+        else ret = co->template construction<0, excluded>(std::move(op), comm);
+      }
+    #else
       if ((allUniform[2] == nu && allUniform[3] == static_cast<unsigned short>(~nu)) || uniformity)
         ret = co->template construction<1, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
-    #if HPDDM_SLEPC
+      #if HPDDM_SLEPC
                                                               A, levels[n + 1], prefixC,
-    #endif
+      #endif
                                                               args...),
                                                      comm);
       else if (N == 4 && allUniform[2] == 0 && allUniform[3] == static_cast<unsigned short>(~allUniform[4]))
         ret = co->template construction<2, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
-    #if HPDDM_SLEPC
+      #if HPDDM_SLEPC
                                                               A, levels[n + 1], prefixC,
-    #endif
+      #endif
                                                               args...),
                                                      comm);
       else
         ret = co->template construction<0, excluded>(Operator(*B, allUniform[0], (allUniform[1] << 12) + allUniform[0],
-    #if HPDDM_SLEPC
+      #if HPDDM_SLEPC
                                                               A, levels[n + 1], prefixC,
-    #endif
+      #endif
                                                               args...),
                                                      comm);
+    #endif
     #if !HPDDM_PETSC
       if (co->getRank() == 0 && opt.val<char>("verbosity", 0) > 1) {
         std::stringstream ss;
@@ -305,7 +320,9 @@ public:
     K **ptr = const_cast<K **>(&uc_);
     *ptr    = new K[mu * co_->getSizeRHS()];
   #else
-    const PetscInt n = getLocal(), p = co_->getSizeRHS();
+    const PetscInt  n = getLocal(), p = subdomain.isLeader() ? co_->getSizeRHS() : 0;
+    const MPI_Comm &comm   = subdomain.getSubCommunicator();
+    const bool      leader = subdomain.isLeader();
 
     PetscFunctionBeginUser;
     PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(const_cast<Mat *>(&uc_)));
@@ -314,13 +331,20 @@ public:
       PetscBool    host;
       PetscScalar *array = nullptr;
 
-      PetscCallAbort(PETSC_COMM_WORLD, MatGetVecType(ev_, &type));
-      PetscCallAbort(PETSC_COMM_WORLD, PetscObjectTypeCompareAny((PetscObject)ev_, &host, MATSEQDENSE, MATMPIDENSE, ""));
-      if (p > n) PetscCallAbort(PETSC_COMM_WORLD, PetscMalloc1(static_cast<std::size_t>(mu) * p, &array));
+      PetscCallAbort(PETSC_COMM_WORLD, MatGetVecType(subdomain.ev_, &type));
+      PetscCallAbort(PETSC_COMM_WORLD, PetscObjectTypeCompareAny((PetscObject)subdomain.ev_, &host, MATSEQDENSE, MATMPIDENSE, ""));
+      if (p > n) {
+        // Only active coefficients live on the device; the coarse gather needs additional host capacity.
+        PetscCallAbort(PETSC_COMM_WORLD, PetscMalloc1(static_cast<std::size_t>(mu) * p, &array));
+      }
       PetscCallAbort(PETSC_COMM_WORLD,
-                     MatCreateDenseFromVecType(PETSC_COMM_SELF, type, n, mu, n, mu, PETSC_DECIDE, host ? array : nullptr, const_cast<Mat *>(&uc_)));
-      if (array) PetscCallAbort(PETSC_COMM_WORLD, MatDenseReplaceArray(uc_, array));
-    } else PetscCallAbort(PETSC_COMM_WORLD, MatCreateSeqDense(PETSC_COMM_SELF, p, mu, nullptr, const_cast<Mat *>(&uc_)));
+                     MatCreateDenseFromVecType(comm, type, leader ? n : 0, PETSC_DECIDE, n, mu, PETSC_DECIDE, host ? array : nullptr, const_cast<Mat *>(&uc_)));
+      if (array) PetscCallAbort(PETSC_COMM_WORLD, MatDenseReplaceArray(uc_, array)); // transfer ownership of the host gather buffer
+    } else {
+      PetscInt q = p;
+      if (subdomain.isDistributed()) PetscCallMPIAbort(PETSC_COMM_WORLD, MPI_Bcast(&q, 1, MPIU_INT, 0, comm));
+      PetscCallAbort(PETSC_COMM_WORLD, MatCreateDense(comm, leader ? q : 0, PETSC_DECIDE, q, mu, nullptr, const_cast<Mat *>(&uc_)));
+    }
     PetscFunctionReturnVoid();
   #endif
   }
@@ -384,12 +408,16 @@ public:
     ev_ = nullptr;
   }
   #else
-  Mat getMat() const { return ev_; }
+  Mat getMat() const { return subdomain.ev_; }
   #endif
   template <class T>
   void setVectors(T const &ev)
   {
+  #if !HPDDM_PETSC
     ev_ = ev;
+  #else
+    subdomain.ev_ = ev;
+  #endif
   }
   /* Function: getLocal
          *  Returns the value of <Coarse operator::local>. */
@@ -421,7 +449,7 @@ protected:
     uc_ = nullptr;
   #else
     PetscFunctionBeginUser;
-    PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(&ev_));
+    PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(&subdomain.ev_));
     PetscCallAbort(PETSC_COMM_WORLD, MatDestroy(&uc_));
   #endif
     delete co_;

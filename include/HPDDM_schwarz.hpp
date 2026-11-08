@@ -147,7 +147,7 @@ public:
   }
   void dtor()
   {
-    this->subdomain.dtor();
+    subdomain.dtor();
     super::dtor();
     d_ = nullptr;
   }
@@ -161,18 +161,28 @@ public:
     CoarseOperator<DMatrix, K>,
 #endif
     K>;
+  using super::subdomain;
   /* Function: initialize
          *  Sets <Schwarz::d>. */
   void initialize(underlying_type<K> *const &d) { d_ = d; }
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+  /* Function: initialize
+         *  Sets <Schwarz::d> and the Vec it is a view of. */
+  void initialize(underlying_type<K> *const &d, Vec D)
+  {
+    d_ = d;
+    PetscCallAbort(PETSC_COMM_SELF, subdomain.setScalingVec(D));
+  }
+#endif
   /* Function: exchange */
   template <bool allocate = false>
   void exchange(K *const x, const unsigned short &mu = 1) const
   {
     bool free = false;
-    if (allocate) free = this->subdomain.setBuffer();
-    Wrapper<K>::diag(this->subdomain.getDof(), d_, x, mu);
-    this->subdomain.exchange(x, mu);
-    if (allocate) this->subdomain.clearBuffer(free);
+    if (allocate) free = subdomain.setBuffer();
+    Wrapper<K>::diag(subdomain.getDof(), d_, x, mu);
+    subdomain.exchange(x, mu);
+    if (allocate) subdomain.clearBuffer(free);
   }
 #if !HPDDM_PETSC
   void exchange() const
@@ -270,9 +280,9 @@ public:
 #endif
   bool restriction(underlying_type<K> *const D) const
   {
-    const vectorNeighbor &map  = this->subdomain.getMap();
-    MPI_Request *const    rq   = this->subdomain.getRq();
-    const MPI_Comm       &comm = this->subdomain.getCommunicator();
+    const vectorNeighbor &map  = subdomain.getMap();
+    MPI_Request *const    rq   = subdomain.getRq();
+    const MPI_Comm       &comm = subdomain.getCommunicator();
     unsigned int          n    = 0;
     for (const auto &i : map) n += i.second.size();
     std::vector<int> p;
@@ -297,15 +307,15 @@ public:
         std::iota(idx[i], idx[i] + v.size(), 0);
         std::sort(idx[i], idx[i] + v.size(), [&v](const unsigned int &lhs, const unsigned int &rhs) { return v[lhs] < v[rhs]; });
       }
-      underlying_type<K> *const d = new underlying_type<K>[this->subdomain.getDof()];
-      std::copy_n(D, this->subdomain.getDof(), d);
+      underlying_type<K> *const d = new underlying_type<K>[subdomain.getDof()];
+      std::copy_n(D, subdomain.getDof(), d);
       for (unsigned short i = 0, size = map.size(); i < size; ++i) {
         int index;
         MPI_Waitany(size, rq, &index, MPI_STATUS_IGNORE);
         for (int j = 0; j < map[index].second.size(); ++j) d[map[index].second[j]] += buff[index][j];
       }
-      p.reserve(this->subdomain.getDof());
-      for (int i = 0; i < this->subdomain.getDof(); ++i)
+      p.reserve(subdomain.getDof());
+      for (int i = 0; i < subdomain.getDof(); ++i)
         if ((HPDDM::abs(D[i] - 1.0) > HPDDM_EPS && HPDDM::abs(D[i]) > HPDDM_EPS) || HPDDM::abs(d[i] - 1.0) > HPDDM_EPS) p.emplace_back(i);
       delete[] d;
       int rank;
@@ -848,22 +858,27 @@ public:
     }
     PetscFunctionReturn(PETSC_SUCCESS);
   }
-  PetscErrorCode structure(const IS interior, IS is, const Mat D, Mat N, PC_HPDDM_Level **const levels)
+  PetscErrorCode structure(IS is, const Mat D, Mat N, PC_HPDDM_Level **const levels, PetscBool distributed)
   {
-    Mat                    P;
+    Mat                    P = nullptr;
+    PetscLayout            layout;
     ISLocalToGlobalMapping l2g;
     PetscReal             *d;
     const PetscInt        *ptr;
-    PetscInt               m, bs;
+    PetscInt               m, M, bs;
     PetscBool              sym, ismatis;
 
     PetscFunctionBeginUser;
     PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
-    if (!this->subdomain.getRq()) {
-      PetscCall(this->subdomain.setCommunicatorFromObject((PetscObject)levels[0]->ksp));
+    PetscCall(ISGetLayout(is, &layout));
+    if (!subdomain.getRq()) {
+      PetscCall(subdomain.setCommunicatorFromObject((PetscObject)levels[0]->ksp));
       PetscCall(ISGetLocalSize(is, &m));
-      this->subdomain.forceDof(m);
-      if (!std::is_same<PetscScalar, PetscReal>::value) d = new PetscReal[this->subdomain.getDof()];
+      PetscCall(ISGetSize(is, &M));
+      subdomain.forceDof(m);
+      PetscCall(subdomain.setDistribution(!ismatis && (N || D) ? PetscObjectComm(N ? (PetscObject)N : (PetscObject)D) : PETSC_COMM_SELF, distributed, M));
+      PetscCall(subdomain.setScalingVec(levels[0]->D, layout));
+      if (!std::is_same<PetscScalar, PetscReal>::value) d = new PetscReal[subdomain.getDof()];
       else PetscCall(VecGetArray(levels[0]->D, reinterpret_cast<PetscScalar **>(&d)));
       d_ = d;
       PetscCall(ISGetIndices(is, &ptr));
@@ -875,16 +890,16 @@ public:
         PetscCall(KSPGetOperators(levels[0]->ksp, nullptr, &P));
         PetscCall(MatGetBlockSize(P, &bs));
       }
-      PetscCheck(this->subdomain.getDof() % bs == 0, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT,
-                 this->subdomain.getDof(), bs);
+      PetscCheck(subdomain.getDof() % bs == 0, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Incompatible local size %d and Pmat block size %" PetscInt_FMT,
+                 subdomain.getDof(), bs);
       if (!ismatis) {
         PetscInt *idx;
-        PetscCall(PetscMalloc1(this->subdomain.getDof() / bs, &idx));
-        for (PetscInt i = 0; i < this->subdomain.getDof() / bs; ++i) idx[i] = ptr[static_cast<std::ptrdiff_t>(i) * bs] / bs;
-        PetscCall(ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, this->subdomain.getDof() / bs, idx, PETSC_OWN_POINTER, &l2g));
+        PetscCall(PetscMalloc1(subdomain.getDof() / bs, &idx));
+        for (PetscInt i = 0; i < subdomain.getDof() / bs; ++i) idx[i] = ptr[static_cast<std::ptrdiff_t>(i) * bs] / bs;
+        PetscCall(ISLocalToGlobalMappingCreate(PetscObjectComm((PetscObject)levels[0]->ksp), bs, subdomain.getDof() / bs, idx, PETSC_OWN_POINTER, &l2g));
       }
-      v.reserve(this->subdomain.getDof() / bs);
-      for (PetscInt i = 0; i < this->subdomain.getDof(); i += bs) v.emplace_back(ptr[i], i);
+      v.reserve(subdomain.getDof() / bs);
+      for (PetscInt i = 0; i < subdomain.getDof(); i += bs) v.emplace_back(ptr[i], i);
       std::sort(v.begin(), v.end());
       PetscInt   nproc;
       PetscInt  *procs;
@@ -895,10 +910,10 @@ public:
       unsigned short *sorted = new unsigned short[nproc - 1];
       std::iota(sorted, sorted + nproc - 1, 0);
       std::sort(sorted, sorted + nproc - 1, [&procs](unsigned short lhs, unsigned short rhs) { return procs[1 + lhs] < procs[1 + rhs]; });
-      this->subdomain.resetDistribution(nproc - 1);
-      vectorNeighbor &smap = this->subdomain.getMapMutable();
+      subdomain.allocateDistribution(nproc - 1);
+      vectorNeighbor &smap = subdomain.getMapMutable();
       if (ismatis) {
-        std::fill_n(d, this->subdomain.getDof(), 0.0);
+        std::fill_n(d, subdomain.getDof(), 0.0);
         std::unordered_map<PetscInt, std::unordered_set<PetscInt>> boundary;
         const PetscInt                                            *idx;
         PetscCall(ISLocalToGlobalMappingGetBlockIndices(l2g, &idx));
@@ -929,7 +944,7 @@ public:
           }
         } else {
           PetscCall(MatSetOption(D, MAT_GETROW_UPPERTRIANGULAR, PETSC_TRUE));
-          for (PetscInt i = 0; i < this->subdomain.getDof(); i += bs) {
+          for (PetscInt i = 0; i < subdomain.getDof(); i += bs) {
             PetscInt        ncols;
             const PetscInt *cols;
             PetscCall(MatGetRow(D, i, &ncols, &cols, nullptr));
@@ -969,35 +984,47 @@ public:
         delete[] sorted;
         PetscCall(ISLocalToGlobalMappingRestoreBlockInfo(l2g, &nproc, &procs, &numprocs, &indices));
         PetscCall(ISLocalToGlobalMappingDestroy(&l2g));
-        PetscCall(ISRestoreIndices(is, &ptr));
-        PetscCall(ISGetLocalSize(interior, &m));
-        PetscCall(ISGetIndices(interior, &ptr));
-        PetscInt rstart = m ? ptr[0] : 0;
-        PetscInt rend   = rstart + m;
-        PetscCall(ISRestoreIndices(interior, &ptr));
-        PetscCall(ISGetIndices(is, &ptr));
-        for (PetscInt i = 0; i < this->subdomain.getDof(); i += bs) {
-          if (ptr[i] >= rstart && ptr[i] < rend) std::fill_n(d + i, bs, 1.0);
-          else std::fill_n(d + i, bs, 0.0);
+        PetscCall(subdomain.exchangeSubdomainIds());
+        smap.erase(std::remove_if(smap.begin(), smap.end(), [&](const pairNeighbor &p) { return subdomain.getSubdomainOfRank(p.first) == subdomain.getId(); }),
+                   smap.end());
+        if (!subdomain.isDistributed()) {
+          PetscInt begin, end;
+
+          PetscCall(MatGetOwnershipRange(P, &begin, &end));
+          for (PetscInt i = 0; i < subdomain.getDof(); i += bs) std::fill_n(d + i, bs, ptr[i] >= begin && ptr[i] < end ? 1.0 : 0.0);
+        } else {
+          std::vector<int> group;
+          PetscLayout      rmap;
+
+          PetscCall(subdomain.getSubdomainRanks(group));
+          PetscCall(MatGetLayouts(P, &rmap, nullptr));
+          for (PetscInt i = 0; i < subdomain.getDof(); i += bs) {
+            PetscMPIInt owner;
+
+            PetscCall(PetscLayoutFindOwner(rmap, ptr[i], &owner));
+            std::fill_n(d + i, bs, std::binary_search(group.cbegin(), group.cend(), owner) ? 1.0 : 0.0);
+          }
         }
       }
+      PetscCall(subdomain.buildCoarseMap());
       PetscCall(ISRestoreIndices(is, &ptr));
       if (!std::is_same<PetscScalar, PetscReal>::value) {
         PetscScalar *c;
         PetscCall(VecGetArray(levels[0]->D, &c));
-        std::copy_n(d, this->subdomain.getDof(), c);
+        std::copy_n(d, subdomain.getDof(), c);
       }
       PetscCall(VecRestoreArray(levels[0]->D, nullptr));
     } else {
-      if (this->subdomain.getDof() == -1) {
+      if (subdomain.getDof() == -1) {
         PetscInt n;
         PetscCall(VecGetLocalSize(levels[0]->D, &n));
-        this->subdomain.forceDof(n);
+        subdomain.forceDof(n);
       }
+      PetscCall(subdomain.setScalingVec(levels[0]->D, layout));
       if (!std::is_same<PetscScalar, PetscReal>::value) {
         PetscScalar *c;
         PetscCall(VecGetArray(levels[0]->D, &c));
-        std::copy_n(d_, this->subdomain.getDof(), c);
+        std::copy_n(d_, subdomain.getDof(), c);
         PetscCall(VecRestoreArray(levels[0]->D, nullptr));
       }
     }
@@ -1035,19 +1062,28 @@ public:
         const K *const          *getVectors() const { return nullptr; }
         const K                 *getOperator() const { return E_; }
       };
-      const PetscScalar *const *ev = UserCoarseOperator<Schwarz<K>, K>::buildDeflation(*this);
+      const Mat                        Z = super::getMat();
+      std::vector<const PetscScalar *> ev;
+      if (Z) {
+        PetscInt nev, lda;
+        PetscCall(MatGetSize(Z, nullptr, &nev));
+        ev.resize(nev);
+        PetscCall(MatDenseGetArrayRead(Z, ev.data()));
+        PetscCall(MatDenseGetLDA(Z, &lda));
+        for (PetscInt i = 1; i < nev; ++i) ev[i] = ev[i - 1] + lda;
+      }
     #if PETSC_PKG_HTOOL_VERSION_LT(0, 9, 0)
       const htool::VirtualHMatrix<PetscScalar> *hmatrix;
       PetscCall(MatHtoolGetHierarchicalMat(A, &hmatrix));
       std::vector<PetscScalar> E;
-      htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::subdomain.getDof(), ev, E);
+      htool::build_coarse_space_outside(hmatrix, levels[n]->nu, super::subdomain.getDof(), ev.data(), E);
     #else
       const htool::DistributedOperator<PetscScalar> *distributed_operator;
       PetscCall(MatHtoolGetHierarchicalMat(A, static_cast<void *>(&distributed_operator)));
       htool::Matrix<PetscScalar> E;
-      htool::build_geneo_coarse_operator(*distributed_operator, levels[n]->nu, super::subdomain.getDof(), ev, E);
+      htool::build_geneo_coarse_operator(*distributed_operator, levels[n]->nu, super::subdomain.getDof(), ev.data(), E);
     #endif
-      delete[] ev;
+      if (Z) PetscCall(MatDenseRestoreArrayRead(Z, ev.data()));
       ClassWithPtr Op(levels[n]->P, E.data());
       PetscCall(super::template buildTwo<false, UserCoarseOperator<ClassWithPtr, PetscScalar>>(&Op, comm, D, n, M, levels));
     }
@@ -1073,10 +1109,16 @@ public:
 
     PetscFunctionBeginUser;
     if (!levels[0]->parent->deflation) {
-      solve = this->subdomain.getDof() && !std::all_of(d_, d_ + this->subdomain.getDof(),
-                                                       [&](const underlying_type<K> &x) { return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); })
-              ? 1
-              : (this->subdomain.getDof() && HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d_1) < underlying_type<K>(HPDDM_EPS) ? 2 : 0);
+      {
+        int mask = 0;
+        if (subdomain.getDof()) {
+          if (!std::all_of(d_, d_ + subdomain.getDof(), [&](const underlying_type<K> &x) { return HPDDM::abs(x - d_[0]) < underlying_type<K>(HPDDM_EPS); }))
+            mask = 4;
+          else mask = (HPDDM::abs(d_[0] - Wrapper<underlying_type<K>>::d_1) < underlying_type<K>(HPDDM_EPS) ? 1 : 2);
+        }
+        if (subdomain.isDistributed()) PetscCallMPI(MPI_Allreduce(MPI_IN_PLACE, &mask, 1, MPI_INT, MPI_BOR, subdomain.getSubCommunicator()));
+        solve = ((mask & 4) || ((mask & 1) && (mask & 2))) ? 1 : (mask & 1 ? 2 : 0);
+      }
       if (solve != 1) PetscCall(PetscInfo(nullptr, "Partition of unity is full of %ss, nothing to solve\n", solve == 0 ? "zero" : "one"));
       PetscCall(KSPGetOptionsPrefix(levels[0]->ksp, &prefix));
       PetscCall(PetscObjectTypeCompare((PetscObject)N, MATSHELL, &flg));
@@ -1097,9 +1139,10 @@ public:
               Mat                B, C;
               const PetscScalar *vals;
               const PetscInt    *rows;
-              PetscInt           m, n;
+              PetscInt           m, n, M, Nglobal;
               PetscCall(MatGetLocalSize(N, nullptr, &n));
-              PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, PETSC_DECIDE, PETSC_DECIDE, n, n, PETSC_DECIDE, nullptr, &A));
+              PetscCall(MatGetSize(N, nullptr, &Nglobal));
+              PetscCall(MatCreateDenseFromVecType(subdomain.getSubCommunicator(), type, n, n, Nglobal, Nglobal, PETSC_DECIDE, nullptr, &A));
               PetscCall(MatShift(A, 1.0));
               PetscCall(MatMatMult(N, A, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &B));
               PetscCall(MatDestroy(&A));
@@ -1108,30 +1151,52 @@ public:
               PetscCall(MatGetLocalSize(C, nullptr, &n));
               PetscCall(MatDestroy(&local));
               PetscCall(MatDestroy(&B));
-              PetscCall(MatCreate(PETSC_COMM_SELF, &A));
+              PetscCall(MatCreate(subdomain.getSubCommunicator(), &A));
               PetscCall(MatSetType(A, buffer));
               PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
-              PetscCall(MatSetSizes(A, m, m, m, m));
-              PetscCall(ISBlockGetIndices(h->is[2], &rows));
-              PetscCall(ISGetBlockSize(h->is[2], &m));
-              if (m > 1) {
-                PetscCall(MatSetBlockSize(A, m));
-                PetscCall(MatSetOption(A, MAT_ROW_ORIENTED, PETSC_FALSE));
-                n /= m;
-                m *= m;
+              PetscCall(MatGetSize(h->A[1], &M, nullptr));
+              PetscCall(MatSetSizes(A, m, m, M, M));
+              if (!subdomain.isDistributed()) {
+                PetscCall(ISBlockGetIndices(h->is[2], &rows));
+                PetscCall(ISGetBlockSize(h->is[2], &m));
+                if (m > 1) {
+                  PetscCall(MatSetBlockSize(A, m));
+                  PetscCall(MatSetOption(A, MAT_ROW_ORIENTED, PETSC_FALSE));
+                  n /= m;
+                  m *= m;
+                }
+                PetscCall(MatDenseGetArrayRead(C, &vals));
+                for (PetscInt i = 0; i < n; ++i)
+                  PetscCall(MatSetValuesBlocked(A, n, rows, 1, rows + i, vals + static_cast<std::ptrdiff_t>(m) * n * i, INSERT_VALUES));
+                PetscCall(ISBlockRestoreIndices(h->is[2], &rows));
+                PetscCall(MatDenseRestoreArrayRead(C, &vals));
+              } else {
+                IS       all;
+                PetscInt first, last, lda, bs;
+
+                PetscCall(ISAllGather(h->is[2], &all));
+                PetscCall(ISGetIndices(all, &rows));
+                PetscCall(MatGetOwnershipRange(C, &first, &last));
+                PetscCall(MatGetSize(C, nullptr, &n));
+                PetscCall(MatGetBlockSize(h->A[1], &bs));
+                PetscCall(MatSetBlockSize(A, bs));
+                PetscCall(MatSetOption(A, MAT_NO_OFF_PROC_ENTRIES, PETSC_TRUE));
+                PetscCall(MatDenseGetLDA(C, &lda));
+                PetscCall(MatDenseGetArrayRead(C, &vals));
+                for (PetscInt i = 0; i < n; ++i)
+                  PetscCall(MatSetValues(A, last - first, rows + first, 1, rows + i, vals + static_cast<std::ptrdiff_t>(lda) * i, INSERT_VALUES));
+                PetscCall(MatDenseRestoreArrayRead(C, &vals));
+                PetscCall(ISRestoreIndices(all, &rows));
+                PetscCall(ISDestroy(&all));
               }
-              PetscCall(MatDenseGetArrayRead(C, &vals));
-              for (PetscInt i = 0; i < n; ++i)
-                PetscCall(MatSetValuesBlocked(A, n, rows, 1, rows + i, vals + static_cast<std::ptrdiff_t>(m) * n * i, INSERT_VALUES));
-              PetscCall(ISBlockRestoreIndices(h->is[2], &rows));
-              PetscCall(MatDenseRestoreArrayRead(C, &vals));
               PetscCall(MatDestroy(&C));
               PetscCall(MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY));
               PetscCall(MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY));
             } else {
               std::tuple<Harmonic, Mat, Vec[4], VecScatter[2]> *p;
-              PetscInt                                          m;
+              PetscInt                                          m, M;
               PetscCall(MatGetLocalSize(h->A[1], &m, nullptr));
+              PetscCall(MatGetSize(h->A[1], &M, nullptr));
               PetscCall(PetscNew(&p));
               std::get<0>(*p) = h;
               std::get<1>(*p) = N;
@@ -1139,12 +1204,12 @@ public:
               PetscCall(MatCreateVecs(N, std::get<2>(*p), std::get<2>(*p) + 1));
               PetscCall(VecScatterCreate(std::get<2>(*p)[2], h->is[2], std::get<2>(*p)[0], nullptr, std::get<3>(*p)));
               PetscCall(VecScatterCreate(std::get<2>(*p)[2], h->is[1], std::get<2>(*p)[1], nullptr, std::get<3>(*p) + 1));
-              PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, p, &A));
+              PetscCall(MatCreateShell(subdomain.getSubCommunicator(), m, m, M, M, p, &A));
               PetscCall(MatShellSetOperation(A, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Harmonic));
               PetscCall(MatShellSetOperation(A, MATOP_DESTROY, (PetscErrorCodeFn *)MatDestroy_Harmonic));
             }
             PetscCall(MatSetVecType(A, type));
-            PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+            PetscCall(EPSCreate(subdomain.getSubCommunicator(), &eps));
             PetscCall(EPSSetOptionsPrefix(eps, prefix));
             PetscCall(EPSSetOperators(eps, h->A[1], A));
             PetscCall(MatDestroy(&A));
@@ -1152,7 +1217,7 @@ public:
           } else {
             SVD               svd;
             PetscErrorCodeFn *destroy;
-            PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
+            PetscCall(SVDCreate(subdomain.getSubCommunicator(), &svd));
             PetscCall(SVDSetOptionsPrefix(svd, prefix));
             PetscCall(SVDSetType(svd, SVDLANCZOS));
             PetscCall(SVDSetOperators(svd, N, nullptr));
@@ -1186,17 +1251,16 @@ public:
               VecType    type;
               VecScatter scatter;
               PetscCall(MatGetVecType(N, &type));
-              PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, this->subdomain.getDof(), levels[0]->nu, this->subdomain.getDof(), levels[0]->nu,
-                                                  PETSC_DECIDE, nullptr, &(super::ev_)));
+              PetscCall(subdomain.createDeflation(type, levels[0]->nu));
               PetscCall(MatShellGetContext(N, static_cast<void *>(&h)));
               PetscCall(MatCreateVecs(N, nullptr, &u));
               for (PetscInt i = 0; i < levels[0]->nu; ++i) {
                 PetscCall(SVDGetSingularTriplet(svd, i, nullptr, u, nullptr));
-                PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
+                PetscCall(MatDenseGetColumnVecWrite(subdomain.ev_, i, &col));
                 if (!i) PetscCall(VecScatterCreate(col, h->is[0], u, nullptr, &scatter));
                 PetscCall(VecScatterBegin(scatter, u, col, INSERT_VALUES, SCATTER_REVERSE));
                 PetscCall(VecScatterEnd(scatter, u, col, INSERT_VALUES, SCATTER_REVERSE));
-                PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
+                PetscCall(MatDenseRestoreColumnVecWrite(subdomain.ev_, i, &col));
               }
               PetscCall(VecScatterDestroy(&scatter));
               PetscCall(VecDestroy(&u));
@@ -1210,18 +1274,17 @@ public:
             VecType type;
             levels[0]->nu = 1;
             PetscCall(MatGetVecType(N, &type));
-            PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, this->subdomain.getDof(), levels[0]->nu, this->subdomain.getDof(), levels[0]->nu,
-                                                PETSC_DECIDE, nullptr, &(super::ev_)));
-            PetscCall(MatDenseGetColumnVecWrite(super::ev_, 0, &col));
+            PetscCall(subdomain.createDeflation(type, levels[0]->nu));
+            PetscCall(MatDenseGetColumnVecWrite(subdomain.ev_, 0, &col));
             PetscCall(VecSet(col, Wrapper<K>::d_1));
-            PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, 0, &col));
+            PetscCall(MatDenseRestoreColumnVecWrite(subdomain.ev_, 0, &col));
           } else if (solve == 0) levels[0]->nu = 0;
           for (PetscInt i = 0; i < 3; ++i) PetscCall(ISDestroy(h->is + i));
           PetscCall(PetscFree(h->is));
           PetscFunctionReturn(PETSC_SUCCESS);
         }
       }
-      if (!eps) PetscCall(EPSCreate(PETSC_COMM_SELF, &eps));
+      if (!eps) PetscCall(EPSCreate(subdomain.getSubCommunicator(), &eps));
       PetscCall(EPSSetOptionsPrefix(eps, prefix));
       PetscCall(PetscObjectTypeCompare((PetscObject)N, MATIS, &ismatis));
       if (!ismatis) {
@@ -1231,12 +1294,12 @@ public:
         PetscCall(PetscObjectQuery((PetscObject)N, "_PCHPDDM_Compact", (PetscObject *)&compact));
         if (compact && is && solve == 1) {
           SVD          svd;
-          PetscScalar *values;
-          PetscInt     m, p;
           VecType      type;
+          PetscScalar *values;
+          PetscInt     m, p, M, Q, rstart, rend;
           PetscCall(PetscNew(&aux));
           aux->is = is;
-          PetscCall(SVDCreate(PETSC_COMM_SELF, &svd));
+          PetscCall(SVDCreate(PetscObjectComm((PetscObject)compact), &svd));
           PetscCall(SVDSetOptionsPrefix(svd, prefix));
           PetscCall(SVDSetOperators(svd, compact, nullptr));
           PetscCall(SVDSetType(svd, SVDLAPACK));
@@ -1244,22 +1307,24 @@ public:
           PetscCall(SVDSetUp(svd));
           PetscCall(SVDSolve(svd));
           PetscCall(MatGetLocalSize(compact, &m, &p));
+          PetscCall(MatGetSize(compact, &M, &Q));
           PetscCall(MatGetVecType(N, &type));
-          PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, p, m, PETSC_DECIDE, PETSC_DECIDE, PETSC_DECIDE, nullptr, &aux->V));
-          PetscCall(MatCreateVecs(aux->V, aux->v, aux->v + 1));
-          PetscCall(VecDuplicate(aux->v[0], aux->v + 2));
-          PetscCall(VecDuplicate(aux->v[1], aux->v + 3));
+          PetscCall(MatCreateDenseFromVecType(PetscObjectComm((PetscObject)compact), type, p, m, Q, M, PETSC_DECIDE, nullptr, &aux->V));
+          PetscCall(MatCreateVecs(aux->V, &aux->v[0], &aux->v[1]));
+          PetscCall(VecDuplicate(aux->v[0], &aux->v[2]));
+          PetscCall(VecDuplicate(aux->v[1], &aux->v[3]));
           PetscCall(VecScatterCreate(aux->v[0], nullptr, aux->v[1], aux->is, &aux->scatter));
+          PetscCall(VecGetOwnershipRange(aux->v[0], &rstart, &rend));
           PetscCall(VecGetArrayWrite(aux->v[0], &values));
-          for (PetscInt n = 0; n < m; ++n) {
+          for (PetscInt n = 0; n < M; ++n) {
             PetscReal s;
             Vec       v;
             PetscCall(MatDenseGetColumnVecWrite(aux->V, n, &v));
             PetscCall(SVDGetSingularTriplet(svd, n, &s, nullptr, v));
-            values[n] = static_cast<PetscReal>(1.0) / s;
+            if (n >= rstart && n < rend) values[n - rstart] = static_cast<PetscReal>(1.0) / s;
             PetscCall(MatDenseRestoreColumnVecWrite(aux->V, n, &v));
           }
-          PetscCall(MatCreateShell(PETSC_COMM_SELF, m, m, m, m, aux, &N));
+          PetscCall(MatCreateShell(PetscObjectComm((PetscObject)compact), m, m, M, M, aux, &N));
           PetscCall(MatSetVecType(N, type));
           PetscCall(MatShellSetOperation(N, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Aux));
           PetscCall(VecRestoreArrayWrite(aux->v[0], &values));
@@ -1302,7 +1367,9 @@ public:
       if (weighted || ismatis) {
         if (levels == levels[0]->parent->levels && levels[0]->parent->share) {
           PetscCheck(levels[0]->pc, PETSC_COMM_SELF, PETSC_ERR_ARG_NULL, "No fine-level PC attached?");
-          PetscUseMethod(levels[0]->pc, "PCASMGetSubKSP_C", (PC, PetscInt *, PetscInt *, KSP **), (levels[0]->pc, nullptr, nullptr, &ksp));
+          PetscCall(PetscObjectTypeCompare((PetscObject)levels[0]->pc, PCGASM, &flg));
+          if (flg) PetscCall(PCGASMGetSubKSP(levels[0]->pc, nullptr, nullptr, &ksp));
+          else PetscCall(PCASMGetSubKSP(levels[0]->pc, nullptr, nullptr, &ksp));
           PetscCall(STGetKSP(st, &empty));
           PetscCall(PetscObjectReference((PetscObject)empty));
           PetscCall(STSetKSP(st, ksp[0]));
@@ -1364,12 +1431,11 @@ public:
         ctx->A[1] = ctx->A[2] = nullptr;
         ctx->decomposition    = this;
         ctx->work             = new std::set<unsigned short>();
-        for (unsigned short i = 0, size = this->subdomain.getMap().size(); i < size; ++i) ctx->work->insert(i);
+        for (unsigned short i = 0, size = subdomain.getMap().size(); i < size; ++i) ctx->work->insert(i);
         ctx->status = 'a';
-        PetscCall(MatCreateShell(PETSC_COMM_SELF, this->subdomain.getDof(), this->subdomain.getDof(), this->subdomain.getDof(), this->subdomain.getDof(), ctx,
-                                 &weighted));
+        PetscCall(MatCreateShell(PETSC_COMM_SELF, subdomain.getDof(), subdomain.getDof(), subdomain.getDof(), subdomain.getDof(), ctx, &weighted));
         PetscCall(MatShellSetOperation(weighted, MATOP_MULT, (PetscErrorCodeFn *)MatMult_Sum));
-        this->subdomain.setBuffer();
+        subdomain.setBuffer();
         PetscCall(EPSSetOperators(eps, ctx->A[0], weighted));
         PetscCall(EPSGetTarget(eps, &target));
         PetscCheck(PetscAbsScalar(target) < PETSC_MACHINE_EPSILON, PETSC_COMM_SELF, PETSC_ERR_SUP, "Cannot use -%seps_target with a magnitude %g (!= 0.0)",
@@ -1447,42 +1513,41 @@ public:
     if (levels[0]->nu) {
       VecType type;
       PetscCall(MatGetVecType(N, &type));
-      PetscCall(MatCreateDenseFromVecType(PETSC_COMM_SELF, type, this->subdomain.getDof(), levels[0]->nu, this->subdomain.getDof(), levels[0]->nu, PETSC_DECIDE,
-                                          nullptr, &(super::ev_)));
+      PetscCall(subdomain.createDeflation(type, levels[0]->nu));
     }
     if (!levels[0]->parent->deflation) {
       Vec        col;
       VecScatter scatter = nullptr;
       if (solve == 2) {
         levels[0]->nu = 0;
-        PetscCall(MatDenseGetColumnVecWrite(super::ev_, 0, &col));
+        PetscCall(MatDenseGetColumnVecWrite(subdomain.ev_, 0, &col));
         PetscCall(VecSet(col, Wrapper<K>::d_1));
-        PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, 0, &col));
+        PetscCall(MatDenseRestoreColumnVecWrite(subdomain.ev_, 0, &col));
       }
       if (ismatis) PetscCall(MatCreateVecs(resized[0], &vreduced, nullptr));
       else if (ctx) {
-        for (unsigned short i = 0, size = this->subdomain.getMap().size(); i < size; ++i) ctx->work->insert(i);
+        for (unsigned short i = 0, size = subdomain.getMap().size(); i < size; ++i) ctx->work->insert(i);
         ctx->status = 'a';
       }
       for (PetscInt i = 0, flg = PETSC_FALSE; i < levels[0]->nu; ++i) {
         if (!h) {
           if (!ismatis) {
-            PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
+            PetscCall(MatDenseGetColumnVecWrite(subdomain.ev_, i, &col));
             PetscCall(EPSGetEigenvector(eps, i, !flg ? col : nullptr, !flg ? nullptr : col));
-            PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
+            PetscCall(MatDenseRestoreColumnVecWrite(subdomain.ev_, i, &col));
           } else {
-            PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
+            PetscCall(MatDenseGetColumnVecWrite(subdomain.ev_, i, &col));
             PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vreduced));
             PetscCall(VecISCopy(col, sub[0], SCATTER_FORWARD, vreduced));
-            PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
+            PetscCall(MatDenseRestoreColumnVecWrite(subdomain.ev_, i, &col));
           }
         } else {
           PetscCall(EPSGetEigenvector(eps, i, !flg ? vreduced : nullptr, !flg ? nullptr : vreduced));
-          PetscCall(MatDenseGetColumnVecWrite(super::ev_, i, &col));
+          PetscCall(MatDenseGetColumnVecWrite(subdomain.ev_, i, &col));
           if (!i) PetscCall(VecScatterCreate(vreduced, h->is[0], col, nullptr, &scatter));
           PetscCall(VecScatterBegin(scatter, vreduced, col, INSERT_VALUES, SCATTER_FORWARD));
           PetscCall(VecScatterEnd(scatter, vreduced, col, INSERT_VALUES, SCATTER_FORWARD));
-          PetscCall(MatDenseRestoreColumnVecWrite(super::ev_, i, &col));
+          PetscCall(MatDenseRestoreColumnVecWrite(subdomain.ev_, i, &col));
         }
         if (!PetscDefined(USE_COMPLEX) && !flg) {
           PetscScalar eigi;
@@ -1503,7 +1568,7 @@ public:
         PetscCall(MatDestroy(ctx->A + 2));
         delete ctx->work;
         PetscCall(PetscFree(ctx));
-        this->subdomain.clearBuffer(true);
+        subdomain.clearBuffer(true);
       }
       if (empty) {
         PetscCall(STSetKSP(st, empty));
@@ -1528,7 +1593,7 @@ public:
         }
       } else PetscCall(VecDestroy(&vreduced));
       if (solve == 2) levels[0]->nu = 1;
-    } else if (levels[0]->nu) PetscCall(MatCopy(weighted, super::ev_, SAME_NONZERO_PATTERN));
+    } else if (levels[0]->nu) PetscCall(MatCopy(weighted, subdomain.ev_, SAME_NONZERO_PATTERN));
     PetscFunctionReturn(PETSC_SUCCESS);
   }
   static PetscErrorCode next(Mat *A, Mat *N, PetscInt i, PetscInt *const n, PC_HPDDM_Level **const levels)
@@ -1580,14 +1645,13 @@ public:
       if (!levels[0]->parent->aux || algebraic) {
         if (levels[i]->ksp) {
           Mat             *sub, weighted;
-          IS               loc, uis;
+          IS               uis;
           Vec              xin;
           PetscInt         m;
           std::vector<Vec> initial;
           delete levels[i]->P;
           levels[i]->P = new Schwarz<PetscScalar>();
           PetscCall(ISCreateStride(PETSC_COMM_SELF, rend - rstart, rstart, 1, &uis));
-          PetscCall(ISDuplicate(uis, &loc));
           PetscCall(MatIncreaseOverlap(P, 1, &uis, 1));
           PetscCall(ISSort(uis));
           PetscCall(ISSetInfo(uis, IS_SORTED, IS_GLOBAL, PETSC_TRUE, PETSC_TRUE));
@@ -1600,8 +1664,7 @@ public:
           PetscCall(VecDestroy(&xin));
           PetscUseMethod(levels[0]->parent->levels[0]->ksp->pc->pmat, "PCHPDDMAlgebraicAuxiliaryMat_Private_C", (Mat, IS *, Mat *[], PetscBool),
                          (P, &uis, &sub, PETSC_FALSE));
-          PetscCall(levels[i]->P->structure(loc, uis, sub[0], nullptr, levels + i));
-          PetscCall(ISDestroy(&loc));
+          PetscCall(levels[i]->P->structure(uis, sub[0], nullptr, levels + i, PETSC_FALSE));
           PetscCall(MatDuplicate(sub[0], MAT_COPY_VALUES, &weighted));
           PetscCall(MatDiagonalScale(weighted, levels[i]->D, levels[i]->D));
           PetscCall(MatPropagateSymmetryOptions(sub[0], weighted));
@@ -1712,21 +1775,29 @@ public:
     PetscFunctionBeginUser;
     static_assert(!excluded, "Not implemented");
     PetscCall(VecPointwiseMult(out, out, D)); // out = D out
-    if (super::ev_) {
+    if (subdomain.ev_) {
+      Vec x;
+      PetscCall(const_cast<Subdomain<K> &>(subdomain).getSubdomainVec(out, &x));
       PetscCall(MatDenseGetColumnVecWrite(super::uc_, 0, &X));
-      if (trans == 'T') PetscCall(MatMultTranspose(super::ev_, out, X)); // X = ev_^T D out
-      else PetscCall(MatMultHermitianTranspose(super::ev_, out, X));
+      if (trans == 'T') PetscCall(MatMultTranspose(subdomain.ev_, x, X)); // X = ev_^T D out
+      else PetscCall(MatMultHermitianTranspose(subdomain.ev_, x, X));
       PetscCall(MatDenseRestoreColumnVecWrite(super::uc_, 0, &X));
+      PetscCall(const_cast<Subdomain<K> &>(subdomain).restoreSubdomainVec(out, &x));
     }
-    PetscCall(MatDenseGetArray(super::uc_, &array));
-    PetscCallCXX(super::co_->template callSolver<excluded, trans>(array)); // uc_ = E \ ev_^T D out
-    if (PetscDefined(USE_COMPLEX) && trans == 'T')
-      for (PetscInt i = 0; i < super::getLocal(); ++i) array[i] = Wrapper<K>::conj(array[i]);
-    PetscCall(MatDenseRestoreArray(super::uc_, &array));
-    if (super::ev_) {
+    if (subdomain.isLeader()) {
+      PetscCall(MatDenseGetArray(super::uc_, &array));
+      PetscCallCXX(super::co_->template callSolver<excluded, trans>(array)); // uc_ = E \ ev_^T D out
+      if (PetscDefined(USE_COMPLEX) && trans == 'T')
+        for (PetscInt i = 0; i < super::getLocal(); ++i) array[i] = Wrapper<K>::conj(array[i]);
+      PetscCall(MatDenseRestoreArray(super::uc_, &array));
+    }
+    if (subdomain.ev_) {
+      Vec x;
+      PetscCall(const_cast<Subdomain<K> &>(subdomain).getSubdomainVec(out, &x));
       PetscCall(MatDenseGetColumnVecRead(super::uc_, 0, &X));
-      PetscCall(MatMult(super::ev_, X, out)); // out = ev_ E \ ev_^T D out
+      PetscCall(MatMult(subdomain.ev_, X, x)); // out = ev_ E \ ev_^T D out
       PetscCall(MatDenseRestoreColumnVecRead(super::uc_, 0, &X));
+      PetscCall(const_cast<Subdomain<K> &>(subdomain).restoreSubdomainVec(out, &x));
     } else PetscCall(VecSet(out, 0.0));
     if (PetscDefined(USE_COMPLEX) && trans == 'T') PetscCall(VecConjugate(out));
     PetscCall(VecPointwiseMult(out, out, D)); // out = D ev_ E \ ev_^T D out
@@ -1737,30 +1808,126 @@ public:
   {
     Mat            X, Y;
     PetscScalar   *array;
-    PetscInt       mu;
+    PetscInt       mu, lda;
+    PetscMemType   mtype = PETSC_MEMTYPE_HOST;
     const PetscInt local = super::getLocal();
 
     PetscFunctionBeginUser;
     static_assert(!excluded, "Not implemented");
     PetscCall(MatGetSize(out, nullptr, &mu));
+    if (!mu) PetscFunctionReturn(PETSC_SUCCESS);
     PetscCall(MatDenseGetLocalMatrix(out, &Y));
     PetscCall(MatDiagonalScale(Y, D, nullptr)); // Y = D Y
-    if (super::ev_) {
+    Mat Z = Y;
+    if (subdomain.isDistributed() && subdomain.ev_) {
+      Mat         A, B;
+      PetscLayout rmap, cmap;
+      PetscBool   cuda, hip, reuse = PETSC_FALSE;
+      PetscInt    n = 0;
+      MatType     type;
+
+      PetscCall(MatDenseGetLDA(Y, &lda));
+      PetscCheck(lda == subdomain.getDof(), PETSC_COMM_SELF, PETSC_ERR_SUP, "Leading dimension %" PetscInt_FMT " different than the local subdomain size %d",
+                 lda, subdomain.getDof());
       PetscCall(MatDenseGetSubMatrix(super::uc_, 0, local, 0, mu, &X));
-      if (trans != 'T') PetscCall(MatConjugate(Y));
-      PetscCall(MatTransposeMatMult(super::ev_, Y, MAT_REUSE_MATRIX, PETSC_DETERMINE, &X)); // X = ev_^T D Y
+      PetscCall(MatGetLayouts(subdomain.ev_, &rmap, nullptr));
+      PetscCall(MatGetLayouts(X, nullptr, &cmap));
+      PetscCall(PetscObjectTypeCompare((PetscObject)Y, MATSEQDENSECUDA, &cuda));
+      PetscCall(PetscObjectTypeCompare((PetscObject)Y, MATSEQDENSEHIP, &hip));
+      type = cuda ? MATMPIDENSECUDA : hip ? MATMPIDENSEHIP : MATMPIDENSE;
+      PetscCall(MatProductGetMats(X, &A, &B, nullptr));
+      if (A == subdomain.ev_ && B) {
+        PetscCall(MatGetSize(B, nullptr, &n));
+        PetscCall(PetscObjectTypeCompare((PetscObject)B, type, &reuse));
+      }
+      if (reuse && n == mu) {
+        Z = B;
+        PetscCall(PetscObjectReference((PetscObject)Z));
+      } else {
+        PetscCall(MatCreate(subdomain.getSubCommunicator(), &Z));
+        PetscCall(MatSetLayouts(Z, rmap, cmap));
+        PetscCall(MatSetType(Z, type));
+      }
+      PetscCall(MatDenseRestoreSubMatrix(super::uc_, &X));
+      PetscCall(MatDenseGetArrayAndMemType(Y, &array, &mtype));
+      /* Keep the declared backend stable even if individual processes borrow host storage. */
+      if (PetscMemTypeHost(mtype)) PetscCall(MatMPIDenseSetPreallocation(Z, array));
+  #if PetscDefined(HAVE_CUDA)
+      else if (PetscMemTypeCUDA(mtype)) PetscCall(MatDenseCUDASetPreallocation(Z, array));
+  #endif
+  #if PetscDefined(HAVE_HIP)
+      else if (PetscMemTypeHIP(mtype)) PetscCall(MatDenseHIPSetPreallocation(Z, array));
+  #endif
+      else SETERRQ(PetscObjectComm((PetscObject)Y), PETSC_ERR_SUP, "Unsupported dense memory type %s", PetscMemTypeToString(mtype));
+    }
+    if (subdomain.ev_) {
+      Mat      A, B;
+      PetscInt n = 0;
+
+      PetscCall(MatDenseGetSubMatrix(super::uc_, 0, local, 0, mu, &X));
+      PetscCall(MatProductGetMats(X, &A, &B, nullptr));
+      if (B) PetscCall(MatGetSize(B, nullptr, &n));
+      if (A != subdomain.ev_ || n != mu) {
+        PetscCall(MatProductCreateWithMat(subdomain.ev_, Z, nullptr, X));
+        PetscCall(MatProductSetType(X, MATPRODUCT_AtB));
+        PetscCall(MatProductSetFromOptions(X));
+        PetscCall(MatProductSymbolic(X));
+      }
+      if (trans != 'T') PetscCall(MatConjugate(Z));
+      PetscCall(MatTransposeMatMult(subdomain.ev_, Z, MAT_REUSE_MATRIX, PETSC_DETERMINE, &X)); // X = ev_^T D Y
       if (trans != 'T') PetscCall(MatConjugate(X));
       PetscCall(MatDenseRestoreSubMatrix(super::uc_, &X));
     }
-    PetscCall(MatDenseGetArray(super::uc_, &array));
-    PetscCallCXX(super::co_->template callSolver<excluded, trans>(array, mu)); // uc_ = E \ ev_^T D Y
-    PetscCall(MatDenseRestoreArray(super::uc_, &array));
-    if (super::ev_) {
+    if (subdomain.isLeader()) {
+      PetscScalar *coarse;
+      PetscCall(MatDenseGetArray(super::uc_, &coarse));
+      PetscCallCXX(super::co_->template callSolver<excluded, trans>(coarse, mu)); // uc_ = E \ ev_^T D Y
+      PetscCall(MatDenseRestoreArray(super::uc_, &coarse));
+    }
+    if (subdomain.ev_) {
+      Mat A, B, W;
+
       PetscCall(MatDenseGetSubMatrix(super::uc_, 0, local, 0, mu, &X));
       if (trans == 'T') PetscCall(MatConjugate(X));
-      PetscCall(MatMatMult(super::ev_, X, MAT_REUSE_MATRIX, PETSC_DETERMINE, &Y)); // Y = ev_ E \ ev_^T D Y
+      /* X retains Z through its restriction product; a separate input view avoids a Z -> X cycle. */
+      PetscCall(MatDenseGetSubMatrix(X, 0, local, 0, mu, &W));
+      PetscCall(MatProductGetMats(Z, &A, &B, nullptr));
+      if (A != subdomain.ev_ || B != W) {
+        PetscCall(MatProductCreateWithMat(subdomain.ev_, W, nullptr, Z));
+        PetscCall(MatProductSetType(Z, MATPRODUCT_AB));
+        PetscCall(MatProductSetFromOptions(Z));
+        PetscCall(MatProductSymbolic(Z));
+      }
+      PetscCall(MatMatMult(subdomain.ev_, W, MAT_REUSE_MATRIX, PETSC_DETERMINE, &Z)); // Y = ev_ E \ ev_^T D Y
+      PetscCall(MatDenseRestoreSubMatrix(X, &W));
       PetscCall(MatDenseRestoreSubMatrix(super::uc_, &X));
-    } else PetscCall(MatZeroEntries(Y));
+    } else PetscCall(MatZeroEntries(Z));
+    if (Z != Y) {
+      PetscScalar *values;
+
+      /* Finish writes to the original borrowed storage, then detach it from the retained wrapper. */
+      if (PetscMemTypeHost(mtype)) {
+        PetscCall(MatDenseGetArray(Z, &values));
+        PetscCall(MatDenseRestoreArray(Z, &values));
+        PetscCall(MatDenseReplaceArray(Z, nullptr));
+      }
+  #if PetscDefined(HAVE_CUDA)
+      else if (PetscMemTypeCUDA(mtype)) {
+        PetscCall(MatDenseCUDAGetArray(Z, &values));
+        PetscCall(MatDenseCUDARestoreArray(Z, &values));
+        PetscCall(MatDenseCUDAReplaceArray(Z, nullptr));
+      }
+  #endif
+  #if PetscDefined(HAVE_HIP)
+      else if (PetscMemTypeHIP(mtype)) {
+        PetscCall(MatDenseHIPGetArray(Z, &values));
+        PetscCall(MatDenseHIPRestoreArray(Z, &values));
+        PetscCall(MatDenseHIPReplaceArray(Z, nullptr));
+      }
+  #endif
+      PetscCall(MatDestroy(&Z));
+      PetscCall(MatDenseRestoreArrayAndMemType(Y, &array));
+    }
     if (PetscDefined(USE_COMPLEX) && trans == 'T') PetscCall(MatConjugate(Y));
     PetscCall(MatDiagonalScale(Y, D, nullptr)); // Y = D ev_ E \ ev_^T D Y
     PetscFunctionReturn(PETSC_SUCCESS);
@@ -1769,15 +1936,20 @@ public:
   /* Function: getScaling
          *  Returns a constant pointer to <Schwarz::d>. */
   const underlying_type<K> *getScaling() const { return d_; }
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+  /* Function: getScalingVec
+         *  Returns the Vec <Schwarz::d> is a view of. */
+  Vec getScalingVec() const { return subdomain.getScalingVec(); }
+#endif
   template <class I, char N = HPDDM_NUMBERING>
   void distributedNumbering(I *const in, I &first, I &last, long long &global) const
   {
-    this->subdomain.template globalMapping<N>(in, in + this->subdomain.getDof(), first, last, global, d_);
+    subdomain.template globalMapping<N>(in, in + subdomain.getDof(), first, last, global, d_);
   }
   template <class I, class T = K>
   bool distributedCSR(I *const num, I first, I last, I *&ia, I *&ja, T *&c) const
   {
-    return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, this->subdomain.getMatrix());
+    return Subdomain<K>::distributedCSR(num, first, last, ia, ja, c, subdomain.getMatrix());
   }
 };
 

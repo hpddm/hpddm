@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <queue>
 
 namespace HPDDM
@@ -67,16 +68,21 @@ protected:
   unsigned short              connectivity_;
   template <char Q = P, std::enable_if_t<Q == 's' || Q == 'u'> * = nullptr>
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
-    p_(p), deflation_(buildDeflation(p)), map_(p.subdomain.getMap()), n_(p.subdomain.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
+    p_(p), deflation_(initDeflation(p)), map_(p.subdomain.getMap()), n_(p.subdomain.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
   {
     static_assert(Q == P, "Wrong sparsity pattern");
-    sparsity_.reserve(map_.size());
-    std::transform(map_.cbegin(), map_.cend(), std::back_inserter(sparsity_), [](const pairNeighbor &n) { return n.first; });
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+    const vectorNeighbor &coarseMap = p.subdomain.getCoarseMap();
+#else
+    const vectorNeighbor &coarseMap = map_;
+#endif
+    sparsity_.reserve(coarseMap.size());
+    std::transform(coarseMap.cbegin(), coarseMap.cend(), std::back_inserter(sparsity_), [](const pairNeighbor &n) { return n.first; });
   }
   template <char Q = P, std::enable_if_t<Q != 's' && Q != 'u'> * = nullptr>
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
     p_(p),
-    deflation_(buildDeflation(p)),
+    deflation_(initDeflation(p)),
     map_(p.subdomain.getMap()),
     n_(p.subdomain.getDof()),
     local_(p.getLocal()),
@@ -165,28 +171,15 @@ protected:
   }
   HPDDM_HAS_MEMBER(getVectors)
   template <class Q = Preconditioner, std::enable_if_t<has_getVectors<std::remove_reference_t<Q>>::value> * = nullptr>
-  static const K *const *buildDeflation(const Preconditioner &p)
+  static const K *const *initDeflation(const Preconditioner &p)
   {
     return p.getVectors();
   }
 #if HPDDM_PETSC
   template <class Q = Preconditioner, std::enable_if_t<!has_getVectors<std::remove_reference_t<Q>>::value> * = nullptr>
-  static const K *const *buildDeflation(const Preconditioner &p)
+  static const K *const *initDeflation(const Preconditioner &)
   {
-    const Mat           Z         = p.getMat();
-    const PetscScalar **deflation = nullptr;
-
-    PetscFunctionBeginUser;
-    if (Z) {
-      PetscInt n, lda;
-      PetscCallAbort(PETSC_COMM_WORLD, MatGetSize(Z, nullptr, &n));
-      deflation = new const K *[n];
-      PetscCallAbort(PETSC_COMM_WORLD, MatDenseGetArrayRead(Z, deflation));
-      PetscCallAbort(PETSC_COMM_WORLD, MatDenseGetLDA(Z, &lda));
-      for (PetscInt i = 1; i < n; ++i) deflation[i] = deflation[i - 1] + lda;
-      PetscCallAbort(PETSC_COMM_WORLD, MatDenseRestoreArrayRead(Z, nullptr));
-    }
-    PetscFunctionReturn(deflation);
+    return nullptr;
   }
 #endif
   template <char S, bool U, class T>
@@ -341,7 +334,7 @@ public:
   static constexpr char pattern_   = (P != 's' && P != 'u') ? 'c' : (P == 's' ? 's' : 'u');
   static constexpr bool factorize_ = true;
   template <char, bool>
-  void setPattern(int *, const int, const int, const unsigned short *const *const = nullptr, const unsigned short *const = nullptr) const
+  void setPattern(int *, const int, const int, MPI_Comm, const unsigned short *const *const = nullptr, const unsigned short *const = nullptr) const
   {
   }
   void adjustConnectivity(const MPI_Comm &comm)
@@ -362,7 +355,9 @@ public:
   {
   }
 #ifdef PETSC_PCHPDDM_MAXLEVELS
-  void finishExchange()
+  PetscErrorCode  computeBlocks(bool, bool) { return PETSC_SUCCESS; }
+  unsigned short *getNeighborSizes() { return nullptr; }
+  void            finishExchange()
   {
     if (sendRequestsEnd_) {
       MPI_Request *const base = p_.subdomain.getRq();
@@ -418,8 +413,12 @@ protected:
   Mat                C_{};
   PC_HPDDM_Level    *level_;
   const std::string &prefix_;
-  Vec                scaling_     = nullptr;
-  PetscScalar       *scalingCast_ = nullptr;
+    #ifdef PETSC_PCHPDDM_MAXLEVELS
+  Mat matP_         = nullptr;
+  Mat matSelfBlock_ = nullptr;
+  Mat matW_         = nullptr;
+  Mat matCoupling_  = nullptr;
+    #endif
   #endif
   K                              *work_;
   const underlying_type<K> *const D_;
@@ -450,6 +449,35 @@ private:
       }
     }
   }
+  #ifdef PETSC_PCHPDDM_MAXLEVELS
+  template <bool U>
+  void applyFromNeighbor(const K *in, unsigned short index, unsigned short neighborLocal)
+  {
+    if (!super::local_ || !neighborLocal) return;
+    const std::vector<int> &overlap = super::map_[index].second;
+    PetscScalar            *array;
+    const PetscScalar      *scaling;
+    PetscCallVoid(MatDenseGetArrayWrite(matW_, &array));
+    PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
+    std::fill_n(array, static_cast<std::size_t>(neighborLocal) * super::n_, K());
+    for (unsigned short i = 0; i < neighborLocal; ++i)
+      for (unsigned int j = 0; j < overlap.size(); ++j) array[i * super::n_ + overlap[j]] = scaling[overlap[j]] * in[i * overlap.size() + j];
+    PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
+    PetscCallVoid(MatDenseRestoreArrayWrite(matW_, &array));
+    Mat W = matW_, X = matCoupling_;
+    if (!U) {
+      PetscCallVoid(MatDenseGetSubMatrix(matW_, 0, super::n_, 0, neighborLocal, &W));
+      PetscCallVoid(MatDenseGetSubMatrix(matCoupling_, 0, super::local_, 0, neighborLocal, &X));
+    }
+    PetscCallVoid(MatConjugate(W));
+    PetscCallVoid(MatTransposeMatMult(super::p_.getMat(), W, MAT_REUSE_MATRIX, PETSC_DEFAULT, &X));
+    PetscCallVoid(MatConjugate(X));
+    if (!U) {
+      PetscCallVoid(MatDenseRestoreSubMatrix(matCoupling_, &X));
+      PetscCallVoid(MatDenseRestoreSubMatrix(matW_, &W));
+    }
+  }
+  #endif
 
 public:
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
@@ -460,47 +488,44 @@ public:
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
-  void buildScalingVec()
+  PetscErrorCode setupScaledMatrix()
   {
-    VecType   type;
     PetscBool flg;
-    PetscCallVoid(MatGetVecType(A_, &type));
-    PetscCallVoid(PetscStrcmp(type, VECSTANDARD, &flg));
-    if (!std::is_same<PetscScalar, PetscReal>::value) {
-      scalingCast_ = new PetscScalar[super::n_];
-      std::copy_n(D_, super::n_, scalingCast_);
-      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::n_, scalingCast_, &scaling_));
-      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::n_, scalingCast_, nullptr, &scaling_));
-    } else {
-      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::n_, reinterpret_cast<const PetscScalar *>(D_), &scaling_));
-      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::n_, reinterpret_cast<const PetscScalar *>(D_), nullptr, &scaling_));
-    }
+
+    PetscFunctionBeginUser;
+    PetscCall(PetscObjectTypeCompareAny((PetscObject)A_, &flg, MATSEQSBAIJ, MATMPISBAIJ, ""));
+    PetscCall(MatConvert(A_, flg ? MATBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
+    PetscCall(MatDiagonalScale(C_, nullptr, super::p_.getScalingVec()));
+    PetscFunctionReturn(PETSC_SUCCESS);
   }
   void initialize(unsigned int k, K *&work, unsigned short s)
   {
-    PetscBool flg;
-    PetscCallVoid(PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &flg));
-    PetscCallVoid(MatConvert(A_, flg ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
-    buildScalingVec();
-    PetscCallVoid(MatDiagonalScale(C_, nullptr, scaling_));
+    PetscCallVoid(setupScaledMatrix());
     work           = new K[2 * static_cast<std::size_t>(k)];
     work_          = work + k;
     super::signed_ = s;
   }
     #if defined(PETSC_PCHPDDM_MAXLEVELS)
-  void initialize(unsigned int k, unsigned short s, K *values = nullptr, unsigned int selfBlockOffset = 0, int rowStride = 0)
+  void createSelfBlockMats(PetscScalar *Pptr = nullptr, PetscScalar *SelfBlockPtr = nullptr)
   {
-    initialize(k, super::workBase_, s);
-    values_          = values;
-    selfBlockOffset_ = selfBlockOffset;
-    rowStride_       = rowStride;
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, Pptr, &matP_));
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::local_, super::local_, SelfBlockPtr, &matSelfBlock_));
   }
-  void finishExchange()
+  void createCouplingMats(unsigned short maxColumns)
   {
-    super::finishExchange();
-    PetscCallVoid(VecDestroy(&scaling_));
-    delete[] scalingCast_;
-    scalingCast_ = nullptr;
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, maxColumns, nullptr, &matW_));
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::local_, maxColumns, nullptr, &matCoupling_));
+  }
+  void createWorkMats(unsigned short maxColumns)
+  {
+    createCouplingMats(maxColumns);
+    PetscScalar *Pptr         = nullptr;
+    PetscScalar *SelfBlockPtr = nullptr;
+    PetscCallVoid(MatDenseGetArray(matW_, &Pptr));
+    PetscCallVoid(MatDenseGetArray(matCoupling_, &SelfBlockPtr));
+    createSelfBlockMats(Pptr, SelfBlockPtr);
+    PetscCallVoid(MatDenseRestoreArray(matW_, &Pptr));
+    PetscCallVoid(MatDenseRestoreArray(matCoupling_, &SelfBlockPtr));
   }
   template <char S, bool U, class T>
   void prepareExchange(T &in, T const &out, const unsigned short *info, MPI_Request *const &rqRecv)
@@ -539,16 +564,52 @@ public:
   template <char S, bool U>
   void assembleSelfBlock(Mat W)
   {
-    constexpr bool isSymmetric = (S == 'S');
     if (!super::local_) return;
-    Mat X;
-    K  *scratch = work_;
-    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::local_, super::local_, scratch, &X));
     PetscCallVoid(MatConjugate(W));
-    PetscCallVoid(MatTransposeMatMult(super::p_.getMat(), W, MAT_REUSE_MATRIX, PETSC_DEFAULT, &X));
-    PetscCallVoid(MatConjugate(X));
-    PetscCallVoid(MatDenseGetArrayRead(X, const_cast<const K **>(&scratch)));
-    if (!isSymmetric) {
+    PetscCallVoid(MatTransposeMatMult(super::p_.getMat(), W, MAT_REUSE_MATRIX, PETSC_DEFAULT, &matSelfBlock_));
+    PetscCallVoid(MatConjugate(matSelfBlock_));
+    const K *scratch;
+    PetscCallVoid(MatDenseGetArrayRead(matSelfBlock_, &scratch));
+    copySelfBlock<S, U>(scratch);
+    PetscCallVoid(MatDenseRestoreArrayRead(matSelfBlock_, &scratch));
+  }
+  template <char S>
+  unsigned short assemblyNeighborCount() const
+  {
+    return S == 'S' ? static_cast<unsigned short>(super::map_.size()) - super::signed_ : super::signed_;
+  }
+  template <char S, bool U, bool isMain, class T = unsigned int>
+  void assembleCoarseOperator(K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes, T *J = nullptr)
+  {
+    K *const *const       in                        = super::p_.subdomain.getBuffer() + super::signed_;
+    MPI_Request *const    rqRecv                    = super::p_.subdomain.getRq() + super::signed_;
+    const unsigned short  skippedLowerNeighborCount = neighborSizes.skippedLowerNeighborCount();
+    const unsigned short  neighborCount             = assemblyNeighborCount<S>();
+    unsigned short *const infoUpper                 = neighborSizes.upper();
+    for (unsigned short k = 0; k < neighborCount; ++k) {
+      int neighborIndex;
+      MPI_Waitany(neighborCount, rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
+      applyFromNeighbor<U>(in[neighborIndex], neighborIndex + skippedLowerNeighborCount, U ? super::local_ : infoUpper[neighborIndex]);
+      const K *arrayX;
+      PetscCallVoid(MatDenseGetArrayRead(matCoupling_, &arrayX));
+      copyNeighborBlock<S, U, isMain>(arrayX, C, neighborIndex, super::map_[neighborIndex + skippedLowerNeighborCount].first, offsets, neighborSizes, J);
+      PetscCallVoid(MatDenseRestoreArrayRead(matCoupling_, &arrayX));
+    }
+  }
+  void destroyWorkMats()
+  {
+    PetscCallVoid(MatDestroy(&matCoupling_));
+    PetscCallVoid(MatDestroy(&matW_));
+    PetscCallVoid(MatDestroy(&matSelfBlock_));
+    PetscCallVoid(MatDestroy(&matP_));
+  }
+
+private:
+  template <char S, bool U>
+  void copySelfBlock(const K *scratch)
+  {
+    if (!super::local_) return;
+    if (S != 'S') {
       K *const  selfBlock = values_ + selfBlockOffset_ * (!U ? 1 : super::local_ * super::local_);
       const int ld        = !U ? rowStride_ : super::local_;
       Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, scratch, super::local_, selfBlock, ld);
@@ -558,85 +619,283 @@ public:
       for (unsigned short j = 0; j < super::local_; ++j)
         std::copy_n(scratch + j * super::local_ + j, super::local_ - j, values_ + j * (rowStride_ + super::local_) - (j * (j - 1)) / 2);
     }
-    PetscCallVoid(MatDenseRestoreArrayRead(X, const_cast<const K **>(&scratch)));
-    PetscCallVoid(MatDestroy(&X));
   }
-  template <char S, bool U>
-  void applyToNeighbor(const unsigned short *neighborSizes)
+  template <char S, bool U, bool isMain, class T = unsigned int>
+  void copyNeighborBlock(const K *arrayX, K *C, unsigned short neighborIndex, unsigned short neighbor, const CoarseOffsets &offsets,
+                         const NeighborSizes &neighborSizes, T *J = nullptr)
   {
-    K          **in     = super::p_.subdomain.getBuffer();
-    K          **out    = (U || super::local_) ? in + super::signed_ : nullptr;
-    MPI_Request *rqRecv = super::p_.subdomain.getRq() + super::signed_;
-    MPI_Request *rq     = super::p_.subdomain.getRq();
-    prepareExchange<S, U>(in, out, neighborSizes, rqRecv);
-    Mat P;
-    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, super::workBase_, &P));
-    if (super::local_) PetscCallVoid(MatMatMult(C_, super::p_.getMat(), MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
-    PetscCallVoid(MatDestroy(&C_));
-    for (unsigned short i = 0; i < super::signed_; ++i) {
-      if (U || neighborSizes[i]) {
-        for (unsigned short j = 0; j < super::local_; ++j)
-          Wrapper<K>::gthr(super::map_[i].second.size(), super::workBase_ + j * super::n_, in[i] + j * super::map_[i].second.size(),
-                           super::map_[i].second.data());
-        MPI_Isend(in[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.subdomain.getCommunicator(),
-                  rq++);
+    const unsigned int valueOffset = offsets.neighborValue()[neighborIndex];
+    const unsigned int offset      = valueOffset / (!U ? 1 : super::local_);
+
+    if (!U && S != 'B') {
+      const int      coefficients = offsets.rowStride();
+      constexpr bool isSymmetric  = (S == 'S');
+      for (unsigned short i = 0; i < super::local_; ++i) {
+        unsigned int l = (coefficients + (isSymmetric ? super::local_ - 1 : 0)) * i - (isSymmetric ? (i * (i - 1)) / 2 : 0);
+        for (unsigned short j = 0; j < neighborSizes.upper()[neighborIndex]; ++j) {
+          if (isMain) J[offset + l + j] = offsets.neighborColumn()[neighborIndex] + j;
+          C[valueOffset + l + j] = arrayX[j * super::local_ + i];
+        }
+      }
+    } else {
+      if (isMain) J[offset] = neighbor;
+      if (super::local_ && (isMain || U))
+        Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, arrayX, super::local_, C + valueOffset * (!U ? 1 : super::local_), super::local_);
+    }
+  }
+  std::vector<K>              selfBlock_;
+  std::unique_ptr<K[]>        blocks_;
+  std::vector<unsigned int>   blockDispls_;
+  std::vector<unsigned short> neighborSizes_;
+  static PetscErrorCode       copyLocalBlock(Mat X, PetscInt m, PetscInt n, std::vector<K> &out)
+  {
+    const PetscScalar *array;
+    PetscInt           ld;
+
+    PetscFunctionBeginUser;
+    PetscCall(MatDenseGetArrayRead(X, &array));
+    PetscCall(MatDenseGetLDA(X, &ld));
+    out.resize(static_cast<std::size_t>(m) * n);
+    for (PetscInt j = 0; j < n; ++j) std::copy_n(array + static_cast<std::ptrdiff_t>(j) * ld, m, out.data() + static_cast<std::ptrdiff_t>(j) * m);
+    PetscCall(MatDenseRestoreArrayRead(X, &array));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+
+public:
+  PetscErrorCode computeBlocks(bool symmetric, bool uniform)
+  {
+    const Subdomain<K>       &subdomain = super::p_.subdomain;
+    const vectorNeighbor     &map       = super::map_;
+    const vectorNeighbor     &coarse    = subdomain.getCoarseMap();
+    const MPI_Comm            comm      = subdomain.getCommunicator();
+    const MPI_Comm            sub       = subdomain.getSubCommunicator();
+    const Mat                 Z         = super::p_.getMat();
+    const bool                leader    = subdomain.isLeader();
+    const int                 n         = super::n_;
+    int                       local     = super::local_, id;
+    std::vector<int>          nuRank(uniform ? 0 : map.size());
+    std::vector<MPI_Request>  rq(2 * map.size(), MPI_REQUEST_NULL);
+    std::vector<unsigned int> sendDispls(map.size() + 1), recvDispls(map.size() + 1), neighborIndex(&coarse == &map ? 0 : map.size());
+    K                        *send = nullptr, *recv = nullptr;
+    Mat                       P = nullptr;
+
+    PetscFunctionBeginUser;
+    PetscCallMPI(MPI_Comm_rank(comm, &id));
+    id = subdomain.getSubdomainOfRank(id);
+    if (!uniform) {
+      for (unsigned short i = 0; i < map.size(); ++i) {
+        PetscCallMPI(MPI_Irecv(nuRank.data() + i, 1, MPI_INT, map[i].first, 7, comm, rq.data() + i));
+        PetscCallMPI(MPI_Isend(&local, 1, MPI_INT, map[i].first, 7, comm, rq.data() + map.size() + i));
+      }
+      PetscCallMPI(MPI_Waitall(static_cast<int>(rq.size()), rq.data(), MPI_STATUSES_IGNORE));
+      neighborSizes_.resize(coarse.size());
+      if (&coarse == &map) std::copy(nuRank.cbegin(), nuRank.cend(), neighborSizes_.begin());
+      else {
+        std::vector<int> pairs, counts(coarse.size(), -1);
+        int             *all, total;
+        pairs.reserve(2 * map.size());
+        for (unsigned short i = 0; i < map.size(); ++i) {
+          pairs.emplace_back(subdomain.getSubdomainOfRank(map[i].first));
+          pairs.emplace_back(nuRank[i]);
+        }
+        PetscCall(allgatherConcat(pairs.data(), static_cast<int>(pairs.size()), MPI_INT, sub, &total, &all));
+        for (int i = 0; i < total; i += 2) {
+          vectorNeighbor::const_iterator it = std::lower_bound(coarse.cbegin(), coarse.cend(), all[i],
+                                                               [](const pairNeighbor &lhs, int rhs) { return static_cast<int>(lhs.first) < rhs; });
+          PetscCheck(it != coarse.cend() && it->first == all[i], PETSC_COMM_SELF, PETSC_ERR_PLIB, "Subdomain %d is not a neighbor of subdomain %d", all[i], id);
+          counts[std::distance(coarse.cbegin(), it)] = all[i + 1];
+        }
+        PetscCall(PetscFree(all));
+        for (std::size_t k = 0; k < coarse.size(); ++k) {
+          PetscCheck(counts[k] >= 0, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Missing number of deflation vectors of subdomain %d", static_cast<int>(coarse[k].first));
+          neighborSizes_[k] = counts[k];
+        }
       }
     }
-    if (super::local_) PetscCallVoid(MatDiagonalScale(P, scaling_, nullptr));
-    assembleSelfBlock<S, U>(P);
-    PetscCallVoid(MatDestroy(&P));
-    super::sendRequestsEnd_ = rq;
+    if (local) {
+      PetscBool host, sequential;
+
+      PetscCall(PetscObjectTypeCompare((PetscObject)Z, MATSEQDENSE, &host));
+      PetscCall(PetscObjectTypeCompareAny((PetscObject)A_, &sequential, MATSEQAIJ, MATSEQBAIJ, MATSEQSBAIJ, ""));
+      if (host && sequential) {
+        MatInfo info;
+
+        PetscCall(MatGetInfo(A_, MAT_LOCAL, &info));
+        // Scale the basis only when it requires no more scalar storage/work than the sparse copy.
+        sequential = PetscBool(static_cast<PetscLogDouble>(n) * local <= info.nz_used);
+      }
+      if (host && sequential) {
+        Mat scaled;
+
+        PetscCall(MatDuplicate(Z, MAT_COPY_VALUES, &scaled));
+        PetscCall(MatDiagonalScale(scaled, subdomain.getScalingVec(), nullptr));
+        PetscCall(MatMatMult(A_, scaled, MAT_INITIAL_MATRIX, PETSC_DETERMINE, &P));
+        PetscCall(MatProductClear(P));
+        PetscCall(MatDestroy(&scaled));
+      } else {
+        PetscCall(setupScaledMatrix());
+        PetscCall(MatMatMult(C_, Z, MAT_INITIAL_MATRIX, PETSC_DETERMINE, &P));
+        PetscCall(MatProductClear(P));
+        PetscCall(MatDestroy(&C_));
+      }
+    }
+    sendDispls[0] = recvDispls[0] = 0;
+    unsigned int scratchSize      = 0;
+    int          receives         = 0;
+    for (unsigned short i = 0; i < map.size(); ++i) {
+      const int neighbor = subdomain.getSubdomainOfRank(map[i].first);
+      const int nu       = uniform ? local : nuRank[i];
+      const int overlap  = map[i].second.size();
+      if (&coarse != &map) {
+        vectorNeighbor::const_iterator it = std::lower_bound(coarse.cbegin(), coarse.cend(), neighbor,
+                                                             [](const pairNeighbor &lhs, int rhs) { return static_cast<int>(lhs.first) < rhs; });
+        PetscCheck(it != coarse.cend() && it->first == neighbor, PETSC_COMM_SELF, PETSC_ERR_PLIB, "Subdomain %d is not a neighbor of subdomain %d", neighbor,
+                   id);
+        neighborIndex[i] = std::distance(coarse.cbegin(), it);
+      }
+      sendDispls[i + 1] = sendDispls[i] + ((!symmetric || neighbor < id) && nu ? overlap * local : 0);
+      recvDispls[i + 1] = recvDispls[i] + ((!symmetric || neighbor > id) && local ? overlap * nu : 0);
+      if (recvDispls[i + 1] != recvDispls[i]) {
+        ++receives;
+        scratchSize = std::max(scratchSize, static_cast<unsigned int>(overlap * (overlap == n ? std::min(local, nu) : local)));
+      }
+    }
+    PetscCall(PetscMalloc2(sendDispls.back(), &send, recvDispls.back(), &recv));
+    selfBlock_.clear();
+    {
+      const PetscScalar *array = nullptr;
+      PetscInt           lda   = n;
+      if (sendDispls.back()) {
+        PetscCall(MatDenseGetArrayRead(P, &array));
+        PetscCall(MatDenseGetLDA(P, &lda));
+      }
+      for (unsigned short i = 0; i < map.size(); ++i) {
+        const int size = map[i].second.size();
+        if (recvDispls[i + 1] != recvDispls[i])
+          PetscCallMPI(MPI_Irecv(recv + recvDispls[i], recvDispls[i + 1] - recvDispls[i], Wrapper<K>::mpi_type(), map[i].first, 8, comm, rq.data() + i));
+        if (sendDispls[i + 1] != sendDispls[i]) {
+          for (int j = 0; j < local; ++j)
+            Wrapper<K>::gthr(size, array + static_cast<std::ptrdiff_t>(j) * lda, send + sendDispls[i] + static_cast<std::ptrdiff_t>(j) * size,
+                             map[i].second.data());
+          PetscCallMPI(
+            MPI_Isend(send + sendDispls[i], sendDispls[i + 1] - sendDispls[i], Wrapper<K>::mpi_type(), map[i].first, 8, comm, rq.data() + map.size() + i));
+        }
+      }
+      if (local) {
+        Mat X;
+
+        if (sendDispls.back()) PetscCall(MatDenseRestoreArrayRead(P, &array));
+        PetscCall(MatDiagonalScale(P, subdomain.getScalingVec(), nullptr));
+        PetscCall(MatConjugate(P));
+        PetscCall(MatTransposeMatMult(Z, P, MAT_INITIAL_MATRIX, PETSC_DETERMINE, &X));
+        PetscCall(MatConjugate(X));
+        if (leader) PetscCall(copyLocalBlock(X, local, local, selfBlock_));
+        PetscCall(MatDestroy(&X));
+      }
+    }
+    PetscCall(MatDestroy(&P));
+    if (local) {
+      std::vector<unsigned char> assembled(coarse.size(), 0);
+      const PetscScalar         *array = nullptr, *d = nullptr;
+      PetscInt                   ldz     = n;
+      K                         *scratch = nullptr;
+      int                        size;
+
+      blockDispls_.resize(coarse.size() + 1);
+      blockDispls_[0] = 0;
+      for (std::size_t k = 0; k < coarse.size(); ++k)
+        blockDispls_[k + 1] = blockDispls_[k] + (!symmetric || coarse[k].first > id ? local * (uniform ? local : neighborSizes_[k]) : 0);
+      blocks_.reset(new K[blockDispls_.back()]);
+      if (receives) {
+        PetscCall(MatDenseGetArrayRead(Z, &array));
+        PetscCall(MatDenseGetLDA(Z, &ldz));
+        PetscCall(VecGetArrayRead(subdomain.getScalingVec(), &d));
+        PetscCall(PetscMalloc1(scratchSize, &scratch));
+      }
+      for (int received = 0; received < receives; ++received) {
+        int index;
+
+        PetscCallMPI(MPI_Waitany(static_cast<int>(map.size()), rq.data(), &index, MPI_STATUS_IGNORE));
+        const unsigned int      k       = &coarse == &map ? static_cast<unsigned int>(index) : neighborIndex[index];
+        const int               nu      = uniform ? local : nuRank[index];
+        const std::vector<int> &overlap = map[index].second;
+        const int               m       = overlap.size();
+        const K *const          in      = recv + recvDispls[index];
+        const K *const          beta    = assembled[k] ? &(Wrapper<K>::d_1) : &(Wrapper<K>::d_0);
+        if (m == n && nu <= local) {
+          for (int j = 0; j < nu; ++j)
+            for (int r = 0; r < m; ++r) scratch[j * m + overlap[r]] = d[overlap[r]] * in[j * m + r];
+          PetscBLASInt lda;
+          PetscCall(PetscBLASIntCast(ldz, &lda));
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &nu, &m, &(Wrapper<K>::d_1), array, &lda, scratch, &m, beta, blocks_.get() + blockDispls_[k],
+                        &local);
+        } else {
+          for (int j = 0; j < local; ++j)
+            for (int r = 0; r < m; ++r) scratch[j * m + r] = d[overlap[r]] * array[j * ldz + overlap[r]];
+          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &local, &nu, &m, &(Wrapper<K>::d_1), scratch, &m, in, &m, beta, blocks_.get() + blockDispls_[k], &local);
+        }
+        assembled[k] = 1;
+      }
+      if (receives) {
+        PetscCall(PetscFree(scratch));
+        PetscCall(VecRestoreArrayRead(subdomain.getScalingVec(), &d));
+        PetscCall(MatDenseRestoreArrayRead(Z, &array));
+      }
+      for (std::size_t k = 0; k < coarse.size(); ++k)
+        if (!assembled[k]) std::fill_n(blocks_.get() + blockDispls_[k], blockDispls_[k + 1] - blockDispls_[k], K());
+      PetscCallMPI(MPI_Comm_size(sub, &size));
+      if (size > 1 && blockDispls_.back())
+        PetscCallMPI(MPI_Reduce(leader ? MPI_IN_PLACE : blocks_.get(), blocks_.get(), static_cast<int>(blockDispls_.back()), MPIU_SCALAR, MPIU_SUM, 0, sub));
+      if (!leader) blocks_.reset();
+    }
+    if (!map.empty()) PetscCallMPI(MPI_Waitall(static_cast<int>(map.size()), rq.data() + map.size(), MPI_STATUSES_IGNORE));
+    PetscCall(PetscFree2(send, recv));
+    PetscFunctionReturn(PETSC_SUCCESS);
   }
-  template <char S>
-  unsigned short assemblyNeighborCount() const
+  unsigned short *getNeighborSizes() { return neighborSizes_.empty() ? nullptr : neighborSizes_.data(); }
+  void            initialize(unsigned short, unsigned short s, K *values = nullptr, unsigned int selfBlockOffset = 0, int rowStride = 0)
   {
-    return S == 'S' ? static_cast<unsigned short>(super::map_.size()) - super::signed_ : super::signed_;
+    values_          = values;
+    selfBlockOffset_ = selfBlockOffset;
+    rowStride_       = rowStride;
+    super::signed_   = s;
+  }
+  template <char S, bool U>
+  void applyToNeighbor(const unsigned short *)
+  {
+    copySelfBlock<S, U>(selfBlock_.data());
   }
   template <char S, bool U>
   void assembleForMain(K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
   {
-    K *const *const           in                        = super::p_.subdomain.getBuffer() + super::signed_;
-    MPI_Request *const        rqRecv                    = super::p_.subdomain.getRq() + super::signed_;
-    const unsigned int *const neighborValueOffset       = offsets.neighborValue();
-    const int                 coefficients              = offsets.rowStride();
-    constexpr bool            isSymmetric               = (S == 'S');
-    const unsigned short      skippedLowerNeighborCount = neighborSizes.skippedLowerNeighborCount();
-    const unsigned short      neighborCount             = assemblyNeighborCount<S>();
-    if (neighborCount) {
-      for (unsigned short k = 0; k < neighborCount; ++k) {
-        int neighborIndex;
-        MPI_Waitany(neighborCount, rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
-        assembleForMain<!U ? S : 'B', U>(C + neighborValueOffset[neighborIndex], in[neighborIndex], coefficients + (isSymmetric && !U ? super::local_ - 1 : 0),
-                                         neighborIndex + skippedLowerNeighborCount, super::workBase_, !U ? neighborSizes.upper() + neighborIndex : nullptr);
-        if (U)
-          Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, super::workBase_, super::local_,
-                                             C + neighborValueOffset[neighborIndex] * super::local_, super::local_);
-      }
-    }
+    copyNeighborBlocks<S, U, false>(C, offsets, neighborSizes);
   }
   template <char S, bool U, class T>
-  void applyFromNeighborMain(T *I, T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes, unsigned short localDof)
+  void applyFromNeighborMain(T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
   {
-    K *const *const           in                        = super::p_.subdomain.getBuffer() + super::signed_;
-    MPI_Request              *rqRecv                    = super::p_.subdomain.getRq() + super::signed_;
-    const unsigned int *const neighborValueOffset       = offsets.neighborValue();
-    const int                 coefficients              = offsets.rowStride();
-    const unsigned int        offsetI                   = super::max_;
-    unsigned int *const       offsetJ                   = offsets.neighborColumn();
-    unsigned short *const     infoUpper                 = neighborSizes.upper();
-    const unsigned short      skippedLowerNeighborCount = neighborSizes.skippedLowerNeighborCount();
-    const unsigned short      neighborCount             = assemblyNeighborCount<S>();
-    constexpr bool            isSymmetric               = (S == 'S');
-    for (unsigned short k = 0; k < neighborCount; ++k) {
-      int neighborIndex;
-      MPI_Waitany(neighborCount, rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
-      const unsigned int offset = neighborValueOffset[neighborIndex] / (!U ? 1 : localDof);
-      applyFromNeighborMain<!U ? S : 'B', 'C', U>(in[neighborIndex], neighborIndex + skippedLowerNeighborCount, I + offset, J + offset,
-                                                  C + neighborValueOffset[neighborIndex] * (!U ? 1 : localDof),
-                                                  coefficients + (isSymmetric && !U) * (localDof - 1), offsetI, U ? nullptr : (offsetJ + neighborIndex),
-                                                  super::workBase_, U ? nullptr : infoUpper + neighborIndex);
+    copyNeighborBlocks<S, U, true>(C, offsets, neighborSizes, J);
+  }
+  void finishExchange()
+  {
+    std::vector<K>().swap(selfBlock_);
+    blocks_.reset();
+    std::vector<unsigned int>().swap(blockDispls_);
+    std::vector<unsigned short>().swap(neighborSizes_);
+  }
+
+private:
+  template <char S, bool U, bool isMain, class T = unsigned int>
+  void copyNeighborBlocks(K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes, T *J = nullptr)
+  {
+    const unsigned short skippedLowerNeighborCount = neighborSizes.skippedLowerNeighborCount();
+    const unsigned short neighborCount             = static_cast<unsigned short>(super::sparsity_.size()) - skippedLowerNeighborCount;
+    for (unsigned short neighborIndex = 0; neighborIndex < neighborCount; ++neighborIndex) {
+      const K *block = super::local_ ? blocks_.get() + blockDispls_[neighborIndex + skippedLowerNeighborCount] : nullptr;
+      copyNeighborBlock<S, U, isMain>(block, C, neighborIndex, super::sparsity_[neighborIndex + skippedLowerNeighborCount], offsets, neighborSizes, J);
     }
   }
+
+public:
     #endif
   #else
   MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Types...) :
@@ -779,9 +1038,15 @@ private:
   std::map<std::pair<unsigned short, unsigned short>, unsigned short>                                       &sizes_;
   std::unordered_map<unsigned short, std::tuple<unsigned short, unsigned int, std::vector<unsigned short>>> &extra_;
   using super = MatrixMultiplication<Preconditioner, K>;
-  int         *ldistribution_;
-  int          size_;
-  unsigned int sb_;
+  int                                     *ldistribution_;
+  int                                      size_;
+  unsigned int                             sb_;
+  std::vector<std::vector<unsigned short>> adjacency_;
+  #if HPDDM_PETSC
+    #ifdef PETSC_PCHPDDM_MAXLEVELS
+  Mat matAP_ = nullptr;
+    #endif
+  #endif
 
   template <char S, bool U>
   void prepareAccumulation(const unsigned short *info, std::pair<int, int> **&block, std::vector<unsigned short> &interior,
@@ -800,25 +1065,14 @@ private:
     }
     accumulate = new std::vector<unsigned short>[S == 'S' ? 2 * super::map_.size() : super::map_.size()];
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      accumulate[i].resize(super::connectivity_);
+      accumulate[i].swap(adjacency_[i]);
       if (S == 'S') accumulate[super::map_.size() + i].reserve(super::connectivity_);
     }
-    rq                        = new MPI_Request[2 * super::map_.size()];
-    unsigned short *neighbors = new unsigned short[super::map_.size()];
-    for (unsigned short i = 0; i < super::map_.size(); ++i) neighbors[i] = super::map_[i].first;
-    for (unsigned short i = 0; i < super::map_.size(); ++i)
-      MPI_Isend(neighbors, super::map_.size(), MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.subdomain.getCommunicator(),
-                rq + super::map_.size() + i);
-    for (unsigned short i = 0; i < super::map_.size(); ++i)
-      MPI_Irecv(accumulate[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.subdomain.getCommunicator(), rq + i);
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      int        index;
-      MPI_Status st;
-      MPI_Waitany(super::map_.size(), rq, &index, &st);
-      int count;
-      MPI_Get_count(&st, MPI_UNSIGNED_SHORT, &count);
-      accumulate[index].resize(count);
-    }
+    adjacency_.clear();
+    rq = new MPI_Request[2 * super::map_.size()];
+    std::vector<unsigned short> neighbors;
+    neighbors.reserve(super::map_.size());
+    for (const pairNeighbor &neighbor : super::map_) neighbors.emplace_back(neighbor.first);
     int m = 0;
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       if (worker[i] != main) {
@@ -838,23 +1092,73 @@ private:
       unsigned short size = 0;
       for (unsigned short j = 0; j < accumulate[i].size(); ++j) {
         if (getMain(accumulate[i][j]) == worker[i]) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[i][size++] = std::distance(neighbors, pt);
+          unsigned short *pt = std::lower_bound(neighbors.data(), neighbors.data() + neighbors.size(), accumulate[i][j]);
+          if (pt != neighbors.data() + neighbors.size() && *pt == accumulate[i][j]) accumulate[i][size++] = std::distance(neighbors.data(), pt);
         }
         if (S == 'S' && getMain(accumulate[i][j]) == main) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[super::map_.size() + i].emplace_back(std::distance(neighbors, pt));
+          unsigned short *pt = std::lower_bound(neighbors.data(), neighbors.data() + neighbors.size(), accumulate[i][j]);
+          if (pt != neighbors.data() + neighbors.size() && *pt == accumulate[i][j])
+            accumulate[super::map_.size() + i].emplace_back(std::distance(neighbors.data(), pt));
         }
       }
       accumulate[i].resize(size);
     }
-    MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
-    delete[] neighbors;
     overlap_.resize(m);
+  }
+
+  template <bool U, bool transpose>
+  unsigned short receiveAccumulation(const unsigned short *info, K *const *buff, MPI_Request *rq)
+  {
+    unsigned short count = 0;
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      const int entries = super::map_[i].second.size() * (transpose || U ? super::local_ : info[i]);
+      if (entries) {
+        MPI_Irecv(buff[i], entries, Wrapper<K>::mpi_type(), super::map_[i].first, transpose ? 21 : 20, super::p_.subdomain.getCommunicator(), rq + i);
+        ++count;
+      } else rq[i] = MPI_REQUEST_NULL;
+    }
+    return count;
+  }
+  template <bool U>
+  unsigned short prepareAccumulationBuffers(const std::vector<typename Preconditioner::integer_type> &omap, const unsigned short *info,
+                                            std::vector<std::vector<int>> &nmap, K **&buff, MPI_Request *rq)
+  {
+    std::size_t capacity = 0;
+    nmap.resize(super::map_.size());
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      nmap[i].reserve(super::map_[i].second.size());
+      for (const typename Preconditioner::integer_type &index : super::map_[i].second)
+        nmap[i].emplace_back(std::distance(omap.cbegin(), std::lower_bound(omap.cbegin(), omap.cend(), index)));
+      capacity += super::map_[i].second.size() * (U ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
+    }
+    buff               = new K *[std::max<std::size_t>(1, 2 * super::map_.size())];
+    *buff              = new K[2 * capacity];
+    std::size_t offset = 0;
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      buff[i]                      = *buff + offset;
+      buff[super::map_.size() + i] = *buff + capacity + offset;
+      offset += super::map_[i].second.size() * (U ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
+    }
+    return receiveAccumulation<U, false>(info, buff, rq);
+  }
+  void sendAccumulation(const K *values, const int lda, K *const *buff, MPI_Request *rq)
+  {
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      const int entries = super::map_[i].second.size() * super::local_;
+      if (entries) {
+        for (unsigned short j = 0; j < super::local_; ++j)
+          Wrapper<K>::gthr(super::map_[i].second.size(), values + j * lda, buff[super::map_.size() + i] + j * super::map_[i].second.size(),
+                           super::map_[i].second.data());
+        MPI_Isend(buff[super::map_.size() + i], entries, Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.subdomain.getCommunicator(),
+                  rq + super::map_.size() + i);
+      } else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
+    }
   }
 
 public:
   #ifdef PETSC_PCHPDDM_MAXLEVELS
+  using OperatorBase<'s', Preconditioner, K>::computeBlocks;
+  using OperatorBase<'s', Preconditioner, K>::getNeighborSizes;
   using super::assembleForMain;
   using super::applyFromNeighborMain;
   #endif
@@ -876,33 +1180,27 @@ public:
     static_assert(std::is_same<std::remove_pointer_t<First>, typename Preconditioner::super::co_type>::value, "Wrong constructor");
   }
     #ifdef PETSC_PCHPDDM_MAXLEVELS
-  void initialize(unsigned int k, unsigned short s, K *values = nullptr, unsigned int selfBlockOffset = 0, int rowStride = 0)
+  void initialize(unsigned short maxColumns, unsigned short s, K *values = nullptr, unsigned int selfBlockOffset = 0, int rowStride = 0)
   {
-    initialize(k, super::workBase_, s);
-    super::values_          = values;
-    super::selfBlockOffset_ = selfBlockOffset;
-    super::rowStride_       = rowStride;
+    super::initialize(maxColumns, s, values, selfBlockOffset, rowStride);
+    super::createWorkMats(maxColumns);
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, nullptr, &matAP_));
   }
   template <char S, bool U>
-  void assembleSelfBlock(K *work)
+  void assembleForMain(K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
   {
-    constexpr bool         isSymmetric = (S == 'S');
-    const int              dof         = super::p_.subdomain.getDof();
-    const K *const *const &deflation   = super::deflation_;
-    if (!super::local_) return;
-    K *const scratch = super::work_;
-    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &(super::local_), &dof, &(Wrapper<K>::d_1), *deflation, &dof, work, &dof, &(Wrapper<K>::d_0),
-                  scratch, &(super::local_));
-    if (!isSymmetric) {
-      K *const  selfBlock = super::values_ + super::selfBlockOffset_ * (!U ? 1 : super::local_ * super::local_);
-      const int ld        = !U ? super::rowStride_ : super::local_;
-      Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, scratch, super::local_, selfBlock, ld);
-    } else if (U) {
-      std::copy_n(scratch, static_cast<std::size_t>(super::local_) * super::local_, super::values_);
-    } else {
-      for (unsigned short j = 0; j < super::local_; ++j)
-        std::copy_n(scratch + j * super::local_ + j, super::local_ - j, super::values_ + j * (super::rowStride_ + super::local_) - (j * (j - 1)) / 2);
-    }
+    super::template assembleCoarseOperator<S, U, false>(C, offsets, neighborSizes);
+  }
+  template <char S, bool U, class T>
+  void applyFromNeighborMain(T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
+  {
+    super::template assembleCoarseOperator<S, U, true>(C, offsets, neighborSizes, J);
+  }
+  void finishExchange()
+  {
+    OperatorBase<'s', Preconditioner, K>::finishExchange();
+    super::destroyWorkMats();
+    PetscCallVoid(MatDestroy(&matAP_));
   }
   template <char S, bool U>
   void applyToNeighbor(const unsigned short *neighborSizes)
@@ -912,8 +1210,278 @@ public:
     MPI_Request *rqRecv = super::p_.subdomain.getRq() + super::signed_;
     MPI_Request *rq     = super::p_.subdomain.getRq();
     super::template prepareExchange<S, U>(in, out, neighborSizes, rqRecv);
-    applyToNeighbor<S, U>(in, super::workBase_, rq, neighborSizes, out, rqRecv);
-    assembleSelfBlock<S, U>(super::workBase_);
+    std::pair<int, int>        **block = nullptr;
+    std::vector<unsigned short>  interior, overlap;
+    std::vector<unsigned short> *accumulate;
+    MPI_Request                 *rqLocal;
+    int                          m;
+    prepareAccumulation<S, U>(neighborSizes, block, interior, overlap, accumulate, rqLocal);
+    std::vector<typename Preconditioner::integer_type> omap;
+    PetscInt                                           n;
+    PetscCallVoid(MatGetLocalSize(super::A_, &n, nullptr));
+    {
+      std::set<typename Preconditioner::integer_type> o;
+      for (unsigned short i = 0; i < super::map_.size(); ++i) o.insert(super::map_[i].second.cbegin(), super::map_[i].second.cend());
+      omap.reserve(o.size());
+      std::copy(o.cbegin(), o.cend(), std::back_inserter(omap));
+      IS                    is;
+      PetscInt             *data;
+      std::vector<PetscInt> imap;
+      if (n == super::n_) {
+        if (std::is_same<typename Preconditioner::integer_type, PetscInt>::value) data = reinterpret_cast<PetscInt *>(omap.data());
+        else {
+          data = new PetscInt[omap.size()];
+          std::copy_n(omap.data(), omap.size(), data);
+        }
+        PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, omap.size(), data, PETSC_USE_POINTER, &is));
+      } else {
+        imap.reserve(omap.size());
+        const PetscScalar *scaling;
+        PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
+        std::for_each(omap.cbegin(), omap.cend(), [&scaling, &imap](const typename Preconditioner::integer_type &i) {
+          if (HPDDM::abs(scaling[i]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(i);
+        });
+        PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
+        PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, imap.size(), imap.data(), PETSC_USE_POINTER, &is));
+      }
+      PetscCallVoid(MatCreateSubMatrix(super::A_, is, is, MAT_INITIAL_MATRIX, &(super::C_)));
+      PetscCallVoid(ISDestroy(&is));
+      if (n == super::n_ && !std::is_same<typename Preconditioner::integer_type, PetscInt>::value) delete[] data;
+    }
+    std::vector<unsigned int> colOffset(super::map_.size() + 1, 0);
+    for (unsigned short i = 0; i < super::map_.size(); ++i) colOffset[i + 1] = colOffset[i] + (U == 1 ? super::local_ : neighborSizes[i]);
+    const unsigned int colsTotal = colOffset[super::map_.size()];
+    Mat                matZ, matCZ;
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), colsTotal, nullptr, &matZ));
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), colsTotal, nullptr, &matCZ));
+    std::vector<std::vector<int>> nmap;
+    K                           **buff;
+    const unsigned short          receives = prepareAccumulationBuffers<U>(omap, neighborSizes, nmap, buff, rqLocal);
+    if (super::local_) {
+      PetscCallVoid(MatCopy(super::p_.getMat(), super::matP_, SAME_NONZERO_PATTERN));
+      PetscCallVoid(MatDiagonalScale(super::matP_, super::p_.getScalingVec(), nullptr));
+    }
+    {
+      const K *pArray = nullptr;
+      if (super::local_) PetscCallVoid(MatDenseGetArrayRead(super::matP_, &pArray));
+      sendAccumulation(pArray, super::n_, buff, rqLocal);
+      if (super::local_) PetscCallVoid(MatDenseRestoreArrayRead(super::matP_, &pArray));
+    }
+    if (n == super::n_) {
+      PetscCallVoid(MatMatMult(super::A_, super::matP_, MAT_REUSE_MATRIX, PETSC_DEFAULT, &matAP_));
+    } else {
+      Mat                matZc, matAPc;
+      PetscScalar       *zcArray, *apArray;
+      const PetscScalar *pArray, *apcArray, *scaling;
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &matZc));
+      PetscCallVoid(MatDenseGetArray(matZc, &zcArray));
+      PetscCallVoid(MatDenseGetArrayRead(super::matP_, &pArray));
+      PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
+      for (PetscInt i = 0, k = 0; i < super::n_; ++i) {
+        if (HPDDM::abs(scaling[i]) > underlying_type<K>(HPDDM_EPS)) {
+          for (unsigned short j = 0; j < super::local_; ++j) zcArray[k + j * n] = pArray[i + j * super::n_];
+          ++k;
+        }
+      }
+      PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
+      PetscCallVoid(MatDenseRestoreArrayRead(super::matP_, &pArray));
+      PetscCallVoid(MatDenseRestoreArray(matZc, &zcArray));
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &matAPc));
+      PetscCallVoid(MatMatMult(super::A_, matZc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &matAPc));
+      PetscCallVoid(MatDestroy(&matZc));
+      PetscCallVoid(MatDenseGetArrayRead(matAPc, &apcArray));
+      PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
+      PetscCallVoid(MatDenseGetArray(matAP_, &apArray));
+      std::fill_n(apArray, static_cast<std::size_t>(super::local_) * super::n_, K());
+      for (PetscInt i = 0, k = 0; i < super::n_; ++i) {
+        if (HPDDM::abs(scaling[i]) > underlying_type<K>(HPDDM_EPS)) {
+          for (unsigned short j = 0; j < super::local_; ++j) apArray[i + j * super::n_] = apcArray[k + j * n];
+          ++k;
+        }
+      }
+      PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
+      PetscCallVoid(MatDenseRestoreArray(matAP_, &apArray));
+      PetscCallVoid(MatDenseRestoreArrayRead(matAPc, &apcArray));
+      PetscCallVoid(MatDestroy(&matAPc));
+    }
+    {
+      PetscScalar *zArray;
+      PetscCallVoid(MatDenseGetArray(matZ, &zArray));
+      for (unsigned short i = 0; i < receives; ++i) {
+        int index;
+        MPI_Waitany(super::map_.size(), rqLocal, &index, MPI_STATUS_IGNORE);
+        for (unsigned short k = 0; k < (U ? super::local_ : neighborSizes[index]); ++k)
+          Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), zArray + (colOffset[index] + k) * omap.size());
+      }
+      PetscCallVoid(MatDenseRestoreArray(matZ, &zArray));
+    }
+    receiveAccumulation<U, true>(neighborSizes, buff, rqLocal);
+    if (n == super::n_) {
+      PetscCallVoid(MatMatMult(super::C_, matZ, MAT_REUSE_MATRIX, PETSC_DEFAULT, &matCZ));
+    } else {
+      std::vector<PetscInt> imap;
+      const PetscScalar    *scaling;
+      PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
+      for (typename std::vector<typename Preconditioner::integer_type>::const_iterator it = omap.cbegin(); it != omap.cend(); ++it) {
+        if (HPDDM::abs(scaling[*it]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(std::distance(omap.cbegin(), it));
+      }
+      PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
+      Mat          matZc, matCZc;
+      PetscScalar *zcArray, *czArray;
+      const K     *zArray;
+      const K     *czcArray;
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), colsTotal, nullptr, &matZc));
+      PetscCallVoid(MatDenseGetArray(matZc, &zcArray));
+      PetscCallVoid(MatDenseGetArrayRead(matZ, &zArray));
+      for (std::size_t i = 0; i < imap.size(); ++i)
+        for (unsigned int j = 0; j < colsTotal; ++j) zcArray[i + j * imap.size()] = zArray[imap[i] + j * omap.size()];
+      PetscCallVoid(MatDenseRestoreArrayRead(matZ, &zArray));
+      PetscCallVoid(MatDenseRestoreArray(matZc, &zcArray));
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), colsTotal, nullptr, &matCZc));
+      PetscCallVoid(MatMatMult(super::C_, matZc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &matCZc));
+      PetscCallVoid(MatDestroy(&matZc));
+      PetscCallVoid(MatDenseGetArray(matCZ, &czArray));
+      std::fill_n(czArray, static_cast<std::size_t>(colsTotal) * omap.size(), K());
+      PetscCallVoid(MatDenseGetArrayRead(matCZc, &czcArray));
+      for (std::size_t i = 0; i < imap.size(); ++i)
+        for (unsigned int j = 0; j < colsTotal; ++j) czArray[imap[i] + j * omap.size()] = czcArray[i + j * imap.size()];
+      PetscCallVoid(MatDenseRestoreArrayRead(matCZc, &czcArray));
+      PetscCallVoid(MatDenseRestoreArray(matCZ, &czArray));
+      PetscCallVoid(MatDestroy(&matCZc));
+    }
+    PetscCallVoid(MatDestroy(&(super::C_)));
+    PetscCallVoid(MatConjugate(matZ));
+    MPI_Waitall(super::map_.size(), rqLocal + super::map_.size(), MPI_STATUSES_IGNORE);
+    {
+      const K *czArray;
+      PetscCallVoid(MatDenseGetArrayRead(matCZ, &czArray));
+      for (unsigned short i = 0; i < super::map_.size(); ++i) {
+        m = (U == 1 ? super::local_ : neighborSizes[i]);
+        for (unsigned short j = 0; j < m; ++j)
+          Wrapper<K>::gthr(nmap[i].size(), czArray + (colOffset[i] + j) * omap.size(), buff[super::map_.size() + i] + j * nmap[i].size(), nmap[i].data());
+        if (m && !super::map_[i].second.empty())
+          MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21,
+                    super::p_.subdomain.getCommunicator(), rqLocal + super::map_.size() + i);
+        else rqLocal[super::map_.size() + i] = MPI_REQUEST_NULL;
+      }
+      PetscCallVoid(MatDenseRestoreArrayRead(matCZ, &czArray));
+    }
+    K *pt = overlap_.data();
+    for (unsigned short i = 0; i < overlap.size(); ++i) {
+      for (unsigned short j = 0; j < overlap.size(); ++j) {
+        if (block[overlap[i]][overlap[j]].first != 0 && block[overlap[i]][overlap[j]].second != 0) {
+          const int rows = block[overlap[i]][overlap[j]].first;
+          const int cols = block[overlap[i]][overlap[j]].second;
+          Mat       Zi, CZj, G;
+          PetscCallVoid(MatDenseGetSubMatrix(matZ, 0, omap.size(), colOffset[overlap[i]], colOffset[overlap[i]] + rows, &Zi));
+          PetscCallVoid(MatDenseGetSubMatrix(matCZ, 0, omap.size(), colOffset[overlap[j]], colOffset[overlap[j]] + cols, &CZj));
+          PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, rows, cols, pt, &G));
+          PetscCallVoid(MatTransposeMatMult(Zi, CZj, MAT_REUSE_MATRIX, PETSC_DEFAULT, &G));
+          PetscCallVoid(MatDestroy(&G));
+          PetscCallVoid(MatDenseRestoreSubMatrix(matCZ, &CZj));
+          PetscCallVoid(MatDenseRestoreSubMatrix(matZ, &Zi));
+          pt += (U == 1 ? super::local_ * super::local_ : neighborSizes[overlap[i]] * neighborSizes[overlap[j]]);
+        }
+      }
+    }
+    if (block) {
+      delete[] *block;
+      delete[] block;
+    }
+    MPI_Waitall(super::map_.size(), rqLocal, MPI_STATUSES_IGNORE);
+    if (S == 'S') {
+      std::vector<K> scratch(omap.size() * super::local_);
+      std::vector<K> received(omap.size());
+      Mat            matScratch;
+      const K       *apArray;
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), super::local_, scratch.data(), &matScratch));
+      PetscCallVoid(MatDenseGetArrayRead(matAP_, &apArray));
+      for (unsigned short i = 0; i < overlap.size() && overlap[i] < super::signed_; ++i) {
+        m = (U == 1 ? super::local_ : neighborSizes[overlap[i]]);
+        if (m) {
+          for (unsigned short nu = 0; nu < super::local_; ++nu)
+            Wrapper<K>::gthr(omap.size(), apArray + nu * super::n_, scratch.data() + nu * omap.size(), omap.data());
+          const std::vector<unsigned short> &r = accumulate[super::map_.size() + overlap[i]];
+          for (unsigned short j : r) {
+            for (unsigned short nu = 0; nu < super::local_; ++nu) {
+              std::fill(received.begin(), received.end(), K());
+              Wrapper<K>::sctr(nmap[j].size(), buff[j] + nu * nmap[j].size(), nmap[j].data(), received.data());
+              for (int k : nmap[overlap[i]]) scratch[k + nu * omap.size()] += received[k];
+            }
+          }
+          Mat Zi, G;
+          PetscCallVoid(MatDenseGetSubMatrix(matZ, 0, omap.size(), colOffset[overlap[i]], colOffset[overlap[i]] + m, &Zi));
+          PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, m, super::local_, pt, &G));
+          PetscCallVoid(MatTransposeMatMult(Zi, matScratch, MAT_REUSE_MATRIX, PETSC_DEFAULT, &G));
+          PetscCallVoid(MatDestroy(&G));
+          PetscCallVoid(MatDenseRestoreSubMatrix(matZ, &Zi));
+          pt += super::local_ * m;
+        }
+      }
+      PetscCallVoid(MatDenseRestoreArrayRead(matAP_, &apArray));
+      PetscCallVoid(MatDestroy(&matScratch));
+    }
+    PetscCallVoid(MatDestroy(&matZ));
+    PetscCallVoid(MatDestroy(&matCZ));
+    {
+      const K       *apArray;
+      std::vector<K> scratchOmap(omap.size());
+      PetscCallVoid(MatDenseGetArrayRead(matAP_, &apArray));
+      for (unsigned short i = 0; i < overlap.size() && overlap[i] < super::signed_; ++i) {
+        if (U || neighborSizes[overlap[i]]) {
+          for (unsigned short nu = 0; nu < super::local_; ++nu)
+            Wrapper<K>::gthr(super::map_[overlap[i]].second.size(), apArray + nu * super::n_, in[overlap[i]] + nu * super::map_[overlap[i]].second.size(),
+                             super::map_[overlap[i]].second.data());
+          const std::vector<unsigned short> &r = accumulate[overlap[i]];
+          for (unsigned short k : r) {
+            for (unsigned short nu = 0; nu < super::local_; ++nu) {
+              std::fill(scratchOmap.begin(), scratchOmap.end(), K());
+              Wrapper<K>::sctr(nmap[k].size(), buff[k] + nu * nmap[k].size(), nmap[k].data(), scratchOmap.data());
+              for (unsigned int j = 0; j < super::map_[overlap[i]].second.size(); ++j)
+                in[overlap[i]][j + nu * super::map_[overlap[i]].second.size()] += scratchOmap[nmap[overlap[i]][j]];
+            }
+          }
+          MPI_Isend(in[overlap[i]], super::map_[overlap[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[overlap[i]].first, 2,
+                    super::p_.subdomain.getCommunicator(), rq + overlap[i]);
+        } else rq[overlap[i]] = MPI_REQUEST_NULL;
+      }
+      PetscCallVoid(MatDenseRestoreArrayRead(matAP_, &apArray));
+    }
+    {
+      K *apArray;
+      PetscCallVoid(MatDenseGetArray(matAP_, &apArray));
+      for (unsigned short i : interior) {
+        for (unsigned short k = 0; k < super::local_; ++k)
+          for (unsigned int j = 0; j < super::map_[i].second.size(); ++j)
+            apArray[super::map_[i].second[j] + k * super::n_] += buff[i][j + k * super::map_[i].second.size()];
+      }
+      PetscCallVoid(MatDenseRestoreArray(matAP_, &apArray));
+    }
+    {
+      const K *apArray;
+      PetscCallVoid(MatDenseGetArrayRead(matAP_, &apArray));
+      for (unsigned short i = 0; i < interior.size() && interior[i] < super::signed_; ++i) {
+        if (U || neighborSizes[interior[i]]) {
+          for (unsigned short nu = 0; nu < super::local_; ++nu)
+            Wrapper<K>::gthr(super::map_[interior[i]].second.size(), apArray + nu * super::n_, in[interior[i]] + nu * super::map_[interior[i]].second.size(),
+                             super::map_[interior[i]].second.data());
+          MPI_Isend(in[interior[i]], super::map_[interior[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[interior[i]].first, 2,
+                    super::p_.subdomain.getCommunicator(), rq + interior[i]);
+        } else rq[interior[i]] = MPI_REQUEST_NULL;
+      }
+      PetscCallVoid(MatDenseRestoreArrayRead(matAP_, &apArray));
+    }
+    rq += super::signed_;
+    delete[] accumulate;
+    if (super::local_) {
+      PetscCallVoid(MatCopy(matAP_, super::matP_, SAME_NONZERO_PATTERN));
+      PetscCallVoid(MatDiagonalScale(super::matP_, super::p_.getScalingVec(), nullptr));
+    }
+    MPI_Waitall(super::map_.size(), rqLocal + super::map_.size(), MPI_STATUSES_IGNORE);
+    delete[] rqLocal;
+    delete[] *buff;
+    delete[] buff;
+    super::template assembleSelfBlock<S, U>(super::matP_);
     super::sendRequestsEnd_ = rq;
   }
     #endif
@@ -929,7 +1497,7 @@ public:
     }
   }
   template <char S, bool U>
-  void setPattern(int *ldistribution, const int p, const int sizeSplit, unsigned short *const *const split = nullptr,
+  void setPattern(int *ldistribution, const int p, const int sizeSplit, MPI_Comm scatterComm, unsigned short *const *const split = nullptr,
                   const unsigned short *const world = nullptr)
   {
     ldistribution_ = ldistribution;
@@ -937,9 +1505,52 @@ public:
     int rank, size;
     MPI_Comm_rank(super::p_.subdomain.getCommunicator(), &rank);
     MPI_Comm_size(super::p_.subdomain.getCommunicator(), &size);
-    char *pattern = new char[static_cast<std::size_t>(size) * size]();
-    for (unsigned short i = 0; i < super::map_.size(); ++i) pattern[rank * size + super::map_[i].first] = 1;
-    MPI_Allreduce(MPI_IN_PLACE, pattern, size * size, MPI_CHAR, MPI_SUM, super::p_.subdomain.getCommunicator());
+    std::vector<unsigned short> neighbors;
+    if (p > 1) {
+      neighbors.reserve(super::map_.size());
+      for (const pairNeighbor &neighbor : super::map_) neighbors.emplace_back(neighbor.first);
+    }
+    adjacency_.resize(super::map_.size());
+    std::vector<MPI_Request> requests(2 * neighbors.size());
+    for (unsigned short i = 0; i < neighbors.size(); ++i) {
+      adjacency_[i].resize(super::connectivity_);
+      MPI_Irecv(adjacency_[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, neighbors[i], 123, super::p_.subdomain.getCommunicator(), requests.data() + i);
+      MPI_Isend(neighbors.data(), neighbors.size(), MPI_UNSIGNED_SHORT, neighbors[i], 123, super::p_.subdomain.getCommunicator(),
+                requests.data() + neighbors.size() + i);
+    }
+    for (unsigned short i = 0; i < neighbors.size(); ++i) {
+      int        index, count;
+      MPI_Status status;
+      MPI_Waitany(neighbors.size(), requests.data(), &index, &status);
+      MPI_Get_count(&status, MPI_UNSIGNED_SHORT, &count);
+      adjacency_[index].resize(count);
+    }
+    if (!neighbors.empty()) MPI_Waitall(neighbors.size(), requests.data() + neighbors.size(), MPI_STATUSES_IGNORE);
+    // Only the edges between a worker's external neighbors are needed by its coarse main.
+    std::vector<unsigned int> edges;
+    const int                 main = getMain(rank);
+    for (unsigned short j = 0; j < neighbors.size(); ++j) {
+      if (getMain(neighbors[j]) != main) {
+        for (unsigned short k = j + 1; k < neighbors.size(); ++k)
+          if (getMain(neighbors[k]) != main && std::binary_search(adjacency_[j].cbegin(), adjacency_[j].cend(), neighbors[k]))
+            edges.emplace_back(static_cast<unsigned int>(neighbors[j]) * size + neighbors[k]);
+      }
+    }
+    const int                 count = edges.size();
+    std::vector<int>          counts(split ? sizeSplit : 0), offsets(split ? sizeSplit + 1 : 0);
+    std::vector<unsigned int> pattern;
+    if (p > 1 && sizeSplit > 1) {
+      MPI_Gather(&count, 1, MPI_INT, counts.data(), 1, MPI_INT, 0, scatterComm);
+      if (split) {
+        std::partial_sum(counts.cbegin(), counts.cend(), offsets.begin() + 1);
+        pattern.resize(offsets.back());
+      }
+      MPI_Gatherv(edges.data(), count, MPI_UNSIGNED, pattern.data(), counts.data(), offsets.data(), MPI_UNSIGNED, 0, scatterComm);
+    } else if (split && sizeSplit == 1) {
+      counts[0]  = count;
+      offsets[1] = count;
+      pattern.swap(edges);
+    }
     if (split) {
       int self = getMain(rank);
       reduction_.resize(sizeSplit);
@@ -961,7 +1572,8 @@ public:
               std::get<2>(it->second).emplace_back(split[i][(U != 1 ? 3 : 1) + j]);
             }
             for (unsigned short k = j + 1; k < split[i][0]; ++k) {
-              if (pattern[split[i][(U != 1 ? 3 : 1) + j] * size + split[i][(U != 1 ? 3 : 1) + k]] && getMain(split[i][(U != 1 ? 3 : 1) + k]) != self) {
+              if (std::binary_search(pattern.cbegin() + offsets[i], pattern.cbegin() + offsets[i + 1],
+                                     static_cast<unsigned int>(split[i][(U != 1 ? 3 : 1) + j]) * size + split[i][(U != 1 ? 3 : 1) + k])) {
                 sizes_[std::make_pair(split[i][(U != 1 ? 3 : 1) + j], split[i][(U != 1 ? 3 : 1) + k])] = (U != 1 ? world[split[i][(U != 1 ? 3 : 1) + k]]
                                                                                                                  : super::local_);
                 if (S != 'S')
@@ -982,7 +1594,6 @@ public:
         }
       }
     }
-    delete[] pattern;
   }
   void initialize(unsigned int k, K *&work, unsigned short s)
   {
@@ -1059,10 +1670,12 @@ public:
         PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, omap.size(), data, PETSC_USE_POINTER, &is));
       } else {
         imap.reserve(omap.size());
-        const underlying_type<K> *const D = super::D_;
-        std::for_each(omap.cbegin(), omap.cend(), [&D, &imap](const typename Preconditioner::integer_type &i) {
-          if (HPDDM::abs(D[i]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(i);
+        const PetscScalar *scaling;
+        PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
+        std::for_each(omap.cbegin(), omap.cend(), [&scaling, &imap](const typename Preconditioner::integer_type &i) {
+          if (HPDDM::abs(scaling[i]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(i);
         });
+        PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
         PetscCallVoid(ISCreateGeneral(PETSC_COMM_SELF, imap.size(), imap.data(), PETSC_USE_POINTER, &is));
       }
       PetscCallVoid(MatCreateSubMatrix(super::A_, is, is, MAT_INITIAL_MATRIX, &(super::C_)));
@@ -1080,39 +1693,21 @@ public:
       tmp[super::map_.size()] = tmp[super::map_.size() - 1] + omap.size() * (U == 1 ? super::local_ : info[super::map_.size() - 1]);
       for (unsigned short i = 1; i < super::map_.size(); ++i) tmp[super::map_.size() + i] = tmp[super::map_.size() + i - 1] + std::distance(tmp[i - 1], tmp[i]);
     }
-    std::vector<std::vector<int>> nmap(super::map_.size());
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      nmap[i].reserve(super::map_[i].second.size());
-      for (unsigned int j = 0; j < super::map_[i].second.size(); ++j) {
-        std::vector<int>::const_iterator it = std::lower_bound(omap.cbegin(), omap.cend(), super::map_[i].second[j]);
-        nmap[i].emplace_back(std::distance(omap.cbegin(), it));
-      }
-    }
-    K **buff = new K *[2 * super::map_.size()];
-    m        = 0;
-    for (unsigned short i = 0; i < super::map_.size(); ++i)
-      m += super::map_[i].second.size() * 2 * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
-    *buff = new K[m];
-    m     = 0;
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      const std::size_t count = super::map_[i].second.size() * (U == 1 ? super::local_ : info[i]);
-      buff[i]                 = *buff + m;
-      if (count) MPI_Irecv(buff[i], count, Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.subdomain.getCommunicator(), rq + i);
-      else rq[i] = MPI_REQUEST_NULL;
-      m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
-    }
+    std::vector<std::vector<int>> nmap;
+    K                           **buff;
+    const unsigned short          receives = prepareAccumulationBuffers<U>(omap, info, nmap, buff, rq);
+  #if !HPDDM_PETSC
     if (super::local_) Wrapper<K>::diag(super::n_, super::D_, *super::deflation_, *tmp, super::local_);
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      buff[super::map_.size() + i] = *buff + m;
-      for (unsigned short j = 0; j < super::local_; ++j)
-        Wrapper<K>::gthr(super::map_[i].second.size(), *tmp + j * super::n_, buff[super::map_.size() + i] + j * super::map_[i].second.size(),
-                         super::map_[i].second.data());
-      if (super::local_ && !super::map_[i].second.empty())
-        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 20,
-                  super::p_.subdomain.getCommunicator(), rq + super::map_.size() + i);
-      else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
-      m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
+  #else
+    if (super::local_) {
+      Mat scaled;
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, *tmp, &scaled));
+      PetscCallVoid(MatCopy(super::p_.getMat(), scaled, SAME_NONZERO_PATTERN));
+      PetscCallVoid(MatDiagonalScale(scaled, super::p_.getScalingVec(), nullptr));
+      PetscCallVoid(MatDestroy(&scaled));
     }
+  #endif
+    sendAccumulation(*tmp, super::n_, buff, rq);
   #if !HPDDM_PETSC
     Wrapper<K>::template csrmm<Wrapper<K>::I>(super::A_->sym_, &(super::n_), &(super::local_), super::A_->a_, super::A_->ia_, super::A_->ja_, *tmp,
                                               super::work_);
@@ -1123,46 +1718,46 @@ public:
       PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, super::work_, &P));
     } else {
       PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &Z));
-      PetscScalar *array;
+      PetscScalar       *array;
+      const PetscScalar *scaling;
       PetscCallVoid(MatDenseGetArrayWrite(Z, &array));
+      PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
       for (PetscInt i = 0, k = 0; i < super::n_; ++i) {
-        if (HPDDM::abs(super::D_[i]) > underlying_type<K>(HPDDM_EPS)) {
+        if (HPDDM::abs(scaling[i]) > underlying_type<K>(HPDDM_EPS)) {
           for (unsigned short j = 0; j < super::local_; ++j) array[k + j * n] = tmp[0][i + j * super::n_];
           ++k;
         }
       }
+      PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
       PetscCallVoid(MatDenseRestoreArrayWrite(Z, &array));
       PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, n, super::local_, nullptr, &P));
     }
     PetscCallVoid(MatMatMult(super::A_, Z, MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
     PetscCallVoid(MatDestroy(&Z));
     if (n != super::n_) {
-      const PetscScalar *array;
+      const PetscScalar *array, *scaling;
       PetscCallVoid(MatDenseGetArrayRead(P, &array));
+      PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
       std::fill_n(super::work_, super::local_ * super::n_, K());
       for (PetscInt i = 0, k = 0; i < super::n_; ++i) {
-        if (HPDDM::abs(super::D_[i]) > underlying_type<K>(HPDDM_EPS)) {
+        if (HPDDM::abs(scaling[i]) > underlying_type<K>(HPDDM_EPS)) {
           for (unsigned short j = 0; j < super::local_; ++j) super::work_[i + j * super::n_] = array[k + j * n];
           ++k;
         }
       }
+      PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
       PetscCallVoid(MatDenseRestoreArrayRead(P, &array));
     }
     PetscCallVoid(MatDestroy(&P));
   #endif
     std::fill_n(*tmp, super::local_ * super::n_, K());
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+    for (unsigned short i = 0; i < receives; ++i) {
       int index;
       MPI_Waitany(super::map_.size(), rq, &index, MPI_STATUS_IGNORE);
-      if (index == MPI_UNDEFINED) break;
       for (unsigned short k = 0; k < (U ? super::local_ : info[index]); ++k)
         Wrapper<K>::sctr(nmap[index].size(), buff[index] + k * nmap[index].size(), nmap[index].data(), tmp[index] + k * omap.size());
     }
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      if (super::local_ && !super::map_[i].second.empty())
-        MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.subdomain.getCommunicator(), rq + i);
-      else rq[i] = MPI_REQUEST_NULL;
-    }
+    receiveAccumulation<U, true>(info, buff, rq);
     m = std::distance(tmp[0], tmp[super::map_.size()]) / omap.size();
   #if !HPDDM_PETSC
     {
@@ -1200,9 +1795,12 @@ public:
         PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, omap.size(), m, tmp[super::map_.size()], &P));
       } else {
         imap.reserve(omap.size());
+        const PetscScalar *scaling;
+        PetscCallVoid(VecGetArrayRead(super::p_.getScalingVec(), &scaling));
         for (typename std::vector<typename Preconditioner::integer_type>::const_iterator it = omap.cbegin(); it != omap.cend(); ++it) {
-          if (HPDDM::abs(super::D_[*it]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(std::distance(omap.cbegin(), it));
+          if (HPDDM::abs(scaling[*it]) > underlying_type<K>(HPDDM_EPS)) imap.emplace_back(std::distance(omap.cbegin(), it));
         }
+        PetscCallVoid(VecRestoreArrayRead(super::p_.getScalingVec(), &scaling));
         PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, imap.size(), m, nullptr, &Z));
         PetscScalar *array;
         PetscCallVoid(MatDenseGetArray(Z, &array));
@@ -1233,8 +1831,8 @@ public:
       for (unsigned short j = 0; j < m; ++j)
         Wrapper<K>::gthr(nmap[i].size(), tmp[super::map_.size() + i] + j * omap.size(), buff[super::map_.size() + i] + j * nmap[i].size(), nmap[i].data());
       if (m && !super::map_[i].second.empty())
-        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.subdomain.getCommunicator(),
-                  rq + super::map_.size() + i);
+        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21,
+                  super::p_.subdomain.getCommunicator(), rq + super::map_.size() + i);
       else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
     }
     K *pt = overlap_.data();
@@ -1320,7 +1918,19 @@ public:
     }
     rs += super::signed_;
     delete[] accumulate;
+  #if !HPDDM_PETSC
     Wrapper<K>::diag(super::n_, super::D_, super::work_, work, super::local_);
+  #else
+    if (super::local_) {
+      Mat W, Y;
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, super::work_, &W));
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, work, &Y));
+      PetscCallVoid(MatCopy(W, Y, SAME_NONZERO_PATTERN));
+      PetscCallVoid(MatDiagonalScale(Y, super::p_.getScalingVec(), nullptr));
+      PetscCallVoid(MatDestroy(&Y));
+      PetscCallVoid(MatDestroy(&W));
+    }
+  #endif
     MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
     delete[] rq;
     delete[] *buff;
@@ -1617,11 +2227,10 @@ template <class Preconditioner, class K>
 class BddProjection : public OperatorBase<'c', Preconditioner, K> {
 private:
   #if HPDDM_PETSC
-  const Mat                       A_;
-  Mat                             C_{};
-  PC_HPDDM_Level                 *level_;
-  const std::string              &prefix_;
-  const underlying_type<K> *const D_;
+  const Mat          A_;
+  Mat                C_{};
+  PC_HPDDM_Level    *level_;
+  const std::string &prefix_;
   #endif
   using super = OperatorBase<'c', Preconditioner, K>;
   template <char S, bool U>
@@ -1686,7 +2295,7 @@ public:
   template <typename... Types>
   #if HPDDM_PETSC
   BddProjection(const Preconditioner &p, const unsigned short &c, const int &max, Mat A, PC_HPDDM_Level *level, std::string &prefix, Types...) :
-    super(p, c, max), A_(A), level_(level), prefix_(prefix), D_(p.getScaling())
+    super(p, c, max), A_(A), level_(level), prefix_(prefix)
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
@@ -1716,20 +2325,19 @@ public:
     }
   }
   template <char S, bool U, class T>
-  void applyFromNeighborMain(T *I, T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes, unsigned short localDof)
+  void applyFromNeighborMain(T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
   {
     K *const *const     in           = super::p_.subdomain.getBuffer() + super::map_.size();
     MPI_Request        *rqRecv       = super::p_.subdomain.getRq() + super::map_.size();
     const int           coefficients = offsets.rowStride();
     const unsigned int  offsetI      = super::max_;
     unsigned int *const offsetJ      = offsets.neighborColumn();
-    ignore(localDof);
-    constexpr bool isSymmetric = (S == 'S');
+    constexpr bool      isSymmetric  = (S == 'S');
     for (unsigned short k = 0; k < super::map_.size(); ++k) {
       int neighborIndex;
       MPI_Waitany(static_cast<int>(super::map_.size()), rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
-      applyFromNeighborMain<!U ? S : (isSymmetric ? 'B' : 'C'), 'C', U>(in[neighborIndex], neighborIndex, I, J, C, coefficients, offsetI, U ? nullptr : offsetJ,
-                                                                        super::workBase_, U ? nullptr : neighborSizes.get());
+      applyFromNeighborMain<!U ? S : (isSymmetric ? 'B' : 'C'), 'C', U>(in[neighborIndex], neighborIndex, static_cast<T *>(nullptr), J, C, coefficients,
+                                                                        offsetI, U ? nullptr : offsetJ, super::workBase_, U ? nullptr : neighborSizes.get());
     }
   }
     #endif
@@ -1766,10 +2374,17 @@ public:
       MPI_Irecv(mult + (U ? (displs[0][super::map_.size()] + displs[0][i]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][i]),
                 super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11,
                 super::p_.subdomain.getCommunicator(), rqMult + i);
-    K                              *tmp = new K[(U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]) * super::n_]();
-    const underlying_type<K> *const m   = super::p_.getScaling();
+    K *tmp = new K[(U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]) * super::n_]();
   #if HPDDM_PETSC
-    if (super::local_) Wrapper<K>::diag(super::n_, m, *super::deflation_, tmp, super::local_);
+    if (super::local_) {
+      Mat scaled;
+      PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, tmp, &scaled));
+      PetscCallVoid(MatCopy(super::p_.getMat(), scaled, SAME_NONZERO_PATTERN));
+      PetscCallVoid(MatDiagonalScale(scaled, super::p_.getScalingVec(), nullptr));
+      PetscCallVoid(MatDestroy(&scaled));
+    }
+  #else
+    const underlying_type<K> *const m = super::p_.getScaling();
   #endif
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       for (unsigned short k = 0; k < super::local_; ++k)
@@ -1902,6 +2517,7 @@ public:
   {
     applyFromNeighbor<S == 'B' ? 'S' : (S == 'C' ? 'G' : S), U>(in, index, arrayC, infoNeighbor);
     if (++super::consolidate_ == super::map_.size()) {
+  #if !HPDDM_PETSC
       const underlying_type<K> *const m = super::p_.getScaling();
       Wrapper<K>::diag(super::n_, m, arrayC, coefficients + (S == 'S') * super::local_);
       if (S == 'B' || S == 'C') {
@@ -1915,19 +2531,44 @@ public:
         delete[] tmp;
       } else if (S != 'S') {
         if (super::local_)
-  #if HPDDM_BDD
           Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_,
                         super::p_.getLDR(), &(Wrapper<K>::d_0), C, &coefficients);
-  #else
-          Blas<K>::gemm(&(Wrapper<K>::transc), "N", &coefficients, &(super::local_), &(super::n_), &(Wrapper<K>::d_1), arrayC, &(super::n_), *super::deflation_,
-                        &(super::n_), &(Wrapper<K>::d_0), C, &coefficients);
-  #endif
       } else
         for (unsigned short j = 0; j < super::local_; ++j) {
           int local = coefficients + super::local_ - j;
           Blas<K>::gemv(&(Wrapper<K>::transc), &(super::n_), &local, &(Wrapper<K>::d_1), arrayC + super::n_ * j, &(super::n_), super::deflation_[j], &i_1,
                         &(Wrapper<K>::d_0), C - (j * (j - 1)) / 2 + j * (coefficients + super::local_), &i_1);
         }
+  #else
+      const int      cols     = coefficients + (S == 'S') * super::local_;
+      constexpr bool relayout = (S == 'B' || S == 'C' || S == 'S');
+      if (cols && super::local_) {
+        Mat block, product;
+        PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, cols, arrayC, &block));
+        PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, cols, super::local_, relayout ? nullptr : C, &product));
+        PetscCallVoid(MatDiagonalScale(block, super::p_.getScalingVec(), nullptr));
+        PetscCallVoid(MatConjugate(block));
+        PetscCallVoid(MatTransposeMatMult(block, super::p_.getMat(), MAT_REUSE_MATRIX, PETSC_DEFAULT, &product));
+        PetscCallVoid(MatConjugate(block));
+        if (relayout) {
+          const PetscScalar *array;
+          PetscInt           lda;
+          PetscCallVoid(MatDenseGetArrayRead(product, &array));
+          PetscCallVoid(MatDenseGetLDA(product, &lda));
+          if (S != 'S') {
+            for (int i = 0; i < cols; ++i) {
+              for (unsigned short j = 0; j < super::local_; ++j)
+                C[(i / super::local_) * super::local_ * super::local_ + j * super::local_ + (i % super::local_)] = array[i + j * lda];
+            }
+          } else
+            for (unsigned short j = 0; j < super::local_; ++j)
+              std::copy_n(array + j + static_cast<std::ptrdiff_t>(j) * lda, cols - j, C - (j * (j - 1)) / 2 + static_cast<std::ptrdiff_t>(j) * cols);
+          PetscCallVoid(MatDenseRestoreArrayRead(product, &array));
+        }
+        PetscCallVoid(MatDestroy(&block));
+        PetscCallVoid(MatDestroy(&product));
+      }
+  #endif
     }
   }
   template <char S, char N, bool U, class T>

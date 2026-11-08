@@ -1602,7 +1602,7 @@ public:
 #endif
       std::fill_n(d, dof_ * bs_, Wrapper<underlying_type<K>>::d_1);
 #if HPDDM_PETSC
-      s->initialize(d);
+      s->initialize(d, s_->D);
       if (!std::is_same<PetscScalar, PetscReal>::value) {
         PetscScalar *c;
         PetscCall(VecGetArray(s_->D, &c));

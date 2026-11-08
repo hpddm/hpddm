@@ -31,15 +31,142 @@ namespace HPDDM
 {
 #if HPDDM_PETSC
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)
-inline PetscErrorCode CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::setMatrixOptions(Mat E, const char *prefix)
+inline PetscErrorCode CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::propagateRealSymmetryOptions(Mat A, Mat E)
 {
-  PetscBool spd, set;
+  PetscFunctionBeginUser;
+  if (!PetscDefined(USE_COMPLEX)) PetscCall(MatPropagateSymmetryOptions(A, E));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K)
+inline PetscErrorCode CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::setMatrixOptions(Mat A, Mat &E, const char *prefix)
+{
+  PetscBool set, sbaij = PETSC_FALSE;
+  char      type[256];
 
   PetscFunctionBeginUser;
+  /* Preserve the assembled block/triangular CSR when selecting another storage type or backend. */
+  PetscCall(PetscOptionsGetString(nullptr, prefix, "-mat_type", type, sizeof(type), &set));
+  if (PetscDefined(USE_COMPLEX)) {
+    PetscBool known, hermitian;
+
+    /* Conjugate projection preserves Hermitian, but not transpose, symmetry. */
+    PetscCall(MatIsHermitianKnown(A, &known, &hermitian));
+    if (set) PetscCall(PetscStrcmpAny(type, &sbaij, MATSBAIJ, MATSEQSBAIJ, MATMPISBAIJ, ""));
+    if (sbaij) {
+      PetscBool symmetric;
+      PetscReal norm, tol;
+
+      /* The blocked formats do not implement all numerical symmetry checks. */
+      PetscCall(MatConvert(E, MATAIJ, MAT_INPLACE_MATRIX, &E));
+      PetscCall(MatNorm(E, NORM_INFINITY, &norm));
+      tol = 100 * PETSC_MACHINE_EPSILON * norm;
+      PetscCall(MatIsSymmetric(E, tol, &symmetric));
+      if (!symmetric) {
+        PetscInt bs;
+
+        if (!known || !hermitian) {
+          Mat conjugate;
+
+          /* MPIAIJ has a transpose comparator, but no Hermitian comparator. */
+          PetscCall(MatDuplicate(E, MAT_COPY_VALUES, &conjugate));
+          PetscCall(MatConjugate(conjugate));
+          PetscCall(MatIsTranspose(E, conjugate, tol, &hermitian));
+          PetscCall(MatDestroy(&conjugate));
+        }
+        PetscCheck(hermitian, PetscObjectComm((PetscObject)E), PETSC_ERR_SUP,
+                   "SBAIJ coarse storage requires a symmetric or Hermitian coarse operator; use -%smat_type aij or baij", prefix ? prefix : "");
+        PetscCall(MatGetBlockSize(E, &bs));
+        PetscCheck(bs == 1, PetscObjectComm((PetscObject)E), PETSC_ERR_SUP,
+                   "Hermitian SBAIJ coarse storage requires block size 1, not %" PetscInt_FMT "; use -%smat_type aij or baij", bs, prefix ? prefix : "");
+        PetscCall(MatSetOption(E, MAT_HERMITIAN, PETSC_TRUE));
+      }
+      /* Override SBAIJ's default transpose symmetry for a Hermitian-only operator. */
+      PetscCall(MatSetOption(E, MAT_SYMMETRIC, symmetric));
+    } else if (known && hermitian) PetscCall(MatSetOption(E, MAT_HERMITIAN, PETSC_TRUE));
+  }
+  if (set) PetscCall(MatConvert(E, type, MAT_INPLACE_MATRIX, &E));
   PetscCall(MatSetOptionsPrefix(E, prefix));
-  PetscCall(MatIsSPDKnown(E, &set, &spd));
-  PetscCall(PetscOptionsGetBool(nullptr, prefix, "-mat_spd", &spd, &set));
-  if (set) PetscCall(MatSetOption(E, MAT_SPD, spd));
+  PetscCall(MatSetFromOptions(E));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <bool isSymmetric, class Int, class Value, class Level>
+inline PetscErrorCode CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::setupCoarseKSP(MPI_Comm comm, PetscInt localRows, PetscInt globalCoarseSize,
+                                                                                                PetscInt bs, Int *rowPtr, Int *colIdx, Value *values,
+                                                                                                bool runPreonlySetup, const std::string &prefix, Level *level,
+                                                                                                PC *pcOut)
+{
+  Mat         E, A;
+  PetscMPIInt size;
+
+  PetscFunctionBeginUser;
+  PetscCallMPI(MPI_Comm_size(comm, &size));
+  PetscCall(KSPCreate(comm, &level->ksp));
+  PetscCall(MatCreate(comm, &E));
+  PetscCall(MatSetOptionsPrefix(E, prefix.c_str()));
+  PetscCall(MatSetBlockSizes(E, bs, bs));
+  PetscCall(MatSetSizes(E, localRows, localRows, globalCoarseSize, globalCoarseSize));
+  const bool seqPreallocation = (size == 1);
+  if (isSymmetric) {
+    PetscCall(MatSetType(E, MATSBAIJ));
+    if (seqPreallocation) PetscCall(MatSeqSBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+    else PetscCall(MatMPISBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+  } else {
+    if (bs > 1) {
+      PetscCall(MatSetType(E, MATBAIJ));
+      if (seqPreallocation) PetscCall(MatSeqBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+      else PetscCall(MatMPIBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+    } else {
+      PetscCall(MatSetType(E, MATAIJ));
+      if (seqPreallocation) PetscCall(MatSeqAIJSetPreallocationCSR(E, rowPtr, colIdx, values));
+      else PetscCall(MatMPIAIJSetPreallocationCSR(E, rowPtr, colIdx, values));
+    }
+  }
+  PetscCall(KSPGetOperators(level->parent->levels[0]->ksp, nullptr, &A));
+  PetscCall(propagateRealSymmetryOptions(A, E));
+  PetscReal filter = -1.0;
+  PetscCall(PetscOptionsGetReal(nullptr, prefix.c_str(), "-mat_filter", &filter, nullptr));
+  if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
+  PetscCall(setMatrixOptions(A, E, prefix.c_str()));
+  PetscCall(KSPSetOperators(level->ksp, E, E));
+  PetscCall(KSPSetOptionsPrefix(level->ksp, prefix.c_str()));
+  PC pc = nullptr;
+  if (runPreonlySetup) {
+    PetscCall(KSPSetType(level->ksp, KSPPREONLY));
+    PetscCall(KSPGetPC(level->ksp, &pc));
+  #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
+    if (size == 1)
+  #endif
+      PetscCall(PCSetType(pc, isSymmetric ? PCCHOLESKY : PCLU));
+  }
+  if (pcOut) *pcOut = pc;
+  PetscCall(KSPSetFromOptions(level->ksp));
+  PetscCall(MatDestroy(&E));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <class Operator>
+inline PetscErrorCode CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::setupDenseCoarseKSP(Operator &v, const K *values)
+{
+  Mat          P, A;
+  PetscScalar *ptr;
+
+  PetscFunctionBeginUser;
+  PetscCall(MatCreateDense(DMatrix::communicator_, DMatrix::n_, DMatrix::n_, DMatrix::n_, DMatrix::n_, nullptr, &P));
+  PetscCall(MatDenseGetArrayWrite(P, &ptr));
+  std::copy_n(values, DMatrix::n_ * DMatrix::n_, ptr);
+  PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
+  PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
+  PetscCall(propagateRealSymmetryOptions(A, P));
+  PetscCall(setMatrixOptions(A, P, v.prefix_.c_str()));
+  PetscCall(MatViewFromOptions(P, nullptr, "-mat_view"));
+  PetscCall(KSPCreate(DMatrix::communicator_, &v.level_->ksp));
+  PetscCall(KSPSetOperators(v.level_->ksp, P, P));
+  PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
+  PetscCall(KSPSetFromOptions(v.level_->ksp));
+  PetscCall(MatDestroy(&P));
+  super::s_ = v.level_;
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
@@ -296,10 +423,35 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 {
 #if HPDDM_PETSC
   PetscFunctionBeginUser;
+  char      type[256] = {};
+  char      S;
+  PetscBool flg;
+  PetscOptionsBegin(comm, v.prefix_.c_str(), "", "");
+  PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, MATSBAIJ, type, 256, &flg));
+  if (!flg) {
+    PetscCall(PetscOptionsFList("-pc_type", "Preconditioner", "PCSetType", PCList, PCLU, type, 256, &flg));
+    PetscCall(PetscStrcmp(type, PCLU, &flg));
+    S = (flg ? 'G' : 'S');
+  } else {
+    PetscCall(PetscStrcmp(type, MATSBAIJ, &flg));
+    S = (flg ? 'S' : 'G');
+  }
+  PetscOptionsEnd();
+  #if !defined(PETSC_USE_REAL___FP16)
+  if (std::is_same<PetscScalar, PetscComplex>::value) S = 'G';
+  #endif
+  #ifdef PETSC_PCHPDDM_MAXLEVELS
+  PetscCall(v.computeBlocks(S == 'S', U == 1));
+  if (!v.p_.subdomain.isLeader()) PetscFunctionReturn(PETSC_SUCCESS);
+  #endif
 #endif
   static_assert(super::numbering_ == 'C' || super::numbering_ == 'F', "Unknown numbering");
   static_assert(Operator::pattern_ == 's' || Operator::pattern_ == 'c' || Operator::pattern_ == 'u', "Unknown pattern");
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+  constructionCommunicator<excluded != 0>(v, v.p_.subdomain.getCoarseCommunicator());
+#else
   constructionCommunicator<excluded != 0>(v, comm);
+#endif
   if (excluded > 0 && DMatrix::communicator_ != MPI_COMM_NULL) {
     int result;
     MPI_Comm_compare(v.p_.subdomain.getCommunicator(), DMatrix::communicator_, &result);
@@ -320,26 +472,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     return constructionMatrix<0, U, excluded, Operator>(v);
   }
 #else
-  char      type[256] = {};
-  char      S;
-  PetscBool flg;
-  PetscOptionsBegin(v.p_.subdomain.getCommunicator(), v.prefix_.c_str(), "", "");
-  PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, MATSBAIJ, type, 256, &flg));
-  if (!flg) {
-    PetscCall(PetscOptionsFList("-pc_type", "Preconditioner", "PCSetType", PCList, PCLU, type, 256, &flg));
-    PetscCall(PetscStrcmp(type, PCLU, &flg));
-    S = (flg ? 'G' : 'S');
-  } else {
-    PetscCall(PetscStrcmp(type, MATSBAIJ, &flg));
-    S = (flg ? 'S' : 'G');
-  }
-  PetscOptionsEnd();
-  if (
-  #if !defined(PETSC_USE_REAL___FP16)
-    !std::is_same<PetscScalar, PetscComplex>::value &&
-  #endif
-    S == 'S')
-    PetscCall(constructionMatrix<'S', U, excluded, Operator>(v));
+  if (S == 'S') PetscCall(constructionMatrix<'S', U, excluded, Operator>(v));
   else PetscCall(constructionMatrix<'G', U, excluded, Operator>(v));
   PetscFunctionReturn(PETSC_SUCCESS);
 #endif
@@ -542,7 +675,7 @@ inline
   if (rankSplit) {
     MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, nullptr, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
     if (!Operator::factorize_) {
-      v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_);
+      v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_, scatterComm_);
       if (S == 'S') {
         info[0] -= first;
         if (U) std::copy_n(sparsity.cbegin() + first, info[0], info + (U != 1 ? 3 : 1));
@@ -555,8 +688,10 @@ inline
     size       = 0;
     infoSplit  = new unsigned short *[sizeSplit_];
     *infoSplit = new unsigned short[sizeSplit_ * ((U != 1 ? 3 : 1) + v.getConnectivity()) + (U != 1) * sizeWorld_];
-    MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0,
-               scatterComm_);
+    if (sizeSplit_ == 1) std::copy_n(info, (U != 1 ? 3 : 1) + v.getConnectivity(), *infoSplit);
+    else
+      MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, *infoSplit, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, 0,
+                 scatterComm_);
     for (unsigned int i = 1; i < sizeSplit_; ++i) infoSplit[i] = *infoSplit + i * ((U != 1 ? 3 : 1) + v.getConnectivity());
     if (S == 'S' && Operator::pattern_ == 's' && Operator::factorize_) **infoSplit -= first;
     offsetIdx = new unsigned int[std::max(sizeSplit_ - 1, 2 * p)];
@@ -577,7 +712,7 @@ inline
   #ifdef HPDDM_CSR_CO
       nrow = std::accumulate(infoWorld + displs[DMatrix::rank_], infoWorld + displs[DMatrix::rank_] + sizeSplit_, 0);
   #endif
-      MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, DMatrix::communicator_);
+      if (p > 1) MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, DMatrix::communicator_);
       if (T == 1) {
         unsigned int i = (p - 1) * (sizeWorld_ / p);
         for (unsigned short k = p - 1, j = 1; k-- > 0; i -= sizeWorld_ / p, ++j) {
@@ -601,9 +736,9 @@ inline
       }
       if (excluded < 2) size += local_ * tmp + (S == 'S' ? local_ * (local_ + 1) / 2 : local_ * local_);
       if (S == 'S') info[0] -= first;
-      if (!Operator::factorize_) v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_, infoSplit, infoWorld);
+      if (!Operator::factorize_) v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_, scatterComm_, infoSplit, infoWorld);
     } else {
-      if (!Operator::factorize_) v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_, infoSplit, infoWorld);
+      if (!Operator::factorize_) v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_, scatterComm_, infoSplit, infoWorld);
       DMatrix::n_ = (sizeWorld_ - (excluded == 2 ? p : 0)) * local_;
       v.max_      = (rankWorld_ - (excluded == 2 ? rank : 0)) * local_ + (super::numbering_ == 'F');
   #ifdef HPDDM_CSR_CO
@@ -838,41 +973,11 @@ inline
   #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
     if (extended != MPI_COMM_NULL) {
       PC       pc;
-      Mat      E, A;
       PetscInt zero = 0;
       PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
-      PetscCall(KSPCreate(extended, &v.level_->ksp));
-      PetscCall(MatCreate(extended, &E));
-      PetscCall(MatSetOptionsPrefix(E, v.prefix_.c_str()));
-      if (blocked) PetscCall(MatSetBlockSizes(E, local_, local_));
-      PetscCall(MatSetFromOptions(E));
-      PetscCall(MatSetSizes(E, 0, 0, rank, rank));
-      if (S == 'S') {
-        PetscCall(MatSetType(E, MATSBAIJ));
-        PetscCall(MatMPISBAIJSetPreallocationCSR(E, !blocked ? 1 : local_, &zero, nullptr, nullptr));
-      } else {
-        if (blocked && local_ > 1) {
-          PetscCall(MatSetType(E, MATBAIJ));
-          PetscCall(MatMPIBAIJSetPreallocationCSR(E, local_, &zero, nullptr, nullptr));
-        } else {
-          PetscCall(MatSetType(E, MATAIJ));
-          PetscCall(MatMPIAIJSetPreallocationCSR(E, &zero, nullptr, nullptr));
-        }
-      }
-      PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
-      PetscCall(MatPropagateSymmetryOptions(A, E));
-      PetscReal filter = -1.0;
-      PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
-      if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
-      PetscCall(setMatrixOptions(E, v.prefix_.c_str()));
-      PetscCall(KSPSetOperators(v.level_->ksp, E, E));
-      PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
-      PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
-      PetscCall(KSPGetPC(v.level_->ksp, &pc));
-      PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
-      PetscCall(KSPSetFromOptions(v.level_->ksp));
+      PetscCall((setupCoarseKSP<S == 'S'>(extended, 0, rank, !blocked ? 1 : local_, &zero, static_cast<PetscInt *>(nullptr),
+                                          static_cast<PetscScalar *>(nullptr), true, v.prefix_, v.level_, &pc)));
       PetscCall(setMumpsBlk(pc, v.prefix_.c_str(), U ? (!blocked ? 1 : local_) : 0, nullptr));
-      PetscCall(MatDestroy(&E));
       super::s_ = v.level_;
     }
   #endif
@@ -1274,52 +1379,14 @@ inline
     #else
     std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : local_), I);
     if (Operator::factorize_) {
-      Mat E, A;
       #if !defined(PETSC_HAVE_MUMPS)
       const MPI_Comm extended = MPI_COMM_NULL;
       #endif
       if (extended != MPI_COMM_NULL) PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
-      PetscCall(KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &v.level_->ksp));
-      PetscCall(MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &E));
-      PetscCall(MatSetOptionsPrefix(E, v.prefix_.c_str()));
-      if (blocked) PetscCall(MatSetBlockSizes(E, local_, local_));
-      PetscCall(MatSetFromOptions(E));
-      PetscCall(MatSetSizes(E, nrow, nrow, rank, rank));
-      if (S == 'S') {
-        PetscCall(MatSetType(E, MATSBAIJ));
-        if (p == 1 && extended == MPI_COMM_NULL) PetscCall(MatSeqSBAIJSetPreallocationCSR(E, super::bs_, I, J, pt));
-        else PetscCall(MatMPISBAIJSetPreallocationCSR(E, super::bs_, I, J, pt));
-      } else {
-        if (super::bs_ > 1) {
-          PetscCall(MatSetType(E, MATBAIJ));
-          if (p == 1 && extended == MPI_COMM_NULL) PetscCall(MatSeqBAIJSetPreallocationCSR(E, super::bs_, I, J, pt));
-          else PetscCall(MatMPIBAIJSetPreallocationCSR(E, super::bs_, I, J, pt));
-        } else {
-          PetscCall(MatSetType(E, MATAIJ));
-          if (p == 1 && extended == MPI_COMM_NULL) PetscCall(MatSeqAIJSetPreallocationCSR(E, I, J, pt));
-          else PetscCall(MatMPIAIJSetPreallocationCSR(E, I, J, pt));
-        }
-      }
-      PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
-      PetscCall(MatPropagateSymmetryOptions(A, E));
-      PetscReal filter = -1.0;
-      PetscCall(PetscOptionsGetReal(nullptr, v.prefix_.c_str(), "-mat_filter", &filter, nullptr));
-      if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
-      PetscCall(setMatrixOptions(E, v.prefix_.c_str()));
-      PetscCall(KSPSetOperators(v.level_->ksp, E, E));
-      PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
       PC pc = nullptr;
-      if (coarse) {
-        PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
-        PetscCall(KSPGetPC(v.level_->ksp, &pc));
-      #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
-        if (p == 1)
-      #endif
-          PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
-      }
-      PetscCall(KSPSetFromOptions(v.level_->ksp));
+      PetscCall((setupCoarseKSP<S == 'S'>(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, nrow, rank, super::bs_, I, J, pt, coarse, v.prefix_,
+                                          v.level_, &pc)));
       PetscCall(setMumpsBlk(pc, v.prefix_.c_str(), U ? super::bs_ : 0, DMatrix::rank_ == 0 ? infoWorld : nullptr));
-      PetscCall(MatDestroy(&E));
       super::s_ = v.level_;
     }
     if (!coarse) super::template numfact<S, Operator::factorize_>(nrow / (!blocked ? 1 : local_), I, loc2glob, J, pt, neighbors);
@@ -1599,24 +1666,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     #ifdef HPDDM_CONTIGUOUS
     delete[] loc2glob;
     #endif
-    Mat          P, A;
-    PetscScalar *ptr;
-    PetscCall(MatCreateDense(DMatrix::communicator_, DMatrix::n_, DMatrix::n_, DMatrix::n_, DMatrix::n_, nullptr, &P));
-    PetscCall(MatDenseGetArrayWrite(P, &ptr));
-    std::copy_n(E, DMatrix::n_ * DMatrix::n_, ptr);
-    PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
-    PetscCall(MatSetOptionsPrefix(P, v.prefix_.c_str()));
-    PetscCall(MatSetFromOptions(P));
-    PetscCall(MatViewFromOptions(P, nullptr, "-mat_view"));
-    PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
-    PetscCall(MatPropagateSymmetryOptions(A, P));
-    PetscCall(KSPCreate(DMatrix::communicator_, &v.level_->ksp));
-    PetscCall(setMatrixOptions(P, v.prefix_.c_str()));
-    PetscCall(KSPSetOperators(v.level_->ksp, P, P));
-    PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
-    PetscCall(KSPSetFromOptions(v.level_->ksp));
-    PetscCall(MatDestroy(&P));
-    super::s_ = v.level_;
+    PetscCall(setupDenseCoarseKSP(v, E));
   #endif
   }
   finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
@@ -2054,20 +2104,25 @@ inline std::vector<CoarseInfo> gatherCoarseInfo(const bool isMain, const int siz
 }
 template <bool uniform>
 inline NeighborSizes gatherNeighborSizes(const std::vector<unsigned short> &sparsity, const unsigned short local,
-                                         const unsigned short skippedLowerNeighborCount, const MPI_Comm &comm)
+                                         const unsigned short skippedLowerNeighborCount, const MPI_Comm &comm, unsigned short *cached, bool isMain,
+                                         const int *ldistribution, unsigned short nMains)
 {
-  NeighborSizes neighborSizes(skippedLowerNeighborCount);
-  if (!uniform) {
+  NeighborSizes neighborSizes(skippedLowerNeighborCount, cached);
+  if (!uniform && !cached) {
     const unsigned short totalNeighborCount = sparsity.size();
     neighborSizes.allocate(totalNeighborCount);
     std::vector<MPI_Request> infoRequests;
     infoRequests.reserve(2 * static_cast<std::size_t>(totalNeighborCount));
     MPI_Request rq;
     for (unsigned short i = 0; i < totalNeighborCount; ++i) {
-      MPI_Isend(&local, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, comm, &rq);
-      infoRequests.emplace_back(rq);
-      MPI_Irecv(neighborSizes.get() + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, comm, &rq);
-      infoRequests.emplace_back(rq);
+      if (!std::binary_search(ldistribution, ldistribution + nMains, sparsity[i])) {
+        MPI_Isend(&local, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, comm, &rq);
+        infoRequests.emplace_back(rq);
+      }
+      if (!isMain) {
+        MPI_Irecv(neighborSizes.get() + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, comm, &rq);
+        infoRequests.emplace_back(rq);
+      }
     }
     MPI_Waitall(infoRequests.size(), infoRequests.data(), MPI_STATUSES_IGNORE);
   }
@@ -2107,60 +2162,6 @@ inline void populateSendLists(std::map<unsigned short, std::vector<int>> &send, 
     }
   }
 }
-template <bool isSymmetric, class Int, class Value>
-static inline PetscErrorCode setupCoarseKSP(MPI_Comm comm, PetscInt localRows, PetscInt globalCoarseSize, PetscInt bs, Int *rowPtr, Int *colIdx, Value *values,
-                                            bool uniform, unsigned short local, unsigned short nMains, bool extendedActive, bool runPreonlySetup,
-                                            bool guardByUniform, bool guardByNMains, const std::string &prefix, PC_HPDDM_Level *level, PC *pcOut = nullptr)
-{
-  PetscFunctionBeginUser;
-  Mat E, A;
-  PetscCall(KSPCreate(comm, &level->ksp));
-  PetscCall(MatCreate(comm, &E));
-  PetscCall(MatSetOptionsPrefix(E, prefix.c_str()));
-  if (uniform) PetscCall(MatSetBlockSizes(E, local, local));
-  PetscCall(MatSetFromOptions(E));
-  PetscCall(MatSetSizes(E, localRows, localRows, globalCoarseSize, globalCoarseSize));
-  const bool seqPreallocation = (nMains == 1 && !extendedActive);
-  if (isSymmetric) {
-    PetscCall(MatSetType(E, MATSBAIJ));
-    if (seqPreallocation) PetscCall(MatSeqSBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
-    else PetscCall(MatMPISBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
-  } else {
-    if (bs > 1) {
-      PetscCall(MatSetType(E, MATBAIJ));
-      if (seqPreallocation) PetscCall(MatSeqBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
-      else PetscCall(MatMPIBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
-    } else {
-      PetscCall(MatSetType(E, MATAIJ));
-      if (seqPreallocation) PetscCall(MatSeqAIJSetPreallocationCSR(E, rowPtr, colIdx, values));
-      else PetscCall(MatMPIAIJSetPreallocationCSR(E, rowPtr, colIdx, values));
-    }
-  }
-  PetscCall(KSPGetOperators(level->parent->levels[0]->ksp, nullptr, &A));
-  PetscCall(MatPropagateSymmetryOptions(A, E));
-  PetscReal filter = -1.0;
-  PetscCall(PetscOptionsGetReal(nullptr, prefix.c_str(), "-mat_filter", &filter, nullptr));
-  if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
-  PetscCall(KSPSetOperators(level->ksp, E, E));
-  PetscCall(KSPSetOptionsPrefix(level->ksp, prefix.c_str()));
-  PC pc = nullptr;
-  if (runPreonlySetup) {
-    PetscCall(KSPSetType(level->ksp, KSPPREONLY));
-    PetscCall(KSPGetPC(level->ksp, &pc));
-    if (!guardByUniform || uniform) {
-  #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
-      if (!guardByNMains || nMains == 1)
-  #else
-      ignore(guardByNMains);
-  #endif
-        PetscCall(PCSetType(pc, isSymmetric ? PCCHOLESKY : PCLU));
-    }
-  }
-  if (pcOut) *pcOut = pc;
-  PetscCall(KSPSetFromOptions(level->ksp));
-  PetscCall(MatDestroy(&E));
-  PetscFunctionReturn(PETSC_SUCCESS);
-}
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char S, unsigned short U, unsigned short excluded, class Operator>
 inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
   HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(std::enable_if_t<Operator::pattern_ != 'u', Operator> &op)
@@ -2173,9 +2174,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   const std::vector<unsigned short> &sparsity           = op.getPattern();
   const unsigned short               totalNeighborCount = sparsity.size();
   int                                worldRank;
-  int                                globalCoarseSize = 0;
-  constexpr bool                     isSymmetric      = (S == 'S');
-  MPI_Comm_rank(op.p_.subdomain.getCommunicator(), &worldRank);
+  int                                globalCoarseSize   = 0;
+  constexpr bool                     isSymmetric        = (S == 'S');
+  const MPI_Comm                    &coarseCommunicator = op.p_.subdomain.getCoarseCommunicator();
+  MPI_Comm_rank(coarseCommunicator, &worldRank);
   const unsigned short skippedLowerNeighborCount = (isSymmetric
                                                       ? std::distance(sparsity.cbegin(), std::upper_bound(sparsity.cbegin(), sparsity.cend(), worldRank))
                                                       : 0);
@@ -2197,41 +2199,47 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscInt n = 1;
     PetscCall(PetscOptionsGetInt(nullptr, op.prefix_.c_str(), "-mat_mumps_use_omp_threads", &n, nullptr));
     if (n > 1) {
-      PetscCheck(n <= sizeWorld_ / nMains, op.p_.subdomain.getCommunicator(), PETSC_ERR_ARG_OUTOFRANGE,
+      PetscCheck(n <= sizeWorld_ / nMains, coarseCommunicator, PETSC_ERR_ARG_OUTOFRANGE,
                  "-%smat_mumps_use_omp_threads %" PetscInt_FMT " must not exceed the number of subdomains per coarse process %d", op.prefix_.c_str(), n,
                  sizeWorld_ / nMains);
       int *group = new int[static_cast<std::size_t>(n) * nMains];
       for (unsigned short i = 0; i < nMains; ++i)
         std::iota(group + static_cast<std::ptrdiff_t>(n) * i, group + static_cast<std::ptrdiff_t>(n) * (i + 1), DMatrix::ldistribution_[i]);
       MPI_Group world, main;
-      MPI_Comm_group(op.p_.subdomain.getCommunicator(), &world);
+      MPI_Comm_group(coarseCommunicator, &world);
       MPI_Group_incl(world, n * nMains, group, &main);
       delete[] group;
-      MPI_Comm_create(op.p_.subdomain.getCommunicator(), main, &extended);
+      MPI_Comm_create(coarseCommunicator, main, &extended);
       MPI_Group_free(&world);
       MPI_Group_free(&main);
     }
   }
   #endif
-  const NeighborSizes neighborSizes = gatherNeighborSizes<uniform>(sparsity, local_, skippedLowerNeighborCount, op.p_.subdomain.getCommunicator());
+  unsigned short *const cachedNeighborSizes = op.getNeighborSizes();
+  const NeighborSizes neighborSizes = gatherNeighborSizes<uniform>(sparsity, local_, skippedLowerNeighborCount, coarseCommunicator, cachedNeighborSizes, isMain,
+                                                                   DMatrix::ldistribution_, nMains);
   unsigned int        coupledDof    = 0;
   if (uniform) coupledDof = local_ * neighborCount;
-  else {
+  else if (cachedNeighborSizes || !isMain)
     for (unsigned short i = skippedLowerNeighborCount; i < totalNeighborCount; ++i) coupledDof += neighborSizes.get()[i];
-  }
   std::vector<CoarseInfo> splitInfo = gatherCoarseInfo<uniform, Operator::factorize_>(isMain, sizeSplit_, infoLength, scatterComm_, skippedLowerNeighborCount,
                                                                                       sparsity, local_, coupledDof);
+  const std::unique_ptr<unsigned short[]> worldDofOwner = gatherWorldDof<uniform>(isMain, DMatrix::rank_, nMains, sizeWorld_, sizeSplit_, splitInfo,
+                                                                                  DMatrix::communicator_);
+  unsigned short                         *worldDof      = worldDofOwner.get();
+  if (!uniform && !cachedNeighborSizes && isMain) {
+    for (unsigned short i = 0; i < totalNeighborCount; ++i) neighborSizes.get()[i] = worldDof[sparsity[i]];
+    for (unsigned short i = skippedLowerNeighborCount; i < totalNeighborCount; ++i) coupledDof += neighborSizes.get()[i];
+    splitInfo[0].coupledDof() = coupledDof;
+  }
   std::vector<unsigned short *> splitInfoRows;
   if (isMain && (!Operator::factorize_ || !uniform)) {
     splitInfoRows.resize(splitInfo.size());
     std::transform(splitInfo.begin(), splitInfo.end(), splitInfoRows.begin(), [](const CoarseInfo &info) { return info.data(); });
   }
-  const std::unique_ptr<unsigned short[]> worldDofOwner = gatherWorldDof<uniform>(isMain, DMatrix::rank_, nMains, sizeWorld_, sizeSplit_, splitInfo,
-                                                                                  DMatrix::communicator_);
-  unsigned short                         *worldDof      = worldDofOwner.get();
   if (!Operator::factorize_) {
-    if (!isMain) op.template setPattern<S, uniform>(DMatrix::ldistribution_, nMains, sizeSplit_);
-    else op.template setPattern<S, uniform>(DMatrix::ldistribution_, nMains, sizeSplit_, splitInfoRows.data(), worldDof);
+    if (!isMain) op.template setPattern<S, uniform>(DMatrix::ldistribution_, nMains, sizeSplit_, scatterComm_);
+    else op.template setPattern<S, uniform>(DMatrix::ldistribution_, nMains, sizeSplit_, scatterComm_, splitInfoRows.data(), worldDof);
   }
   CoarseCSR<K, integer_type> coarseCSR;
   coarseCSR.template initialize<isSymmetric, uniform>(isMain, sizeSplit_, splitInfo, local_, coupledDof);
@@ -2242,15 +2250,14 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     values = coarseCSR.values();
   } else values = new K[coarseCSR.count()];
 
-  const vectorNeighbor &neighborMap = op.p_.subdomain.getMap();
-  const CoarseOffsets   offsets = CoarseOffsets::create<isSymmetric, uniform, Operator::pattern_>(isMain, sparsity, neighborCount, skippedLowerNeighborCount,
-                                                                                                  neighborSizes, rankWorld_, local_, worldDof, sizeSplit_,
-                                                                                                  splitInfo);
-  op.initialize(op.p_.subdomain.getDof() *
-                  (uniform || neighborCount == 0
-                     ? local_
-                     : std::max(static_cast<unsigned short>(local_), *std::max_element(neighborSizes.upper(), neighborSizes.get() + sparsity.size()))),
-                !isSymmetric ? neighborCount : skippedLowerNeighborCount, values, offsets.selfBlockOffset(), offsets.rowStride());
+  const vectorNeighbor &neighborMap = op.p_.subdomain.getCoarseMap();
+  const CoarseOffsets   offsets    = CoarseOffsets::create<isSymmetric, uniform, Operator::pattern_>(isMain, sparsity, neighborCount, skippedLowerNeighborCount,
+                                                                                                     neighborSizes, rankWorld_, local_, worldDof, sizeSplit_,
+                                                                                                     splitInfo);
+  const unsigned short  maxColumns = uniform || neighborCount == 0 ? static_cast<unsigned short>(local_)
+                                                                   : std::max(static_cast<unsigned short>(local_),
+                                                                              *std::max_element(neighborSizes.upper(), neighborSizes.get() + sparsity.size()));
+  op.initialize(maxColumns, !isSymmetric ? neighborCount : skippedLowerNeighborCount, values, offsets.selfBlockOffset(), offsets.rowStride());
   op.template applyToNeighbor<S, uniform>(neighborSizes.get());
   if (!isMain && (uniform || local_)) op.template assembleForMain<S, uniform>(values, offsets, neighborSizes);
 
@@ -2301,8 +2308,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                                                                                     skippedLowerNeighborCount, neighborSizes);
     populateSendLists<isSymmetric, uniform, Operator::pattern_>(super::send_, coarseCSR, isCoarseLevel, splitInfo, sizeSplit_, offsets.splitRow(),
                                                                 firstWorldRank, op.max_, local_, DMatrix::rank_);
-    if (uniform || local_)
-      op.template applyFromNeighborMain<S, uniform>(coarseCSR.rowPtr(), coarseCSR.colIdx(), unscaledValues, offsets, neighborSizes, local_);
+    if (uniform || local_) op.template applyFromNeighborMain<S, uniform>(coarseCSR.colIdx(), unscaledValues, offsets, neighborSizes);
 
     std::partial_sum(coarseCSR.rowPtr(), coarseCSR.rowPtr() + 1 + localRows / (!uniform ? 1 : local_), coarseCSR.rowPtr());
     downscaled_type<K> *downscaledValues = reinterpret_cast<downscaled_type<K> *>(coarseCSR.values());
@@ -2334,42 +2340,8 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       if (extended != MPI_COMM_NULL) PetscCallMPI(MPI_Bcast(&globalCoarseSize, 1, MPI_INT, 0, extended));
       PC pc = nullptr;
       PetscCall((setupCoarseKSP<isSymmetric>(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, localRows, globalCoarseSize, super::bs_,
-                                             coarseCSR.rowPtr(), coarseCSR.colIdx(), downscaledValues, uniform, local_, nMains, extended != MPI_COMM_NULL,
-                                             isCoarseLevel, false, true, op.prefix_, op.level_, &pc)));
-  #if defined(PETSC_HAVE_MUMPS) && PETSC_VERSION_GE(3, 24, 0) && defined(PETSC_PKG_MUMPS_VERSION_GE)
-    #if PETSC_PKG_MUMPS_VERSION_GE(5, 8, 1)
-      if (pc) {
-        PetscInt n = 0;
-        PetscCall(PetscOptionsGetInt(nullptr, op.prefix_.c_str(), "-mat_mumps_icntl_15", &n, nullptr));
-        if (n == 1) {
-          PetscBool flg;
-          PetscCall(PetscObjectTypeCompareAny((PetscObject)pc, &flg, PCLU, PCCHOLESKY, ""));
-          if (flg) {
-            MatSolverType type;
-            PetscCall(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
-            PetscCall(PCSetFromOptions(pc));
-            PetscCall(PCFactorSetUpMatSolverType(pc));
-            PetscCall(PCFactorGetMatSolverType(pc, &type));
-            PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
-            if (flg) {
-              Mat       A;
-              PetscInt *blkptr;
-              PetscCall(PCFactorGetMatrix(pc, &A));
-              if (U)
-                PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + op.prefix_ + "mat_mumps_icntl_15").c_str(), std::to_string(-super::bs_).c_str()));
-              else if (DMatrix::rank_ == 0) {
-                PetscCall(PetscMalloc1(sizeWorld_ + 1, &blkptr));
-                blkptr[0] = 1;
-                for (unsigned int i = 0; i < sizeWorld_; ++i) blkptr[i + 1] = blkptr[i] + worldDof[i];
-                PetscCall(MatMumpsSetBlk(A, sizeWorld_, nullptr, blkptr));
-                PetscCall(PetscFree(blkptr));
-              }
-            }
-          }
-        }
-      }
-    #endif
-  #endif
+                                             coarseCSR.rowPtr(), coarseCSR.colIdx(), downscaledValues, isCoarseLevel, op.prefix_, op.level_, &pc)));
+      PetscCall(setMumpsBlk(pc, op.prefix_.c_str(), U ? super::bs_ : 0, DMatrix::rank_ == 0 ? worldDof : nullptr));
       super::s_ = op.level_;
     }
     if (!isCoarseLevel) {
@@ -2385,9 +2357,11 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   #if defined(PETSC_HAVE_MUMPS)
   if (!isMain && extended != MPI_COMM_NULL) {
     PetscInt zero = 0;
+    PC       pc   = nullptr;
     PetscCallMPI(MPI_Bcast(&globalCoarseSize, 1, MPI_INT, 0, extended));
     PetscCall((setupCoarseKSP<isSymmetric>(extended, static_cast<PetscInt>(0), globalCoarseSize, !uniform ? 1 : local_, &zero, static_cast<PetscInt *>(nullptr),
-                                           static_cast<PetscScalar *>(nullptr), uniform, local_, nMains, true, true, false, false, op.prefix_, op.level_)));
+                                           static_cast<PetscScalar *>(nullptr), true, op.prefix_, op.level_, &pc)));
+    PetscCall(setMumpsBlk(pc, op.prefix_.c_str(), U ? (!uniform ? 1 : local_) : 0, nullptr));
     super::s_ = op.level_;
   }
   #endif
@@ -2445,23 +2419,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     if (U == 0) DMatrix::displs_ = &rankWorld_;
   } else {
     const K *const E = v.p_.getOperator();
-    Mat            P, A;
-    PetscScalar   *ptr;
-    PetscCall(MatCreateDense(DMatrix::communicator_, DMatrix::n_, DMatrix::n_, DMatrix::n_, DMatrix::n_, nullptr, &P));
-    PetscCall(MatDenseGetArrayWrite(P, &ptr));
-    std::copy_n(E, DMatrix::n_ * DMatrix::n_, ptr);
-    PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
-    PetscCall(MatSetOptionsPrefix(P, v.prefix_.c_str()));
-    PetscCall(MatSetFromOptions(P));
-    PetscCall(MatViewFromOptions(P, NULL, "-mat_view"));
-    PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
-    PetscCall(MatPropagateSymmetryOptions(A, P));
-    PetscCall(KSPCreate(DMatrix::communicator_, &v.level_->ksp));
-    PetscCall(KSPSetOperators(v.level_->ksp, P, P));
-    PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
-    PetscCall(KSPSetFromOptions(v.level_->ksp));
-    PetscCall(MatDestroy(&P));
-    super::s_ = v.level_;
+    PetscCall(setupDenseCoarseKSP(v, E));
   }
   finishSetup<0, U, false, false>(infoWorld, rankSplit, p, infoSplit, rank);
   if (rankSplit == 0) {
