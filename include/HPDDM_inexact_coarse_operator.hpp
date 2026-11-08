@@ -1574,8 +1574,8 @@ public:
       IS          is;
       PetscCall(KSPGetOptionsPrefix(s_->ksp, &prefix));
       PetscCall(MatGetLocalSize(overlapDirichlet, &m, nullptr));
-      static_cast<Subdomain<K> *>(s)->initialize(nullptr, o, r, &(DMatrix::communicator_));
-      s->setDof(m);
+      s->subdomain.initialize(nullptr, o, r, &(DMatrix::communicator_));
+      s->subdomain.setDof(m);
       PetscCall(VecCreateMPI(PETSC_COMM_SELF, m, PETSC_DETERMINE, &s_->D));
       {
         Mat P;

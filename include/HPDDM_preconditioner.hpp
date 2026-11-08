@@ -65,7 +65,18 @@ template <
   class CoarseOperator,
 #endif
   class K>
-class Preconditioner : public Subdomain<K> {
+class Preconditioner
+#ifndef PETSC_PCHPDDM_MAXLEVELS
+  :
+  public Subdomain<K>
+#endif
+{
+public:
+#ifndef PETSC_PCHPDDM_MAXLEVELS
+  Subdomain<K> &subdomain;
+#else
+  Subdomain<K> subdomain;
+#endif
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || HPDDM_PETSC
 private:
   #if defined(PETSC_HAVE_MPIUNI) || defined(__MINGW32__)
@@ -128,14 +139,18 @@ protected:
     #endif
                                                 Types &...args)
   {
+    #ifdef PETSC_PCHPDDM_MAXLEVELS
+    static_assert(std::is_same<Prcndtnr, HPDDM::Schwarz<K>>::value || std::is_same<typename Prcndtnr::super, HPDDM::Schwarz<K>>::value, "Wrong preconditioner");
+    #else
     static_assert(std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || std::is_same<typename Prcndtnr::super::super &, decltype(*this)>::value,
                   "Wrong preconditioner");
+    #endif
     typename CoarseOperator::return_type ret{};
     CoarseOperator                     *&co = front(args...);
     constexpr unsigned short N = std::is_same<typename Prcndtnr::super &, decltype(*this)>::value || hpddm_method_id<typename Prcndtnr::super>::value == 1 ? 3
                                                                                                                                                            : 4;
     unsigned short           allUniform[N + 1];
-    allUniform[0] = Subdomain<K>::map_.size();
+    allUniform[0] = subdomain.getMap().size();
     #if !HPDDM_PETSC
     Option              &opt    = *Option::get();
     const std::string    prefix = opt.getPrefix().size() > 0 ? "" : super::prefix();
@@ -320,8 +335,16 @@ public:
   };
   CoarseCorrection *cc_{};
   #endif
-  Preconditioner()                       = default;
-  Preconditioner(const Preconditioner &) = delete;
+  Preconditioner() :
+  #ifndef PETSC_PCHPDDM_MAXLEVELS
+    subdomain(static_cast<Subdomain<K> &>(*this))
+  #else
+    subdomain()
+  #endif
+  {
+  }
+  Preconditioner(const Preconditioner &)            = delete;
+  Preconditioner &operator=(const Preconditioner &) = delete;
   #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
   ~Preconditioner() { dtor(); }
   #else
@@ -376,14 +399,16 @@ public:
   const int *getAddrLocal() const { return co_ ? co_->getAddrLocal() : &i_0; }
 #else
 protected:
-  Preconditioner() = default;
+  Preconditioner() : subdomain(static_cast<Subdomain<K> &>(*this)) { }
 
 public:
   Preconditioner(const Preconditioner &)            = delete;
   Preconditioner &operator=(const Preconditioner &) = delete;
 #endif
 protected:
-  explicit Preconditioner(const Subdomain<K> &s) : super(s) { }
+#ifndef PETSC_PCHPDDM_MAXLEVELS
+  explicit Preconditioner(const Subdomain<K> &s) : super(s), subdomain(static_cast<Subdomain<K> &>(*this)) { }
+#endif
 #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD || (HPDDM_PETSC && defined(PETSC_PCHPDDM_MAXLEVELS))
   void dtor()
   {
@@ -413,7 +438,10 @@ protected:
 public:
   /* Typedef: super
          *  Type of the immediate parent class <Subdomain>. */
+#ifndef PETSC_PCHPDDM_MAXLEVELS
   using super = Subdomain<K>;
+#endif
+  using integer_type = typename Subdomain<K>::integer_type;
 #if HPDDM_INEXACT_COARSE_OPERATOR
   template <class Preconditioner, class T>
   friend class MatrixAccumulation;

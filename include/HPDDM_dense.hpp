@@ -180,13 +180,14 @@ public:
 #endif
         S, K> *const A_;
       const K *const E_;
+      Subdomain<K>  &subdomain;
       ClassWithPtr(const Dense<
 #if HPDDM_DENSE
                      Solver, CoarseSolver,
 #endif
                      S, K> *const A,
                    const K *const E) :
-        A_(A), E_(E)
+        A_(A), E_(E), subdomain(A_->subdomain)
       {
       }
       const MPI_Comm          &getCommunicator() const { return A_->getCommunicator(); }

@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <cassert>
 #include "HPDDM_coarse_operator.hpp"
 
 namespace HPDDM
@@ -199,7 +200,6 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
     MPI_Group_free(&world);
   }
 }
-
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <bool U, typename DMatrix::Distribution D, bool excluded>
 inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionCollective(const unsigned short *info, unsigned short p,
                                                                                               const unsigned short *infoSplit)
@@ -227,7 +227,6 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
     *DMatrix::gatherCounts_ = local_;
   }
 }
-
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char T, bool U, bool excluded>
 inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMap(unsigned short p, const unsigned short *info)
 {
@@ -291,7 +290,6 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construct
     }
   }
 }
-
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <unsigned short U, unsigned short excluded, class Operator>
 inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::construction(
   Operator &&v, const MPI_Comm &comm)
@@ -304,7 +302,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   constructionCommunicator<excluded != 0>(v, comm);
   if (excluded > 0 && DMatrix::communicator_ != MPI_COMM_NULL) {
     int result;
-    MPI_Comm_compare(v.p_.getCommunicator(), DMatrix::communicator_, &result);
+    MPI_Comm_compare(v.p_.subdomain.getCommunicator(), DMatrix::communicator_, &result);
     if (result != MPI_CONGRUENT) std::cerr << "The communicators for the coarse operator don't match those of the domain decomposition" << std::endl;
   }
   if (Operator::pattern_ == 'c') v.adjustConnectivity(scatterComm_);
@@ -325,7 +323,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   char      type[256] = {};
   char      S;
   PetscBool flg;
-  PetscOptionsBegin(v.p_.getCommunicator(), v.prefix_.c_str(), "", "");
+  PetscOptionsBegin(v.p_.subdomain.getCommunicator(), v.prefix_.c_str(), "", "");
   PetscCall(PetscOptionsFList("-mat_type", "Matrix type", "MatSetType", MatList, MATSBAIJ, type, 256, &flg));
   if (!flg) {
     PetscCall(PetscOptionsFList("-pc_type", "Preconditioner", "PCSetType", PCList, PCLU, type, 256, &flg));
@@ -346,45 +344,46 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   PetscFunctionReturn(PETSC_SUCCESS);
 #endif
 }
-
+#ifndef PETSC_PCHPDDM_MAXLEVELS
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
                                                       T
-#else
+  #else
                                                       S
-#endif
+  #endif
                                                     ,
                                                     unsigned short U, unsigned short excluded, class Operator>
-inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
-  HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(std::enable_if_t<Operator::pattern_ != 'u', Operator> &v)
+inline
+  typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(
+    std::enable_if_t<Operator::pattern_ != 'u', Operator> &v)
 {
-#if HPDDM_PETSC
+  #if HPDDM_PETSC
   PetscFunctionBeginUser;
-#endif
+  #endif
   unsigned short *const              info     = new unsigned short[(U != 1 ? 3 : 1) + v.getConnectivity()]();
   const std::vector<unsigned short> &sparsity = v.getPattern();
   info[0]                                     = sparsity.size(); // number of intersections
   int rank;
-  MPI_Comm_rank(v.p_.getCommunicator(), &rank);
+  MPI_Comm_rank(v.p_.subdomain.getCommunicator(), &rank);
   const unsigned short first = (S == 'S' ? std::distance(sparsity.cbegin(), std::upper_bound(sparsity.cbegin(), sparsity.cend(), rank)) : 0);
   int                  rankSplit;
   MPI_Comm_rank(scatterComm_, &rankSplit);
   unsigned short *infoNeighbor;
 
   unsigned int size = 0;
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
   using integer_type = int;
-#else
+  #else
   using integer_type = PetscInt;
-#endif
+  #endif
   integer_type *I = nullptr;
   integer_type *J = nullptr;
   K            *C = nullptr;
 
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
   const Option        &opt = *Option::get();
   const unsigned short p   = opt.val<unsigned short>("p", 1);
-#else
+  #else
   constexpr unsigned short T = 0;
   unsigned short           p;
   const bool               coarse = (v.prefix_.substr(v.prefix_.size() - 7).compare("coarse_") == 0);
@@ -393,40 +392,40 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
     p = n;
   }
-  #if defined(PETSC_HAVE_MUMPS)
+    #if defined(PETSC_HAVE_MUMPS)
   MPI_Comm extended = MPI_COMM_NULL;
   if (Operator::factorize_ && coarse) {
     PetscInt n = 1;
     PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-mat_mumps_use_omp_threads", &n, nullptr));
     if (n > 1) {
-      PetscCheck(n <= sizeWorld_ / p, v.p_.getCommunicator(), PETSC_ERR_ARG_OUTOFRANGE,
+      PetscCheck(n <= sizeWorld_ / p, v.p_.subdomain.getCommunicator(), PETSC_ERR_ARG_OUTOFRANGE,
                  "-%smat_mumps_use_omp_threads %" PetscInt_FMT " must not exceed the number of subdomains per coarse process %d", v.prefix_.c_str(), n,
                  sizeWorld_ / p);
       int *group = new int[static_cast<std::size_t>(n) * p];
       for (unsigned short i = 0; i < p; ++i)
         std::iota(group + static_cast<std::ptrdiff_t>(n) * i, group + static_cast<std::ptrdiff_t>(n) * (i + 1), DMatrix::ldistribution_[i]);
       MPI_Group world, main;
-      MPI_Comm_group(v.p_.getCommunicator(), &world);
+      MPI_Comm_group(v.p_.subdomain.getCommunicator(), &world);
       MPI_Group_incl(world, n * p, group, &main);
       delete[] group;
-      MPI_Comm_create(v.p_.getCommunicator(), main, &extended);
+      MPI_Comm_create(v.p_.subdomain.getCommunicator(), main, &extended);
       MPI_Group_free(&world);
       MPI_Group_free(&main);
     }
   }
+    #endif
   #endif
-#endif
   constexpr bool blocked =
-#if defined(DMKL_PARDISO) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMKL_PARDISO) || defined(DELEMENTAL) || HPDDM_INEXACT_COARSE_OPERATOR
     (U == 1 && (Operator::pattern_ == 's' || (Operator::pattern_ == 'c' && HPDDM_PETSC)));
-#else
+  #else
     false;
-#endif
-#if !HPDDM_PETSC
+  #endif
+  #if !HPDDM_PETSC
   unsigned short treeDimension = opt.val<unsigned short>("assembly_hierarchy")
-#else
+  #else
   unsigned short treeDimension = 0
-#endif
+  #endif
     ,
                  currentHeight = 0;
   if (treeDimension <= 1 || treeDimension >= sizeSplit_) treeDimension = 0;
@@ -436,7 +435,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     msg = new std::vector<std::array<int, 3>>();
     msg->reserve(treeHeight);
     int accumulate = 0, size;
-    MPI_Comm_size(v.p_.getCommunicator(), &size);
+    MPI_Comm_size(v.p_.subdomain.getCommunicator(), &size);
     int full = v.max_;
     if (S != 'S') v.max_ = ((v.max_ & 4095) + 1) * pow(v.max_ >> 12, 2);
     for (unsigned short i = rankSplit; (i % treeDimension == 0) && currentHeight < treeHeight; i /= treeDimension) {
@@ -467,24 +466,24 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       if (T != 2) {
         for (unsigned short i = 0; i < info[0]; ++i)
           if (!(T == 1 && sparsity[i] < p) && !(T == 0 && (sparsity[i] % (sizeWorld_ / p) == 0) && sparsity[i] < p * (sizeWorld_ / p))) {
-            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
             rqInfo.emplace_back(rq);
           }
       } else {
         for (unsigned short i = 0; i < info[0]; ++i)
           if (!std::binary_search(DMatrix::ldistribution_, DMatrix::ldistribution_ + p, sparsity[i])) {
-            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
             rqInfo.emplace_back(rq);
           }
       }
     } else if (excluded < 2)
       for (unsigned short i = 0; i < info[0]; ++i) {
-        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
         rqInfo.emplace_back(rq);
       }
     if (rankSplit) {
       for (unsigned short i = 0; i < info[0]; ++i) {
-        MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+        MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
         rqInfo.emplace_back(rq);
       }
       size = (S != 'S' ? local_ : 0);
@@ -533,13 +532,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   unsigned short **infoSplit = nullptr;
   unsigned int    *offsetIdx = nullptr;
   unsigned short  *infoWorld = nullptr;
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
   unsigned short *neighbors = nullptr;
-#endif
-#ifdef HPDDM_CSR_CO
+  #endif
+  #ifdef HPDDM_CSR_CO
   unsigned int nrow     = 0;
   int         *loc2glob = nullptr;
-#endif
+  #endif
   if (rankSplit) {
     MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, nullptr, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
     if (!Operator::factorize_) {
@@ -575,9 +574,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       }
       std::partial_sum(recvcounts, recvcounts + p - 1, displs + 1);
       for (unsigned int i = 0; i < sizeSplit_; ++i) infoWorld[displs[DMatrix::rank_] + i] = infoSplit[i][1];
-#ifdef HPDDM_CSR_CO
+  #ifdef HPDDM_CSR_CO
       nrow = std::accumulate(infoWorld + displs[DMatrix::rank_], infoWorld + displs[DMatrix::rank_] + sizeSplit_, 0);
-#endif
+  #endif
       MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, DMatrix::communicator_);
       if (T == 1) {
         unsigned int i = (p - 1) * (sizeWorld_ / p);
@@ -607,9 +606,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       if (!Operator::factorize_) v.template setPattern<S, U == 1>(DMatrix::ldistribution_, p, sizeSplit_, infoSplit, infoWorld);
       DMatrix::n_ = (sizeWorld_ - (excluded == 2 ? p : 0)) * local_;
       v.max_      = (rankWorld_ - (excluded == 2 ? rank : 0)) * local_ + (super::numbering_ == 'F');
-#ifdef HPDDM_CSR_CO
+  #ifdef HPDDM_CSR_CO
       nrow = (sizeSplit_ - (excluded == 2)) * local_;
-#endif
+  #endif
       if (S == 'S') {
         for (unsigned short i = 1; i < sizeSplit_; size += infoSplit[i++][0])
           offsetIdx[i - 1] = size * local_ * local_ + (i - 1) * (!blocked ? local_ * (local_ + 1) / 2 : local_ * local_);
@@ -621,37 +620,37 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       }
       if (sizeSplit_ == 1) offsetIdx[0] = size;
     }
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
     neighbors = new unsigned short[size / (!blocked ? 1 : local_ * local_)];
     if (T == 1)
       for (unsigned short i = 1; i < p; ++i) DMatrix::ldistribution_[i] = (excluded == 2 ? 0 : p) + i * ((sizeWorld_ / p) - 1);
     else if (U && excluded == 2)
       for (unsigned short i = 1; i < p; ++i) DMatrix::ldistribution_[i] -= i;
-#endif
-#ifdef HPDDM_CSR_CO
+  #endif
+  #ifdef HPDDM_CSR_CO
     I    = new integer_type[(!blocked ? nrow + size : (nrow / local_ + size / (local_ * local_))) + 1];
     J    = I + 1 + nrow / (!blocked ? 1 : local_);
     I[0] = (super::numbering_ == 'F');
-  #ifndef HPDDM_CONTIGUOUS
+    #ifndef HPDDM_CONTIGUOUS
     loc2glob = new int[nrow];
-  #else
+    #else
     loc2glob = new int[2];
-  #endif
-#else
+    #endif
+  #else
     I = new integer_type[2 * static_cast<std::size_t>(size)];
     J = I + size;
-#endif
+  #endif
     C = new K[!std::is_same<downscaled_type<K>, K>::value
                 ? std::max((info[0] + 1) * local_ * local_, static_cast<int>(1 + ((size * sizeof(downscaled_type<K>) - 1) / sizeof(K))))
                 : size];
   }
-  const vectorNeighbor &M = v.p_.getMap();
+  const vectorNeighbor &M = v.p_.subdomain.getMap();
 
-  MPI_Request *rqSend = v.p_.getRq();
+  MPI_Request *rqSend = v.p_.subdomain.getRq();
   MPI_Request *rqRecv;
   MPI_Request *rqTree = treeDimension ? new MPI_Request[rankSplit ? msg->size() : (static_cast<std::size_t>(treeHeight) * (treeDimension - 1))] : nullptr;
 
-  K **sendNeighbor = v.p_.getBuffer();
+  K **sendNeighbor = v.p_.subdomain.getBuffer();
   K **recvNeighbor;
   int coefficients = (U == 1 ? local_ * (info[0] + (S != 'S' || blocked))
                              : std::accumulate(infoNeighbor + first, infoNeighbor + sparsity.size(), S == 'S' ? 0 : local_));
@@ -679,13 +678,13 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       for (unsigned short i = 0; i < info[0]; ++i) {
         recvNeighbor[i] = *sendNeighbor + accumulate;
         MPI_Irecv(recvNeighbor[i], (U == 1 ? local_ : infoNeighbor[i + first]) * M[i + first].second.size(), Wrapper<K>::mpi_type(), M[i + first].first, 2,
-                  v.p_.getCommunicator(), rqRecv + i);
+                  v.p_.subdomain.getCommunicator(), rqRecv + i);
         accumulate += (U == 1 ? local_ : infoNeighbor[i + first]) * M[i + first].second.size();
       }
     } else std::fill_n(rqRecv, info[0], MPI_REQUEST_NULL);
     if (excluded < 2) {
       const K *const *const &EV = v.deflation_;
-      const int              n  = v.p_.getDof();
+      const int              n  = v.p_.subdomain.getDof();
       v.initialize(n * (U == 1 || info[0] == 0
                           ? local_
                           : std::max(static_cast<unsigned short>(local_), *std::max_element(infoNeighbor + first, infoNeighbor + sparsity.size()))),
@@ -703,20 +702,20 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         if (rankSplit == 0) {
           if (!blocked)
             for (unsigned short j = 0; j < local_; ++j) {
-#ifndef HPDDM_CSR_CO
+  #ifndef HPDDM_CSR_CO
               std::fill_n(I + before + static_cast<std::ptrdiff_t>(j) * coefficients, local_, v.max_ + j);
-#endif
+  #endif
               std::iota(J + before + static_cast<std::ptrdiff_t>(j) * coefficients, J + before + static_cast<std::ptrdiff_t>(j) * coefficients + local_,
                         v.max_);
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
               std::fill_n(neighbors + before + static_cast<std::ptrdiff_t>(j) * coefficients, local_, DMatrix::rank_);
-#endif
+  #endif
             }
           else {
             J[before] = rankWorld_ - (excluded == 2 ? rank : 0) + (super::numbering_ == 'F');
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             neighbors[before] = DMatrix::rank_;
-#endif
+  #endif
           }
         }
       } else {
@@ -734,20 +733,20 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         if (rankSplit == 0) {
           if (!blocked)
             for (unsigned short j = local_; j-- > 0;) {
-#ifndef HPDDM_CSR_CO
+  #ifndef HPDDM_CSR_CO
               std::fill_n(I + static_cast<std::ptrdiff_t>(j) * (coefficients + local_) - (j * (j - 1)) / 2, local_ - j, v.max_ + j);
-#endif
+  #endif
               std::iota(J + static_cast<std::ptrdiff_t>(j) * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + j,
                         J + static_cast<std::ptrdiff_t>(j) * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + local_, v.max_ + j);
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
               std::fill_n(neighbors + static_cast<std::ptrdiff_t>(j) * (coefficients + local_ - 1) - (j * (j - 1)) / 2 + j, local_ - j, DMatrix::rank_);
-#endif
+  #endif
             }
           else {
             *J = rankWorld_ - (excluded == 2 ? rank : 0) + (super::numbering_ == 'F');
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             *neighbors = DMatrix::rank_;
-#endif
+  #endif
           }
         }
       }
@@ -833,10 +832,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     sizeRHS_ = local_;
     if (U != 1) delete[] infoNeighbor;
     if (U == 0) DMatrix::displs_ = &rankWorld_;
-    int nbRq = std::distance(v.p_.getRq(), rqSend);
+    int nbRq = std::distance(v.p_.subdomain.getRq(), rqSend);
     MPI_Waitall(nbRq, rqSend - nbRq, MPI_STATUSES_IGNORE);
     delete[] work;
-#if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+  #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
     if (extended != MPI_COMM_NULL) {
       PC       pc;
       Mat      E, A;
@@ -876,7 +875,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       PetscCall(MatDestroy(&E));
       super::s_ = v.level_;
     }
-#endif
+  #endif
   } else {
     const unsigned short relative = (T == 1 ? p + rankWorld_ * ((sizeWorld_ / p) - 1) - 1 : rankWorld_);
     unsigned int        *offsetPosition;
@@ -933,23 +932,23 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
         for (unsigned int k = 1; k < sizeSplit_; ++k) offsetPosition[k] = offsetPosition[k - 1] + infoWorld[relative + k - 1];
     }
     if (blocked) std::for_each(offsetIdx, offsetIdx + sizeSplit_ - 1, [&](unsigned int &i) { i /= local_ * local_; });
-#ifdef _OPENMP
-  #pragma omp parallel for shared(I, J, infoWorld, infoSplit, offsetIdx, offsetPosition) schedule(dynamic, 64)
-#endif
+  #ifdef _OPENMP
+    #pragma omp parallel for shared(I, J, infoWorld, infoSplit, offsetIdx, offsetPosition) schedule(dynamic, 64)
+  #endif
     for (unsigned int k = 1; k < sizeSplit_; ++k) {
       if (U == 1 || infoSplit[k][1]) {
         unsigned int offsetSlave = static_cast<unsigned int>(super::numbering_ == 'F');
         if (U != 1 && infoSplit[k][0]) offsetSlave = std::accumulate(infoWorld, infoWorld + infoSplit[k][3], offsetSlave);
         unsigned short i      = 0;
         integer_type  *colIdx = J + offsetIdx[k - 1];
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
         unsigned short *nghbrs = neighbors + offsetIdx[k - 1];
-#endif
+  #endif
         const unsigned short max = relative + k - (U == 1 && excluded == 2 ? (T == 1 ? p : 1 + rank) : 0);
         const unsigned int   tmp = (U == 1 ? max * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[k]);
         if (S != 'S')
           while (i < infoSplit[k][0] && infoSplit[k][(U != 1 ? 3 : 1) + i] < max) {
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             if (T == 1 && infoSplit[k][(U != 1 ? 3 : 1) + i] < p) *nghbrs = infoSplit[k][(U != 1 ? 3 : 1) + i];
             else
               *nghbrs = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + DMatrix::rank_ + 1,
@@ -959,40 +958,40 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                  (T == 1 && !std::binary_search(super::send_[*nghbrs].cbegin(), super::send_[*nghbrs].cend(), tmp - (super::numbering_ == 'F')))))
               for (unsigned short row = 0; row < (U == 1 ? (!blocked ? local_ : 1) : infoSplit[k][1]); ++row)
                 super::send_[*nghbrs].emplace_back(tmp - (super::numbering_ == 'F') + row);
-#endif
+  #endif
             if (!blocked) {
               if (U != 1) {
                 if (i > 0) offsetSlave = std::accumulate(infoWorld + infoSplit[k][2 + i], infoWorld + infoSplit[k][3 + i], offsetSlave);
               } else offsetSlave = infoSplit[k][1 + i] * local_ + (super::numbering_ == 'F');
               std::iota(colIdx, colIdx + (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]), offsetSlave);
               colIdx += (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]);
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
               std::fill_n(nghbrs + 1, (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]) - 1, *nghbrs);
               nghbrs += (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]);
-#endif
+  #endif
             } else {
               *colIdx++ = infoSplit[k][1 + i] + (super::numbering_ == 'F');
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
               ++nghbrs;
-#endif
+  #endif
             }
             ++i;
           }
         if (!blocked) {
           std::iota(colIdx, colIdx + (U == 1 ? local_ : infoSplit[k][1]), tmp);
           colIdx += (U == 1 ? local_ : infoSplit[k][1]);
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
           std::fill_n(nghbrs, (U == 1 ? local_ : infoSplit[k][1]), DMatrix::rank_);
           nghbrs += (U == 1 ? local_ : infoSplit[k][1]);
-#endif
+  #endif
         } else {
           *colIdx++ = tmp;
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
           *nghbrs++ = DMatrix::rank_;
-#endif
+  #endif
         }
         while (i < infoSplit[k][0]) {
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
           if (U == 1 || infoWorld[infoSplit[k][(U != 1 ? 3 : 1) + i]]) {
             *nghbrs = std::distance(DMatrix::ldistribution_ + 1, std::upper_bound(DMatrix::ldistribution_ + DMatrix::rank_ + 1, DMatrix::ldistribution_ + p,
                                                                                   infoSplit[k][(U != 1 ? 3 : 1) + i]));
@@ -1002,58 +1001,58 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
               for (unsigned short row = 0; row < (U == 1 ? (!blocked ? local_ : 1) : infoSplit[k][1]); ++row)
                 super::send_[*nghbrs].emplace_back(tmp - (super::numbering_ == 'F') + row);
           }
-#endif
+  #endif
           if (!blocked) {
             if (U != 1) {
               if (i > 0) offsetSlave = std::accumulate(infoWorld + infoSplit[k][2 + i], infoWorld + infoSplit[k][3 + i], offsetSlave);
             } else offsetSlave = infoSplit[k][1 + i] * local_ + (super::numbering_ == 'F');
             std::iota(colIdx, colIdx + (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]), offsetSlave);
             colIdx += (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]);
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             std::fill_n(nghbrs + 1, (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]) - 1, *nghbrs);
             nghbrs += (U == 1 ? local_ : infoWorld[infoSplit[k][3 + i]]);
-#endif
+  #endif
           } else {
             *colIdx++ = infoSplit[k][1 + i] + (super::numbering_ == 'F');
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             ++nghbrs;
-#endif
+  #endif
           }
           ++i;
         }
         unsigned int coefficientsSlave = colIdx - J - offsetIdx[k - 1];
-#ifndef HPDDM_CSR_CO
+  #ifndef HPDDM_CSR_CO
         integer_type *rowIdx = I + std::distance(J, colIdx);
         std::fill(I + offsetIdx[k - 1], rowIdx, tmp);
-#else
+  #else
         offsetSlave        = (U == 1 ? (k - (excluded == 2)) * (!blocked ? local_ : 1) : offsetPosition[k] - offsetPosition[1] + (excluded == 2 ? 0 : local_));
         I[offsetSlave + 1] = coefficientsSlave;
-  #ifndef HPDDM_CONTIGUOUS
+    #ifndef HPDDM_CONTIGUOUS
         loc2glob[offsetSlave] = tmp;
+    #endif
   #endif
-#endif
         if (!blocked)
           for (i = 1; i < (U == 1 ? local_ : infoSplit[k][1]); ++i) {
             if (S == 'S') --coefficientsSlave;
-#ifndef HPDDM_CSR_CO
+  #ifndef HPDDM_CSR_CO
             std::fill_n(rowIdx, coefficientsSlave, tmp + i);
             rowIdx += coefficientsSlave;
-#else
+  #else
             I[offsetSlave + 1 + i] = coefficientsSlave;
-  #ifndef HPDDM_CONTIGUOUS
+    #ifndef HPDDM_CONTIGUOUS
             loc2glob[offsetSlave + i] = tmp + i;
+    #endif
   #endif
-#endif
             std::copy(colIdx - coefficientsSlave, colIdx, colIdx);
             colIdx += coefficientsSlave;
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             std::copy(nghbrs - coefficientsSlave, nghbrs, nghbrs);
             nghbrs += coefficientsSlave;
-#endif
+  #endif
           }
       }
     }
-#ifdef HPDDM_CONTIGUOUS
+  #ifdef HPDDM_CONTIGUOUS
     if (excluded == 2)
       loc2glob[0] = (U == 1 ? (relative + 1 - (T == 1 ? p : 1 + rank)) * (!blocked ? local_ : 1) + (super::numbering_ == 'F') : offsetPosition[1]);
     if (excluded == 2 || sizeSplit_ > 1)
@@ -1061,36 +1060,36 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                                 (super::numbering_ == 'F')
                             : offsetPosition[sizeSplit_ - 1]) +
                     (!blocked ? (U == 1 ? local_ : infoSplit[sizeSplit_ - 1][1]) - 1 : 0);
-#endif
+  #endif
     if (std::is_same<downscaled_type<K>, K>::value) delete[] offsetIdx;
     if (excluded < 2) {
-#ifdef HPDDM_CSR_CO
+  #ifdef HPDDM_CSR_CO
       if (!blocked) {
         if (local_) {
           I[1] = coefficients + (S == 'S' ? local_ : 0);
           for (unsigned short k = 1; k < local_; ++k) {
             I[k + 1] = coefficients + (S == 'S' ? local_ - k : 0);
-  #ifndef HPDDM_CONTIGUOUS
+    #ifndef HPDDM_CONTIGUOUS
             loc2glob[k] = v.max_ + k;
-  #endif
+    #endif
           }
         }
       } else I[1] = info[0] + 1;
       loc2glob[0] = ((!blocked || local_ == 1) ? v.max_ : v.max_ / local_ + (super::numbering_ == 'F'));
-  #ifdef HPDDM_CONTIGUOUS
+    #ifdef HPDDM_CONTIGUOUS
       if (sizeSplit_ == 1) loc2glob[1] = ((!blocked || local_ == 1) ? v.max_ + local_ - 1 : v.max_ / local_ + (super::numbering_ == 'F'));
+    #endif
   #endif
-#endif
       unsigned int **offsetArray = new unsigned int *[info[0]];
       if (info[0]) {
-#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 14
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Walloc-size"
-#endif
+  #if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 14
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Walloc-size"
+  #endif
         *offsetArray = new unsigned int[info[0] * ((Operator::pattern_ == 's') + (U != 1))];
-#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 14
-  #pragma GCC diagnostic pop
-#endif
+  #if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 14
+    #pragma GCC diagnostic pop
+  #endif
         if (Operator::pattern_ == 's') {
           if (S != 'S') {
             offsetArray[0][0] = sparsity[0] > rankWorld_ ? local_ : 0;
@@ -1130,7 +1129,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
                                                                                             coefficients + (S == 'S' && !blocked) * (local_ - 1), v.max_,
                                                                                             U == 1 ? nullptr : (offsetArray[index] + 1), work,
                                                                                             U == 1 ? nullptr : infoNeighbor + first + index);
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
             if (U != 1 && !infoNeighbor[first + index]) continue;
             if (T == 1 && M[first + index].first < p) neighbors[offset] = M[first + index].first;
             else if (blocked || offset < size)
@@ -1145,7 +1144,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
               for (unsigned short i = 0; i < local_; ++i)
                 std::fill_n(neighbors + offset + static_cast<std::ptrdiff_t>(coefficients + (S == 'S') * (local_ - 1)) * i - (S == 'S') * (i * (i - 1)) / 2,
                             U == 1 ? local_ : infoNeighbor[first + index], neighbors[offset]);
-#endif
+  #endif
           } else
             v.template applyFromNeighborMain<!blocked ? S : (S == 'S' ? 'B' : 'C'), super::numbering_, U == 1>(recvNeighbor[index], index, I, J, backup,
                                                                                                                coefficients, v.max_,
@@ -1162,12 +1161,12 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       if (info[0]) delete[] *offsetArray;
       delete[] offsetArray;
     }
-#ifdef HPDDM_CONTIGUOUS
+  #ifdef HPDDM_CONTIGUOUS
     else if (sizeSplit_ == 1) {
       loc2glob[0] = 2;
       loc2glob[1] = 1;
     }
-#endif
+  #endif
     if (!std::is_same<downscaled_type<K>, K>::value) delete[] offsetIdx;
     delete[] info;
     if (!treeDimension) MPI_Waitall(sizeSplit_ - 1, rqRecv + treeHeight, MPI_STATUSES_IGNORE);
@@ -1180,31 +1179,31 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       delete[] offsetPosition;
     }
     {
-      int nbRq = std::distance(v.p_.getRq(), rqSend);
+      int nbRq = std::distance(v.p_.subdomain.getRq(), rqSend);
       MPI_Waitall(nbRq, rqSend - nbRq, MPI_STATUSES_IGNORE);
       delete[] work;
     }
     downscaled_type<K> *pt = reinterpret_cast<downscaled_type<K> *>(C);
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
     std::string filename = opt.prefix("dump_matrix", true);
     if (filename.size() > 0) {
       if (excluded == 2) filename += "_excluded";
       std::ofstream output{filename + "_" + S + "_" + super::numbering_ + "_" + to_string(T) + "_" + to_string(DMatrix::rank_) + ".txt"};
       output << std::scientific;
-  #ifndef HPDDM_CSR_CO
+    #ifndef HPDDM_CSR_CO
       for (unsigned int i = 0; i < size; ++i)
         output << std::setw(9) << I[i] + (super::numbering_ == 'C') << std::setw(9) << J[i] + (super::numbering_ == 'C') << " " << pt[i] << std::endl;
-  #else
+    #else
       unsigned int accumulate = 0;
       for (unsigned int i = 0; i < nrow / (!blocked ? 1 : local_); ++i) {
         accumulate += I[i];
         for (unsigned int j = 0; j < I[i + 1]; ++j) {
           output << std::setw(9) <<
-    #ifndef HPDDM_CONTIGUOUS
+      #ifndef HPDDM_CONTIGUOUS
             (loc2glob[i] - (super::numbering_ == 'F')) * (!blocked ? 1 : local_) + 1 <<
-    #else
+      #else
             (loc2glob[0] + i - (super::numbering_ == 'F')) * (!blocked ? 1 : local_) + 1 <<
-    #endif
+      #endif
             std::setw(9) << (J[accumulate + j - (super::numbering_ == 'F')] - (super::numbering_ == 'F')) * (!blocked ? 1 : local_) + 1 << " ";
           if (!blocked) output << std::setw(13) << pt[accumulate + j - (super::numbering_ == 'F')] << "\n";
           else {
@@ -1219,10 +1218,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
           }
         }
       }
-  #endif
+    #endif
     }
-#endif
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #endif
+  #if HPDDM_INEXACT_COARSE_OPERATOR
     if (S != 'S' && (blocked || local_)) {
       for (std::pair<const unsigned short, std::vector<int>> &i : super::send_) {
         if (i.second.size() > (!blocked ? local_ : 1) && *(i.second.end() - (!blocked ? local_ : 1) - 1) > *(i.second.end() - (!blocked ? local_ : 1))) {
@@ -1232,18 +1231,18 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       }
     }
     rank = DMatrix::n_;
-  #if !HPDDM_PETSC
+    #if !HPDDM_PETSC
     super::mu_ = std::min(p, opt.val<unsigned short>("aggregate_size", p));
     if (super::mu_ < p) {
       super::di_         = new int[T == 1 ? 3 : 1];
       unsigned int begin = (DMatrix::rank_ / super::mu_) * super::mu_;
       unsigned int end   = std::min(p, static_cast<unsigned short>(begin + super::mu_));
-  #else
+    #else
     if (1 < p) {
       super::di_         = new integer_type[T == 1 ? 3 : 1];
       unsigned int begin = DMatrix::rank_;
       unsigned int end   = std::min(p, static_cast<unsigned short>(begin + 1));
-  #endif
+    #endif
       if (T == 1) {
         super::di_[0] = begin;
         super::di_[1] = end;
@@ -1270,15 +1269,15 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       }
     }
     super::bs_ = (!blocked ? 1 : local_);
-  #if !HPDDM_PETSC
+    #if !HPDDM_PETSC
     super::template numfact<T, Operator::factorize_>(nrow / (!blocked ? 1 : local_), I, loc2glob, J, pt, neighbors);
-  #else
+    #else
     std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : local_), I);
     if (Operator::factorize_) {
       Mat E, A;
-    #if !defined(PETSC_HAVE_MUMPS)
+      #if !defined(PETSC_HAVE_MUMPS)
       const MPI_Comm extended = MPI_COMM_NULL;
-    #endif
+      #endif
       if (extended != MPI_COMM_NULL) PetscCallMPI(MPI_Bcast(&rank, 1, MPI_INT, 0, extended));
       PetscCall(KSPCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &v.level_->ksp));
       PetscCall(MatCreate(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, &E));
@@ -1313,9 +1312,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       if (coarse) {
         PetscCall(KSPSetType(v.level_->ksp, KSPPREONLY));
         PetscCall(KSPGetPC(v.level_->ksp, &pc));
-    #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
+      #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
         if (p == 1)
-    #endif
+      #endif
           PetscCall(PCSetType(pc, S == 'S' ? PCCHOLESKY : PCLU));
       }
       PetscCall(KSPSetFromOptions(v.level_->ksp));
@@ -1332,30 +1331,30 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       delete[] super::di_;
       super::di_ = nullptr;
     }
-  #endif
+    #endif
     std::swap(DMatrix::n_, rank);
     if (T == 1) std::iota(DMatrix::ldistribution_ + 1, DMatrix::ldistribution_ + p, 1);
     else if (U && excluded == 2)
       for (unsigned short i = 1; i < p; ++i) DMatrix::ldistribution_[i] += i;
-#else
-  #ifdef HPDDM_CSR_CO
-    #ifndef DHYPRE
+  #else
+    #ifdef HPDDM_CSR_CO
+      #ifndef DHYPRE
     std::partial_sum(I, I + 1 + nrow / (!blocked ? 1 : local_), I);
-    #endif
-    #if defined(DSUITESPARSE) || defined(DLAPACK)
+      #endif
+      #if defined(DSUITESPARSE) || defined(DLAPACK)
     super::template numfact<S>(nrow, I, J, pt);
     delete[] loc2glob;
-    #elif defined(DMKL_PARDISO) || defined(DELEMENTAL)
+      #elif defined(DMKL_PARDISO) || defined(DELEMENTAL)
     super::template numfact<S>(!blocked ? 1 : local_, I, loc2glob, J, pt);
     C = reinterpret_cast<K *>(pt);
-    #else
+      #else
     super::template numfact<S>(nrow, I, loc2glob, J, pt);
-    #endif
-  #else
+      #endif
+    #else
     super::template numfact<S>(size, I, J, pt);
-  #endif
+    #endif
     delete[] C;
-#endif
+  #endif
     if (!treeDimension) delete[] rqRecv;
   }
   if (excluded < 2 && !M.empty()) {
@@ -1363,35 +1362,35 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     *sendNeighbor = nullptr;
   }
   finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
   return ret;
-#else
-  #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
+  #else
+    #if HPDDM_PETSC && defined(PETSC_HAVE_MUMPS)
   if (extended != MPI_COMM_NULL) MPI_Comm_free(&extended);
-  #endif
+    #endif
   PetscFunctionReturn(PETSC_SUCCESS);
-#endif
+  #endif
 }
 
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
                                                       T
-#else
+  #else
                                                       S
-#endif
+  #endif
                                                     ,
                                                     unsigned short U, unsigned short excluded, class Operator>
 inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
   HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(std::enable_if_t<Operator::pattern_ == 'u', Operator> &v)
 {
-#if HPDDM_PETSC
+  #if HPDDM_PETSC
   PetscFunctionBeginUser;
-#endif
+  #endif
   unsigned short *const              info     = new unsigned short[(U != 1 ? 3 : 1) + v.getConnectivity()]();
   const std::vector<unsigned short> &sparsity = v.getPattern();
   info[0]                                     = sparsity.size(); // number of intersections
   int rank;
-  MPI_Comm_rank(v.p_.getCommunicator(), &rank);
+  MPI_Comm_rank(v.p_.subdomain.getCommunicator(), &rank);
   const unsigned short first = (S == 'S' ? std::distance(sparsity.cbegin(), std::upper_bound(sparsity.cbegin(), sparsity.cend(), rank)) : 0);
   int                  rankSplit;
   MPI_Comm_rank(scatterComm_, &rankSplit);
@@ -1399,10 +1398,10 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
 
   unsigned int size = 0;
 
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
   const Option        &opt = *Option::get();
   const unsigned short p   = opt.val<unsigned short>("p", 1);
-#else
+  #else
   constexpr unsigned short T = 0;
   unsigned short           p;
   {
@@ -1410,7 +1409,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
     p = n;
   }
-#endif
+  #endif
   constexpr bool blocked = false;
   if (U != 1) {
     infoNeighbor = new unsigned short[info[0]];
@@ -1422,24 +1421,24 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       if (T != 2) {
         for (unsigned short i = 0; i < info[0]; ++i)
           if (!(T == 1 && sparsity[i] < p) && !(T == 0 && (sparsity[i] % (sizeWorld_ / p) == 0) && sparsity[i] < p * (sizeWorld_ / p))) {
-            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
             rqInfo.emplace_back(rq);
           }
       } else {
         for (unsigned short i = 0; i < info[0]; ++i)
           if (!std::binary_search(DMatrix::ldistribution_, DMatrix::ldistribution_ + p, sparsity[i])) {
-            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+            MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
             rqInfo.emplace_back(rq);
           }
       }
     } else if (excluded < 2)
       for (unsigned short i = 0; i < info[0]; ++i) {
-        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+        MPI_Isend(info + 1, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
         rqInfo.emplace_back(rq);
       }
     if (rankSplit) {
       for (unsigned short i = 0; i < info[0]; ++i) {
-        MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.getCommunicator(), &rq);
+        MPI_Irecv(infoNeighbor + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, v.p_.subdomain.getCommunicator(), &rq);
         rqInfo.emplace_back(rq);
       }
       size = (S != 'S' ? local_ : 0);
@@ -1483,9 +1482,9 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
   }
   unsigned short **infoSplit;
   unsigned short  *infoWorld = nullptr;
-#ifdef HPDDM_CSR_CO
+  #ifdef HPDDM_CSR_CO
   int *loc2glob;
-#endif
+  #endif
   if (rankSplit) MPI_Gather(info, (U != 1 ? 3 : 1) + v.getConnectivity(), MPI_UNSIGNED_SHORT, nullptr, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
   else {
     size       = 0;
@@ -1556,7 +1555,7 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     if (U != 1) delete[] infoNeighbor;
     if (U == 0) DMatrix::displs_ = &rankWorld_;
   } else {
-#ifdef HPDDM_CONTIGUOUS
+  #ifdef HPDDM_CONTIGUOUS
     loc2glob                      = new int[2];
     const unsigned short relative = (T == 1 ? p + rankWorld_ * ((sizeWorld_ / p) - 1) - 1 : rankWorld_);
     if (excluded == 2 || sizeSplit_ > 1) {
@@ -1585,21 +1584,21 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
       loc2glob[0] = 2;
       loc2glob[1] = 1;
     }
-#endif
+  #endif
     delete[] info;
     if (U != 1) delete[] infoNeighbor;
     const K *const E = v.p_.getOperator();
-#if !HPDDM_PETSC
-  #if defined(DSUITESPARSE) || defined(DLAPACK)
+  #if !HPDDM_PETSC
+    #if defined(DSUITESPARSE) || defined(DLAPACK)
     super::template numfact<S>(DMatrix::n_, nullptr, nullptr, const_cast<K *&>(E));
     delete[] loc2glob;
-  #elif defined(HPDDM_CONTIGUOUS)
+    #elif defined(HPDDM_CONTIGUOUS)
     super::template numfact<S>(!blocked ? 1 : local_, nullptr, loc2glob, nullptr, const_cast<K *&>(E));
-  #endif
-#else
-  #ifdef HPDDM_CONTIGUOUS
+    #endif
+  #else
+    #ifdef HPDDM_CONTIGUOUS
     delete[] loc2glob;
-  #endif
+    #endif
     Mat          P, A;
     PetscScalar *ptr;
     PetscCall(MatCreateDense(DMatrix::communicator_, DMatrix::n_, DMatrix::n_, DMatrix::n_, DMatrix::n_, nullptr, &P));
@@ -1618,41 +1617,40 @@ inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::retur
     PetscCall(KSPSetFromOptions(v.level_->ksp));
     PetscCall(MatDestroy(&P));
     super::s_ = v.level_;
-#endif
+  #endif
   }
   finishSetup<T, U, excluded, blocked>(infoWorld, rankSplit, p, infoSplit, rank);
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
   return nullptr;
-#else
+  #else
   PetscFunctionReturn(PETSC_SUCCESS);
-#endif
+  #endif
 }
-
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char T, unsigned short U, unsigned short excluded, bool blocked>
 inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSetup(unsigned short *&infoWorld, const int rankSplit, const unsigned short p,
                                                                                    unsigned short **&infoSplit, const int rank)
 {
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
   DMatrix::distribution_ = static_cast<DMatrix::Distribution>(Option::get()->val<char>("distribution", HPDDM_DISTRIBUTION_CENTRALIZED));
-#endif
+  #endif
   if (U != 2) {
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     if (DMatrix::distribution_ == DMatrix::CENTRALIZED) {
       if (gatherComm_ != scatterComm_) {
         MPI_Comm_free(&scatterComm_);
         scatterComm_ = gatherComm_;
       }
     }
-#else
+  #else
     if (gatherComm_ != scatterComm_) {
       MPI_Comm_free(&gatherComm_);
       gatherComm_ = scatterComm_;
     }
-#endif
+  #endif
   } else {
     unsigned int    size;
     unsigned short *pt;
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     if (DMatrix::distribution_ == DMatrix::CENTRALIZED) {
       if (rankSplit) infoWorld = new unsigned short[sizeWorld_];
       pt   = infoWorld;
@@ -1665,7 +1663,7 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
         for (unsigned int i = 0; i < sizeSplit_; ++i) pt[sizeWorld_ + i] = infoSplit[i][1];
       }
     }
-#else
+  #else
     unsigned short *infoMain;
     if (rankSplit == 0) {
       infoMain = infoSplit[0];
@@ -1673,33 +1671,33 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
     } else infoMain = new unsigned short[sizeSplit_];
     pt   = infoMain;
     size = sizeSplit_;
-#endif
+  #endif
     MPI_Bcast(pt, size, MPI_UNSIGNED_SHORT, 0, scatterComm_);
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     if (DMatrix::distribution_ == DMatrix::CENTRALIZED) {
       constructionCommunicatorCollective<(excluded > 0)>(pt, size, gatherComm_, &scatterComm_);
-#else
+  #else
     constructionCommunicatorCollective<false>(pt, size, scatterComm_);
-#endif
+  #endif
       if (gatherComm_ != scatterComm_) {
         if (scatterComm_ != MPI_COMM_NULL) MPI_Comm_free(&gatherComm_);
         gatherComm_ = scatterComm_;
       }
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     } else {
       constructionCommunicatorCollective<(excluded > 0)>(pt, sizeWorld_, gatherComm_);
       constructionCommunicatorCollective<false>(pt + sizeWorld_, sizeSplit_, scatterComm_);
     }
-#endif
+  #endif
     if (rankSplit
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
         || DMatrix::distribution_ == DMatrix::DISTRIBUTED_SOL
-#endif
+  #endif
     )
       delete[] pt;
   }
   if (rankSplit == 0) {
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     if (DMatrix::distribution_ == DMatrix::CENTRALIZED) {
       if (rankWorld_ == 0) {
         sizeRHS_ = DMatrix::n_;
@@ -1716,12 +1714,12 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
         sizeRHS_ = local_;
       }
     } else {
-#endif
+  #endif
       constructionMap<T, U == 1, excluded == 2>(p, U == 1 ? nullptr : infoWorld);
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
       if (rankWorld_ == 0) sizeRHS_ = DMatrix::n_;
       else
-#endif
+  #endif
         sizeRHS_ = DMatrix::ldistribution_[DMatrix::rank_];
       if (U == 1) constructionCollective<true, DMatrix::DISTRIBUTED_SOL, excluded == 2>();
       else if (U == 2) {
@@ -1735,29 +1733,767 @@ inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSet
         for (unsigned int i = 0; i < sizeSplit_; ++i) infoMain[i] = infoSplit[i][1];
         constructionCollective<false, DMatrix::DISTRIBUTED_SOL, excluded == 2>(infoWorld, p - 1, infoMain);
       }
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
     }
-#endif
+  #endif
     delete[] *infoSplit;
     delete[] infoSplit;
     if (excluded == 2) {
-#if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
+  #if defined(DMUMPS) && !HPDDM_INEXACT_COARSE_OPERATOR
       if ((DMatrix::distribution_ == DMatrix::CENTRALIZED && rankWorld_ == 0) || DMatrix::distribution_ == DMatrix::DISTRIBUTED_SOL)
-#endif
+  #endif
         sizeRHS_ += local_;
     }
     DMatrix::n_
-#if HPDDM_INEXACT_COARSE_OPERATOR
+  #if HPDDM_INEXACT_COARSE_OPERATOR
       = rank /
-#else
+  #else
       /=
-#endif
+  #endif
         (!blocked ? 1 : local_);
   }
-#if !HPDDM_INEXACT_COARSE_OPERATOR
+  #if !HPDDM_INEXACT_COARSE_OPERATOR
   ignore(rank);
-#endif
+  #endif
 }
+#else
+class CoarseInfo {
+private:
+  std::unique_ptr<unsigned short[]> storage_;
+  unsigned short                   *raw_;
+  bool                              uniform_;
+
+public:
+  static unsigned short headerLength(bool uniform) { return (uniform ? 1 : 3); }
+  CoarseInfo(unsigned int length, bool uniform) : storage_(length ? new unsigned short[length]() : nullptr), raw_(storage_.get()), uniform_(uniform) { }
+  CoarseInfo(unsigned short *raw, bool uniform) : raw_(raw), uniform_(uniform) { }
+  CoarseInfo(CoarseInfo &&) = default;
+  bool            empty() const { return raw_ == nullptr; }
+  unsigned short  header() const { return headerLength(uniform_); }
+  unsigned short *data() const { return raw_; }
+  unsigned short &neighborCount() const
+  {
+    assert(!empty() && "neighborCount() on an empty CoarseInfo");
+    return raw_[0];
+  }
+  unsigned short &localDof() const
+  {
+    assert(!empty() && "localDof() on an empty CoarseInfo");
+    assert(!uniform_ && "localDof() is not stored when uniform");
+    return raw_[1];
+  }
+  unsigned short &coupledDof() const
+  {
+    assert(!empty() && "coupledDof() on an empty CoarseInfo");
+    assert(!uniform_ && "coupledDof() is not stored when uniform");
+    return raw_[2];
+  }
+  unsigned short &neighbor(unsigned short i) const
+  {
+    assert(!empty() && "neighbor() on an empty CoarseInfo");
+    return raw_[header() + i];
+  }
+  unsigned short *neighbors() const
+  {
+    assert(!empty() && "neighbors() on an empty CoarseInfo");
+    return raw_ + header();
+  }
+};
+template <class K, class Int>
+class CoarseCSR {
+private:
+  std::unique_ptr<unsigned int[]> splitValueOffset_;
+  unsigned int                    blockSize_ = 1;
+  unsigned int                    count_     = 0;
+  unsigned int                    selfCount_ = 0;
+
+  std::unique_ptr<Int[]>            rowPtr_;
+  std::unique_ptr<unsigned short[]> entryOwner_;
+  std::unique_ptr<int[]>            rowRange_;
+  std::unique_ptr<K[]>              values_;
+  unsigned int                      rowCount_ = 0;
+
+public:
+  template <bool isSymmetric, bool uniform>
+  void         initialize(bool, int, const std::vector<CoarseInfo> &, unsigned short, unsigned int);
+  unsigned int count() const { return count_; }
+  unsigned int selfCount() const { return selfCount_; }
+  unsigned int splitValueOffset(int k) const
+  {
+    assert(splitValueOffset_ && k >= 1 && "splitValueOffset() is main-rank only, members start at 1");
+    return splitValueOffset_[k - 1];
+  }
+  unsigned int    splitBlockOffset(int k) const { return splitValueOffset(k) / blockSize_; }
+  unsigned int    rowCount() const { return rowCount_; }
+  unsigned short *entryOwner() const { return entryOwner_.get(); }
+  int            *rowRange() const { return rowRange_.get(); }
+  K              *values() const { return values_.get(); }
+  Int            *rowPtr() const { return rowPtr_.get(); }
+  Int            *colIdx() const { return rowPtr_.get() + 1 + rowCount_; }
+
+  void allocateValues(unsigned short neighborCount, unsigned short localDof)
+  {
+    values_.reset(new K[!std::is_same<downscaled_type<K>, K>::value
+                          ? std::max((neighborCount + 1) * localDof * localDof, static_cast<int>(1 + ((count() * sizeof(downscaled_type<K>) - 1) / sizeof(K))))
+                          : count()]);
+  }
+  template <bool uniform>
+  void allocateStructure(unsigned int localRows, unsigned short localDof, bool isCoarseLevel)
+  {
+    rowCount_ = localRows / (!uniform ? 1 : localDof);
+    if (!isCoarseLevel) entryOwner_.reset(new unsigned short[count() / (!uniform ? 1 : localDof * localDof)]);
+    rowPtr_.reset(new Int[(!uniform ? localRows + count() : (localRows / localDof + count() / (localDof * localDof))) + 1]);
+    rowRange_.reset(new int[2]);
+  }
+
+  template <bool isSymmetric, bool uniform, char pattern>
+  void seedLocalStructure(const std::vector<CoarseInfo> &splitInfo, unsigned int sizeSplit, const CoarseOffsets &offsets, const unsigned short *worldDof,
+                          unsigned short localDof, unsigned short worldRank, unsigned int globalRowBase, unsigned short mainRank, const int *ldistribution,
+                          unsigned short nMains, unsigned short neighborCount, const vectorNeighbor &neighborMap, unsigned short skippedLowerNeighborCount,
+                          const NeighborSizes &neighborSizes)
+  {
+    const unsigned int   *splitRowOffset  = offsets.splitRow();
+    const int             rowStride       = offsets.rowStride();
+    const unsigned short  selfBlockOffset = offsets.selfBlockOffset();
+    unsigned short *const owners          = entryOwner_.get();
+
+    rowPtr_[0] = 0;
+    if (pattern == 's') {
+      if (!uniform) {
+        for (unsigned short j = 0; j < localDof; ++j) {
+          const unsigned int   rowBase = isSymmetric ? j * (rowStride + localDof - 1) - (j * (j - 1)) / 2 + j : selfBlockOffset + j * rowStride;
+          const unsigned short entries = isSymmetric ? localDof - j : localDof;
+          std::iota(colIdx() + rowBase, colIdx() + rowBase + entries, globalRowBase + (isSymmetric ? j : 0));
+          if (owners) std::fill_n(owners + rowBase, entries, mainRank);
+        }
+      } else {
+        colIdx()[selfBlockOffset] = worldRank;
+        if (owners) owners[selfBlockOffset] = mainRank;
+      }
+    }
+  #ifdef _OPENMP
+    #pragma omp parallel for shared(worldDof, splitInfo, splitRowOffset) schedule(dynamic, 64)
+  #endif
+    for (unsigned int k = 1; k < sizeSplit; ++k) {
+      const CoarseInfo &split = splitInfo[k];
+      if (uniform || split.localDof()) {
+        unsigned int neighborColumnBase = 0;
+        if (!uniform && split.neighborCount()) neighborColumnBase = std::accumulate(worldDof, worldDof + split.neighbor(0), neighborColumnBase);
+        unsigned short       i              = 0;
+        Int                 *colCursor      = colIdx() + splitBlockOffset(k);
+        const unsigned short splitWorldRank = worldRank + k;
+        const unsigned int   firstGlobalRow = (uniform ? splitWorldRank : splitRowOffset[k]);
+        const auto           appendNeighbor = [&](unsigned short index, bool lower) {
+          const unsigned short neighbor = split.neighbor(index);
+          const unsigned short count    = uniform ? 1 : worldDof[neighbor];
+          if (!uniform && index > 0) neighborColumnBase = std::accumulate(worldDof + split.neighbor(index - 1), worldDof + neighbor, neighborColumnBase);
+          if (count) {
+            std::iota(colCursor, colCursor + count, uniform ? neighbor : neighborColumnBase);
+            if (owners) {
+              const unsigned short owner = std::distance(ldistribution + 1,
+                                                         std::upper_bound(lower ? ldistribution + 1 : ldistribution + mainRank + 1,
+                                                                          lower ? ldistribution + mainRank + 1 : ldistribution + nMains, neighbor));
+              std::fill_n(owners + (colCursor - colIdx()), count, owner);
+            }
+            colCursor += count;
+          }
+        };
+        if (!isSymmetric) {
+          while (i < split.neighborCount() && split.neighbor(i) < splitWorldRank) appendNeighbor(i++, true);
+        }
+        const unsigned short count = uniform ? 1 : split.localDof();
+        std::iota(colCursor, colCursor + count, firstGlobalRow);
+        if (owners) std::fill_n(owners + (colCursor - colIdx()), count, mainRank);
+        colCursor += count;
+        while (i < split.neighborCount()) appendNeighbor(i++, false);
+        unsigned int       rowEntryCount = colCursor - colIdx() - splitBlockOffset(k);
+        const unsigned int splitRowBase  = (uniform ? k : splitRowOffset[k] - splitRowOffset[1] + localDof);
+        rowPtr()[splitRowBase + 1]       = rowEntryCount;
+        if (!uniform)
+          for (i = 1; i < split.localDof(); ++i) {
+            if (isSymmetric) --rowEntryCount;
+            rowPtr()[splitRowBase + 1 + i] = rowEntryCount;
+            std::copy(colCursor - rowEntryCount, colCursor, colCursor);
+            if (owners) {
+              unsigned short *ownerCursor = owners + (colCursor - colIdx());
+              std::copy(ownerCursor - rowEntryCount, ownerCursor, ownerCursor);
+            }
+            colCursor += rowEntryCount;
+          }
+      }
+    }
+    if (sizeSplit > 1) rowRange_.get()[1] = uniform ? (worldRank + sizeSplit - 1) : (splitRowOffset[sizeSplit - 1] + splitInfo[sizeSplit - 1].localDof() - 1);
+    if (!uniform) {
+      if (localDof) {
+        rowPtr()[1] = rowStride + (isSymmetric ? localDof : 0);
+        for (unsigned short k = 1; k < localDof; ++k) rowPtr()[k + 1] = rowStride + (isSymmetric ? localDof - k : 0);
+      }
+    } else rowPtr()[1] = neighborCount + 1;
+    rowRange_.get()[0] = ((!uniform || localDof == 1) ? globalRowBase : globalRowBase / localDof);
+    if (sizeSplit == 1) rowRange_.get()[1] = ((!uniform || localDof == 1) ? globalRowBase + localDof - 1 : globalRowBase / localDof);
+    if (owners && pattern == 's' && (uniform || localDof)) {
+      for (unsigned short j = 0; j < neighborCount; ++j) {
+        if (!uniform && !neighborSizes.upper()[j]) continue;
+        const unsigned int offset = offsets.neighborValue()[j] / (!uniform ? 1 : localDof);
+        if (uniform || offset < count())
+          owners[offset] = std::distance(ldistribution + 1,
+                                         std::upper_bound(ldistribution + 1, ldistribution + nMains, neighborMap[skippedLowerNeighborCount + j].first));
+        if (!uniform && offset < count())
+          for (unsigned short i = 0; i < localDof; ++i)
+            std::fill_n(owners + offset + static_cast<std::ptrdiff_t>(rowStride + isSymmetric * (localDof - 1)) * i - isSymmetric * (i * (i - 1)) / 2,
+                        neighborSizes.upper()[j], owners[offset]);
+      }
+    }
+  }
+
+  void releaseToSolver()
+  {
+    rowPtr_.release();
+    entryOwner_.release();
+    rowRange_.release();
+    values_.release();
+  }
+};
+template <bool isSymmetric, bool uniform>
+inline unsigned int contributionSize(const unsigned short rowCount, const unsigned int colCount)
+{
+  return rowCount * colCount + (isSymmetric && !uniform ? rowCount * (rowCount + 1) / 2 : rowCount * rowCount);
+}
+template <class K, class Int>
+template <bool isSymmetric, bool uniform>
+inline void CoarseCSR<K, Int>::initialize(const bool isMain, const int sizeSplit, const std::vector<CoarseInfo> &splitInfo, const unsigned short localDof,
+                                          const unsigned int coupledDof)
+{
+  selfCount_ = contributionSize<isSymmetric, uniform>(localDof, coupledDof);
+  count_     = selfCount_;
+  if (isMain) {
+    blockSize_ = (uniform ? static_cast<unsigned int>(localDof) * localDof : 1);
+    splitValueOffset_.reset(new unsigned int[std::max(sizeSplit - 1, 1)]);
+    for (int k = 1; k < sizeSplit; ++k) {
+      assert(count_ % blockSize_ == 0 && "every contribution is a whole number of blocks");
+      splitValueOffset_[k - 1]             = count_;
+      const unsigned short splitLocalDof   = uniform ? localDof : splitInfo[k].localDof();
+      const unsigned int   splitCoupledDof = uniform ? localDof * splitInfo[k].neighborCount() : splitInfo[k].coupledDof();
+      count_ += contributionSize<isSymmetric, uniform>(splitLocalDof, splitCoupledDof);
+    }
+  }
+}
+template <bool isSymmetric, bool uniform, char pattern>
+inline CoarseOffsets CoarseOffsets::create(bool isMain, const std::vector<unsigned short> &sparsity, unsigned short neighborCount,
+                                           unsigned short skippedLowerNeighborCount, const NeighborSizes &neighborSizes, int worldRank, unsigned short localDof,
+                                           const unsigned short *worldDof, int sizeSplit, const std::vector<CoarseInfo> &splitInfo)
+{
+  CoarseOffsets offsets;
+  offsets.rowStride_ = (uniform ? localDof * (neighborCount + (!isSymmetric || uniform))
+                                : std::accumulate(neighborSizes.upper(), neighborSizes.get() + sparsity.size(), isSymmetric ? 0 : localDof));
+  if (!isSymmetric)
+    for (unsigned short j = 0; j < neighborCount && sparsity[j] < worldRank; ++j) offsets.selfBlockOffset_ += (uniform ? 1 : neighborSizes.get()[j]);
+  if (pattern == 's' && neighborCount) {
+    offsets.neighborValue_.reset(new unsigned int[static_cast<std::size_t>(neighborCount)]);
+    offsets.neighborValue_[0] = (sparsity[skippedLowerNeighborCount] > worldRank ? localDof : 0);
+    for (unsigned short k = 1; k < neighborCount; ++k) {
+      offsets.neighborValue_[k] = offsets.neighborValue_[k - 1] + (uniform ? localDof : neighborSizes.get()[skippedLowerNeighborCount + k - 1]);
+      if (sparsity[skippedLowerNeighborCount + k - 1] < worldRank && sparsity[skippedLowerNeighborCount + k] > worldRank) offsets.neighborValue_[k] += localDof;
+    }
+  }
+  if (isMain && !uniform) {
+    offsets.neighborColumn_.reset(new unsigned int[static_cast<std::size_t>(neighborCount)]);
+    if (neighborCount) offsets.neighborColumn_[0] = std::accumulate(worldDof, worldDof + sparsity[!isSymmetric ? 0 : skippedLowerNeighborCount], 0u);
+    for (unsigned short k = 1; k < neighborCount; ++k)
+      offsets.neighborColumn_[k] = std::accumulate(worldDof + sparsity[skippedLowerNeighborCount + k - 1], worldDof + sparsity[skippedLowerNeighborCount + k],
+                                                   offsets.neighborColumn_[k - 1]);
+    offsets.splitRow_.reset(new unsigned int[sizeSplit]);
+    offsets.splitRow_[0] = std::accumulate(worldDof, worldDof + worldRank, 0u);
+    for (unsigned int k = 1; k < sizeSplit; ++k) offsets.splitRow_[k] = offsets.splitRow_[k - 1] + splitInfo[k - 1].localDof();
+  }
+  return offsets;
+}
+template <bool uniform>
+inline std::unique_ptr<unsigned short[]> gatherWorldDof(const bool isMain, const int mainRank, const unsigned short nMains, const int sizeWorld,
+                                                        const int sizeSplit, const std::vector<CoarseInfo> &splitInfo, const MPI_Comm &mainComm)
+{
+  std::unique_ptr<unsigned short[]> worldDof;
+  if (isMain && !uniform) {
+    worldDof.reset(new unsigned short[sizeWorld]);
+    const int first = mainRank * (sizeWorld / nMains);
+    for (int i = 0; i < sizeSplit; ++i) worldDof[first + i] = splitInfo[i].localDof();
+    if (nMains == 1) return worldDof;
+    std::vector<int> recvcountsDispls(2 * static_cast<std::size_t>(nMains));
+    int             *recvcounts = recvcountsDispls.data();
+    int             *displs     = recvcounts + nMains;
+    displs[0]                   = 0;
+    std::fill_n(recvcounts, nMains - 1, sizeWorld / nMains);
+    recvcounts[nMains - 1] = sizeWorld - (nMains - 1) * (sizeWorld / nMains);
+    std::partial_sum(recvcounts, recvcounts + nMains - 1, displs + 1);
+    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, worldDof.get(), recvcounts, displs, MPI_UNSIGNED_SHORT, mainComm);
+  }
+  return worldDof;
+}
+template <bool uniform, bool factorize_>
+inline std::vector<CoarseInfo> gatherCoarseInfo(const bool isMain, const int sizeSplit, const unsigned short infoLength, const MPI_Comm &scatterComm,
+                                                const unsigned short skippedLowerNeighborCount, const std::vector<unsigned short> &sparsity,
+                                                const unsigned short localDof, const unsigned int coupledDof)
+{
+  const int               splitInfoCount      = (isMain ? sizeSplit : 0);
+  const unsigned short    totalNeighborCount  = sparsity.size();
+  const unsigned short    storedNeighborCount = (factorize_ ? totalNeighborCount - skippedLowerNeighborCount : totalNeighborCount);
+  std::vector<CoarseInfo> splitInfo;
+  splitInfo.reserve(splitInfoCount);
+  splitInfo.emplace_back(static_cast<unsigned int>(splitInfoCount) * infoLength, uniform);
+  for (int i = 1; i < splitInfoCount; ++i) splitInfo.emplace_back(splitInfo[0].data() + static_cast<std::ptrdiff_t>(i) * infoLength, uniform);
+  const CoarseInfo localInfo = (isMain ? CoarseInfo(splitInfo[0].data(), uniform) : CoarseInfo(static_cast<unsigned int>(infoLength), uniform));
+  localInfo.neighborCount()  = storedNeighborCount;
+  std::copy_n(sparsity.data() + (factorize_ ? skippedLowerNeighborCount : 0), storedNeighborCount, localInfo.neighbors());
+  if (!uniform) {
+    localInfo.localDof()   = localDof;
+    localInfo.coupledDof() = coupledDof;
+  }
+  if (sizeSplit > 1)
+    MPI_Gather(isMain ? MPI_IN_PLACE : localInfo.data(), infoLength, MPI_UNSIGNED_SHORT, splitInfo[0].data(), infoLength, MPI_UNSIGNED_SHORT, 0, scatterComm);
+  return splitInfo;
+}
+template <bool uniform>
+inline NeighborSizes gatherNeighborSizes(const std::vector<unsigned short> &sparsity, const unsigned short local,
+                                         const unsigned short skippedLowerNeighborCount, const MPI_Comm &comm)
+{
+  NeighborSizes neighborSizes(skippedLowerNeighborCount);
+  if (!uniform) {
+    const unsigned short totalNeighborCount = sparsity.size();
+    neighborSizes.allocate(totalNeighborCount);
+    std::vector<MPI_Request> infoRequests;
+    infoRequests.reserve(2 * static_cast<std::size_t>(totalNeighborCount));
+    MPI_Request rq;
+    for (unsigned short i = 0; i < totalNeighborCount; ++i) {
+      MPI_Isend(&local, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, comm, &rq);
+      infoRequests.emplace_back(rq);
+      MPI_Irecv(neighborSizes.get() + i, 1, MPI_UNSIGNED_SHORT, sparsity[i], 1, comm, &rq);
+      infoRequests.emplace_back(rq);
+    }
+    MPI_Waitall(infoRequests.size(), infoRequests.data(), MPI_STATUSES_IGNORE);
+  }
+  return neighborSizes;
+}
+template <bool isSymmetric, bool uniform, char pattern, class K, class Int>
+inline void populateSendLists(std::map<unsigned short, std::vector<int>> &send, const CoarseCSR<K, Int> &coarseCSR, const bool isCoarseLevel,
+                              const std::vector<CoarseInfo> &splitInfo, const unsigned int sizeSplit, const unsigned int *splitRowOffset,
+                              const unsigned short firstWorldRank, const unsigned int globalRowBase, const unsigned short localDof,
+                              const unsigned short mainRank)
+{
+  if (!isCoarseLevel && !isSymmetric) {
+    if (pattern == 's' && (uniform || localDof)) {
+      unsigned short previousOwner = mainRank;
+      for (Int entry = 0; entry < coarseCSR.rowPtr()[1]; ++entry) {
+        const unsigned short owner = coarseCSR.entryOwner()[entry];
+        if (owner != mainRank && owner != previousOwner)
+          for (unsigned short i = 0; i < (!uniform ? localDof : 1); ++i) send[owner].emplace_back(globalRowBase / (!uniform ? 1 : localDof) + i);
+        previousOwner = owner;
+      }
+    }
+    for (unsigned int k = 1; k < sizeSplit; ++k) {
+      const CoarseInfo &split = splitInfo[k];
+      if (uniform || split.localDof()) {
+        const unsigned int splitRowBase   = (uniform ? k : splitRowOffset[k] - splitRowOffset[1] + localDof);
+        const unsigned int firstGlobalRow = (uniform ? firstWorldRank + k : splitRowOffset[k]);
+        const Int          blockStart     = coarseCSR.splitBlockOffset(k);
+        const Int          blockEnd       = blockStart + coarseCSR.rowPtr()[splitRowBase + 1];
+        unsigned short     previousOwner  = mainRank;
+        for (Int entry = blockStart; entry < blockEnd; ++entry) {
+          const unsigned short owner = coarseCSR.entryOwner()[entry];
+          if (owner != mainRank && owner != previousOwner)
+            for (unsigned short row = 0; row < (uniform ? 1 : split.localDof()); ++row) send[owner].emplace_back(firstGlobalRow + row);
+          previousOwner = owner;
+        }
+      }
+    }
+  }
+}
+template <bool isSymmetric, class Int, class Value>
+static inline PetscErrorCode setupCoarseKSP(MPI_Comm comm, PetscInt localRows, PetscInt globalCoarseSize, PetscInt bs, Int *rowPtr, Int *colIdx, Value *values,
+                                            bool uniform, unsigned short local, unsigned short nMains, bool extendedActive, bool runPreonlySetup,
+                                            bool guardByUniform, bool guardByNMains, const std::string &prefix, PC_HPDDM_Level *level, PC *pcOut = nullptr)
+{
+  PetscFunctionBeginUser;
+  Mat E, A;
+  PetscCall(KSPCreate(comm, &level->ksp));
+  PetscCall(MatCreate(comm, &E));
+  PetscCall(MatSetOptionsPrefix(E, prefix.c_str()));
+  if (uniform) PetscCall(MatSetBlockSizes(E, local, local));
+  PetscCall(MatSetFromOptions(E));
+  PetscCall(MatSetSizes(E, localRows, localRows, globalCoarseSize, globalCoarseSize));
+  const bool seqPreallocation = (nMains == 1 && !extendedActive);
+  if (isSymmetric) {
+    PetscCall(MatSetType(E, MATSBAIJ));
+    if (seqPreallocation) PetscCall(MatSeqSBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+    else PetscCall(MatMPISBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+  } else {
+    if (bs > 1) {
+      PetscCall(MatSetType(E, MATBAIJ));
+      if (seqPreallocation) PetscCall(MatSeqBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+      else PetscCall(MatMPIBAIJSetPreallocationCSR(E, bs, rowPtr, colIdx, values));
+    } else {
+      PetscCall(MatSetType(E, MATAIJ));
+      if (seqPreallocation) PetscCall(MatSeqAIJSetPreallocationCSR(E, rowPtr, colIdx, values));
+      else PetscCall(MatMPIAIJSetPreallocationCSR(E, rowPtr, colIdx, values));
+    }
+  }
+  PetscCall(KSPGetOperators(level->parent->levels[0]->ksp, nullptr, &A));
+  PetscCall(MatPropagateSymmetryOptions(A, E));
+  PetscReal filter = -1.0;
+  PetscCall(PetscOptionsGetReal(nullptr, prefix.c_str(), "-mat_filter", &filter, nullptr));
+  if (filter >= PetscReal()) PetscCall(MatFilter(E, filter, PETSC_TRUE, PETSC_TRUE));
+  PetscCall(KSPSetOperators(level->ksp, E, E));
+  PetscCall(KSPSetOptionsPrefix(level->ksp, prefix.c_str()));
+  PC pc = nullptr;
+  if (runPreonlySetup) {
+    PetscCall(KSPSetType(level->ksp, KSPPREONLY));
+    PetscCall(KSPGetPC(level->ksp, &pc));
+    if (!guardByUniform || uniform) {
+  #if !(defined(PETSC_HAVE_MUMPS) || defined(PETSC_HAVE_MKL_CPARDISO))
+      if (!guardByNMains || nMains == 1)
+  #else
+      ignore(guardByNMains);
+  #endif
+        PetscCall(PCSetType(pc, isSymmetric ? PCCHOLESKY : PCLU));
+    }
+  }
+  if (pcOut) *pcOut = pc;
+  PetscCall(KSPSetFromOptions(level->ksp));
+  PetscCall(MatDestroy(&E));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char S, unsigned short U, unsigned short excluded, class Operator>
+inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
+  HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(std::enable_if_t<Operator::pattern_ != 'u', Operator> &op)
+{
+  PetscFunctionBeginUser;
+  static_assert(!excluded, "Not implemented");
+  constexpr bool                     uniform            = (U == 1);
+  unsigned short const               infoHeaderLength   = CoarseInfo::headerLength(uniform);
+  unsigned short const               infoLength         = infoHeaderLength + op.getConnectivity();
+  const std::vector<unsigned short> &sparsity           = op.getPattern();
+  const unsigned short               totalNeighborCount = sparsity.size();
+  int                                worldRank;
+  int                                globalCoarseSize = 0;
+  constexpr bool                     isSymmetric      = (S == 'S');
+  MPI_Comm_rank(op.p_.subdomain.getCommunicator(), &worldRank);
+  const unsigned short skippedLowerNeighborCount = (isSymmetric
+                                                      ? std::distance(sparsity.cbegin(), std::upper_bound(sparsity.cbegin(), sparsity.cend(), worldRank))
+                                                      : 0);
+  const unsigned short neighborCount             = totalNeighborCount - skippedLowerNeighborCount;
+  int                  rankSplit;
+  MPI_Comm_rank(scatterComm_, &rankSplit);
+  const bool isMain  = (rankSplit == 0);
+  using integer_type = PetscInt;
+  unsigned short nMains;
+  const bool     isCoarseLevel = (op.prefix_.substr(op.prefix_.size() - 7).compare("coarse_") == 0);
+  {
+    PetscInt n = 1;
+    PetscCall(PetscOptionsGetInt(nullptr, op.prefix_.c_str(), "-p", &n, nullptr));
+    nMains = n;
+  }
+  MPI_Comm extended = MPI_COMM_NULL;
+  #if defined(PETSC_HAVE_MUMPS)
+  if (Operator::factorize_ && isCoarseLevel) {
+    PetscInt n = 1;
+    PetscCall(PetscOptionsGetInt(nullptr, op.prefix_.c_str(), "-mat_mumps_use_omp_threads", &n, nullptr));
+    if (n > 1) {
+      PetscCheck(n <= sizeWorld_ / nMains, op.p_.subdomain.getCommunicator(), PETSC_ERR_ARG_OUTOFRANGE,
+                 "-%smat_mumps_use_omp_threads %" PetscInt_FMT " must not exceed the number of subdomains per coarse process %d", op.prefix_.c_str(), n,
+                 sizeWorld_ / nMains);
+      int *group = new int[static_cast<std::size_t>(n) * nMains];
+      for (unsigned short i = 0; i < nMains; ++i)
+        std::iota(group + static_cast<std::ptrdiff_t>(n) * i, group + static_cast<std::ptrdiff_t>(n) * (i + 1), DMatrix::ldistribution_[i]);
+      MPI_Group world, main;
+      MPI_Comm_group(op.p_.subdomain.getCommunicator(), &world);
+      MPI_Group_incl(world, n * nMains, group, &main);
+      delete[] group;
+      MPI_Comm_create(op.p_.subdomain.getCommunicator(), main, &extended);
+      MPI_Group_free(&world);
+      MPI_Group_free(&main);
+    }
+  }
+  #endif
+  const NeighborSizes neighborSizes = gatherNeighborSizes<uniform>(sparsity, local_, skippedLowerNeighborCount, op.p_.subdomain.getCommunicator());
+  unsigned int        coupledDof    = 0;
+  if (uniform) coupledDof = local_ * neighborCount;
+  else {
+    for (unsigned short i = skippedLowerNeighborCount; i < totalNeighborCount; ++i) coupledDof += neighborSizes.get()[i];
+  }
+  std::vector<CoarseInfo> splitInfo = gatherCoarseInfo<uniform, Operator::factorize_>(isMain, sizeSplit_, infoLength, scatterComm_, skippedLowerNeighborCount,
+                                                                                      sparsity, local_, coupledDof);
+  std::vector<unsigned short *> splitInfoRows;
+  if (isMain && (!Operator::factorize_ || !uniform)) {
+    splitInfoRows.resize(splitInfo.size());
+    std::transform(splitInfo.begin(), splitInfo.end(), splitInfoRows.begin(), [](const CoarseInfo &info) { return info.data(); });
+  }
+  const std::unique_ptr<unsigned short[]> worldDofOwner = gatherWorldDof<uniform>(isMain, DMatrix::rank_, nMains, sizeWorld_, sizeSplit_, splitInfo,
+                                                                                  DMatrix::communicator_);
+  unsigned short                         *worldDof      = worldDofOwner.get();
+  if (!Operator::factorize_) {
+    if (!isMain) op.template setPattern<S, uniform>(DMatrix::ldistribution_, nMains, sizeSplit_);
+    else op.template setPattern<S, uniform>(DMatrix::ldistribution_, nMains, sizeSplit_, splitInfoRows.data(), worldDof);
+  }
+  CoarseCSR<K, integer_type> coarseCSR;
+  coarseCSR.template initialize<isSymmetric, uniform>(isMain, sizeSplit_, splitInfo, local_, coupledDof);
+  unsigned int localRows = 0;
+  K           *values    = nullptr;
+  if (isMain) {
+    coarseCSR.allocateValues(neighborCount, local_);
+    values = coarseCSR.values();
+  } else values = new K[coarseCSR.count()];
+
+  const vectorNeighbor &neighborMap = op.p_.subdomain.getMap();
+  const CoarseOffsets   offsets = CoarseOffsets::create<isSymmetric, uniform, Operator::pattern_>(isMain, sparsity, neighborCount, skippedLowerNeighborCount,
+                                                                                                  neighborSizes, rankWorld_, local_, worldDof, sizeSplit_,
+                                                                                                  splitInfo);
+  op.initialize(op.p_.subdomain.getDof() *
+                  (uniform || neighborCount == 0
+                     ? local_
+                     : std::max(static_cast<unsigned short>(local_), *std::max_element(neighborSizes.upper(), neighborSizes.get() + sparsity.size()))),
+                !isSymmetric ? neighborCount : skippedLowerNeighborCount, values, offsets.selfBlockOffset(), offsets.rowStride());
+  op.template applyToNeighbor<S, uniform>(neighborSizes.get());
+  if (!isMain && (uniform || local_)) op.template assembleForMain<S, uniform>(values, offsets, neighborSizes);
+
+  if (!isMain) {
+    sizeRHS_ = local_;
+    if (U == 0) DMatrix::displs_ = &rankWorld_;
+    op.finishExchange();
+  }
+
+  const std::unique_ptr<MPI_Request[]> gatherRecv(isMain && sizeSplit_ > 1 ? new MPI_Request[sizeSplit_ - 1] : nullptr);
+  K                                   *unscaledValues = nullptr;
+  if (!isMain) {
+    if (uniform || local_) {
+      downscaled_type<K> *const downscaledValues = reinterpret_cast<downscaled_type<K> *>(values);
+      if (!std::is_same<downscaled_type<K>, K>::value)
+        for (unsigned int i = 0; i < coarseCSR.count(); ++i) downscaledValues[i] = values[i];
+      MPI_Send(downscaledValues, coarseCSR.count(), Wrapper<downscaled_type<K>>::mpi_type(), 0, 3, scatterComm_);
+    }
+    delete[] values;
+  } else {
+    unscaledValues = std::is_same<downscaled_type<K>, K>::value ? coarseCSR.values() : new K[coarseCSR.selfCount()];
+    if (!std::is_same<downscaled_type<K>, K>::value) std::copy_n(coarseCSR.values(), coarseCSR.selfCount(), unscaledValues);
+    for (unsigned short k = 1; k < sizeSplit_; ++k) {
+      const unsigned short otherLocal      = uniform ? local_ : splitInfo[k].localDof();
+      const unsigned short otherCoupled    = uniform ? local_ * splitInfo[k].neighborCount() : splitInfo[k].coupledDof();
+      const unsigned int   otherValueCount = contributionSize<isSymmetric, uniform>(otherLocal, otherCoupled);
+      if (otherValueCount) {
+        MPI_Irecv(reinterpret_cast<downscaled_type<K> *>(coarseCSR.values()) + coarseCSR.splitValueOffset(k), otherValueCount,
+                  Wrapper<downscaled_type<K>>::mpi_type(), k, 3, scatterComm_, gatherRecv.get() + k - 1);
+      } else gatherRecv[k - 1] = MPI_REQUEST_NULL;
+    }
+  }
+
+  const unsigned short firstWorldRank = rankWorld_;
+  if (isMain) {
+    if (!uniform) {
+      op.max_     = std::accumulate(worldDof, worldDof + rankWorld_, 0);
+      DMatrix::n_ = std::accumulate(worldDof + rankWorld_, worldDof + sizeWorld_, op.max_);
+      localRows   = std::accumulate(worldDof + rankWorld_, worldDof + rankWorld_ + sizeSplit_, 0);
+    } else {
+      op.max_     = rankWorld_ * local_;
+      DMatrix::n_ = sizeWorld_ * local_;
+      localRows   = sizeSplit_ * local_;
+    }
+    coarseCSR.template allocateStructure<uniform>(localRows, local_, isCoarseLevel);
+    coarseCSR.template seedLocalStructure<isSymmetric, uniform, Operator::pattern_>(splitInfo, sizeSplit_, offsets, worldDof, local_, firstWorldRank, op.max_,
+                                                                                    DMatrix::rank_, DMatrix::ldistribution_, nMains, neighborCount, neighborMap,
+                                                                                    skippedLowerNeighborCount, neighborSizes);
+    populateSendLists<isSymmetric, uniform, Operator::pattern_>(super::send_, coarseCSR, isCoarseLevel, splitInfo, sizeSplit_, offsets.splitRow(),
+                                                                firstWorldRank, op.max_, local_, DMatrix::rank_);
+    if (uniform || local_)
+      op.template applyFromNeighborMain<S, uniform>(coarseCSR.rowPtr(), coarseCSR.colIdx(), unscaledValues, offsets, neighborSizes, local_);
+
+    std::partial_sum(coarseCSR.rowPtr(), coarseCSR.rowPtr() + 1 + localRows / (!uniform ? 1 : local_), coarseCSR.rowPtr());
+    downscaled_type<K> *downscaledValues = reinterpret_cast<downscaled_type<K> *>(coarseCSR.values());
+    if (!std::is_same<downscaled_type<K>, K>::value) {
+      for (unsigned int i = 0; i < coarseCSR.selfCount(); ++i) downscaledValues[i] = unscaledValues[i];
+      delete[] unscaledValues;
+    }
+
+    MPI_Waitall(sizeSplit_ - 1, gatherRecv.get(), MPI_STATUSES_IGNORE);
+    op.finishExchange();
+
+    globalCoarseSize = DMatrix::n_;
+    if (1 < nMains) {
+      super::di_         = new integer_type[1];
+      unsigned int begin = DMatrix::rank_;
+      unsigned int end   = std::min(nMains, static_cast<unsigned short>(begin + 1));
+      super::di_[0]      = DMatrix::ldistribution_[begin];
+      if (end == nMains) end = sizeWorld_;
+      else end = DMatrix::ldistribution_[end];
+      if (!U) {
+        DMatrix::n_   = std::accumulate(worldDof + super::di_[0], worldDof + (end), 0);
+        super::di_[0] = std::accumulate(worldDof, worldDof + super::di_[0], 0);
+      } else {
+        DMatrix::n_ = (end - super::di_[0]) * local_;
+      }
+    }
+    super::bs_ = (!uniform ? 1 : local_);
+    if (Operator::factorize_) {
+      if (extended != MPI_COMM_NULL) PetscCallMPI(MPI_Bcast(&globalCoarseSize, 1, MPI_INT, 0, extended));
+      PC pc = nullptr;
+      PetscCall((setupCoarseKSP<isSymmetric>(extended != MPI_COMM_NULL ? extended : DMatrix::communicator_, localRows, globalCoarseSize, super::bs_,
+                                             coarseCSR.rowPtr(), coarseCSR.colIdx(), downscaledValues, uniform, local_, nMains, extended != MPI_COMM_NULL,
+                                             isCoarseLevel, false, true, op.prefix_, op.level_, &pc)));
+  #if defined(PETSC_HAVE_MUMPS) && PETSC_VERSION_GE(3, 24, 0) && defined(PETSC_PKG_MUMPS_VERSION_GE)
+    #if PETSC_PKG_MUMPS_VERSION_GE(5, 8, 1)
+      if (pc) {
+        PetscInt n = 0;
+        PetscCall(PetscOptionsGetInt(nullptr, op.prefix_.c_str(), "-mat_mumps_icntl_15", &n, nullptr));
+        if (n == 1) {
+          PetscBool flg;
+          PetscCall(PetscObjectTypeCompareAny((PetscObject)pc, &flg, PCLU, PCCHOLESKY, ""));
+          if (flg) {
+            MatSolverType type;
+            PetscCall(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
+            PetscCall(PCSetFromOptions(pc));
+            PetscCall(PCFactorSetUpMatSolverType(pc));
+            PetscCall(PCFactorGetMatSolverType(pc, &type));
+            PetscCall(PetscStrcmp(type, MATSOLVERMUMPS, &flg));
+            if (flg) {
+              Mat       A;
+              PetscInt *blkptr;
+              PetscCall(PCFactorGetMatrix(pc, &A));
+              if (U)
+                PetscCall(PetscOptionsSetValue(nullptr, std::string("-" + op.prefix_ + "mat_mumps_icntl_15").c_str(), std::to_string(-super::bs_).c_str()));
+              else if (DMatrix::rank_ == 0) {
+                PetscCall(PetscMalloc1(sizeWorld_ + 1, &blkptr));
+                blkptr[0] = 1;
+                for (unsigned int i = 0; i < sizeWorld_; ++i) blkptr[i + 1] = blkptr[i] + worldDof[i];
+                PetscCall(MatMumpsSetBlk(A, sizeWorld_, nullptr, blkptr));
+                PetscCall(PetscFree(blkptr));
+              }
+            }
+          }
+        }
+      }
+    #endif
+  #endif
+      super::s_ = op.level_;
+    }
+    if (!isCoarseLevel) {
+      super::template numfact<S, Operator::factorize_>(coarseCSR.rowCount(), coarseCSR.rowPtr(), coarseCSR.rowRange(), coarseCSR.colIdx(), downscaledValues,
+                                                       coarseCSR.entryOwner());
+      coarseCSR.releaseToSolver();
+    } else {
+      delete[] super::di_;
+      super::di_ = nullptr;
+    }
+    std::swap(DMatrix::n_, globalCoarseSize);
+  }
+  #if defined(PETSC_HAVE_MUMPS)
+  if (!isMain && extended != MPI_COMM_NULL) {
+    PetscInt zero = 0;
+    PetscCallMPI(MPI_Bcast(&globalCoarseSize, 1, MPI_INT, 0, extended));
+    PetscCall((setupCoarseKSP<isSymmetric>(extended, static_cast<PetscInt>(0), globalCoarseSize, !uniform ? 1 : local_, &zero, static_cast<PetscInt *>(nullptr),
+                                           static_cast<PetscScalar *>(nullptr), uniform, local_, nMains, true, true, false, false, op.prefix_, op.level_)));
+    super::s_ = op.level_;
+  }
+  #endif
+  unsigned short **splitInfoRowsPtr = splitInfoRows.data();
+  finishSetup<0, U, false, uniform>(worldDof, rankSplit, nMains, splitInfoRowsPtr, globalCoarseSize);
+  #if defined(PETSC_HAVE_MUMPS)
+  if (extended != MPI_COMM_NULL) MPI_Comm_free(&extended);
+  #endif
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char S, unsigned short U, unsigned short excluded, class Operator>
+inline typename CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::return_type CoarseOperator<
+  HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::constructionMatrix(std::enable_if_t<Operator::pattern_ == 'u', Operator> &v)
+{
+  PetscFunctionBeginUser;
+  static_assert(!excluded, "Not implemented");
+  constexpr unsigned short infoStride = (U != 1 ? 3 : 1);
+  unsigned short *const    info       = new unsigned short[infoStride]();
+  int                      rank;
+  MPI_Comm_rank(v.p_.subdomain.getCommunicator(), &rank);
+  int rankSplit;
+  MPI_Comm_rank(scatterComm_, &rankSplit);
+  unsigned short p;
+  {
+    PetscInt n = 1;
+    PetscCall(PetscOptionsGetInt(nullptr, v.prefix_.c_str(), "-p", &n, nullptr));
+    p = n;
+  }
+  if (U != 1) info[1] = local_;
+  unsigned short **infoSplit = nullptr;
+  unsigned short  *infoWorld = nullptr;
+  if (rankSplit) MPI_Gather(info, infoStride, MPI_UNSIGNED_SHORT, nullptr, 0, MPI_DATATYPE_NULL, 0, scatterComm_);
+  else {
+    infoSplit  = new unsigned short *[sizeSplit_];
+    *infoSplit = new unsigned short[sizeSplit_ * infoStride + (U != 1) * sizeWorld_];
+    MPI_Gather(info, infoStride, MPI_UNSIGNED_SHORT, *infoSplit, infoStride, MPI_UNSIGNED_SHORT, 0, scatterComm_);
+    for (unsigned int i = 1; i < sizeSplit_; ++i) infoSplit[i] = *infoSplit + static_cast<std::ptrdiff_t>(i) * infoStride;
+    if (U != 1) {
+      infoWorld = *infoSplit + static_cast<std::ptrdiff_t>(sizeSplit_) * infoStride;
+      const std::unique_ptr<int[]> counts(new int[2 * static_cast<std::size_t>(p)]);
+      int                         *recvcounts = counts.get();
+      int                         *displs     = recvcounts + p;
+      displs[0]                               = 0;
+      std::fill_n(recvcounts, p - 1, sizeWorld_ / p);
+      recvcounts[p - 1] = sizeWorld_ - (p - 1) * (sizeWorld_ / p);
+      std::partial_sum(recvcounts, recvcounts + p - 1, displs + 1);
+      for (unsigned int i = 0; i < sizeSplit_; ++i) infoWorld[displs[DMatrix::rank_] + i] = infoSplit[i][1];
+      MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, infoWorld, recvcounts, displs, MPI_UNSIGNED_SHORT, DMatrix::communicator_);
+      DMatrix::n_ = std::accumulate(infoWorld, infoWorld + sizeWorld_, 0);
+    } else DMatrix::n_ = sizeWorld_ * local_;
+  }
+  delete[] info;
+  if (rankSplit) {
+    sizeRHS_ = local_;
+    if (U == 0) DMatrix::displs_ = &rankWorld_;
+  } else {
+    const K *const E = v.p_.getOperator();
+    Mat            P, A;
+    PetscScalar   *ptr;
+    PetscCall(MatCreateDense(DMatrix::communicator_, DMatrix::n_, DMatrix::n_, DMatrix::n_, DMatrix::n_, nullptr, &P));
+    PetscCall(MatDenseGetArrayWrite(P, &ptr));
+    std::copy_n(E, DMatrix::n_ * DMatrix::n_, ptr);
+    PetscCall(MatDenseRestoreArrayWrite(P, &ptr));
+    PetscCall(MatSetOptionsPrefix(P, v.prefix_.c_str()));
+    PetscCall(MatSetFromOptions(P));
+    PetscCall(MatViewFromOptions(P, NULL, "-mat_view"));
+    PetscCall(KSPGetOperators(v.level_->parent->levels[0]->ksp, nullptr, &A));
+    PetscCall(MatPropagateSymmetryOptions(A, P));
+    PetscCall(KSPCreate(DMatrix::communicator_, &v.level_->ksp));
+    PetscCall(KSPSetOperators(v.level_->ksp, P, P));
+    PetscCall(KSPSetOptionsPrefix(v.level_->ksp, v.prefix_.c_str()));
+    PetscCall(KSPSetFromOptions(v.level_->ksp));
+    PetscCall(MatDestroy(&P));
+    super::s_ = v.level_;
+  }
+  finishSetup<0, U, false, false>(infoWorld, rankSplit, p, infoSplit, rank);
+  if (rankSplit == 0) {
+    delete[] *infoSplit;
+    delete[] infoSplit;
+  }
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) template <char T, unsigned short U, unsigned short excluded, bool blocked>
+inline void CoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>::finishSetup(unsigned short *&infoWorld, const int rankSplit, const unsigned short p,
+                                                                                   unsigned short **&infoSplit, const int rank)
+{
+  static_assert(!T, "Not implemented");
+  static_assert(!excluded, "Not implemented");
+  if (gatherComm_ != scatterComm_) {
+    MPI_Comm_free(&gatherComm_);
+    gatherComm_ = scatterComm_;
+  }
+  if (rankSplit == 0) {
+    constructionMap<0, U == 1, false>(p, U == 1 ? nullptr : infoWorld);
+    sizeRHS_ = DMatrix::ldistribution_[DMatrix::rank_];
+    if (U == 1) constructionCollective<true, DMatrix::DISTRIBUTED_SOL, 0>();
+    else {
+      unsigned short *infoMain = infoSplit[0];
+      for (unsigned int i = 0; i < sizeSplit_; ++i) infoMain[i] = infoSplit[i][1];
+      constructionCollective<false, DMatrix::DISTRIBUTED_SOL, 0>(infoWorld, p - 1, infoMain);
+    }
+    DMatrix::n_ = rank / (!blocked ? 1 : local_);
+  }
+}
+#endif
 
 #ifndef PetscCallAbort
   #define HPDDM_PETSC_CALL_ABORT

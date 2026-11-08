@@ -768,7 +768,6 @@ static PetscErrorCode PCSetUp_HPDDMShell(PC pc)
   PetscCall(PCSetOperators(ctx->pc, A, P));
   if (!ctx->v[0]) {
     PetscCall(VecDuplicateVecs(ctx->D, 1, &ctx->v[0]));
-    if (!std::is_same<PetscScalar, PetscReal>::value) PetscCall(VecDestroy(&ctx->D));
     PetscCall(MatCreateVecs(A, &x, nullptr));
     PetscCall(VecDuplicateVecs(x, 2, &ctx->v[1]));
     PetscCall(VecDestroy(&x));
@@ -2878,7 +2877,7 @@ static PetscErrorCode PCSetUp_HPDDM(PC pc)
         PetscCall(VecGetArrayRead(data->levels[0]->D, &array));
         /* HPDDM owns mutable real storage; in complex builds it is separate from the PETSc Vec */
         d = const_cast<PetscReal *>(data->levels[0]->P->getScaling());
-        for (PetscInt i = 0; i < data->levels[0]->P->getDof(); ++i) d[i] = PetscRealPart(array[i]);
+        for (PetscInt i = 0; i < data->levels[0]->P->subdomain.getDof(); ++i) d[i] = PetscRealPart(array[i]);
         PetscCall(VecRestoreArrayRead(data->levels[0]->D, &array));
       }
       if (!data->log_separate) PetscCall(PetscLogEventEnd(PC_HPDDM_Strc, data->levels[0]->ksp, nullptr, nullptr, nullptr));

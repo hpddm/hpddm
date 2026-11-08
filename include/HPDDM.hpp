@@ -657,13 +657,15 @@ using HpSchwarz = HPDDM::Schwarz<
   SUBDOMAIN, COARSEOPERATOR, S,
       #endif
   K>;
-      #include "HPDDM_schur.hpp"
+      #ifndef PETSC_PCHPDDM_MAXLEVELS
+        #include "HPDDM_schur.hpp"
 template <class K = double>
 using HpSchur = HPDDM::Schur<
-      #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
+        #if HPDDM_SCHWARZ || HPDDM_FETI || HPDDM_BDD
   SUBDOMAIN, COARSEOPERATOR<K>,
-      #endif
+        #endif
   K>;
+      #endif
       #if HPDDM_FETI
         #include "HPDDM_FETI.hpp"
 template <HPDDM::FetiPrcndtnr P, class K = double, char S = 'S'>

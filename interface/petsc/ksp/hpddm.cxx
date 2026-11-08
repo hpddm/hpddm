@@ -250,8 +250,6 @@ static PetscErrorCode KSPConverged_HPDDM(KSP ksp, PetscInt it, KSPHPDDMConvergen
   if (it < ksp->min_it) PetscFunctionReturn(PETSC_SUCCESS);
   for (PetscInt j = 0; j < ctx->n; ++j) {
     reference = ctx->norm[j];
-    if (defaultctx->initialrtol == PETSC_TRUE || !reference) reference = ctx->init[j];
-    else if (defaultctx->mininitialrtol == PETSC_TRUE) reference = PetscMin(reference, ctx->init[j]);
     tolerance = PetscMax(ksp->abstol, ksp->rtol * reference);
     if (ctx->residual[j] <= tolerance) {
       if (ctx->locked[j] == PETSC_FALSE)
@@ -298,6 +296,19 @@ PetscErrorCode KSPHPDDMConvergenceSetUp_Private(KSP ksp, PetscInt n, const Petsc
   PetscCall(PetscArraycpy(ctx->norm, norm, n));
   PetscCall(PetscArraycpy(ctx->init, init, n));
   PetscCall(PetscArrayzero(ctx->locked, n));
+  if (ksp->converged == KSPConvergedDefault) {
+    KSPConvergedDefaultCtx *defaultctx = (KSPConvergedDefaultCtx *)ksp->cnvP;
+
+    PetscCheck(defaultctx != nullptr, PetscObjectComm((PetscObject)ksp), PETSC_ERR_ARG_NULL, "Convergence context must have been created with KSPConvergedDefaultCreate()");
+    for (PetscInt j = 0; j < n; ++j) {
+      if (ksp->guess_zero || defaultctx->initialrtol || !ctx->norm[j]) ctx->norm[j] = ctx->init[j];
+      else if (defaultctx->mininitialrtol) ctx->norm[j] = PetscMin(ctx->norm[j], ctx->init[j]);
+    }
+    if (n == 1) {
+      ksp->rnorm0 = ctx->norm[0];
+      ksp->ttol   = PetscMax(ksp->abstol, ksp->rtol * ksp->rnorm0);
+    }
+  }
   PetscFunctionReturn(PETSC_SUCCESS);
 }
 
@@ -317,7 +328,7 @@ PetscErrorCode KSPHPDDMConvergenceUpdate_Private(KSP ksp, PetscInt it, const Pet
   }
   PetscCall(KSPLogResidualHistory(ksp, ksp->rnorm));
   PetscCall(KSPMonitor(ksp, it, ksp->rnorm));
-  if (ctx->n > 1 && ksp->converged == KSPConvergedDefault) PetscCall(KSPConverged_HPDDM(ksp, it, ctx));
+  if (ksp->converged == KSPConvergedDefault) PetscCall(KSPConverged_HPDDM(ksp, it, ctx));
   else PetscCall((*ksp->converged)(ksp, it, ksp->rnorm, &ksp->reason, ksp->cnvP));
   *locked = ctx->locked;
   PetscFunctionReturn(PETSC_SUCCESS);

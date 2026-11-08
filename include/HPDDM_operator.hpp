@@ -67,7 +67,7 @@ protected:
   unsigned short              connectivity_;
   template <char Q = P, std::enable_if_t<Q == 's' || Q == 'u'> * = nullptr>
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
-    p_(p), deflation_(buildDeflation(p)), map_(p.getMap()), n_(p.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
+    p_(p), deflation_(buildDeflation(p)), map_(p.subdomain.getMap()), n_(p.subdomain.getDof()), local_(p.getLocal()), max_(max), connectivity_(c)
   {
     static_assert(Q == P, "Wrong sparsity pattern");
     sparsity_.reserve(map_.size());
@@ -77,8 +77,8 @@ protected:
   OperatorBase(const Preconditioner &p, const unsigned short &c, const unsigned int &max) :
     p_(p),
     deflation_(buildDeflation(p)),
-    map_(p.getMap()),
-    n_(p.getDof()),
+    map_(p.subdomain.getMap()),
+    n_(p.subdomain.getDof()),
     local_(p.getLocal()),
     max_(max + std::max(1, (c - 1)) * (max & 4095)),
     connectivity_(c)
@@ -89,7 +89,7 @@ protected:
     const unsigned int offset = *p_.getLDR() - n_;
 #else
     int rank;
-    MPI_Comm_rank(p_.getCommunicator(), &rank);
+    MPI_Comm_rank(p_.subdomain.getCommunicator(), &rank);
     Members<true>::rank_ = rank;
     signed_ = static_cast<unsigned short>(std::count_if(map_.cbegin(), map_.cend(), [rank](const pairNeighbor &neighbor) { return neighbor.first < rank; }));
     constexpr unsigned int offset = 0;
@@ -101,14 +101,14 @@ protected:
       unsigned short **recvSparsity = new unsigned short *[map_.size() + 1];
       *recvSparsity                 = new unsigned short[(connectivity_ + 1) * map_.size()];
       unsigned short *sendSparsity  = *recvSparsity + connectivity_ * map_.size();
-      MPI_Request    *rq            = p_.getRq();
+      MPI_Request    *rq            = p_.subdomain.getRq();
       for (unsigned short i = 0; i < map_.size(); ++i) {
         sendSparsity[i] = map_[i].first;
         recvSparsity[i] = *recvSparsity + static_cast<std::ptrdiff_t>(connectivity_) * i;
-        MPI_Irecv(recvSparsity[i], connectivity_, MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.getCommunicator(), rq + i);
+        MPI_Irecv(recvSparsity[i], connectivity_, MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.subdomain.getCommunicator(), rq + i);
       }
       for (unsigned short i = 0; i < map_.size(); ++i)
-        MPI_Isend(sendSparsity, map_.size(), MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.getCommunicator(), rq + map_.size() + i);
+        MPI_Isend(sendSparsity, map_.size(), MPI_UNSIGNED_SHORT, map_[i].first, 4, p_.subdomain.getCommunicator(), rq + map_.size() + i);
       Members<true>::vecSparsity_.resize(map_.size());
       for (unsigned short i = 0; i < map_.size(); ++i) {
         int        index, count;
@@ -273,7 +273,7 @@ protected:
         for (unsigned short i = 0; i < map_.size(); ++i) {
           if (displs[i + map_.size()] != displs[i - 1 + map_.size()]) {
             out[i] = *in + displs[i - 1 + map_.size()];
-            MPI_Irecv(out[i], displs[i + map_.size()] - displs[i - 1 + map_.size()], Wrapper<K>::mpi_type(), map_[i].first, 2, p_.getCommunicator(),
+            MPI_Irecv(out[i], displs[i + map_.size()] - displs[i - 1 + map_.size()], Wrapper<K>::mpi_type(), map_[i].first, 2, p_.subdomain.getCommunicator(),
                       rqRecv + i);
           } else out[i] = nullptr;
         }
@@ -333,6 +333,10 @@ protected:
     }
   }
 
+protected:
+  MPI_Request *sendRequestsEnd_ = nullptr;
+  K           *workBase_        = nullptr;
+
 public:
   static constexpr char pattern_   = (P != 's' && P != 'u') ? 'c' : (P == 's' ? 's' : 'u');
   static constexpr bool factorize_ = true;
@@ -353,10 +357,26 @@ public:
   }
   const std::vector<unsigned short> &getPattern() const { return sparsity_; }
   unsigned short                     getConnectivity() const { return connectivity_; }
-  template <char Q = P, std::enable_if_t<Q != 's'> * = nullptr>
-  void initialize(unsigned int, K *&, unsigned short)
+  template <char Q = P, std::enable_if_t<Q != 's'> * = nullptr, class... Args>
+  void initialize(unsigned int, Args &&...)
   {
   }
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+  void finishExchange()
+  {
+    if (sendRequestsEnd_) {
+      MPI_Request *const base = p_.subdomain.getRq();
+      MPI_Waitall(static_cast<int>(std::distance(base, sendRequestsEnd_)), base, MPI_STATUSES_IGNORE);
+      sendRequestsEnd_ = nullptr;
+    }
+    if (!map_.empty()) {
+      delete[] *p_.subdomain.getBuffer();
+      *p_.subdomain.getBuffer() = nullptr;
+    }
+    delete[] workBase_;
+    workBase_ = nullptr;
+  }
+#endif
 };
 
 template <class Preconditioner, class K>
@@ -398,9 +418,14 @@ protected:
   Mat                C_{};
   PC_HPDDM_Level    *level_;
   const std::string &prefix_;
+  Vec                scaling_     = nullptr;
+  PetscScalar       *scalingCast_ = nullptr;
   #endif
   K                              *work_;
   const underlying_type<K> *const D_;
+  K                              *values_          = nullptr;
+  unsigned int                    selfBlockOffset_ = 0;
+  int                             rowStride_       = 0;
 
 private:
   using super = OperatorBase<'s', Preconditioner, K>;
@@ -435,32 +460,184 @@ public:
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
-  void initialize(unsigned int k, K *&work, unsigned short s)
+  void buildScalingVec()
   {
-    PetscCallVoid(MatDuplicate(A_, MAT_COPY_VALUES, &C_));
-    Vec          D;
-    VecType      type;
-    PetscScalar *d;
-    PetscBool    flg;
+    VecType   type;
+    PetscBool flg;
     PetscCallVoid(MatGetVecType(A_, &type));
     PetscCallVoid(PetscStrcmp(type, VECSTANDARD, &flg));
     if (!std::is_same<PetscScalar, PetscReal>::value) {
-      d = new PetscScalar[super::p_.getDof()];
-      std::copy_n(D_, super::p_.getDof(), d);
-      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), d, &D));
-      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::p_.getDof(), d, nullptr, &D));
+      scalingCast_ = new PetscScalar[super::n_];
+      std::copy_n(D_, super::n_, scalingCast_);
+      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::n_, scalingCast_, &scaling_));
+      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::n_, scalingCast_, nullptr, &scaling_));
     } else {
-      d = nullptr;
-      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar *>(D_), &D));
-      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::p_.getDof(), reinterpret_cast<const PetscScalar *>(D_), nullptr, &D));
+      if (flg) PetscCallVoid(VecCreateSeqWithArray(PETSC_COMM_SELF, 1, super::n_, reinterpret_cast<const PetscScalar *>(D_), &scaling_));
+      else PetscCallVoid(VecCreateSeqCUDAWithArrays(PETSC_COMM_SELF, 1, super::n_, reinterpret_cast<const PetscScalar *>(D_), nullptr, &scaling_));
     }
-    PetscCallVoid(MatDiagonalScale(C_, nullptr, D));
-    delete[] d;
-    PetscCallVoid(VecDestroy(&D));
+  }
+  void initialize(unsigned int k, K *&work, unsigned short s)
+  {
+    PetscBool flg;
+    PetscCallVoid(PetscObjectTypeCompare((PetscObject)A_, MATSEQSBAIJ, &flg));
+    PetscCallVoid(MatConvert(A_, flg ? MATSEQBAIJ : MATSAME, MAT_INITIAL_MATRIX, &C_));
+    buildScalingVec();
+    PetscCallVoid(MatDiagonalScale(C_, nullptr, scaling_));
     work           = new K[2 * static_cast<std::size_t>(k)];
     work_          = work + k;
     super::signed_ = s;
   }
+    #if defined(PETSC_PCHPDDM_MAXLEVELS)
+  void initialize(unsigned int k, unsigned short s, K *values = nullptr, unsigned int selfBlockOffset = 0, int rowStride = 0)
+  {
+    initialize(k, super::workBase_, s);
+    values_          = values;
+    selfBlockOffset_ = selfBlockOffset;
+    rowStride_       = rowStride;
+  }
+  void finishExchange()
+  {
+    super::finishExchange();
+    PetscCallVoid(VecDestroy(&scaling_));
+    delete[] scalingCast_;
+    scalingCast_ = nullptr;
+  }
+  template <char S, bool U, class T>
+  void prepareExchange(T &in, T const &out, const unsigned short *info, MPI_Request *const &rqRecv)
+  {
+    if (super::map_.empty()) return;
+    constexpr bool            isSymmetric               = (S == 'S');
+    const unsigned short      skippedLowerNeighborCount = isSymmetric ? super::signed_ : 0;
+    const unsigned short      neighborCount             = isSymmetric ? static_cast<unsigned short>(super::map_.size()) - super::signed_ : super::signed_;
+    const unsigned short      sendNeighborCount         = super::signed_;
+    std::vector<unsigned int> sendSizes(sendNeighborCount);
+    std::vector<unsigned int> recvSizes(neighborCount);
+    for (unsigned short i = 0; i < sendNeighborCount; ++i) sendSizes[i] = (U || info[i] ? super::local_ * super::map_[i].second.size() : 0);
+    if (U || super::local_)
+      for (unsigned short i = 0; i < neighborCount; ++i)
+        recvSizes[i] = (U ? super::local_ : info[skippedLowerNeighborCount + i]) * super::map_[i + skippedLowerNeighborCount].second.size();
+    const unsigned int sendCount = std::accumulate(sendSizes.begin(), sendSizes.end(), 0u);
+    const unsigned int recvCount = std::accumulate(recvSizes.begin(), recvSizes.end(), 0u);
+    *in                          = new K[sendCount + recvCount];
+
+    unsigned int sendCursor = 0;
+    for (unsigned short i = 0; i < sendNeighborCount; ++i) {
+      in[i] = *in + sendCursor;
+      sendCursor += sendSizes[i];
+    }
+
+    if (U || super::local_) {
+      unsigned int recvCursor = sendCount;
+      for (unsigned short i = 0; i < neighborCount; ++i) {
+        out[i] = *in + recvCursor;
+        MPI_Irecv(out[i], recvSizes[i], Wrapper<K>::mpi_type(), super::map_[i + skippedLowerNeighborCount].first, 2, super::p_.subdomain.getCommunicator(),
+                  rqRecv + i);
+        recvCursor += recvSizes[i];
+      }
+    } else std::fill_n(rqRecv, neighborCount, MPI_REQUEST_NULL);
+  }
+  template <char S, bool U>
+  void assembleSelfBlock(Mat W)
+  {
+    constexpr bool isSymmetric = (S == 'S');
+    if (!super::local_) return;
+    Mat X;
+    K  *scratch = work_;
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::local_, super::local_, scratch, &X));
+    PetscCallVoid(MatConjugate(W));
+    PetscCallVoid(MatTransposeMatMult(super::p_.getMat(), W, MAT_REUSE_MATRIX, PETSC_DEFAULT, &X));
+    PetscCallVoid(MatConjugate(X));
+    PetscCallVoid(MatDenseGetArrayRead(X, const_cast<const K **>(&scratch)));
+    if (!isSymmetric) {
+      K *const  selfBlock = values_ + selfBlockOffset_ * (!U ? 1 : super::local_ * super::local_);
+      const int ld        = !U ? rowStride_ : super::local_;
+      Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, scratch, super::local_, selfBlock, ld);
+    } else if (U) {
+      std::copy_n(scratch, static_cast<std::size_t>(super::local_) * super::local_, values_);
+    } else {
+      for (unsigned short j = 0; j < super::local_; ++j)
+        std::copy_n(scratch + j * super::local_ + j, super::local_ - j, values_ + j * (rowStride_ + super::local_) - (j * (j - 1)) / 2);
+    }
+    PetscCallVoid(MatDenseRestoreArrayRead(X, const_cast<const K **>(&scratch)));
+    PetscCallVoid(MatDestroy(&X));
+  }
+  template <char S, bool U>
+  void applyToNeighbor(const unsigned short *neighborSizes)
+  {
+    K          **in     = super::p_.subdomain.getBuffer();
+    K          **out    = (U || super::local_) ? in + super::signed_ : nullptr;
+    MPI_Request *rqRecv = super::p_.subdomain.getRq() + super::signed_;
+    MPI_Request *rq     = super::p_.subdomain.getRq();
+    prepareExchange<S, U>(in, out, neighborSizes, rqRecv);
+    Mat P;
+    PetscCallVoid(MatCreateSeqDense(PETSC_COMM_SELF, super::n_, super::local_, super::workBase_, &P));
+    if (super::local_) PetscCallVoid(MatMatMult(C_, super::p_.getMat(), MAT_REUSE_MATRIX, PETSC_DEFAULT, &P));
+    PetscCallVoid(MatDestroy(&C_));
+    for (unsigned short i = 0; i < super::signed_; ++i) {
+      if (U || neighborSizes[i]) {
+        for (unsigned short j = 0; j < super::local_; ++j)
+          Wrapper<K>::gthr(super::map_[i].second.size(), super::workBase_ + j * super::n_, in[i] + j * super::map_[i].second.size(),
+                           super::map_[i].second.data());
+        MPI_Isend(in[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.subdomain.getCommunicator(),
+                  rq++);
+      }
+    }
+    if (super::local_) PetscCallVoid(MatDiagonalScale(P, scaling_, nullptr));
+    assembleSelfBlock<S, U>(P);
+    PetscCallVoid(MatDestroy(&P));
+    super::sendRequestsEnd_ = rq;
+  }
+  template <char S>
+  unsigned short assemblyNeighborCount() const
+  {
+    return S == 'S' ? static_cast<unsigned short>(super::map_.size()) - super::signed_ : super::signed_;
+  }
+  template <char S, bool U>
+  void assembleForMain(K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
+  {
+    K *const *const           in                        = super::p_.subdomain.getBuffer() + super::signed_;
+    MPI_Request *const        rqRecv                    = super::p_.subdomain.getRq() + super::signed_;
+    const unsigned int *const neighborValueOffset       = offsets.neighborValue();
+    const int                 coefficients              = offsets.rowStride();
+    constexpr bool            isSymmetric               = (S == 'S');
+    const unsigned short      skippedLowerNeighborCount = neighborSizes.skippedLowerNeighborCount();
+    const unsigned short      neighborCount             = assemblyNeighborCount<S>();
+    if (neighborCount) {
+      for (unsigned short k = 0; k < neighborCount; ++k) {
+        int neighborIndex;
+        MPI_Waitany(neighborCount, rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
+        assembleForMain<!U ? S : 'B', U>(C + neighborValueOffset[neighborIndex], in[neighborIndex], coefficients + (isSymmetric && !U ? super::local_ - 1 : 0),
+                                         neighborIndex + skippedLowerNeighborCount, super::workBase_, !U ? neighborSizes.upper() + neighborIndex : nullptr);
+        if (U)
+          Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, super::workBase_, super::local_,
+                                             C + neighborValueOffset[neighborIndex] * super::local_, super::local_);
+      }
+    }
+  }
+  template <char S, bool U, class T>
+  void applyFromNeighborMain(T *I, T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes, unsigned short localDof)
+  {
+    K *const *const           in                        = super::p_.subdomain.getBuffer() + super::signed_;
+    MPI_Request              *rqRecv                    = super::p_.subdomain.getRq() + super::signed_;
+    const unsigned int *const neighborValueOffset       = offsets.neighborValue();
+    const int                 coefficients              = offsets.rowStride();
+    const unsigned int        offsetI                   = super::max_;
+    unsigned int *const       offsetJ                   = offsets.neighborColumn();
+    unsigned short *const     infoUpper                 = neighborSizes.upper();
+    const unsigned short      skippedLowerNeighborCount = neighborSizes.skippedLowerNeighborCount();
+    const unsigned short      neighborCount             = assemblyNeighborCount<S>();
+    constexpr bool            isSymmetric               = (S == 'S');
+    for (unsigned short k = 0; k < neighborCount; ++k) {
+      int neighborIndex;
+      MPI_Waitany(neighborCount, rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
+      const unsigned int offset = neighborValueOffset[neighborIndex] / (!U ? 1 : localDof);
+      applyFromNeighborMain<!U ? S : 'B', 'C', U>(in[neighborIndex], neighborIndex + skippedLowerNeighborCount, I + offset, J + offset,
+                                                  C + neighborValueOffset[neighborIndex] * (!U ? 1 : localDof),
+                                                  coefficients + (isSymmetric && !U) * (localDof - 1), offsetI, U ? nullptr : (offsetJ + neighborIndex),
+                                                  super::workBase_, U ? nullptr : infoUpper + neighborIndex);
+    }
+  }
+    #endif
   #else
   MatrixMultiplication(const Preconditioner &p, const unsigned short &c, const unsigned int &max, Types...) :
     super(p, c, max), A_(p.getMatrix()), C_(), D_(p.getScaling())
@@ -553,7 +730,8 @@ public:
       if (U || info[i]) {
         for (unsigned short j = 0; j < super::local_; ++j)
           Wrapper<K>::gthr(super::map_[i].second.size(), work_ + j * super::n_, in[i] + j * super::map_[i].second.size(), super::map_[i].second.data());
-        MPI_Isend(in[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
+        MPI_Isend(in[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.subdomain.getCommunicator(),
+                  rq++);
       }
     }
     Wrapper<K>::diag(super::n_, D_, work_, work, super::local_);
@@ -605,7 +783,82 @@ private:
   int          size_;
   unsigned int sb_;
 
+  template <char S, bool U>
+  void prepareAccumulation(const unsigned short *info, std::pair<int, int> **&block, std::vector<unsigned short> &interior,
+                           std::vector<unsigned short> &overlap, std::vector<unsigned short> *&accumulate, MPI_Request *&rq)
+  {
+    std::vector<unsigned short> worker;
+    int                         rank;
+    MPI_Comm_rank(super::p_.subdomain.getCommunicator(), &rank);
+    const unsigned short main = getMain(rank);
+    worker.reserve(super::map_.size());
+    for (unsigned short i = 0; i < super::map_.size(); ++i) worker.emplace_back(getMain(super::map_[i].first));
+    if (super::map_.size()) {
+      block  = new std::pair<int, int> *[super::map_.size()];
+      *block = new std::pair<int, int>[super::map_.size() * super::map_.size()]();
+      for (unsigned short i = 1; i < super::map_.size(); ++i) block[i] = *block + i * super::map_.size();
+    }
+    accumulate = new std::vector<unsigned short>[S == 'S' ? 2 * super::map_.size() : super::map_.size()];
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      accumulate[i].resize(super::connectivity_);
+      if (S == 'S') accumulate[super::map_.size() + i].reserve(super::connectivity_);
+    }
+    rq                        = new MPI_Request[2 * super::map_.size()];
+    unsigned short *neighbors = new unsigned short[super::map_.size()];
+    for (unsigned short i = 0; i < super::map_.size(); ++i) neighbors[i] = super::map_[i].first;
+    for (unsigned short i = 0; i < super::map_.size(); ++i)
+      MPI_Isend(neighbors, super::map_.size(), MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.subdomain.getCommunicator(),
+                rq + super::map_.size() + i);
+    for (unsigned short i = 0; i < super::map_.size(); ++i)
+      MPI_Irecv(accumulate[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.subdomain.getCommunicator(), rq + i);
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      int        index;
+      MPI_Status st;
+      MPI_Waitany(super::map_.size(), rq, &index, &st);
+      int count;
+      MPI_Get_count(&st, MPI_UNSIGNED_SHORT, &count);
+      accumulate[index].resize(count);
+    }
+    int m = 0;
+    for (unsigned short i = 0; i < super::map_.size(); ++i) {
+      if (worker[i] != main) {
+        overlap.emplace_back(i);
+        block[i][i] = std::make_pair(U == 1 ? super::local_ : info[i], U == 1 ? super::local_ : info[i]);
+        if (block[i][i].first != 0) m += (U == 1 ? super::local_ * super::local_ : info[i] * info[i]);
+        for (unsigned short j = (S != 'S' ? 0 : i + 1); j < super::map_.size(); ++j) {
+          if (i != j && worker[j] != main && std::binary_search(accumulate[j].cbegin(), accumulate[j].cend(), super::map_[i].first)) {
+            block[i][j] = std::make_pair(U == 1 ? super::local_ : info[i], U == 1 ? super::local_ : info[j]);
+            if (block[i][j].first != 0 && block[i][j].second != 0) m += (U == 1 ? super::local_ * super::local_ : info[i] * info[j]);
+          }
+        }
+        if (S == 'S' && i < super::signed_) m += (U == 1 ? super::local_ * super::local_ : super::local_ * info[i]);
+      } else interior.emplace_back(i);
+    }
+    for (unsigned short &i : overlap) {
+      unsigned short size = 0;
+      for (unsigned short j = 0; j < accumulate[i].size(); ++j) {
+        if (getMain(accumulate[i][j]) == worker[i]) {
+          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[i][size++] = std::distance(neighbors, pt);
+        }
+        if (S == 'S' && getMain(accumulate[i][j]) == main) {
+          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
+          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[super::map_.size() + i].emplace_back(std::distance(neighbors, pt));
+        }
+      }
+      accumulate[i].resize(size);
+    }
+    MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
+    delete[] neighbors;
+    overlap_.resize(m);
+  }
+
 public:
+  #ifdef PETSC_PCHPDDM_MAXLEVELS
+  using super::assembleForMain;
+  using super::applyFromNeighborMain;
+  #endif
+
   HPDDM_CLASS_COARSE_OPERATOR(Solver, S, T) friend class CoarseOperator;
   template <typename First, typename Second, typename Third, typename Fourth, typename Fifth, typename... Rest>
   #if !HPDDM_PETSC
@@ -622,6 +875,48 @@ public:
   {
     static_assert(std::is_same<std::remove_pointer_t<First>, typename Preconditioner::super::co_type>::value, "Wrong constructor");
   }
+    #ifdef PETSC_PCHPDDM_MAXLEVELS
+  void initialize(unsigned int k, unsigned short s, K *values = nullptr, unsigned int selfBlockOffset = 0, int rowStride = 0)
+  {
+    initialize(k, super::workBase_, s);
+    super::values_          = values;
+    super::selfBlockOffset_ = selfBlockOffset;
+    super::rowStride_       = rowStride;
+  }
+  template <char S, bool U>
+  void assembleSelfBlock(K *work)
+  {
+    constexpr bool         isSymmetric = (S == 'S');
+    const int              dof         = super::p_.subdomain.getDof();
+    const K *const *const &deflation   = super::deflation_;
+    if (!super::local_) return;
+    K *const scratch = super::work_;
+    Blas<K>::gemm(&(Wrapper<K>::transc), "N", &(super::local_), &(super::local_), &dof, &(Wrapper<K>::d_1), *deflation, &dof, work, &dof, &(Wrapper<K>::d_0),
+                  scratch, &(super::local_));
+    if (!isSymmetric) {
+      K *const  selfBlock = super::values_ + super::selfBlockOffset_ * (!U ? 1 : super::local_ * super::local_);
+      const int ld        = !U ? super::rowStride_ : super::local_;
+      Wrapper<K>::template omatcopy<'T'>(super::local_, super::local_, scratch, super::local_, selfBlock, ld);
+    } else if (U) {
+      std::copy_n(scratch, static_cast<std::size_t>(super::local_) * super::local_, super::values_);
+    } else {
+      for (unsigned short j = 0; j < super::local_; ++j)
+        std::copy_n(scratch + j * super::local_ + j, super::local_ - j, super::values_ + j * (super::rowStride_ + super::local_) - (j * (j - 1)) / 2);
+    }
+  }
+  template <char S, bool U>
+  void applyToNeighbor(const unsigned short *neighborSizes)
+  {
+    K          **in     = super::p_.subdomain.getBuffer();
+    K          **out    = (U || super::local_) ? in + super::signed_ : nullptr;
+    MPI_Request *rqRecv = super::p_.subdomain.getRq() + super::signed_;
+    MPI_Request *rq     = super::p_.subdomain.getRq();
+    super::template prepareExchange<S, U>(in, out, neighborSizes, rqRecv);
+    applyToNeighbor<S, U>(in, super::workBase_, rq, neighborSizes, out, rqRecv);
+    assembleSelfBlock<S, U>(super::workBase_);
+    super::sendRequestsEnd_ = rq;
+  }
+    #endif
   #endif
   static constexpr bool factorize_ = false;
   int                   getMain(const int rank) const
@@ -640,11 +935,11 @@ public:
     ldistribution_ = ldistribution;
     size_          = p;
     int rank, size;
-    MPI_Comm_rank(super::p_.getCommunicator(), &rank);
-    MPI_Comm_size(super::p_.getCommunicator(), &size);
+    MPI_Comm_rank(super::p_.subdomain.getCommunicator(), &rank);
+    MPI_Comm_size(super::p_.subdomain.getCommunicator(), &size);
     char *pattern = new char[static_cast<std::size_t>(size) * size]();
     for (unsigned short i = 0; i < super::map_.size(); ++i) pattern[rank * size + super::map_[i].first] = 1;
-    MPI_Allreduce(MPI_IN_PLACE, pattern, size * size, MPI_CHAR, MPI_SUM, super::p_.getCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, pattern, size * size, MPI_CHAR, MPI_SUM, super::p_.subdomain.getCommunicator());
     if (split) {
       int self = getMain(rank);
       reduction_.resize(sizeSplit);
@@ -711,69 +1006,12 @@ public:
   template <char S, bool U, class T>
   void applyToNeighbor(T &in, K *&work, MPI_Request *&rs, const unsigned short *info, T = nullptr, MPI_Request * = nullptr)
   {
-    std::pair<int, int>       **block = nullptr;
-    std::vector<unsigned short> worker, interior, overlap, extraSend, extraRecv;
-    int                         rank;
-    MPI_Comm_rank(super::p_.getCommunicator(), &rank);
-    const unsigned short main = getMain(rank);
-    worker.reserve(super::map_.size());
-    for (unsigned short i = 0; i < super::map_.size(); ++i) worker.emplace_back(getMain(super::map_[i].first));
-    if (super::map_.size()) {
-      block  = new std::pair<int, int> *[super::map_.size()];
-      *block = new std::pair<int, int>[super::map_.size() * super::map_.size()]();
-      for (unsigned short i = 1; i < super::map_.size(); ++i) block[i] = *block + i * super::map_.size();
-    }
-    std::vector<unsigned short> *accumulate = new std::vector<unsigned short>[S == 'S' ? 2 * super::map_.size() : super::map_.size()];
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      accumulate[i].resize(super::connectivity_);
-      if (S == 'S') accumulate[super::map_.size() + i].reserve(super::connectivity_);
-    }
-    MPI_Request    *rq        = new MPI_Request[2 * super::map_.size()];
-    unsigned short *neighbors = new unsigned short[super::map_.size()];
-    for (unsigned short i = 0; i < super::map_.size(); ++i) neighbors[i] = super::map_[i].first;
-    for (unsigned short i = 0; i < super::map_.size(); ++i)
-      MPI_Isend(neighbors, super::map_.size(), MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + super::map_.size() + i);
-    for (unsigned short i = 0; i < super::map_.size(); ++i)
-      MPI_Irecv(accumulate[i].data(), super::connectivity_, MPI_UNSIGNED_SHORT, super::map_[i].first, 123, super::p_.getCommunicator(), rq + i);
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      int        index, count;
-      MPI_Status st;
-      MPI_Waitany(super::map_.size(), rq, &index, &st);
-      MPI_Get_count(&st, MPI_UNSIGNED_SHORT, &count);
-      accumulate[index].resize(count);
-    }
-    int m = 0;
-    for (unsigned short i = 0; i < super::map_.size(); ++i) {
-      if (worker[i] != main) {
-        overlap.emplace_back(i);
-        block[i][i] = std::make_pair(U == 1 ? super::local_ : info[i], U == 1 ? super::local_ : info[i]);
-        if (block[i][i].first != 0) m += (U == 1 ? super::local_ * super::local_ : info[i] * info[i]);
-        for (unsigned short j = (S != 'S' ? 0 : i + 1); j < super::map_.size(); ++j) {
-          if (i != j && worker[j] != main && std::binary_search(accumulate[j].cbegin(), accumulate[j].cend(), super::map_[i].first)) {
-            block[i][j] = std::make_pair(U == 1 ? super::local_ : info[i], U == 1 ? super::local_ : info[j]);
-            if (block[i][j].first != 0 && block[i][j].second != 0) m += (U == 1 ? super::local_ * super::local_ : info[i] * info[j]);
-          }
-        }
-        if (S == 'S' && i < super::signed_) m += (U == 1 ? super::local_ * super::local_ : super::local_ * info[i]);
-      } else interior.emplace_back(i);
-    }
-    for (unsigned short &i : overlap) {
-      unsigned short size = 0;
-      for (unsigned short j = 0; j < accumulate[i].size(); ++j) {
-        if (getMain(accumulate[i][j]) == worker[i]) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[i][size++] = std::distance(neighbors, pt);
-        }
-        if (S == 'S' && getMain(accumulate[i][j]) == main) {
-          unsigned short *pt = std::lower_bound(neighbors, neighbors + super::map_.size(), accumulate[i][j]);
-          if (pt != neighbors + super::map_.size() && *pt == accumulate[i][j]) accumulate[super::map_.size() + i].emplace_back(std::distance(neighbors, pt));
-        }
-      }
-      accumulate[i].resize(size);
-    }
-    MPI_Waitall(super::map_.size(), rq + super::map_.size(), MPI_STATUSES_IGNORE);
-    delete[] neighbors;
-    overlap_.resize(m);
+    std::pair<int, int>        **block = nullptr;
+    std::vector<unsigned short>  interior, overlap;
+    std::vector<unsigned short> *accumulate;
+    MPI_Request                 *rq;
+    int                          m;
+    prepareAccumulation<S, U>(info, block, interior, overlap, accumulate, rq);
     std::vector<typename Preconditioner::integer_type> omap;
   #if HPDDM_PETSC
     PetscInt n;
@@ -859,7 +1097,7 @@ public:
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       const std::size_t count = super::map_[i].second.size() * (U == 1 ? super::local_ : info[i]);
       buff[i]                 = *buff + m;
-      if (count) MPI_Irecv(buff[i], count, Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.getCommunicator(), rq + i);
+      if (count) MPI_Irecv(buff[i], count, Wrapper<K>::mpi_type(), super::map_[i].first, 20, super::p_.subdomain.getCommunicator(), rq + i);
       else rq[i] = MPI_REQUEST_NULL;
       m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     }
@@ -871,7 +1109,7 @@ public:
                          super::map_[i].second.data());
       if (super::local_ && !super::map_[i].second.empty())
         MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 20,
-                  super::p_.getCommunicator(), rq + super::map_.size() + i);
+                  super::p_.subdomain.getCommunicator(), rq + super::map_.size() + i);
       else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
       m += super::map_[i].second.size() * (U == 1 ? super::local_ : std::max(static_cast<unsigned short>(super::local_), info[i]));
     }
@@ -922,7 +1160,7 @@ public:
     }
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
       if (super::local_ && !super::map_[i].second.empty())
-        MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(), rq + i);
+        MPI_Irecv(buff[i], super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.subdomain.getCommunicator(), rq + i);
       else rq[i] = MPI_REQUEST_NULL;
     }
     m = std::distance(tmp[0], tmp[super::map_.size()]) / omap.size();
@@ -995,7 +1233,7 @@ public:
       for (unsigned short j = 0; j < m; ++j)
         Wrapper<K>::gthr(nmap[i].size(), tmp[super::map_.size() + i] + j * omap.size(), buff[super::map_.size() + i] + j * nmap[i].size(), nmap[i].data());
       if (m && !super::map_[i].second.empty())
-        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.getCommunicator(),
+        MPI_Isend(buff[super::map_.size() + i], super::map_[i].second.size() * m, Wrapper<K>::mpi_type(), super::map_[i].first, 21, super::p_.subdomain.getCommunicator(),
                   rq + super::map_.size() + i);
       else rq[super::map_.size() + i] = MPI_REQUEST_NULL;
     }
@@ -1063,7 +1301,7 @@ public:
           }
         }
         MPI_Isend(in[overlap[i]], super::map_[overlap[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[overlap[i]].first, 2,
-                  super::p_.getCommunicator(), rs + overlap[i]);
+                  super::p_.subdomain.getCommunicator(), rs + overlap[i]);
       } else rs[overlap[i]] = MPI_REQUEST_NULL;
     }
     for (unsigned short &i : interior) {
@@ -1077,7 +1315,7 @@ public:
           Wrapper<K>::gthr(super::map_[interior[i]].second.size(), super::work_ + nu * super::n_, in[interior[i]] + nu * super::map_[interior[i]].second.size(),
                            super::map_[interior[i]].second.data());
         MPI_Isend(in[interior[i]], super::map_[interior[i]].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[interior[i]].first, 2,
-                  super::p_.getCommunicator(), rs + interior[i]);
+                  super::p_.subdomain.getCommunicator(), rs + interior[i]);
       } else rs[interior[i]] = MPI_REQUEST_NULL;
     }
     rs += super::signed_;
@@ -1452,6 +1690,49 @@ public:
   {
     static_assert(sizeof...(Types) == 0, "Wrong constructor");
   }
+    #if PETSC_PCHPDDM_MAXLEVELS
+  template <char S, bool U>
+  void applyToNeighbor(const unsigned short *neighborSizes)
+  {
+    K          **in     = super::p_.subdomain.getBuffer();
+    K          **out    = (U || super::local_) ? in + super::map_.size() : nullptr;
+    MPI_Request *rqRecv = super::p_.subdomain.getRq() + super::map_.size();
+    MPI_Request *rq     = super::p_.subdomain.getRq();
+    applyToNeighbor<S, U>(in, super::workBase_, rq, neighborSizes, out, rqRecv);
+    super::sendRequestsEnd_ = rq;
+  }
+  template <char S, bool U>
+  void assembleForMain(K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes)
+  {
+    K *const *const       in           = super::p_.subdomain.getBuffer() + super::map_.size();
+    MPI_Request          *rqRecv       = super::p_.subdomain.getRq() + super::map_.size();
+    const int             coefficients = offsets.rowStride();
+    unsigned short *const info         = neighborSizes.get();
+    constexpr bool        isSymmetric  = (S == 'S');
+    for (unsigned short k = 0; k < super::map_.size(); ++k) {
+      int neighborIndex;
+      MPI_Waitany(static_cast<int>(super::map_.size()), rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
+      assembleForMain<!U ? S : (isSymmetric ? 'B' : 'C'), U>(C, in[neighborIndex], coefficients, neighborIndex, super::workBase_, info);
+    }
+  }
+  template <char S, bool U, class T>
+  void applyFromNeighborMain(T *I, T *J, K *C, const CoarseOffsets &offsets, const NeighborSizes &neighborSizes, unsigned short localDof)
+  {
+    K *const *const     in           = super::p_.subdomain.getBuffer() + super::map_.size();
+    MPI_Request        *rqRecv       = super::p_.subdomain.getRq() + super::map_.size();
+    const int           coefficients = offsets.rowStride();
+    const unsigned int  offsetI      = super::max_;
+    unsigned int *const offsetJ      = offsets.neighborColumn();
+    ignore(localDof);
+    constexpr bool isSymmetric = (S == 'S');
+    for (unsigned short k = 0; k < super::map_.size(); ++k) {
+      int neighborIndex;
+      MPI_Waitany(static_cast<int>(super::map_.size()), rqRecv, &neighborIndex, MPI_STATUS_IGNORE);
+      applyFromNeighborMain<!U ? S : (isSymmetric ? 'B' : 'C'), 'C', U>(in[neighborIndex], neighborIndex, I, J, C, coefficients, offsetI, U ? nullptr : offsetJ,
+                                                                        super::workBase_, U ? nullptr : neighborSizes.get());
+    }
+  }
+    #endif
   #else
   BddProjection(const Preconditioner &p, const unsigned short &c, const int &max, Types...) : super(p, c, max)
   {
@@ -1484,7 +1765,7 @@ public:
     for (unsigned short i = 0; i < super::map_.size(); ++i)
       MPI_Irecv(mult + (U ? (displs[0][super::map_.size()] + displs[0][i]) * super::local_ : displs[0][super::map_.size()] * super::local_ + displs[1][i]),
                 super::map_[i].second.size() * (U ? super::local_ : infoNeighbor[i]), Wrapper<K>::mpi_type(), super::map_[i].first, 11,
-                super::p_.getCommunicator(), rqMult + i);
+                super::p_.subdomain.getCommunicator(), rqMult + i);
     K                              *tmp = new K[(U ? (super::map_.size() + 1) * super::local_ : displs[2][super::map_.size() + 1]) * super::n_]();
     const underlying_type<K> *const m   = super::p_.getScaling();
   #if HPDDM_PETSC
@@ -1502,7 +1783,7 @@ public:
                          super::map_[i].second.data());
   #endif
       MPI_Isend(mult + displs[0][i] * super::local_, super::map_[i].second.size() * super::local_, Wrapper<K>::mpi_type(), super::map_[i].first, 11,
-                super::p_.getCommunicator(), rqMult + super::map_.size() + i);
+                super::p_.subdomain.getCommunicator(), rqMult + super::map_.size() + i);
     }
 
     for (unsigned short i = 0; i < super::map_.size(); ++i) {
@@ -1609,7 +1890,8 @@ public:
         if (S != 'S' || !(l < i) || i < super::signed_) accumulate += U ? super::local_ : infoNeighbor[l];
       }
       if (U || infoNeighbor[i])
-        MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.getCommunicator(), rq++);
+        MPI_Isend(in[i], super::map_[i].second.size() * accumulate, Wrapper<K>::mpi_type(), super::map_[i].first, 2, super::p_.subdomain.getCommunicator(),
+                  rq++);
     }
     delete[] tmp;
     delete[] *displs;

@@ -57,6 +57,48 @@ HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) class InexactCoarseOperator;
 
 namespace HPDDM
 {
+#if PETSC_PCHPDDM_MAXLEVELS
+class NeighborSizes {
+private:
+  std::unique_ptr<unsigned short[]> coarse_dof_;
+  unsigned short                   *data_ = nullptr;
+  unsigned short                    skippedLowerNeighborCount_;
+
+public:
+  explicit NeighborSizes(unsigned short skippedLowerNeighborCount, unsigned short *data = nullptr) :
+    data_(data), skippedLowerNeighborCount_(skippedLowerNeighborCount)
+  {
+  }
+  unsigned short skippedLowerNeighborCount() const { return skippedLowerNeighborCount_; }
+  void           allocate(unsigned short totalNeighborCount)
+  {
+    coarse_dof_.reset(new unsigned short[totalNeighborCount]);
+    data_ = coarse_dof_.get();
+  }
+  unsigned short *get() const { return data_; }
+  unsigned short *upper() const { return data_ ? data_ + skippedLowerNeighborCount_ : nullptr; }
+};
+
+class CoarseInfo;
+class CoarseOffsets {
+private:
+  int                             rowStride_       = 0;
+  unsigned short                  selfBlockOffset_ = 0;
+  std::unique_ptr<unsigned int[]> neighborValue_;
+  std::unique_ptr<unsigned int[]> neighborColumn_;
+  std::unique_ptr<unsigned int[]> splitRow_;
+
+public:
+  template <bool isSymmetric, bool uniform, char pattern>
+  static CoarseOffsets create(bool, const std::vector<unsigned short> &, unsigned short, unsigned short, const NeighborSizes &, int, unsigned short,
+                              const unsigned short *, int, const std::vector<CoarseInfo> &);
+  int                  rowStride() const { return rowStride_; }
+  unsigned short       selfBlockOffset() const { return selfBlockOffset_; }
+  unsigned int        *neighborValue() const { return neighborValue_.get(); }
+  unsigned int        *neighborColumn() const { return neighborColumn_.get(); }
+  unsigned int        *splitRow() const { return splitRow_.get(); }
+};
+#endif
 HPDDM_CLASS_COARSE_OPERATOR(Solver, S, K) using coarse_operator_type = std::conditional_t<HPDDM_INEXACT_COARSE_OPERATOR,
                                                                                           InexactCoarseOperator<HPDDM_TYPES_COARSE_OPERATOR(Solver, S, K)>,
                                                                                           Solver

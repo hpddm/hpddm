@@ -27,9 +27,49 @@
 
 #include <unordered_set>
 #include <map>
+#include <cassert>
 
 namespace HPDDM
 {
+#ifdef PETSC_PCHPDDM_MAXLEVELS
+/* Function: allgatherConcat
+ *
+ *  Concatenates in rank order the arrays held by all processes of a communicator.
+ *
+ * Template Parameter:
+ *    T              - Type of the entries.
+ *
+ * Parameters:
+ *    in             - Local array.
+ *    n              - Local array size.
+ *    type           - MPI datatype of the entries.
+ *    comm           - Communicator.
+ *    total          - Concatenated array size.
+ *    all            - Concatenated array, to be freed with PetscFree. */
+template <class T>
+inline PetscErrorCode allgatherConcat(const T *in, PetscMPIInt n, MPI_Datatype type, MPI_Comm comm, PetscMPIInt *total, T **all)
+{
+  PetscMPIInt size, *counts, *displs;
+
+  PetscFunctionBeginUser;
+  PetscCallMPI(MPI_Comm_size(comm, &size));
+  if (size == 1) {
+    PetscCall(PetscMalloc1(n, all));
+    std::copy_n(in, n, *all);
+    *total = n;
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  PetscCall(PetscMalloc2(size, &counts, size + 1, &displs));
+  PetscCallMPI(MPI_Allgather(&n, 1, MPI_INT, counts, 1, MPI_INT, comm));
+  displs[0] = 0;
+  for (PetscMPIInt i = 0; i < size; ++i) PetscCall(PetscMPIIntCast(static_cast<PetscCount>(displs[i]) + counts[i], displs + i + 1));
+  PetscCall(PetscMalloc1(displs[size], all));
+  PetscCallMPI(MPI_Allgatherv(in, n, type, *all, counts, displs, type, comm));
+  *total = displs[size];
+  PetscCall(PetscFree2(counts, displs));
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+#endif
 /* Class: Subdomain
  *
  *  A class for handling all communications and computations between subdomains.
@@ -60,7 +100,9 @@ protected:
   MPI_Comm communicator_{MPI_COMM_NULL};
   /* Variable: dof
          *  Number of degrees of freedom in the current subdomain. */
-  int  dof_{};
+  int dof_{};
+
+public:
   void dtor()
   {
     clearBuffer();
@@ -74,12 +116,12 @@ protected:
 #endif
   }
 
-public:
   Subdomain() = default;
+#ifndef PETSC_PCHPDDM_MAXLEVELS
   Subdomain(const Subdomain<K> &s) :
-#if !HPDDM_PETSC
+  #if !HPDDM_PETSC
     OptionsPrefix<K>(),
-#endif
+  #endif
     buff_(new K *[2 * s.map_.size()]),
     map_(s.map_),
     rq_(new MPI_Request[2 * s.map_.size()]),
@@ -87,6 +129,10 @@ public:
     dof_(s.dof_)
   {
   }
+#else
+  Subdomain(const Subdomain<K> &)            = delete;
+  Subdomain &operator=(const Subdomain<K> &) = delete;
+#endif
   ~Subdomain() { dtor(); }
   using integer_type = int;
   /* Function: getCommunicator
@@ -651,6 +697,22 @@ public:
       else std::copy_n(out, bs * n, in);
     }
   }
+#else
+  PetscErrorCode setCommunicatorFromObject(PetscObject obj)
+  {
+    PetscFunctionBeginUser;
+    PetscCall(PetscObjectGetComm(obj, &communicator_));
+    PetscFunctionReturn(PETSC_SUCCESS);
+  }
+  void forceDof(int dof) { dof_ = dof; }
+  void resetDistribution(unsigned short neighbors)
+  {
+    assert(!buff_ && !rq_ && "resetDistribution() must not be called twice");
+    map_.resize(neighbors);
+    buff_ = new K *[2 * map_.size()]();
+    rq_   = new MPI_Request[2 * map_.size()];
+  }
+  vectorNeighbor &getMapMutable() { return map_; }
 #endif
 };
 
