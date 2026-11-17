@@ -93,7 +93,11 @@ public:
           PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), n / bs, PETSC_DECIDE, N / bs, mu, work, x + 1));
           PetscCall(MatCreateDense(PetscObjectComm((PetscObject)ksp_), n / bs, PETSC_DECIDE, N / bs, mu,
                                    std::is_same<PetscScalar, K>::value ? reinterpret_cast<PetscScalar *>(out) : nullptr, x));
+#if PETSC_VERSION_LT(3, 27, 0)
           PetscCall(MatKAIJGetAIJ(A, &a));
+#else
+          PetscCall(MatKAIJGetA(A, &a));
+#endif
           PetscCall(MatProductCreateWithMat(a, X_[1], nullptr, X_[0]));
           PetscCall(MatProductSetType(X_[0], MATPRODUCT_AB));
           PetscCall(MatProductSetFromOptions(X_[0]));
