@@ -263,13 +263,10 @@ inline int IterativeMethod::GCRODR(const Operator &A, const K *const b, K *const
     } else {
       converged = true;
       if (!excluded && HPDDM_IT(j, A) == HPDDM_MAX_IT(m[1], A) + 1) {
-        int rem = (U ? (HPDDM_MAX_IT(m[1], A) - m[0]) % (m[0] - k) : HPDDM_MAX_IT(m[1], A) % m[0]);
-        if (rem) {
-          if (U) rem += k;
+        if (i < m[0])
           std::for_each(hasConverged, hasConverged + mu, [&](short &dim) {
-            if (dim < 0) dim = rem;
+            if (dim < 0) dim = i;
           });
-        }
       }
     }
 #if HPDDM_PETSC
