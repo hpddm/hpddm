@@ -59,15 +59,14 @@ PETSC_EXTERN PetscErrorCode PetscDLLibraryRegister_hpddm_petsc(void)
 PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm &comm, PetscMPIInt redistribute, PetscInt n, PetscScalar *a, int lda,
                                               PetscScalar *b, int ldb, PetscInt k, PetscScalar *vr, const PetscBool symmetric)
 {
-  EPS          eps = nullptr;
-  SVD          svd;
-  Mat          X = nullptr, Y = nullptr;
-  Vec          Vr = nullptr, Vi;
-  PetscInt     nconv, i, nrow = n, rbegin = 0;
-  PetscBLASInt info;
-  PetscMPIInt  rank, size;
-  MPI_Comm     subcomm;
-  MPI_Group    world, worker;
+  EPS         eps = nullptr;
+  SVD         svd;
+  Mat         X = nullptr, Y = nullptr;
+  Vec         Vr = nullptr, Vi = nullptr;
+  PetscInt    nconv, i, nrow = n, rbegin = 0;
+  PetscMPIInt rank, size;
+  MPI_Comm    subcomm;
+  MPI_Group   world, worker;
 
   PetscFunctionBegin;
   if (redistribute <= 1) {
@@ -189,19 +188,17 @@ PETSC_EXTERN PetscErrorCode KSPHPDDM_Internal(const char *prefix, const MPI_Comm
     }
     if (!Vr) PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)X), 1, nrow, n, nullptr, &Vr));
     if (std::is_same<PetscReal, PetscScalar>::value) PetscCall(VecCreateMPIWithArray(PetscObjectComm((PetscObject)X), 1, nrow, n, nullptr, &Vi));
-    info = 0;
     for (i = 0; i < std::min(nconv, k); ++i) {
-      PetscScalar eigr, eigi = PetscScalar();
       PetscCall(VecPlaceArray(Vr, vr + static_cast<std::ptrdiff_t>(i) * n + rbegin));
       if (eps) {
-        if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) PetscCall(VecPlaceArray(Vi, vr + (static_cast<std::ptrdiff_t>(i) + 1) * n + rbegin));
-        PetscCall(EPSGetEigenpair(eps, i - info, &eigr, std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? &eigi : nullptr, Vr,
-                                  std::is_same<PetscReal, PetscScalar>::value && i != k - 1 ? Vi : nullptr));
-        if (HPDDM::abs(eigi) > 100 * PETSC_MACHINE_EPSILON) {
-          ++i;
-          ++info;
+        PetscScalar eigi;
+        Vec         imag = i + 1 < k ? Vi : nullptr;
+        if (imag) PetscCall(VecPlaceArray(imag, vr + (static_cast<std::ptrdiff_t>(i) + 1) * n + rbegin));
+        PetscCall(EPSGetEigenpair(eps, i, nullptr, &eigi, Vr, imag));
+        if (imag) {
+          PetscCall(VecResetArray(imag));
+          if (eigi != PetscScalar()) ++i;
         }
-        if (std::is_same<PetscReal, PetscScalar>::value && i != k - 1) PetscCall(VecResetArray(Vi));
       } else PetscCall(SVDGetSingularTriplet(svd, i, nullptr, nullptr, Vr));
       PetscCall(VecResetArray(Vr));
     }
